@@ -2,16 +2,15 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement
@@ -351,25 +350,25 @@ func (s *service) enqueueReminderEmails(
 			continue
 		}
 		seenEmails[address] = struct{}{}
-		if _, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:   address,
-				emailPayloadFirstName:   r.FirstName,
-				emailPayloadLastName:    r.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   portalURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
+		if _, err := s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:   deliveryPorts.JSONString(address),
+				emailPayloadFirstName:   deliveryPorts.JSONString(r.FirstName),
+				emailPayloadLastName:    deliveryPorts.JSONString(r.LastName),
+				emailPayloadTitle:       deliveryPorts.JSONString(a.Title),
+				emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:   deliveryPorts.JSONString(portalURL),
+				emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:       deliveryPorts.JSONString(intro),
 			},
 			// Reminders have their own related type so cleanup can cancel pending
 			// reminder mail alongside the announcement's publish mail.
 			RelatedEntityType: relatedEntityTypePollReminder,
 			RelatedEntityID:   a.ID,
-		}); err != nil {
+		}.Public()); err != nil {
 			return nil, fmt.Errorf("announcement: enqueue reminder e-mail: %w", err)
 		}
 		queuedAccountIDs = append(queuedAccountIDs, r.AccountID)

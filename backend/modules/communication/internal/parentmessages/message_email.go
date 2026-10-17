@@ -2,16 +2,14 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 const (
@@ -27,9 +25,7 @@ const (
 	messagePayloadMotoLogoURL  = "moto_logo_url"
 )
 
-type ParentMessageRendererConfig struct {
-	DefaultFrom email.Email
-}
+type ParentMessageRendererConfig deliveryPorts.MailRendererConfig
 
 type parentMessageEmailCopy struct {
 	Subject            string
@@ -115,51 +111,51 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	if profile.PortalLocale != nil {
 		locale = s.deliveryPolicy.NormalizeLocale(*profile.PortalLocale)
 	}
-	request := platformModels.OutboxEnqueueRequest{
-		Kind:              platformModels.EmailKindParentMessage,
-		RelatedEntityType: platformModels.EmailRelatedTypeParentMessage,
+	request := deliveryPorts.MailEnqueueInput{
+		Kind:              deliveryPorts.MailKindParentMessage,
+		RelatedEntityType: deliveryPorts.MailRelatedTypeParentMessage,
 		RelatedEntityID:   messageID,
 		IdempotencyKey:    parentMessageEmailType + ":" + strconv.FormatInt(messageID, 10),
-		Payload: map[string]any{
-			messagePayloadRecipient:   recipient,
-			messagePayloadFirstName:   profile.FirstName,
-			messagePayloadLastName:    profile.LastName,
-			messagePayloadLocale:      locale,
-			messagePayloadSchoolName:  schoolName,
-			messagePayloadMessagesURL: strings.TrimRight(s.ParentsURL, "/") + "/messages/" + strconv.FormatInt(thread.StudentID, 10),
-			messagePayloadLogoURL:     logoURL,
-			messagePayloadMotoLogoURL: s.deliveryPolicy.MotoLogoURL(s.ParentsURL),
+		Payload: map[string]json.RawMessage{
+			messagePayloadRecipient:   deliveryPorts.JSONString(recipient),
+			messagePayloadFirstName:   deliveryPorts.JSONString(profile.FirstName),
+			messagePayloadLastName:    deliveryPorts.JSONString(profile.LastName),
+			messagePayloadLocale:      deliveryPorts.JSONString(locale),
+			messagePayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+			messagePayloadMessagesURL: deliveryPorts.JSONString(strings.TrimRight(s.ParentsURL, "/") + "/messages/" + strconv.FormatInt(thread.StudentID, 10)),
+			messagePayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+			messagePayloadMotoLogoURL: deliveryPorts.JSONString(s.deliveryPolicy.MotoLogoURL(s.ParentsURL)),
 		},
-	}
-	if err := s.Outbox.EnqueueOutbox(ctx, request); err != nil {
+	}.Public()
+	if err := s.Outbox.EnqueueMail(ctx, request); err != nil {
 		return fmt.Errorf("messaging: enqueue guardian message e-mail: %w", err)
 	}
 	return nil
 }
 
-func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
-	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
-		recipient, _ := row.Payload[messagePayloadRecipient].(string)
+func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) deliveryPorts.MailRenderer {
+	return deliveryPorts.NewMailRenderer(func(_ context.Context, row *deliveryPorts.MailIntent) (*deliveryPorts.MailMessage, error) {
+		recipient := row.Payload.String(messagePayloadRecipient)
 		if strings.TrimSpace(recipient) == "" {
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
 		}
-		first, _ := row.Payload[messagePayloadFirstName].(string)
-		last, _ := row.Payload[messagePayloadLastName].(string)
-		locale, _ := row.Payload[messagePayloadLocale].(string)
-		schoolName, _ := row.Payload[messagePayloadSchoolName].(string)
-		messagesURL, _ := row.Payload[messagePayloadMessagesURL].(string)
-		logoURL, _ := row.Payload[messagePayloadLogoURL].(string)
-		motoLogoURL, _ := row.Payload[messagePayloadMotoLogoURL].(string)
+		first := row.Payload.String(messagePayloadFirstName)
+		last := row.Payload.String(messagePayloadLastName)
+		locale := row.Payload.String(messagePayloadLocale)
+		schoolName := row.Payload.String(messagePayloadSchoolName)
+		messagesURL := row.Payload.String(messagePayloadMessagesURL)
+		logoURL := row.Payload.String(messagePayloadLogoURL)
+		motoLogoURL := row.Payload.String(messagePayloadMotoLogoURL)
 		if messagesURL == "" {
 			return nil, fmt.Errorf("%s payload missing messages_url", row.Kind)
 		}
 		copy := messageEmailCopy(locale, first, last, schoolName, "", policy)
-		return &email.Message{
+		return &deliveryPorts.MailMessage{
 			From:     cfg.DefaultFrom,
-			To:       email.NewEmail(strings.TrimSpace(first+" "+last), recipient),
+			To:       deliveryPorts.NewMailAddress(strings.TrimSpace(first+" "+last), recipient),
 			Subject:  copy.Subject,
 			Template: parentMessageEmailTemplate,
-			Content: map[string]any{
+			Content: deliveryPorts.NewMailContent(map[string]string{
 				"Subject":            copy.Subject,
 				"GuardianFirstName":  first,
 				"GuardianLastName":   last,
@@ -178,9 +174,9 @@ func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPo
 				"MessagesURL":        messagesURL,
 				"LogoURL":            logoURL,
 				"MotoLogoURL":        motoLogoURL,
-			},
+			}, nil),
 		}, nil
-	}
+	})
 }
 
 func messageEmailCopy(locale, firstName, lastName, schoolName, childName string, policy deliveryPorts.LocaleNormalizer) parentMessageEmailCopy {
