@@ -47,8 +47,10 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	f.membership = owners.Membership
 	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
+	structure, presence, err := api.NewGradeTransitionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
-		DB: db, Directory: f.people, Membership: f.membership,
+		DB: db, Structure: structure, Presence: presence, Directory: f.people, Membership: f.membership,
 		Rosters:              owners.Rosters,
 		LockRecurrenceWrites: owners.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(_ context.Context, effectiveFrom calendar.Date) error {
