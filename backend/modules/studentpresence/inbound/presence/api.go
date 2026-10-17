@@ -20,6 +20,7 @@ type Resource struct {
 	SchulhofService    SchulhofStatusQuery
 	UserContextService StaffAccess
 	SettingsService    Settings
+	displaySettings    DisplaySettings
 	// OpenRoomMove records a move into a released room (#3066). Nil in
 	// resources that do not serve the move-to-room route.
 	OpenRoomMove openroommove.Command
@@ -39,7 +40,7 @@ func (rs *Resource) getLogger() *slog.Logger {
 }
 
 // NewResource creates a new active resource
-func NewResource(operations PresenceOperations, personService People, educationService func(context.Context, int64) ([]int64, error), schulhofService SchulhofStatusQuery, userContextService StaffAccess, settingsService Settings, protectedRoutes func(chi.Router, func(chi.Router, common.Middleware)), logger *slog.Logger, presence PresenceQueries, runtime RequestRuntime, authorization Authorization, openRoomMove openroommove.Command) *Resource {
+func NewResource(operations PresenceOperations, personService People, educationService func(context.Context, int64) ([]int64, error), schulhofService SchulhofStatusQuery, userContextService StaffAccess, settingsService Settings, protectedRoutes func(chi.Router, func(chi.Router, common.Middleware)), logger *slog.Logger, presence PresenceQueries, runtime RequestRuntime, authorization Authorization, openRoomMove openroommove.Command, displaySettings DisplaySettings) *Resource {
 	if logger == nil {
 		panic("active API: logger is required")
 	}
@@ -64,6 +65,9 @@ func NewResource(operations PresenceOperations, personService People, educationS
 	if authorization.StudentDataAccess == nil {
 		panic("active API: student data authorization is required")
 	}
+	if displaySettings == nil {
+		panic("active API: display settings facts are required")
+	}
 	return &Resource{
 		Operations:         operations,
 		Presence:           presence,
@@ -72,6 +76,7 @@ func NewResource(operations PresenceOperations, personService People, educationS
 		SchulhofService:    schulhofService,
 		UserContextService: userContextService,
 		SettingsService:    settingsService,
+		displaySettings:    displaySettings,
 		OpenRoomMove:       openRoomMove,
 		protectedRoutes:    protectedRoutes,
 		logger:             logger,

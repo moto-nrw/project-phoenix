@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -1529,7 +1531,7 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove, settingsFacts.NewDisplaySettings(svc.Settings))
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
@@ -1720,7 +1722,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: modules.listExport,
-	}, logger.With("handler", "rooms"), ProtectedTenantRoutes).Router())
+	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).

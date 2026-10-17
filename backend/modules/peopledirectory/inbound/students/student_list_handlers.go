@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
@@ -16,7 +18,7 @@ import (
 )
 
 func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {
-	return common.PrefetchSettingsOrError(ctx, rs.SettingsService,
+	return settingsFacts.PrefetchSettingsOrError(ctx, rs.SettingsService,
 		settingEnrollmentBookingsAuthoritative,
 		settingPresenceMode,
 		settingSessionEndTime,
