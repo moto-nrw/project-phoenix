@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -45,17 +43,17 @@ func (s *Service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 // activeChildFlags combines the tenant settings with the guardian's
 // permissions for a child who is still in care.
 func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeRequest bool) ChildFeatureFlags {
-	canEditMasterData := f.masterEdit && child.HasPermission(authorize.GuardianPermissionMasterDataEdit)
-	canManagePickup := child.HasPermission(authorize.GuardianPermissionPickupManage)
-	canManageGuardianContacts := child.HasPermission(authorize.GuardianPermissionGuardianEdit)
+	canEditMasterData := f.masterEdit && child.HasPermission(GuardianPermissionMasterDataEdit)
+	canManagePickup := child.HasPermission(GuardianPermissionPickupManage)
+	canManageGuardianContacts := child.HasPermission(GuardianPermissionGuardianEdit)
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         hasOpenChangeRequest,
-		SickNoteEnabled:              f.sick && f.sickReports && child.HasPermission(authorize.GuardianPermissionSickNoteSubmit),
-		ExcusedNoteEnabled:           f.sick && f.excusedReports && child.HasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		SickNoteEnabled:              f.sick && f.sickReports && child.HasPermission(GuardianPermissionSickNoteSubmit),
+		ExcusedNoteEnabled:           f.sick && f.excusedReports && child.HasPermission(GuardianPermissionSickNoteSubmit),
 		SickRequiresApproval:         f.sickApproval,
 		ExcusedRequiresApproval:      f.excusedApproval,
-		NotesEnabled:                 f.notes && child.HasPermission(authorize.GuardianPermissionNotesWrite),
-		RequestSubmitEnabled:         f.notes && child.HasPermission(authorize.GuardianPermissionRequestSubmit),
+		NotesEnabled:                 f.notes && child.HasPermission(GuardianPermissionNotesWrite),
+		RequestSubmitEnabled:         f.notes && child.HasPermission(GuardianPermissionRequestSubmit),
 		PickupChangeEnabled:          f.pickupChange && canManagePickup,
 		PickupChangeModeEnabled:      f.pickupChangeMode && canManagePickup,
 		PickupChangeCutoffTime:       f.pickupCutoff.Clock,
@@ -66,9 +64,9 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		RelatedAccountsRemoveEnabled: f.canRemove && f.inviteMode != ParentInviteModeDisabled,
 		MasterDataEditEnabled:        canEditMasterData,
 		MasterDataContactEditEnabled: canEditMasterData && f.guardianManagement,
-		MasterDataRequestEnabled:     f.masterRequest && child.HasPermission(authorize.GuardianPermissionMasterDataRequest),
+		MasterDataRequestEnabled:     f.masterRequest && child.HasPermission(GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              f.mealPlan,
-		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(authorize.GuardianPermissionMealParticipationManage),
+		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
 		ReasonRequired:               RequestReasonPolicy(f.reasonPolicy).RequiresReason(false),
 	}

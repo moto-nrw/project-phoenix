@@ -84,9 +84,12 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:   api.ParentPortalRuntime{},
-		ChildRepo: child,
-		Logger:    slog.Default(),
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		ChildRepo:      child,
+		Logger:         slog.Default(),
 	})
 }
 
@@ -94,6 +97,9 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: enroll,
 		EnrollmentSettings:  stubEnrollmentSettings{},
@@ -125,6 +131,9 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 		{SchoolID: 22, PhaseID: 202},
 	}}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: repo,
 		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
@@ -142,6 +151,9 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
@@ -295,9 +307,12 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	testpkg.SetupTestDB(t)
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:   api.ParentPortalRuntime{},
-		ChildRepo: &stubChildRepo{},
-		Logger:    nil,
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		ChildRepo:      &stubChildRepo{},
+		Logger:         nil,
 	})
 	require.NotNil(t, svc)
 

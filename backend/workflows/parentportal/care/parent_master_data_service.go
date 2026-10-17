@@ -11,8 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -128,7 +126,7 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		return nil, ErrMasterDataFieldNotEditable
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataEdit)
 	if err != nil {
 		return nil, err
 	}

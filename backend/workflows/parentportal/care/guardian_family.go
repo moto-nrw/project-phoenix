@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -96,25 +95,25 @@ func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.St
 		return false
 	}
 	return profile.HasPortalAccount() ||
-		link.GuardianRole == authorize.GuardianRoleSocialWorker ||
+		link.GuardianRole == GuardianRoleSocialWorker ||
 		sharedAcrossFamilies
 }
 
 // projectChildGuardian builds the parent-facing projection of one guardian.
 // sharedAcrossFamilies marks a contact-only profile that also serves a child
 // outside the caller's family — editable only by the school, not this caller.
-func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool) *ChildGuardian {
+func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	// "Account holder" derives from has_account OR account_id (HasPortalAccount),
 	// matching every write guard, so a drifted row (account_id set,
 	// has_account=false) is read-redacted and lock-marked exactly as the write
 	// path refuses it — read and write agree (#1667 review).
 	hasAccount := profile.HasPortalAccount()
-	isSocialWorker := link.GuardianRole == authorize.GuardianRoleSocialWorker
+	isSocialWorker := link.GuardianRole == GuardianRoleSocialWorker
 	// A full guardian (primary/legal/co) is a real legal guardian, not a helper.
 	// Self is exempt: the caller's own profile (always a full guardian) stays
 	// editable via the isSelf branches below.
-	isFullGuardian := !isSelf && authorize.IsFullGuardianRole(link.GuardianRole)
+	isFullGuardian := !isSelf && fullGuardianRole(link.GuardianRole)
 	protected := contactProtected(profile, link, isSelf, sharedAcrossFamilies)
 	g := &ChildGuardian{
 		GuardianProfileID:  profile.ID,

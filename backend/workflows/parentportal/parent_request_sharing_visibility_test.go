@@ -47,11 +47,14 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:      api.ParentPortalRuntime{},
-		CarePlan:     repos.CarePlan(),
-		People:       api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles: careProfiles(t, db),
-		ChildRepo:    repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		CarePlan:       repos.CarePlan(),
+		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:   careProfiles(t, db),
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PersonRepo: repos.Person,
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,

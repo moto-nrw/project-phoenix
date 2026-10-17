@@ -9,8 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -34,7 +32,7 @@ func (s *Service) SubmitCareExceptionWithReason(ctx context.Context, accountID, 
 		// Same one-day Abholzeit change as the request path, so it follows the
 		// same per-school reason policy — which needs the child's tenant first
 		// (#2267, story 28).
-		child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+		child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +48,7 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 		return nil, ErrNoCareException
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +239,7 @@ func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, 
 // is a no-op (and skips the broadcast). Not gated by the feature toggle for the
 // same reason as ListCareExceptions: clearing one's own override stays available.
 func (s *Service) DeleteCareException(ctx context.Context, accountID, studentID int64, date calendar.Date) error {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return err
 	}

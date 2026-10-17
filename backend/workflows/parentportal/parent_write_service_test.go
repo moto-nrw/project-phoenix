@@ -121,6 +121,9 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -135,9 +138,9 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
-		MealPlan:    availableMealPlan(false),
-		Broadcaster: bc,
-		Logger:      slog.Default(),
+		MealPlan:       availableMealPlan(false),
+		StudentUpdates: api.BindParentStudentUpdates(bc),
+		Logger:         slog.Default(),
 	}
 	return cfg, bc, db
 }
@@ -157,6 +160,9 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:    api.ParentGuardianPolicy{},
+		Fingerprints:      api.SecurityFingerprints{},
+		Locales:           api.ParentPortalLocales(),
 		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:          repos.CarePlan(),
@@ -167,7 +173,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		StudentRepo:       repos.Student,
 		CareExceptions:    repos.CarePlan(),
 		Settings:          settings,
-		Broadcaster:       bc,
+		StudentUpdates:    api.BindParentStudentUpdates(bc),
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
@@ -439,6 +445,9 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -460,8 +469,8 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Logger:      slog.Default(),
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
 	})
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)

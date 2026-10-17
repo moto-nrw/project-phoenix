@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
@@ -170,7 +172,7 @@ func (s *Service) DeclarationProof(ctx context.Context, accountID, announcementI
 	if accountID <= 0 || announcementID <= 0 || studentID <= 0 {
 		return nil, fmt.Errorf("parent: account_id, announcement_id and student_id must be positive")
 	}
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, ErrAnnouncementNotFound
 	}
@@ -212,19 +214,19 @@ func (s *Service) loadDeclarationProof(ctx context.Context, proof *DeclarationPr
 	for _, v := range versions {
 		proof.Versions[v.ID] = v
 	}
-	proof.IntegrityOK = declarationProofIntact(proof)
+	proof.IntegrityOK = declarationProofIntact(proof, s.Fingerprints.Content)
 	return nil
 }
 
 // declarationProofIntact recomputes the checksums of the guardian's answers
 // and of the versions they answered on.
-func declarationProofIntact(proof *DeclarationProof) bool {
+func declarationProofIntact(proof *DeclarationProof, fingerprint func([]byte) string) bool {
 	for _, sub := range proof.Submissions {
-		if DeclarationRecordHash(sub) != sub.RecordHash {
+		if DeclarationRecordHash(sub, fingerprint) != sub.RecordHash {
 			return false
 		}
 		v, ok := proof.Versions[sub.VersionID]
-		if !ok || DeclarationContentHash(v) != v.ContentHash || sub.ContentHash != v.ContentHash {
+		if !ok || DeclarationContentHash(v, fingerprint) != v.ContentHash || sub.ContentHash != v.ContentHash {
 			return false
 		}
 	}

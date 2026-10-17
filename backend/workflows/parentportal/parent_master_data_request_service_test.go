@@ -25,6 +25,9 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -36,7 +39,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataSettings(false, true, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -285,6 +288,9 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -296,7 +302,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Emitter:             api.BindParentChildEvents(emitter),
 		Logger:              slog.Default(),
 	})

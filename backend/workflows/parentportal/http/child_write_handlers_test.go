@@ -77,6 +77,9 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
 		CarePlan:        repos.CareExceptions,
 		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
@@ -227,14 +230,17 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:       api.ParentPortalRuntime{},
-		CarePlan:      repos.CareExceptions,
-		People:        api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:     repos.ParentChildReads(),
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
-		Settings:      disabledSettings{},
-		Logger:        slog.Default(),
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		CarePlan:       repos.CareExceptions,
+		People:         api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		ChildRepo:      repos.ParentChildReads(),
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		Settings:       disabledSettings{},
+		Logger:         slog.Default(),
 	})
 	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router())
 }

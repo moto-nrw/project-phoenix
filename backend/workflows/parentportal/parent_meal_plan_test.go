@@ -46,18 +46,21 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	}
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:       api.ParentPortalRuntime{},
-		CarePlan:      repos.CarePlan(),
-		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChildReads(),
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
-		MealPlan:      mealPlan,
-		Settings:      settings,
-		Broadcaster:   testpkg.NewRecordingBroadcaster(),
-		Logger:        slog.Default(),
-		Now:           func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) },
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		CarePlan:       repos.CarePlan(),
+		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:   careProfiles(t, db),
+		ChildRepo:      repos.ParentChildReads(),
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		MealPlan:       mealPlan,
+		Settings:       settings,
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
+		Now:            func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) },
 	})
 }
 

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -283,7 +282,7 @@ func (s *Service) shareRecipients(
 	if err != nil {
 		return nil, nil, err
 	}
-	profiles := portalGuardianProfileIDs(links)
+	profiles := portalGuardianProfileIDs(links, s.GuardianPolicy.PermissionGranted)
 	profileRows, err := s.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, profiles)
 	if err != nil {
 		return nil, nil, err
@@ -300,10 +299,10 @@ func (s *Service) shareRecipients(
 	return recipients, accountIDs, nil
 }
 
-func portalGuardianProfileIDs(links []*userModels.StudentGuardian) []int64 {
+func portalGuardianProfileIDs(links []*userModels.StudentGuardian, granted func(any) bool) []int64 {
 	profiles := make([]int64, 0, len(links))
 	for _, link := range links {
-		if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+		if link != nil && granted(link.Permissions[care.GuardianPermissionPortalAccess]) {
 			profiles = append(profiles, link.GuardianProfileID)
 		}
 	}

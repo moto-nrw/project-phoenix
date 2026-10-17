@@ -36,6 +36,9 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -51,8 +54,8 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentPickupChangeEnabled: true},
 		},
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Logger:      slog.Default(),
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
 	})
 	return careTestService{Portal: svc}, db
 }

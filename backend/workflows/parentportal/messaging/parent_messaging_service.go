@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -287,7 +286,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 	// (ChildFeatures.NotesEnabled gates on the same permission), and this gate makes
 	// the API agree with the UI instead of accepting a direct POST. See
 	// .claude/rules/guardian-parent-permissions.md.
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionNotesWrite)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionNotesWrite)
 	if err != nil {
 		return nil, err
 	}

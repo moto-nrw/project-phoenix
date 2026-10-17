@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 )
 
 // GetChildCourses returns the school's courses with this child's state.
@@ -24,7 +22,7 @@ func (s *Service) GetChildCourses(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*careplan.CourseCatalog, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentsView)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionEnrollmentsView)
 	if err != nil {
 		// "Darf nicht anfragen" ist kein Fehler, sondern ein benannter Grund:
 		// sonst stünde an der Stelle eine Fehlermeldung statt einer Erklärung.
@@ -49,7 +47,7 @@ func (s *Service) GetChildCourses(
 			return resolveErr
 		}
 		catalog = resolved
-		catalog.CanRequest = child.HasPermission(authorize.GuardianPermissionEnrollmentSubmit)
+		catalog.CanRequest = child.HasPermission(GuardianPermissionEnrollmentSubmit)
 		catalog.ReasonRequired = s.GuardianReasonRequired(txCtx, child.TenantID)
 		return nil
 	})
@@ -142,11 +140,11 @@ func (s *Service) resolveCourseWriteChild(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*Child, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionEnrollmentSubmit)
 	if err != nil {
 		return nil, err
 	}
-	if !child.HasPermission(authorize.GuardianPermissionEnrollmentsView) {
+	if !child.HasPermission(GuardianPermissionEnrollmentsView) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	return child, nil
