@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 63,
+  "policy_epoch": 64,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -13991,6 +13991,17 @@
       "source_owner_kind": "domain",
       "source_role": "test-support",
       "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.port",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "port",
       "same_owner": true
     },
     {

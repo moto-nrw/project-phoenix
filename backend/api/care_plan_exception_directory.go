@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -13,7 +13,7 @@ import (
 // days in Timetable's projection vocabulary, for the partial-absence preview
 // and Student Presence's attendance rules (#4010, #4011).
 type pickupExceptionDirectory struct {
-	query carePlanCompose.ExceptionQueries
+	query carePlanPorts.ExceptionQueries
 }
 
 func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*timetablePorts.PickupExceptionProjection, error) {

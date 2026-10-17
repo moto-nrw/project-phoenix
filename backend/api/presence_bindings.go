@@ -4,6 +4,7 @@ import (
 	"context"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -54,7 +55,7 @@ func (r TimetablePlannedRoster) ListPlannedParticipants(ctx context.Context, fil
 // presenceCarePlanDirectory serves Student Presence's care-plan port from the
 // Care Plan exception queries.
 type presenceCarePlanDirectory struct {
-	query carePlanCompose.ExceptionQueries
+	query carePlanPorts.ExceptionQueries
 }
 
 func (d presenceCarePlanDirectory) FindPickupException(ctx context.Context, id int64) (*studentpresence.SessionPickupException, error) {
@@ -103,7 +104,7 @@ type PresenceRulesDependencies struct {
 
 // NewPresenceRulesDependencies binds the attendance rules of Student Presence
 // to the given Timetable owner and to the built Care Plan queries and locks.
-func NewPresenceRulesDependencies(capability timetable.InstanceStudentQuery, queries carePlanCompose.ExceptionQueries, locks carePlanCompose.DayLocks) PresenceRulesDependencies {
+func NewPresenceRulesDependencies(capability timetable.InstanceStudentQuery, queries carePlanPorts.ExceptionQueries, locks carePlanCompose.DayLocks) PresenceRulesDependencies {
 	return PresenceRulesDependencies{
 		Roster:   NewTimetablePlannedRoster(capability),
 		CarePlan: presenceCarePlanDirectory{query: queries},

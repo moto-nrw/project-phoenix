@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 185 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
+Stand 17.10.2026 · Ratchet 183 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 64 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-54.050 in `compose`
+52.864 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 185 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 183 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
