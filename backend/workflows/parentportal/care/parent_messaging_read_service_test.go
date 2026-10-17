@@ -61,7 +61,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
 		StudentRepo:           repos.Student,
-		GuardianProfileRepo:   repos.GuardianProfile,
+		GuardianProfileRepo:   api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Settings:              settings,
 		MessageThreadRepo:     repos.ParentMessageThread,
 		MessageRepo:           messageStores.Message,

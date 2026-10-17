@@ -38,7 +38,7 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 		Declarations:   api.ParentDeclarationPolicy(),
 		Runtime:        api.ParentPortalRuntime{},
 		Children:       childResolver(db, repos),
-		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,

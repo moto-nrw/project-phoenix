@@ -51,7 +51,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		Logger:              slog.Default(),
 	})
@@ -1396,6 +1396,7 @@ func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
 // guardianProfiles is the guardian-profile surface the portal reads; the test
 // may not name the portal's own ports.
 type guardianProfiles[T any] interface {
+	NormalizeProfile(*T) error
 	FindByID(ctx context.Context, id int64) (*T, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*T, error)
 	FindByEmail(ctx context.Context, email string) (*T, error)
@@ -1446,7 +1447,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(repos.GuardianProfile, lookupErr),
+		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(repos.GuardianProfile), lookupErr),
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		Logger:              slog.Default(),
 	})
