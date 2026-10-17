@@ -77,6 +77,7 @@ func (rs *Resource) mountStudentNoteRoutes(r chi.Router, withTx common.Middlewar
 	// Writing a note is not users:update: it adds a staff member's own
 	// entry, it does not change the child's master data.
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/notes", rs.listStudentNotes)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/note-subjects", rs.listStudentNoteSubjects)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes", rs.createStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Put("/{id}/notes/{noteId}", rs.updateStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Delete("/{id}/notes/{noteId}", rs.deleteStudentNote)

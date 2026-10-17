@@ -25,7 +25,7 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 		StudentID:    student.ID,
 		EditedBy:     account.ID,
 		EditedByName: "Ältere Bearbeitung",
-		FieldName:    audit.StudentFieldSupervisorNotes,
+		FieldName:    audit.StudentFieldExtraInfo,
 		OldValue:     testpkg.StrPtr("vorher"),
 		NewValue:     testpkg.StrPtr("nachher"),
 		CreatedAt:    time.Now().UTC().Add(-time.Minute),

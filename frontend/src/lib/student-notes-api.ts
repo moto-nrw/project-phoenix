@@ -52,6 +52,16 @@ export interface StudentNoteDraft {
   educationGroupId?: string;
 }
 
+/** An activity (Angebot) of the child that a new note may refer to. */
+export interface StudentNoteActivity {
+  id: string;
+  name: string;
+}
+
+interface BackendNoteSubjects {
+  activities?: { id: string; name: string }[];
+}
+
 interface BackendStudentNote {
   id: string;
   student_id: string;
@@ -123,6 +133,24 @@ class StudentNotesService {
     }
     const json = (await response.json()) as { data: BackendStudentNote[] };
     return (json.data ?? []).map(mapNote);
+  }
+
+  /**
+   * The child's activities today. The create route checks a reference
+   * against the same read, so the form never offers one it would refuse.
+   */
+  async listActivities(studentId: string): Promise<StudentNoteActivity[]> {
+    const response = await sessionFetch(
+      `/api/students/${studentId}/note-subjects`,
+    );
+    if (!response.ok) {
+      await throwNoteError(response, "Angebote konnten nicht geladen werden.");
+    }
+    const json = (await response.json()) as { data: BackendNoteSubjects };
+    return (json.data?.activities ?? []).map((activity) => ({
+      id: activity.id,
+      name: activity.name,
+    }));
   }
 
   async create(studentId: string, draft: StudentNoteDraft): Promise<void> {

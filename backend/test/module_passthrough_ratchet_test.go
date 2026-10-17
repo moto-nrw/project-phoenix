@@ -196,7 +196,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3088
+const modulePassthroughOwnerBudgetTotal = 3087
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -316,7 +316,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	//
 	// ADR 0061: application 52 + modules/peopledirectory/compose 256.
 	// ADR 0064: +1, DatabaseError.Error in the scanned ports package.
-	"modules/peopledirectory": 308,
+	"modules/peopledirectory": 307,
 	// ADR 0061: application 0 + modules/requestreview/compose 17.
 	"modules/requestreview": 17,
 	// ADR 0061: application 0 + modules/schedulerruntime/compose 4.

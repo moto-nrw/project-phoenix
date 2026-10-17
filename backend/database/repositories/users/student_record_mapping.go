@@ -17,10 +17,9 @@ func RetainedStudentModel(record peopleModule.StudentRecord) *userModels.Student
 		AddressCity:       record.AddressCity,
 		AddressPostalCode: record.AddressPostalCode,
 
-		ExtraInfo:       record.ExtraInfo,
-		SupervisorNotes: record.SupervisorNotes,
-		HealthInfo:      record.HealthInfo,
-		PickupStatus:    record.PickupStatus,
+		ExtraInfo:    record.ExtraInfo,
+		HealthInfo:   record.HealthInfo,
+		PickupStatus: record.PickupStatus,
 
 		DepartureDays:          record.DepartureDays,
 		AllowedDepartureModes:  record.AllowedDepartureModes,

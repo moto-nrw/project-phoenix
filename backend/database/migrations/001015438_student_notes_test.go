@@ -131,7 +131,10 @@ func TestStudentNotesConstraints(t *testing.T) {
 // partial failure.
 func TestStudentNotesBackfill(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	// 1.15.458 dropped the column this carry-over reads; the test restores it
+	// in a database of its own.
+	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStudentSupervisorNotesColumn(t, db)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 

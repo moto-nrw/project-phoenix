@@ -24,7 +24,6 @@ export interface ExtendedStudent extends Student {
   birthday?: string;
   buskind?: boolean;
   extra_info?: string;
-  supervisor_notes?: string;
   health_info?: string;
   address_street?: string;
   address_city?: string;
@@ -121,9 +120,6 @@ function mapStudentResponse(
       : undefined,
     address_postal_code: hasAccess
       ? (mappedStudent.address_postal_code ?? undefined)
-      : undefined,
-    supervisor_notes: hasAccess
-      ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,
     // The absence statuses follow read access OR the absence-write gate: they
     // are the state the Krank-/Entschuldigt-Aktionen toggle, so blanking them

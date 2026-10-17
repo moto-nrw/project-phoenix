@@ -17,13 +17,11 @@ type StudentNoteStore interface {
 	// FindByID reads one note regardless of audience — the writers use it to
 	// re-check authorship and ownership under the lock they write with.
 	FindByID(ctx context.Context, id int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error)
-	// FindLegacySupervisorNote finds the live carried-over hint so a legacy
-	// field clear can record the same note in the deletion ledger.
-	FindLegacySupervisorNote(ctx context.Context, studentID int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error)
 	Insert(context.Context, domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	Update(context.Context, domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	SoftDelete(context.Context, domain.DeleteStudentNote) (domain.OperationStats, error)
-	// SyncLegacySupervisorNotes keeps the temporary master-data field and its
-	// carried-over permanent hint aligned during the expand/contract period.
-	SyncLegacySupervisorNotes(context.Context, int64, *string) (domain.OperationStats, error)
+	// ImportPermanentHint writes an imported „Betreuernotizen" text as the
+	// child's carried-over permanent hint: it replaces the live one, or
+	// creates one unless a school deliberately deleted it.
+	ImportPermanentHint(ctx context.Context, studentID int64, body string) (domain.OperationStats, error)
 }

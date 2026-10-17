@@ -31,11 +31,10 @@ type StudentFieldEdit struct {
 // Attendance/check-in changes are intentionally out of scope for the first
 // stage (they originate from devices/parents and have their own history).
 const (
-	StudentFieldStatus          = "status"
-	StudentFieldSupervisorNotes = "supervisor_notes"
-	StudentFieldExtraInfo       = "extra_info"
-	StudentFieldHealthInfo      = "health_info"
-	StudentFieldPickupStatus    = "pickup_status"
+	StudentFieldStatus       = "status"
+	StudentFieldExtraInfo    = "extra_info"
+	StudentFieldHealthInfo   = "health_info"
+	StudentFieldPickupStatus = "pickup_status"
 	// StudentFieldPickupSchedule records a complete permanent weekly pickup
 	// plan change, including whether staff selected an offering or kept a
 	// lasting individual exception.
@@ -104,7 +103,7 @@ func (e *StudentFieldEdit) Validate() error {
 	}
 
 	switch e.FieldName {
-	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
+	case StudentFieldStatus, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldPickupSchedule, StudentFieldDepartureDays,
 		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument:
 		// Valid field names

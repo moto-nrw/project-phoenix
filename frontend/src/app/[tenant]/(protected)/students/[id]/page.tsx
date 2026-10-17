@@ -2085,6 +2085,7 @@ function FullAccessView({
           <StudentNotizenTab
             studentId={studentId}
             educationGroupId={student.group_id ?? ""}
+            educationGroupName={student.group_name ?? ""}
           />
         ) : null}
       </StudentTabPanel>

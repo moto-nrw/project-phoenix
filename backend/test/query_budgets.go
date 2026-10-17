@@ -233,6 +233,9 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.schedules.list":           {max: 1, exact: true},
 	"modules.timetable.supervisors.list":         {max: 1, exact: true},
 	"modules.timetable.target_students.list":     {max: 1, exact: true},
+	// The child's activities on one day (#4268): the enrollments, then their
+	// groups in one batch. The note form's reference picker reads it.
+	"modules.timetable.active_enrollments.list": {max: 2, exact: true},
 	// modules/peopledirectory — one child's note card (#3632). Two statements,
 	// whatever the timeline holds: the notes, and one bulk read that resolves
 	// every author's name. Exact, because a count of one would mean the name
