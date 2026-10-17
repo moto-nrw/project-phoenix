@@ -113,7 +113,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	}
 	runtime := databaseRuntime(dependencies.DB)
 	observe := func(observation Observation) {
-		observation.Err = mapError(observation.Err)
+		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}
 	service := application.New(application.Dependencies{
@@ -131,7 +131,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Window:    ports.WindowResolver(dependencies.OnlineWindow),
 		Observe:   observe,
 	})
-	return devicefleet.NewModule(engine{service: service, observe: observe, now: now}), nil
+	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil
 }
 
 // databaseRuntime resolves the ambient transaction and tenant. A missing

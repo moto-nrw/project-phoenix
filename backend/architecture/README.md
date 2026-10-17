@@ -4055,6 +4055,29 @@ error mapping (`application.NewEngine`, `application.Engine`,
 `school-structure.application.tenant-runtime`. The composition goes from 1,573
 to 1,258 LOC.
 
+Device Fleet, Organization & Tenancy and School Membership follow: each
+engine that serves the owner's capability over its application service, with
+the public and error mapping (`application.NewEngine`, `application.Engine`,
+`application.MapError`), moves from the owner's composition into
+`internal/application`. Epoch 71 adds
+`school-membership.application.tenant-runtime` for the staff identity read.
+The compositions go from 701 to 372, 708 to 479 and 869 to 354 LOC.
+
+The Identity & Access session token codec (`application.SessionCodec`,
+`application.NewSessionCodec`, `application.JWTSigner`) and the Enrollment
+decision adapter (`application.PublicDecisions`) move into their owners'
+`internal/application`. With the codec gone, the Identity & Access composition
+no longer imports the token library; epoch 72 removes the stale
+`external.crypto.identity-access.production.compose` grant. The compositions
+go from 1,963 to 1,801 and 823 to 716 LOC.
+
+#4085 starts with a register: `test/module_compose_alias_ratchet_test.go`
+counts, per composition package, the type aliases and value re-exports that
+name a package outside the composition's owner — the vocabulary the
+compositions hand out without the import the architecture ratchet would see.
+It starts at 522 (366 of them in `compose/vocabulary` and `compose/retained`)
+and only falls; #4085 is done when it is empty.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

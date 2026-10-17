@@ -3,6 +3,8 @@ package compose
 import (
 	"context"
 
+	application "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -18,11 +20,11 @@ func NewOffboarding(dependencies Dependencies) (*schoolmembership.Offboarding, e
 	return schoolmembership.NewOffboarding(
 		func(ctx context.Context, staffID int64) (schoolmembership.RetirementPreview, error) {
 			result, err := service.PreviewRetirement(ctx, staffID)
-			return schoolmembership.RetirementPreview{Retirement: retirementToPublic(result.Retirement), Revision: result.Revision}, mapError(err)
+			return schoolmembership.RetirementPreview{Retirement: retirementToPublic(result.Retirement), Revision: result.Revision}, application.MapError(err)
 		},
 		func(ctx context.Context, staffID int64, revision string) (schoolmembership.Retirement, error) {
 			result, err := service.RetireStaff(ctx, staffID, revision)
-			return retirementToPublic(result), mapError(err)
+			return retirementToPublic(result), application.MapError(err)
 		}), nil
 }
 
