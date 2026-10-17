@@ -125,8 +125,7 @@ func AnnouncementIsSystem(a *ParentAnnouncement) bool {
 
 // IsPoll reports whether the announcement asks guardians a question.
 func AnnouncementIsPoll(a *ParentAnnouncement) bool {
-	return a.ResponseType == ParentAnnouncementResponseSingleChoice ||
-		a.ResponseType == ParentAnnouncementResponseMultiChoice
+	return AnnouncementResponseIsPoll(a.ResponseType)
 }
 
 // HasReminder reports whether a scheduled reminder is set (sent or not).
@@ -256,4 +255,8 @@ func AnnouncementLetterFulfilled(c *AnnouncementLetterChildStatus) bool {
 // letter look almost complete when nearly nobody could confirm.
 func AnnouncementLetterOutstanding(c *AnnouncementLetterChildStatus) bool {
 	return c.CanConfirm && !AnnouncementLetterFulfilled(c)
+}
+
+func AnnouncementResponseIsPoll(responseType string) bool {
+	return responseType == ParentAnnouncementResponseSingleChoice || responseType == ParentAnnouncementResponseMultiChoice
 }

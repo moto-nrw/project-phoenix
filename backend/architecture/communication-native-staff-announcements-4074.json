@@ -5,14 +5,17 @@
   "prerequisites": [
     "#4070"
   ],
-  "owner_and_capability": "Communication owns native staff-announcement workflow records and ports. Root composition binds the same stores through their native public facade. Partial Refs #4074; Refs #4076.",
+  "owner_and_capability": "Communication owns native announcement and conversation records. Existing workflows own consumer DTOs and ports; the root binds the actual public owner facades and tenant-safe People Directory projections. Refs #4074; Refs #4076.",
   "affected_packages": [
     "models/users",
     "modules/communication",
     "modules/communication/composition",
     "modules/communication/internal/application",
     "modules/communication/internal/staffannouncements",
-    "modules/communication/parentstore"
+    "modules/communication/parentstore",
+    "api",
+    "modules/peopledirectory/contracttest",
+    "modules/peopledirectory/compose/vocabulary"
   ],
   "affected_tables": [
     "Existing users.parent_announcements, targets, options, declaration versions and submissions; unchanged audience, guardian-permission, delivery and staff queries. No SQL, schema, migration or runtime data ownership change."
@@ -22,14 +25,17 @@
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/composition|github.com/moto-nrw/project-phoenix/models/users",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements|github.com/moto-nrw/project-phoenix/models/users",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/composition|github.com/moto-nrw/project-phoenix/models/users",
-    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements|github.com/moto-nrw/project-phoenix/models/users"
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/parentstore|github.com/moto-nrw/project-phoenix/models/users"
   ],
-  "atomic_cutover": "Replace four #4074 imports and the #4076 composition-test companion with workflow-owned native DTOs and a narrow native source facade on the same bound store. Exactly 36 consumed operations plus the original-error conflict classifier; no unused source operation or widened selector. Parent announcements, polls, targets/options, all declaration inputs, metadata and nullable fields remain complete. Native codecs preserve nil/empty/nil-entry collections, context and selectors, partial owner results and write mutations even on errors; owner error identity wins. Published conflicts are classified by the actual owner over its original sentinel, without a new error alias or imported foreign model. Canonical content/record encoders and their format/version constants move once into the existing owned application; canonical bytes are recomputed from current complete values, never cached or copied algorithms. Pure policy suites move with the implementation; the boundary probe uses immutable reference bytes captured from the prior implementation. Existing legacy letter-status methods remain with the honest final parentstore carrier until its separate cut. Total keys 119 -> 114; #4074 5 -> 1, #4076 14 -> 13. Rules843/epoch72/composition1657 unchanged; Communication composition1481 -> 1480 and total34570 -> 34569; service file-size budget1178 -> 1177. No new grant, Go type alias, classification, exception, graph field or increased budget. Routes, response projections, goldens, IoT, SQL, relationship permissions, RLS, clocks, sessions and wrong-portal rejection unchanged.",
+  "atomic_cutover": "Replace four #4074 imports and the #4076 composition-test companion with workflow-owned native DTOs and a narrow native source facade on the same bound store. Exactly 36 consumed operations plus the original-error conflict classifier; no unused source operation or widened selector. Parent announcements, polls, targets/options, all declaration inputs, metadata and nullable fields remain complete. Native codecs preserve nil/empty/nil-entry collections, context and selectors, partial owner results and write mutations even on errors; owner error identity wins. Published conflicts are classified by the actual owner over its original sentinel, without a new error alias or imported foreign model. Canonical content/record encoders and their format/version constants move once into the existing owned application; canonical bytes are recomputed from current complete values, never cached or copied algorithms. Pure policy suites move with the implementation; the boundary probe uses immutable reference bytes captured from the prior implementation. The final parentstore-to-models/users key is removed in the same PR. Domain stores now project native public values directly, with their existing payload codec and current-field kind derivation. Retired ORM-shaped DTOs, four repository aliases and redundant retained-record codecs are deleted. Consumer-owned staff-person/account and guardian-recipient ports receive the same owner query results through root callbacks, preserving context, IDs, missing/nil states, partial errors, school filters, order and deduplication. Existing contract assertions remain in their calling suite; primitive fixture constructors and typed selection helpers use the existing root test seam without a foreign import grant. Database timestamp callbacks execute at the original point after Create/ReplaceTargets. Published/conflict errors move their original initializer text once into the actual owner and keep native classification. Total keys 119 -> 113 on the original source baseline, now 110 after the independent development reductions; #4074 5 -> 0, #4076 14 -> 13. Own policy diff zero, integrated rules842/epoch72/composition1657 unchanged; Communication composition1481 -> 1480, People vocabulary110 -> 106 and integrated compose total34554 -> 34550; service file-size budget1178 -> 1177. No new grant, Go type alias, classification, exception, graph field or increased budget. Routes, response projections, goldens, IoT, SQL, relationship permissions, RLS, clocks, sessions and wrong-portal rejection unchanged.",
   "tests": [
     "Required nonfast affected-package tests, architecture, backend lint, explicit deadcode and full migration-evidence inventory validation before push.",
     "Focused owned application, staff-announcement, composition, API and People Directory contract suites; existing publication races, reminders, declarations, recipient consent, tenant isolation and query budgets stay covered.",
     "Native boundary probes assert complete write snapshots, source partial mutation/error identity, nil writes/dependencies, exact read selectors, partial results, nil/empty/nil-entry collections and complete version/digest fields.",
-    "AST audit preserves 499 original assertions/failure calls across 319 existing functions in 16 test files including moved pure-policy suites, after only DTO/protocol qualification, binder/free-call syntax and independently captured canonical probe expectations. Eighteen canonical policy body ASTs are unchanged."
+    "AST audit preserves 499 original assertions/failure calls across 319 existing functions in 16 test files including moved pure-policy suites, after only DTO/protocol qualification, binder/free-call syntax and independently captured canonical probe expectations. Original canonical encoders and validators keep their bodies. The poll response-type predicate is factored once into the owned application and shared by current-field announcement/feed projections.",
+    "Full Communication and People Directory contract suites including tenant, permission, publication races, query-budget and message projection tests; pure native store snapshot, payload presence/invalid JSON/current-value derivation probes and the SchoolName decorator regression.",
+    "Final cutover AST count audit: 741 original assertion/failure calls preserved, now 744 including three additional Care Plan transaction NoError checks. Moved fixture assertion callbacks still invoke the original require functions in the calling test. Nil message write regression demonstrated red panic before its fix, then green against the unchanged owner validation error."
   ],
   "runtime_evidence": {
     "source": "Pinned repository toolchain, localhost5547 test database and fixed freshly recreated /tmp/gocache-4073 after verified PR4297 merge b5e9a901ed38cb44c272d7c3397ed3e004e7f1f0.",
@@ -45,10 +51,14 @@
       "backend/modules/communication/internal/staffannouncements/native_repository_adapters_internal_test.go",
       "backend/modules/communication/internal/staffannouncements/parent_native_declaration_policy_internal_test.go",
       "backend/modules/communication/parentstore/native_announcement_records.go",
-      "backend/modules/communication/parentstore/portal_declaration_policy.go"
+      "backend/modules/communication/parentstore/portal_declaration_policy.go",
+      "backend/modules/communication/parentstore/native_record_codecs_internal_test.go",
+      "backend/modules/communication/parentstore/school_projection_internal_test.go",
+      "backend/api/parent_message_people_ports.go",
+      "backend/api/parent_store_values_test_helpers.go"
     ],
     "workload": "Existing focused application, staff-announcement, composition, API and People Directory contract suites through the same database stores; new full-record/partial-error/native selector and collection probes; preserved pure canonical policy suites.",
-    "thresholds": "Exactly five specified keys removed, no new key or grant, no increased budget. Canonical bytes, original errors, partial mutations, permission/tenant/selector and wire behavior preserved.",
+    "thresholds": "All five remaining #4074 keys and one #4076 companion removed. No new policy rule, grant, alias, exception or budget increase. Existing canonical bytes, exact errors, partial mutations, permission/tenant/selector and wire behavior preserved.",
     "affected_rows": {
       "state": "not_applicable",
       "reason": "Native DTO/port binding cut over unchanged stores, SQL, clocks and transactions. No deployment, migration, performance, browser or user-facing-flow change."
@@ -106,6 +116,6 @@
       "reason": "Native DTO/port binding cut over unchanged stores, SQL, clocks and transactions. No deployment, migration, performance, browser or user-facing-flow change."
     }
   },
-  "rollback_and_cleanup": "Revert native source facets/ports/codecs, the single canonical encoder move, mechanical test migration, the five exact baseline removals and the one-line composition reduction together. No database or environment rollback.",
-  "exit_criterion": "Four #4074 keys and its #4076 companion absent with required checks green. The final #4074 parentstore key remains visible; neither issue is claimed complete by this partial slice."
+  "rollback_and_cleanup": "Revert the native source/port cutover, original canonical encoder and sentinel moves, mechanical fixture migration, all six exact baseline removals and shrink registers atomically. No database or environment rollback.",
+  "exit_criterion": "No #4074 key or communication.parent-compatibility rule remains; all required gates and Communication suites pass. #4076 stays open for its remaining independent keys."
 }

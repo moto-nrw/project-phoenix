@@ -49,7 +49,7 @@ var moduleComposeAliasBudgets = map[string]int{
 	"modules/facilities/compose/legacy":              2,
 	"modules/organizationtenancy/compose/vocabulary": 34,
 	"modules/peopledirectory/compose":                16,
-	"modules/peopledirectory/compose/vocabulary":     92,
+	"modules/peopledirectory/compose/vocabulary":     88,
 	"modules/requestreview/compose":                  8,
 	"modules/schoolstructure/compose":                2,
 	"modules/settings/compose":                       29,
