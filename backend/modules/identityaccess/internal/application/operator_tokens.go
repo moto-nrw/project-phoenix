@@ -148,16 +148,6 @@ func (t *OperatorTokens) RecordInvitationDelivery(ctx context.Context, id int64,
 	})
 }
 
-func (t *OperatorTokens) DeleteExpiredInvitations(ctx context.Context) (result int, err error) {
-	err = t.run(ctx, "delete_expired_operator_invitations", func(txCtx context.Context, stats *domain.OperationStats) error {
-		deleted, queryStats, deleteErr := t.store.DeleteExpiredOperatorInvitations(txCtx, t.now())
-		stats.Add(queryStats)
-		result = deleted
-		return deleteErr
-	})
-	return result, err
-}
-
 func (t *OperatorTokens) CreateEmailChange(ctx context.Context, change domain.OperatorEmailChange) (result domain.OperatorEmailChange, err error) {
 	err = t.run(ctx, "create_operator_email_change", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if validateErr := change.Validate(t.now()); validateErr != nil {
@@ -199,14 +189,6 @@ func (t *OperatorTokens) RedeemEmailChange(ctx context.Context, token string) (r
 func (t *OperatorTokens) RevokeEmailChanges(ctx context.Context, operatorID int64) error {
 	return t.run(ctx, "revoke_operator_email_changes", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := t.store.RevokeOperatorEmailChanges(txCtx, operatorID)
-		stats.Add(queryStats)
-		return err
-	})
-}
-
-func (t *OperatorTokens) RecordEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	return t.run(ctx, "record_operator_email_change_delivery", func(txCtx context.Context, stats *domain.OperationStats) error {
-		queryStats, err := t.store.RecordOperatorEmailChangeDelivery(txCtx, id, delivery.Bounded())
 		stats.Add(queryStats)
 		return err
 	})
