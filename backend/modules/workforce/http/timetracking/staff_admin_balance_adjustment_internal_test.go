@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -54,7 +55,8 @@ func TestRequireBalanceAdjustmentStaffClassifiesLookupErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := &StaffAdminResource{
-				logger: slog.Default(),
+				uploads: nativeUploads.UploadFiles{},
+				logger:  slog.Default(),
 				PersonService: &stubStaffDirectory{
 					staffByIDFn: func(context.Context, int64) (*workforce.StaffProfile, error) {
 						return nil, tt.lookupErr

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -212,6 +213,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nativeUploads.UploadFiles{},
 	)
 	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -55,6 +56,7 @@ func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {
 		enrollmentTest.NewCaptcha(requiredCaptchaSettings{}, provider.URL),
 		nil, nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil,
 		captchaSchoolLookup{school: school},
+		nativeUploads.UploadFiles{},
 	)
 	router := resource.Router(rootAPI.TenantSessionChain)
 	req := httptest.NewRequest(http.MethodPost, "/school/submit", strings.NewReader(`{"captcha_token":"rejected-token"}`))

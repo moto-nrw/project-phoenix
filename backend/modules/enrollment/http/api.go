@@ -25,6 +25,7 @@ type GuardianProfiles = capability.GuardianAutofillReader
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
+	uploads              common.UploadStorage
 	FormSchemaService    capability.FormSchemaAdministration
 	CareOfferingService  CareOfferingCatalog
 	RequestService       RequestService
@@ -73,9 +74,14 @@ func NewResource(
 	guardianInvitations GuardianInvitationRuntime,
 	guardianProfiles GuardianProfiles,
 	schoolService SchoolDirectory,
+	uploads common.UploadStorage,
 	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
+	if uploads == nil {
+		panic("enrollment resource: upload storage is required")
+	}
 	rs := &Resource{
+		uploads:              uploads,
 		FormSchemaService:    formSchemaSvc,
 		CareOfferingService:  careOfferingSvc,
 		RequestService:       requestSvc,

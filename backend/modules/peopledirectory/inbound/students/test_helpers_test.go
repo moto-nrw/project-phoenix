@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 
@@ -103,7 +104,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		slog.Default(),
 	)
 
-	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public"))
+	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
 
 	education := svc.Education
 	schoolGroups := fixtureSchoolGroups{
@@ -246,6 +247,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	})
 	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		Uploads:                nativeUploads.UploadFiles{},
 		PeopleDirectory:        svc.PeopleDirectory,
 		Persons:                svc.StudentRoutePersons(),
 		StudentDeletion:        studentDeletion,
