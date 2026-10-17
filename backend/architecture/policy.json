@@ -1588,6 +1588,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/application/locales",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/emailbranding",
       "owner": "delivery-platform",
       "role": "application",
@@ -9875,17 +9882,6 @@
       "source_owner": "parent-portal",
       "source_role": "compose",
       "target_owner": "meal-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "parent-portal.compose.delivery-platform.public",
-      "description": "Wire the guardian portal workflow (#3420): bind the live student_updated event to the flows' ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {

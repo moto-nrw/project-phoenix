@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/localization"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -114,21 +112,6 @@ func mealPlanError(err error) error {
 		return err
 	}
 }
-
-// studentUpdates publishes the student_updated live event for the school.
-type studentUpdates struct{ broadcaster realtime.Broadcaster }
-
-func (s studentUpdates) StudentUpdated(tenantID int64, source string) error {
-	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
-	return s.broadcaster.BroadcastToTenant(tenantID, event)
-}
-
-// locales is the portal's language catalog.
-type locales struct{}
-
-func (locales) IsSupported(locale string) bool { return localization.IsSupported(locale) }
-func (locales) Normalize(locale string) string { return localization.NormalizeLocale(locale) }
-func (locales) Default() string                { return localization.DefaultLocale() }
 
 // requestSharing binds the request-sharing ledger of messaging to the child
 // flows' port.

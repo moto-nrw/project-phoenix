@@ -37,6 +37,9 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		{parentportal.ReasonPolicyBoth, true},
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
+			GuardianPolicy: api.ParentGuardianPolicy{},
+			Fingerprints:   api.SecurityFingerprints{},
+			Locales:        api.ParentPortalLocales(),
 			Runtime:        api.ParentPortalRuntime{},
 			CarePlan:       repos.CarePlan(),
 			People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),

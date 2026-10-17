@@ -47,6 +47,9 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:         api.ParentGuardianPolicy{},
+		Fingerprints:           api.SecurityFingerprints{},
+		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
 		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:               repos.CarePlan(),
@@ -59,7 +62,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		PersonRepo:             repos.Person,
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
-		Broadcaster:            testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		ArrivalSchedules:       sf.ArrivalSchedule,
 		PickupSchedules:        sf.PickupSchedule,
 		CareRequests:           sf.CareRequests,

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 )
 
 var (
@@ -30,7 +28,7 @@ var (
 // an admin tx; a nil child becomes ErrChildNotLinked so the caller never
 // trusts a studentID it can't prove ownership of.
 func (s *Service) ResolveOwnedChild(ctx context.Context, accountID, studentID int64) (*Child, error) {
-	return s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	return s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 }
 
 // RequireCareRunningForUpdate locks the child before a parent write so a

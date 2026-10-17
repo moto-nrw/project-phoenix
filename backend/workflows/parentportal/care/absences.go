@@ -10,8 +10,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -43,7 +41,7 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, ErrInvalidStatus
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionSickNoteSubmit)
 	if err != nil {
 		return nil, err
 	}

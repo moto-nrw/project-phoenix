@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -30,9 +29,12 @@ type (
 // Dependencies are the collaborators of the guardian portal. Runtime is
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
-	Runtime care.Runtime
-	Logger  *slog.Logger
-	Now     func() time.Time
+	GuardianPolicy care.GuardianPolicy
+	Fingerprints   messaging.ContentFingerprints
+	Locales        care.Locales
+	Runtime        care.Runtime
+	Logger         *slog.Logger
+	Now            func() time.Time
 
 	ChildRepo             care.ChildReads
 	EnrollablePhaseRepo   care.EnrollablePhaseReads
@@ -96,7 +98,7 @@ type Dependencies struct {
 
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
-	Broadcaster           realtime.Broadcaster
+	StudentUpdates        care.StudentUpdates
 	AbsenceNotifier       care.AbsenceNotifier
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents
@@ -132,7 +134,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ParentRequestEvents: deps.ParentRequestEvents,
 		GuardianChanges:     guardianChanges{log: auditcompose.NewGuardianChangeLog()},
 		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
-		Locales:         locales{},
+		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
 		RequestSharing: requestSharing{messaging: messagingFlows},
@@ -140,15 +142,12 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 	if deps.MealPlan != nil {
 		cfg.MealPlan = mealPlan{provider: deps.MealPlan}
 	}
-	if deps.Broadcaster != nil {
-		cfg.StudentUpdates = studentUpdates{broadcaster: deps.Broadcaster}
-	}
 	return cfg
 }
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver,
+		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,

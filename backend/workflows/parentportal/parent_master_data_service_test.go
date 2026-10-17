@@ -47,6 +47,9 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -59,7 +62,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		StudentAudit:        api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db))),
 		Settings:            masterDataSettings(editEnabled, false, true),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -109,6 +112,9 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -120,7 +126,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataSettings(true, false, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -149,11 +155,14 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		Runtime:   api.ParentPortalRuntime{},
-		ChildRepo: repos.ParentChildReads(),
-		Settings:  masterDataSettings(true, true, false),
-		MealPlan:  availableMealPlan(false),
-		Logger:    slog.Default(),
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
+		Runtime:        api.ParentPortalRuntime{},
+		ChildRepo:      repos.ParentChildReads(),
+		Settings:       masterDataSettings(true, true, false),
+		MealPlan:       availableMealPlan(false),
+		Logger:         slog.Default(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 

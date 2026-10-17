@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -18,7 +17,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	if err := validateContactInput(&input); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionGuardianEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +107,7 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 	// Containment passed (or self), so the edited profile does not escape the
 	// caller's family: not shared-locked from this caller's view.
 	result := projectChildGuardian(profile, target.link, phones, accountID, true,
-		child.HasPermission(authorize.GuardianPermissionPickupManage), false)
+		child.HasPermission(GuardianPermissionPickupManage), false, s.GuardianPolicy.IsFullRole)
 	s.broadcastProfileChildrenAfterCommit(ctx, child.TenantID, target.profileLinks)
 	return result, nil
 }
@@ -156,7 +155,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 		return editableGuardianContact{}, err
 	}
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
-	if err := refuseContactEdit(profile, link, isSelf); err != nil {
+	if err := refuseContactEdit(profile, link, isSelf, s.GuardianPolicy.IsFullRole); err != nil {
 		return editableGuardianContact{}, err
 	}
 	// A contact edit propagates to every child the profile serves (intended for
@@ -188,7 +187,7 @@ func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStu
 
 // refuseContactEdit applies the contact-edit eligibility: only contact-only
 // helpers or the caller's own profile are editable.
-func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf bool) error {
+func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf bool, fullGuardianRole func(string) bool) error {
 	// Editing another account holder's personal data is forbidden — the UI is
 	// not the boundary, the backend is. "Account holder" is derived from
 	// has_account OR account_id (HasPortalAccount): isSelf already keys off
@@ -200,7 +199,7 @@ func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.S
 	}
 	// A social worker is a school-managed professional contact; a parent may
 	// not rewrite their personal data (mirrors the read redaction).
-	if !isSelf && link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if !isSelf && link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	// A full guardian (primary/legal/co) is a real legal guardian, not a
@@ -209,7 +208,7 @@ func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.S
 	// because they lack a login). Only the guardian themselves or the school
 	// manages them. Helper roles (pickup_only/emergency_contact/custom) stay
 	// editable — that is the intended account-less helper case.
-	if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+	if !isSelf && fullGuardianRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
 	return nil

@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -39,7 +37,7 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	// Resolve on baseline portal access, then gate each field group by its own
 	// permission. Resolving on the lower baseline (rather than guardian.edit) is
 	// what lets a pickup.manage-only caller flip the flags.
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -51,10 +49,10 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if edit.editsFlags && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
+	if edit.editsFlags && !child.HasPermission(GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
-	if edit.editsDetails && !child.HasPermission(authorize.GuardianPermissionGuardianEdit) {
+	if edit.editsDetails && !child.HasPermission(GuardianPermissionGuardianEdit) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	if s.Guardians == nil {
@@ -164,7 +162,7 @@ func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *usersMode
 	// contact-edit guard and the read-side CanManagePickup gate. Self is exempt
 	// (the account guard above already blocks self flags; a parent may still
 	// annotate their own relationship).
-	if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+	if !isSelf && s.GuardianPolicy.IsFullRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
 	// A contact-only profile that ALSO serves a child outside the caller's
@@ -210,7 +208,7 @@ func refusePickupFlagEdit(profile *usersModels.GuardianProfile, link *usersModel
 	}
 	// A social worker's pickup/emergency standing is set by the school, not by
 	// a parent (mirrors the read-side CanManagePickup gate).
-	if link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	return nil
@@ -230,7 +228,7 @@ func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModel
 	if profile.HasPortalAccount() {
 		return ErrGuardianHasOwnAccount
 	}
-	if link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	return nil
@@ -294,8 +292,8 @@ func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, p
 		return nil, err
 	}
 	result := projectChildGuardian(profile, link, phones, edit.accountID,
-		child.HasPermission(authorize.GuardianPermissionGuardianEdit),
-		child.HasPermission(authorize.GuardianPermissionPickupManage), escapes)
+		child.HasPermission(GuardianPermissionGuardianEdit),
+		child.HasPermission(GuardianPermissionPickupManage), escapes, s.GuardianPolicy.IsFullRole)
 
 	capturedTenant := child.TenantID
 	s.Runtime.RegisterAfterCommit(ctx, func() {

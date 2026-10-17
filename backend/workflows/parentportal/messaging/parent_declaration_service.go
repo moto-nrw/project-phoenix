@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -157,7 +156,7 @@ func declarationActionAnnouncementIsLive(a *usersModels.ParentAnnouncement, acti
 // authorizeDeclarationChild applies the project's guardian gate with the
 // action-specific permission. Seeing the child is not enough to declare.
 func (s *Service) authorizeDeclarationChild(ctx context.Context, accountID, studentID, tenantID int64) error {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionDeclarationSubmit)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionDeclarationSubmit)
 	switch {
 	case errors.Is(err, care.ErrGuardianPermissionDenied):
 		return ErrDeclarationNotPermitted
@@ -229,7 +228,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err := checkDeclarationAction(rules, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
-	submission := newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now)
+	submission := newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now, s.Fingerprints.Content)
 	if err := repo.InsertDeclarationSubmission(ctx, submission); err != nil {
 		return nil, false, fmt.Errorf("parent: record declaration: %w", err)
 	}
@@ -306,7 +305,7 @@ func (s *Service) latestOwnDeclaration(ctx context.Context, accountID, announcem
 	return nil, nil
 }
 
-func newDeclarationSubmission(tenantID, announcementID, accountID int64, version *usersModels.DeclarationVersion, signer *usersModels.DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, now time.Time) *usersModels.DeclarationSubmission {
+func newDeclarationSubmission(tenantID, announcementID, accountID int64, version *usersModels.DeclarationVersion, signer *usersModels.DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, now time.Time, fingerprint func([]byte) string) *usersModels.DeclarationSubmission {
 	account, profile := accountID, signer.GuardianProfileID
 	submission := &usersModels.DeclarationSubmission{
 		TenantID: tenantID, AnnouncementID: announcementID, VersionID: version.ID, StudentID: in.StudentID,
@@ -318,20 +317,20 @@ func newDeclarationSubmission(tenantID, announcementID, accountID int64, version
 		// the record hash verifiable after a round trip.
 		SubmittedAt: time.UnixMicro(now.UnixMicro()).UTC(),
 	}
-	submission.RecordHash = DeclarationRecordHash(submission)
+	submission.RecordHash = DeclarationRecordHash(submission, fingerprint)
 	return submission
 }
 
 // DeclarationRecordHash is the SHA-256 over a submission's canonical record:
 // what makes a later change to the stored row detectable.
-func DeclarationRecordHash(submission *usersModels.DeclarationSubmission) string {
-	return authorize.ContentFingerprint(submission.CanonicalRecord())
+func DeclarationRecordHash(submission *usersModels.DeclarationSubmission, fingerprint func([]byte) string) string {
+	return fingerprint(submission.CanonicalRecord())
 }
 
 // DeclarationContentHash is the SHA-256 over a version's canonical content,
 // the same digest the staff side stores when it freezes the version.
-func DeclarationContentHash(version *usersModels.DeclarationVersion) string {
-	return authorize.ContentFingerprint(version.CanonicalContent())
+func DeclarationContentHash(version *usersModels.DeclarationVersion, fingerprint func([]byte) string) string {
+	return fingerprint(version.CanonicalContent())
 }
 
 func knownDeclarationAction(action string) bool {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -45,7 +44,7 @@ const (
 var ErrPhotoConsentNotWithdrawn = errors.New("parent: photo consent was not withdrawn")
 
 func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int
 		if loadErr != nil {
 			return loadErr
 		}
-		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(authorize.GuardianPermissionConsentManage))
+		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(GuardianPermissionConsentManage))
 		return loadErr
 	})
 	if err != nil {
@@ -83,7 +82,7 @@ func (s *Service) GrantPhotoConsent(ctx context.Context, accountID, studentID in
 }
 
 func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionConsentManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionConsentManage)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +114,7 @@ func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, s
 		accountID,
 		studentID,
 		tenantID,
-		authorize.GuardianPermissionConsentManage,
+		GuardianPermissionConsentManage,
 	)
 	if err != nil {
 		return nil, err

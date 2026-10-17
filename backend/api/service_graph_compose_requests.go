@@ -531,12 +531,15 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
-		Runtime:      ParentPortalRuntime{},
-		CareProfiles: profiles, ChildRepo: NewParentChildReads(careplanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
+		GuardianPolicy: ParentGuardianPolicy{},
+		Fingerprints:   SecurityFingerprints{},
+		Locales:        ParentPortalLocales(),
+		Runtime:        ParentPortalRuntime{},
+		CareProfiles:   profiles, ChildRepo: NewParentChildReads(careplanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
 		EnrollmentSettings: b.settingsService, EnrollmentRequestRepo: NewParentEnrollmentReads(careplanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: people.GuardianProfiles, Attendance: BindParentAttendance(b.Presence.Presence), StatusDayRepo: b.CarePlanWiring.StatusDays,
 		MealPlan: b.MealPlan, StudentRepo: people.Students, CarePlan: b.CarePlan, People: b.Persons,
-		PickupAutoExcusal: b.pickupAutoExcusal, Settings: BindParentSettings(b.settingsService), Broadcaster: b.graph.RealtimeHub,
+		PickupAutoExcusal: b.pickupAutoExcusal, Settings: BindParentSettings(b.settingsService), StudentUpdates: BindParentStudentUpdates(b.graph.RealtimeHub),
 		PersonRepo: people.Persons, ChangeRequestRepo: NewStudentDataChangeRequestRepository(b.CarePlan),
 		CareRequestRepo: NewParentCareRequestReads(b.CarePlan), ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
 		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(b.CarePlan)),

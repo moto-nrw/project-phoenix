@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -219,7 +217,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 	accountID, studentID int64,
 	effectiveFrom calendar.Date,
 ) (*careplan.OfferingChangeCatalog, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +253,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	completeWithdrawalConfirmed bool,
 	recipientGuardianProfileIDs []int64,
 ) (*ChildCareOfferings, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +318,7 @@ func (s *Service) EditOfferingChangeRequest(
 	completeWithdrawalConfirmed bool,
 	expectedVersion string,
 ) (*ChildCareOfferings, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +559,7 @@ func (s *Service) resolveOfferingChangeAvailabilityForStudent(
 	if period == nil {
 		return false, OfferingChangesReasonNoEnrollment
 	}
-	if !child.HasPermission(authorize.GuardianPermissionRequestSubmit) {
+	if !child.HasPermission(GuardianPermissionRequestSubmit) {
 		return false, OfferingChangesReasonNoPermission
 	}
 	if s.OfferingChanges != nil {

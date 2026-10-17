@@ -178,7 +178,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063.
-const modulePassthroughOwnerBudgetTotal = 3091
+const modulePassthroughOwnerBudgetTotal = 3090
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -374,8 +374,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/workforce": 400,
 	// ADR 0061: application 0 + workflows/openroommove/compose 1.
 	"workflows/openroommove": 1,
-	// ADR 0061: application 0 + workflows/parentportal/compose 22.
-	"workflows/parentportal": 22,
+	// ADR 0061 adopted 22; the Root event binding leaves 21 compose delegations.
+	"workflows/parentportal": 21,
 	// ADR 0061: application 0 + workflows/shiftplansync/compose 3.
 	"workflows/shiftplansync": 3,
 }

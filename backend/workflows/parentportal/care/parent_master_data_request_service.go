@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
@@ -47,7 +45,7 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		}
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataRequest)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +256,7 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*usersModels.StudentDataChangeRequest, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataRequest)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
 	if err != nil {
 		return nil, err
 	}

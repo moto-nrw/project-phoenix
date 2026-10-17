@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -158,7 +156,7 @@ type GuardianInvitationReads interface {
 }
 
 func (s *Service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
-	hasAccess := authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess)
+	hasAccess := s.guardianHasPermission(link, GuardianPermissionPortalAccess)
 	if profile.HasAccount && hasAccess {
 		return RelatedAccountActive
 	}
