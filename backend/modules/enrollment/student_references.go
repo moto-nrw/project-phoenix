@@ -48,10 +48,13 @@ func (m *Module) DeleteApprovedEnrollmentsOfStudent(ctx context.Context, student
 			if link.Status != ChildStatusApproved {
 				continue
 			}
-			if err := m.deleteApprovedChild(txCtx, link.ID); err != nil {
+			removed, err := m.deleteApprovedChild(txCtx, link.ID, studentID)
+			if err != nil {
 				return err
 			}
-			deleted++
+			if removed {
+				deleted++
+			}
 		}
 		return nil
 	})
@@ -59,21 +62,39 @@ func (m *Module) DeleteApprovedEnrollmentsOfStudent(ctx context.Context, student
 }
 
 // deleteApprovedChild locks the child's request and its children, then
-// deletes the child, or the whole request when it is the only child.
-func (m *Module) deleteApprovedChild(ctx context.Context, childID int64) error {
+// rechecks that the child is still approved and linked to the departing
+// student. It deletes the child, or the whole request when it is the only
+// child, only when that locked recheck succeeds.
+func (m *Module) deleteApprovedChild(ctx context.Context, childID, studentID int64) (bool, error) {
 	child, err := m.engine.ChildByID(ctx, childID)
 	if err != nil {
-		return fmt.Errorf("read approved enrollment child %d: %w", childID, err)
+		return false, fmt.Errorf("read approved enrollment child %d: %w", childID, err)
 	}
 	if _, err := m.engine.RequestByID(ctx, child.RequestID, true); err != nil {
-		return fmt.Errorf("lock enrollment request %d: %w", child.RequestID, err)
+		return false, fmt.Errorf("lock enrollment request %d: %w", child.RequestID, err)
 	}
 	children, err := m.engine.ChildrenForRequest(ctx, child.RequestID, true)
 	if err != nil {
-		return fmt.Errorf("lock enrollment request children %d: %w", child.RequestID, err)
+		return false, fmt.Errorf("lock enrollment request children %d: %w", child.RequestID, err)
+	}
+	var locked *RequestChild
+	for _, candidate := range children {
+		if candidate.ID == childID {
+			locked = candidate
+			break
+		}
+	}
+	if locked == nil || !approvedReferenceOfStudent(locked, studentID) {
+		return false, nil
 	}
 	if len(children) == 1 && children[0].ID == childID {
-		return m.engine.DeleteRequestTree(ctx, child.RequestID)
+		return true, m.engine.DeleteRequestTree(ctx, child.RequestID)
 	}
-	return m.engine.DeleteRequestChildTree(ctx, child.RequestID, childID)
+	return true, m.engine.DeleteRequestChildTree(ctx, child.RequestID, childID)
+}
+
+func approvedReferenceOfStudent(child *RequestChild, studentID int64) bool {
+	return child.Status == ChildStatusApproved &&
+		(child.CreatedStudentID != nil && *child.CreatedStudentID == studentID ||
+			child.MatchedStudentID != nil && *child.MatchedStudentID == studentID)
 }
