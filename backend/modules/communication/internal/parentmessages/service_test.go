@@ -1,34 +1,39 @@
 package messaging_test
 
-// Integration tests for the staff-side parent-OGS messaging service. They run
-// against the real test DB through the real repositories, the real person
-// directory (for staff-name resolution and the read-access student load), the shared
-// parentmessaging core, and a capturing broadcaster, so the inbox / thread /
-// reply / new-conversation flows and their authorization and feature-flag gates
-// are exercised end to end exactly as the HTTP handlers drive them.
-//
-// Most reads/writes run on the ADMIN read path (perms "admin:*"), which is how a
-// school admin sees every child's inbox; the forbidden test drops to a
-// permissionless caller to pin the CanReadStudent gate.
-
 import (
 	"context"
 	"log/slog"
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// Integration tests for the staff-side parent-OGS messaging service. They run
+	// against the real test DB through the real repositories, the real person
+	// directory (for staff-name resolution and the read-access student load), the shared
+	// parentmessaging core, and a capturing broadcaster, so the inbox / thread /
+	// reply / new-conversation flows and their authorization and feature-flag gates
+	// are exercised end to end exactly as the HTTP handlers drive them.
+	//
+	// Most reads/writes run on the ADMIN read path (perms "admin:*"), which is how a
+	// school admin sees every child's inbox; the forbidden test drops to a
+	// permissionless caller to pin the CanReadStudent gate.
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -112,7 +117,7 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 		Broadcaster: bc,
 
 		Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return svc, bc, repos, db
 }
 
@@ -664,7 +669,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 		Persons:     newPersons(repos, f.db),
 		Settings:    configModels.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
 		Broadcaster: f.bc, Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	_, err = disabled.PostMessage(ctx, started.ThreadID, "Reply", 0)
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)

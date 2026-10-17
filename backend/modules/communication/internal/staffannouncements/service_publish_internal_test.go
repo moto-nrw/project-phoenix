@@ -1,8 +1,6 @@
 package announcement
 
 import (
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"context"
 	"errors"
 	"log/slog"
@@ -10,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // fakeAnnouncementRepo embeds the repository interface and overrides only what
@@ -129,7 +127,7 @@ func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, err
 
 // fakeOutbox captures enqueued e-mails.
 type fakeOutbox struct {
-	requests           []emailoutbox.EnqueueRequest
+	requests           []recordedMailRequest
 	cancelRelatedTypes []string
 	enqueueErr         error
 }
@@ -137,18 +135,18 @@ type fakeOutbox struct {
 type fakePushOutbox struct{ cancelRelatedTypes []string }
 
 type fakeNotifier struct {
-	events             []notifications.Event
+	events             []communication.NotificationEvent
 	err                error
 	durableAccepted    int
 	durableAcceptedSet bool
 }
 
-func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) error {
+func (f *fakeNotifier) Notify(_ context.Context, event communication.NotificationEvent) error {
 	f.events = append(f.events, event)
 	return f.err
 }
 
-func (f *fakeNotifier) NotifyDurably(_ context.Context, event notifications.Event) (int, error) {
+func (f *fakeNotifier) NotifyDurably(_ context.Context, event communication.NotificationEvent) (int, error) {
 	f.events = append(f.events, event)
 	if f.err != nil {
 		return 0, f.err
@@ -159,12 +157,12 @@ func (f *fakeNotifier) NotifyDurably(_ context.Context, event notifications.Even
 	return len(event.Audience.GuardianAccountIDs), nil
 }
 
-func (f *fakeOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
+func (f *fakeOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
 	if f.enqueueErr != nil {
 		return nil, f.enqueueErr
 	}
-	f.requests = append(f.requests, req)
-	return &emailoutbox.Enqueued{}, nil
+	f.requests = append(f.requests, recordMailRequest(req))
+	return &communication.MailEnqueued{}, nil
 }
 
 func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
@@ -185,7 +183,7 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	// The file side of the attachments (#2890): Delete records the cleanup
 	// intents for the attachment bytes through it and refuses to run without
 	// one, so every service under test gets a stub.
@@ -292,7 +290,7 @@ func TestUnpublish_CancelsPendingReminderPushes(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: &fakeOutbox{},
 		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
@@ -314,7 +312,7 @@ func TestDelete_CancelsPendingDeliveries(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: outbox,
 		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	svc.SetAttachmentPurger(&stubPurger{})
 
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
@@ -352,7 +350,7 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 		Outbox:     &fakeOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	delivered, err := svc.RemindUnanswered(context.Background(), poll.ID)
 	if err != nil {
@@ -390,7 +388,7 @@ func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
 		Outbox:     &fakeOutbox{enqueueErr: errors.New("outbox unavailable")},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	_, err := svc.RemindUnanswered(context.Background(), poll.ID)
 	if err == nil {
@@ -424,7 +422,7 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 		t.Fatalf("expected one e-mail per recipient, got %d", len(outbox.requests))
 	}
 	for _, req := range outbox.requests {
-		if req.Kind != platformModels.EmailKindParentAnnouncement {
+		if req.Kind != communication.MailKindParentAnnouncement {
 			t.Fatalf("unexpected outbox kind %q", req.Kind)
 		}
 		if _, hasBody := req.Payload["body"]; hasBody {
@@ -456,7 +454,7 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		Notifier:   notifier,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -465,7 +463,7 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		t.Fatalf("expected one batched guardian event, got %d", len(notifier.events))
 	}
 	event := notifier.events[0]
-	if event.Audience.Scope != notifications.ScopeGuardian ||
+	if event.Audience.Scope != communication.ScopeGuardian ||
 		!slices.Equal(event.Audience.GuardianAccountIDs, []int64{101, 202}) ||
 		event.Audience.TenantID != 11 {
 		t.Fatalf("unexpected guardian audience: %+v", event.Audience)
@@ -474,7 +472,7 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		t.Fatalf("push payload must not expose announcement content: %+v", event)
 	}
 	if event.Type != parentAnnouncementNotificationType ||
-		event.Priority != notifications.PriorityNormal ||
+		event.Priority != communication.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
 	}
@@ -494,7 +492,7 @@ func TestPublish_GroupsGuardianPushesByPortalLocale(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Notifier: notifier,
 		ParentsURL: "https://parents.example.test", Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -541,7 +539,7 @@ func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), poll.ID); err != nil {
 		t.Fatalf("publish poll: %v", err)
@@ -574,7 +572,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -754,7 +752,7 @@ func TestPublish_ConcurrentEditInvalidatesReminder_RollsBack(t *testing.T) {
 // insert (which, inside the publish tenant tx, aborts the whole transaction).
 type failingOutbox struct{}
 
-func (failingOutbox) Enqueue(_ context.Context, _ emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
+func (failingOutbox) Enqueue(_ context.Context, _ communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
 	return nil, errors.New("outbox insert failed")
 }
 
@@ -781,7 +779,7 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 		Outbox:     failingOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
 		t.Fatal("expected publish to fail when the e-mail enqueue fails")
@@ -791,9 +789,9 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 	t.Parallel()
 
-	render := NewAnnouncementRenderer(EmailConfig{})
-	msg, err := render(context.Background(), &emailoutbox.Intent{
-		Kind: platformModels.EmailKindParentAnnouncement,
+	render := announcementRendererFixture(EmailConfig{})
+	msg, err := render(context.Background(), &recordedMailIntent{
+		Kind: communication.MailKindParentAnnouncement,
 		Payload: map[string]any{
 			emailPayloadRecipient:  "a@example.test",
 			emailPayloadFirstName:  "Anna",
@@ -826,9 +824,9 @@ func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
 	t.Parallel()
 
-	render := NewAnnouncementRenderer(EmailConfig{})
-	msg, err := render(context.Background(), &emailoutbox.Intent{
-		Kind: platformModels.EmailKindParentAnnouncement,
+	render := announcementRendererFixture(EmailConfig{})
+	msg, err := render(context.Background(), &recordedMailIntent{
+		Kind: communication.MailKindParentAnnouncement,
 		Payload: map[string]any{
 			emailPayloadRecipient:   "a@example.test",
 			emailPayloadTitle:       "Sommerfest",

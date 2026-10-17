@@ -1,25 +1,29 @@
 package messaging_test
 
-// Integration tests for the personal count scope (#3673): each staff member
-// chooses which parent conversations their own counter at "Nachrichten"
-// counts. The counts run on the real projection; only the preference store
-// and the caller's groups are stand-ins, because the store has its own test in
-// the composition package and the groups come from the caller context.
-
 import (
 	"context"
 	"log/slog"
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// Integration tests for the personal count scope (#3673): each staff member
+	// chooses which parent conversations their own counter at "Nachrichten"
+	// counts. The counts run on the real projection; only the preference store
+	// and the caller's groups are stand-ins, because the store has its own test in
+	// the composition package and the groups come from the caller context.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -70,7 +74,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 		Logger:           slog.Default(),
 		CountPreferences: &memoryCountPreferences{scopes: map[int64]string{}},
 		Groups:           groups,
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	return &fixture{db: db, svc: svc, bc: bc, chain: chain, staffAccount: staffAccount.ID}

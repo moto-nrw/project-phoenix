@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 151 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 127 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.612 in `compose`
+34.584 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -14,15 +14,44 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 34 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 10 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 151 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 127 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4074: Communication besitzt native Mail-Werte und schmale Lese- und Schreibports.
+Die Root bindet dieselbe Outbox, denselben Mail-Transport und dieselbe Audit-Facette.
+Der native Outbox-Einstieg teilt Validierung, Schul-Auflösung, Encoding und Insert
+mit dem bisherigen Einstieg. Vollständige Metadaten, Fehlerreihenfolge, große
+JSON-Ganzzahlen und nil/leere Schreibobjekte bleiben erhalten. Renderer lesen
+die ursprünglichen String-/Bool-Werte ohne JSON-Roundtrip; Header, Template,
+Inhalt und ausgelassene Schlüssel bleiben gleich. Die Audit-Bindung wandert an
+die Root und erhält SetChanges-, Kontext- und Create-Fehlersemantik.
+Zwölf Keys fallen: 139 → 127, #4074 22 → 10. Regeln 844, Epoche 72 und
+Composition 1.657 bleiben gleich. Communication-Compose sinkt 1.514 → 1.486 LOC,
+die Summe 34.612 → 34.584, das Dateigrößenbudget 1.183 → 1.178.
+Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
+höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
+Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Mail](communication-native-mail-4074.json).
+
+#4074: Communication besitzt native Application-Events und schmale Delivery-Ports.
+Die Root bindet denselben Router über öffentliche Commands. Alle Event- und
+Audience-Felder, Consent, Schul- und Portal-Selektoren, Kontext, Transaktionen,
+Fehleridentitäten sowie Teil-Receipts bleiben erhalten. Locale, Branding und
+kanonische Push-Texte bleiben beim Delivery-Owner; die Texte wandern einmalig
+in dessen bestehende Locale-Application. Zwölf Keys fallen: 151 → 139,
+#4074 34 → 22. Regeln 844, Epoche 72, Composition 1.657 und Compose 34.612 LOC
+bleiben gleich. Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme,
+Graph-Felder oder höheren Budgets. Eine überholte Funktionslängen-Ausnahme
+entfällt; das Dateigrößenbudget sinkt 1.188 → 1.183. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
+Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Notifications](communication-native-notifications-4074.json).
 
 #4074: Communication besitzt eigene semantische Settings-Ports. Die Root
 bindet fünf schmale öffentliche Settings-Facetten an denselben Resolver.

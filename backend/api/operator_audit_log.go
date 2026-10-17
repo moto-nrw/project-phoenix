@@ -6,6 +6,8 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
@@ -68,4 +70,23 @@ func auditLogModels(entries []*auditModels.OperatorAuditEntry) []*platform.Opera
 		})
 	}
 	return result
+}
+
+// NewCommunicationAnnouncementAudit adapts the retained operator audit repository
+// at the Root binding to the existing public owner facade.
+func NewCommunicationAnnouncementAudit(create func(context.Context, *platform.OperatorAuditLog) error) communicationCompose.AuditFunc {
+	return func(ctx context.Context, input communicationCompose.AuditEntry) error {
+		resourceID := input.ResourceID
+		entry := &platform.OperatorAuditLog{
+			OperatorID: input.OperatorID, Action: input.Action,
+			ResourceType: communication.TypeAnnouncement, ResourceID: &resourceID,
+			RequestIP: input.RequestIP,
+		}
+		if input.Changes != nil {
+			if err := entry.SetChanges(input.Changes); err != nil {
+				return err
+			}
+		}
+		return create(ctx, entry)
+	}
 }

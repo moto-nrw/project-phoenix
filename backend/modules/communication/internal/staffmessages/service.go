@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -84,7 +84,8 @@ type Settings interface {
 // Service is the OGS-internal messaging service.
 type Service struct {
 	Config
-	runtime Runtime
+	runtime        Runtime
+	deliveryPolicy deliveryPorts.NotificationErrors
 }
 
 // Config is the dependency-injection bundle.
@@ -101,16 +102,16 @@ type Config struct {
 	// optional and both required together: without the preference service there
 	// is nobody who consented, so the push is skipped rather than sent past
 	// consent.
-	Notifier    notifications.Service
-	Preferences notifications.PreferenceService
+	Notifier    deliveryPorts.NotificationSender
+	Preferences deliveryPorts.NotificationOptIns
 }
 
 // NewService wires an internal messaging service.
-func NewService(cfg Config, runtime Runtime) *Service {
+func NewService(cfg Config, runtime Runtime, policy deliveryPorts.NotificationErrors) *Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg, runtime: runtime}
+	return &Service{Config: cfg, runtime: runtime, deliveryPolicy: policy}
 }
 
 // actor returns the authenticated account id for the request.

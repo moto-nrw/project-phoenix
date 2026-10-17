@@ -1,26 +1,30 @@
 package messaging_test
 
-// Fault-injection tests: every repository call the staff messaging service makes
-// must propagate a transient failure as a wrapped server error (→ 500, retryable),
-// NOT silently swallow it and hand the client an empty/200 result. These use fake
-// repos that return errors, so they pin the error-mapping branches the happy-path
-// DB tests cannot reach. The forbidden/not-found/disabled sentinels stay distinct
-// from these server faults — that distinction is the whole point of the mapping.
-
 import (
 	"context"
 	"errors"
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// Fault-injection tests: every repository call the staff messaging service makes
+	// must propagate a transient failure as a wrapped server error (→ 500, retryable),
+	// NOT silently swallow it and hand the client an empty/200 result. These use fake
+	// repos that return errors, so they pin the error-mapping branches the happy-path
+	// DB tests cannot reach. The forbidden/not-found/disabled sentinels stay distinct
+	// from these server faults — that distinction is the whole point of the mapping.
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -123,7 +127,7 @@ func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentM
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // errCtx is an admin context (the read scope is satisfied without a userContext).
@@ -227,7 +231,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}), Broadcaster: bc, Logger: slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	_, err := svc.PostMessage(errCtx(t), 5, "Hallo", 0)
 	require.Error(t, err)
 	assert.Equal(t, 0, parentEventCount(bc, realtime.EventParentMessage), "a failed append must not broadcast")

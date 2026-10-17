@@ -2,16 +2,14 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // letterIntro is the opening line of an Elternbrief mail. The body follows it,
@@ -166,7 +164,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 	if len(accountIDs) == 0 {
 		return
 	}
-	remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+	remaining, err := s.preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 	if err != nil {
 		s.logger.Warn("announcement: opt-out filter failed, mailing all addressed guardians",
 			slog.String("error", err.Error()))
@@ -235,7 +233,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := spec.kicker
 	intro := spec.intro(schoolName)
@@ -267,29 +265,29 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		if portalAccessByAddress[address] {
 			recipientPortalURL = portalURL
 		}
-		row, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:   address,
-				emailPayloadFirstName:   r.src.FirstName,
-				emailPayloadLastName:    r.src.LastName,
-				emailPayloadTitle:       spec.title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   recipientPortalURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
-				emailPayloadBody:        body,
-				emailPayloadAckRequired: spec.ackRequired && portalAccessByAddress[address],
+		row, err := s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:   deliveryPorts.JSONString(address),
+				emailPayloadFirstName:   deliveryPorts.JSONString(r.src.FirstName),
+				emailPayloadLastName:    deliveryPorts.JSONString(r.src.LastName),
+				emailPayloadTitle:       deliveryPorts.JSONString(spec.title),
+				emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:   deliveryPorts.JSONString(recipientPortalURL),
+				emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:       deliveryPorts.JSONString(intro),
+				emailPayloadBody:        deliveryPorts.JSONString(body),
+				emailPayloadAckRequired: deliveryPorts.JSONBool(spec.ackRequired && portalAccessByAddress[address]),
 				// Only for recipients who can actually reach the portal: a hint
 				// pointing somewhere the reader cannot go is worse than none.
-				emailPayloadHasAttachment: hasAttachment && portalAccessByAddress[address],
+				emailPayloadHasAttachment: deliveryPorts.JSONBool(hasAttachment && portalAccessByAddress[address]),
 			},
 			RelatedEntityType: spec.relatedType,
 			RelatedEntityID:   a.ID,
 			IdempotencyKey:    spec.idempotencyKey(address),
-		})
+		}.Public())
 		if err != nil {
 			return accepted, fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
@@ -540,7 +538,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := defaultEmailKicker
 	intro := ""
@@ -552,7 +550,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	}
 
 	resent := 0
-	byAddress := make(map[string]*emailoutbox.Enqueued)
+	byAddress := deliveryPorts.NewMailReceiptIndex()
 	portalAccessByAddress := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if row.RecipientEmail != nil && row.Reachability == reachabilityOK {
@@ -578,28 +576,28 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 			if portalAccessByAddress[address] {
 				recipientPortalURL = portalURL
 			}
-			outboxRow, err = s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-				Kind: platformModels.EmailKindParentAnnouncement,
-				Payload: map[string]any{
-					emailPayloadRecipient:   address,
-					emailPayloadFirstName:   row.FirstName,
-					emailPayloadLastName:    row.LastName,
-					emailPayloadTitle:       a.Title,
-					emailPayloadSchoolName:  schoolName,
-					emailPayloadPortalURL:   recipientPortalURL,
-					emailPayloadLogoURL:     logoURL,
-					emailPayloadMotoLogoURL: motoLogoURL,
-					emailPayloadKicker:      kicker,
-					emailPayloadIntro:       intro,
-					emailPayloadBody:        body,
-					emailPayloadAckRequired: a.RequiresAcknowledgement && portalAccessByAddress[address],
+			outboxRow, err = s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+				Kind: deliveryPorts.MailKindParentAnnouncement,
+				Payload: map[string]json.RawMessage{
+					emailPayloadRecipient:   deliveryPorts.JSONString(address),
+					emailPayloadFirstName:   deliveryPorts.JSONString(row.FirstName),
+					emailPayloadLastName:    deliveryPorts.JSONString(row.LastName),
+					emailPayloadTitle:       deliveryPorts.JSONString(a.Title),
+					emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+					emailPayloadPortalURL:   deliveryPorts.JSONString(recipientPortalURL),
+					emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+					emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+					emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+					emailPayloadIntro:       deliveryPorts.JSONString(intro),
+					emailPayloadBody:        deliveryPorts.JSONString(body),
+					emailPayloadAckRequired: deliveryPorts.JSONBool(a.RequiresAcknowledgement && portalAccessByAddress[address]),
 				},
 				RelatedEntityType: relatedEntityTypeAnnouncement,
 				RelatedEntityID:   a.ID,
 				// A retry needs a key of its own, otherwise the original publication's
 				// key would swallow it as a duplicate and nothing would be sent.
 				IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), time.Now().UTC().UnixNano()),
-			})
+			}.Public())
 			if err != nil {
 				return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
 			}

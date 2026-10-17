@@ -6,21 +6,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
 // users.parent_* persistence that moves in #2675. Callers receive only the
 // Communication public capability.
-type ParentAnnouncementOutbox interface {
-	Enqueue(context.Context, emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
-	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
-}
+type ParentAnnouncementOutbox interface{ deliveryPorts.MailOutbox }
 
 type ParentAnnouncementPushOutbox interface {
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
@@ -39,32 +34,32 @@ type ParentAnnouncementConfig struct {
 	Settings         staff.Settings
 	Outbox           ParentAnnouncementOutbox
 	PushOutbox       ParentAnnouncementPushOutbox
-	Notifier         notifications.Service
-	ReminderNotifier notifications.DurableReceiptService
-	Preferences      notifications.PreferenceService
+	Notifier         func(context.Context, communication.NotificationEvent) error
+	ReminderNotifier func(context.Context, communication.NotificationEvent) (int, error)
+	Preferences      deliveryPorts.NotificationPreferences
 	Deliveries       ParentAnnouncementDeliveryRecorder
 	Fingerprints     staff.Fingerprints
 	ParentsURL       string
 	Logger           *slog.Logger
 }
 
-type ParentAnnouncementEmailConfig struct{ DefaultFrom email.Email }
+type ParentAnnouncementEmailConfig communication.MailRendererConfig
 
-func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime) communication.ParentAnnouncementCapability {
+func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentAnnouncementCapability {
 	var deliveries staff.DeliveryRecorder
 	if cfg.Deliveries != nil {
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
-		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: cfg.Notifier,
-		ReminderNotifier: cfg.ReminderNotifier,
+		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
+		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
-	}, runtime)}
+	}, runtime, policy)}
 }
 
-func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
-	return staff.NewAnnouncementRenderer(staff.EmailConfig{DefaultFrom: cfg.DefaultFrom})
+func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) communication.MailRenderer {
+	return communication.MailRenderer(staff.NewAnnouncementRenderer(staff.EmailConfig(cfg)))
 }
 
 type parentAnnouncementDeliveryAdapter struct {

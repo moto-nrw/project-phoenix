@@ -1,8 +1,6 @@
 package announcement
 
 import (
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"context"
 	"log/slog"
 	"strings"
@@ -10,7 +8,9 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- doubles -----------------------------------------------------------------
@@ -64,15 +64,15 @@ func (r *letterRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([
 // letterOutbox hands out increasing ids so a delivery row can point at a real
 // outbox entry.
 type letterOutbox struct {
-	requests []emailoutbox.EnqueueRequest
+	requests []recordedMailRequest
 	nextID   int64
 	cancels  int
 }
 
-func (o *letterOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
-	o.requests = append(o.requests, req)
+func (o *letterOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
+	o.requests = append(o.requests, recordMailRequest(req))
 	o.nextID++
-	row := &emailoutbox.Enqueued{}
+	row := &communication.MailEnqueued{}
 	row.ID = o.nextID
 	return row, nil
 }
@@ -161,7 +161,7 @@ func newLetterService(repo *letterRepo, outbox *letterOutbox, deliveries *letter
 		Deliveries: deliveries,
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // --- tests -------------------------------------------------------------------
@@ -606,7 +606,7 @@ func TestRemindOutstandingLetterDoesNotUsePollPush(t *testing.T) {
 		Deliveries: &letterDeliveries{},
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	}, testpkg.TenantTransactionRuntime{})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.RemindOutstanding(context.Background(), a.ID); err != nil {
 		t.Fatalf("RemindOutstanding: %v", err)
