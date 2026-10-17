@@ -1,4 +1,4 @@
-package common
+package api
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestSecurityPrincipalMiddlewareResolvesPortalScopes(t *testing.T) {
 			called := false
 			handler := SecurityPrincipalMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				called = true
-				principal, err := CurrentPrincipal(r.Context())
+				principal, err := principalTestCurrentPrincipal(r.Context())
 				if err != nil {
 					t.Fatalf("CurrentPrincipal() error = %v", err)
 				}
@@ -91,7 +91,7 @@ func TestPermissionMiddlewareFailsClosed(t *testing.T) {
 	})
 
 	missing := httptest.NewRecorder()
-	RequiresPermission("users:read")(terminal).ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/", nil))
+	principalTestRequiresPermission("users:read")(terminal).ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/", nil))
 	if missing.Code != http.StatusUnauthorized {
 		t.Fatalf("missing principal status = %d, want 401", missing.Code)
 	}
@@ -110,7 +110,7 @@ func TestPermissionMiddlewareFailsClosed(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 			recorder := httptest.NewRecorder()
-			SecurityPrincipalMiddleware(RequiresPermission("users:read")(terminal)).ServeHTTP(recorder, req)
+			SecurityPrincipalMiddleware(principalTestRequiresPermission("users:read")(terminal)).ServeHTTP(recorder, req)
 			if recorder.Code != tt.want {
 				t.Fatalf("status = %d, want %d", recorder.Code, tt.want)
 			}
@@ -123,15 +123,15 @@ func TestPermissionMiddlewareAnyAndAllSemantics(t *testing.T) {
 	terminal := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	for _, tt := range []struct {
 		name string
-		gate Middleware
+		gate func(http.Handler) http.Handler
 		want int
 	}{
-		{name: "any allows one", gate: RequiresAnyPermission("users:read", "users:update"), want: http.StatusNoContent},
-		{name: "any denies none", gate: RequiresAnyPermission("users:update", "users:delete"), want: http.StatusForbidden},
-		{name: "all allows all", gate: RequiresAllPermissions("users:read"), want: http.StatusNoContent},
-		{name: "all denies partial", gate: RequiresAllPermissions("users:read", "users:update"), want: http.StatusForbidden},
-		{name: "empty any denies", gate: RequiresAnyPermission(), want: http.StatusForbidden},
-		{name: "empty all allows", gate: RequiresAllPermissions(), want: http.StatusNoContent},
+		{name: "any allows one", gate: principalTestRequiresAnyPermission("users:read", "users:update"), want: http.StatusNoContent},
+		{name: "any denies none", gate: principalTestRequiresAnyPermission("users:update", "users:delete"), want: http.StatusForbidden},
+		{name: "all allows all", gate: principalTestRequiresAllPermissions("users:read"), want: http.StatusNoContent},
+		{name: "all denies partial", gate: principalTestRequiresAllPermissions("users:read", "users:update"), want: http.StatusForbidden},
+		{name: "empty any denies", gate: principalTestRequiresAnyPermission(), want: http.StatusForbidden},
+		{name: "empty all allows", gate: principalTestRequiresAllPermissions(), want: http.StatusNoContent},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

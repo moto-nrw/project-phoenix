@@ -7,11 +7,11 @@ import (
 )
 
 func ProtectedTenantRoutes(r chi.Router, fn func(chi.Router, common.Middleware)) {
-	common.ProtectedTenantRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware)
+	common.ProtectedTenantRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
 func ProtectedSchoolRoutes(r chi.Router, fn func(chi.Router, common.Middleware)) {
-	common.ProtectedSchoolRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware)
+	common.ProtectedSchoolRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
 func ProtectedParentGroup(r chi.Router, fn func(chi.Router)) {
@@ -19,13 +19,13 @@ func ProtectedParentGroup(r chi.Router, fn func(chi.Router)) {
 }
 
 func TenantSessionChain(r chi.Router) {
-	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware, common.SecurityPrincipalMiddleware)
+	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
 func SchoolSessionChain(r chi.Router) {
-	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, common.SecurityPrincipalMiddleware)
+	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
 func ParentSessionChain(r chi.Router) {
-	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, ParentScopeMiddleware, common.SecurityPrincipalMiddleware)
+	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, ParentScopeMiddleware, SecurityPrincipalMiddleware)
 }
