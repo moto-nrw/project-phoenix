@@ -22,16 +22,8 @@ func NewSickNoteRetention(settings SickNoteRetentionResolver) workforce.SickNote
 	if settings == nil {
 		panic("workforce compose: sick note retention requires settings")
 	}
-	return sickNoteRetention{retention: application.NewSickNoteRetention(
-		postgres.New(retentionDatabase), sickNoteRetentionWindow{settings: settings})}
-}
-
-type sickNoteRetention struct {
-	retention *application.SickNoteRetention
-}
-
-func (r sickNoteRetention) DeleteExpiredStaffSickNotes(ctx context.Context) (int, int, error) {
-	return r.retention.DeleteExpired(ctx)
+	return application.NewSickNoteRetention(
+		postgres.New(retentionDatabase), sickNoteRetentionWindow{settings: settings})
 }
 
 type sickNoteRetentionWindow struct{ settings SickNoteRetentionResolver }
