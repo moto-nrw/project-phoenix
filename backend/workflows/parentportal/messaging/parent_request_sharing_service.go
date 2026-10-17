@@ -57,7 +57,7 @@ func (s *Service) GetRequestSharingOptions(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		protected, _, loadErr := s.currentFamilyProtection(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -102,7 +102,7 @@ func (s *Service) changeRequestSharing(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var changeErr error
 		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientProfileIDs, write)
 		return changeErr
@@ -377,7 +377,7 @@ func (s *Service) ListRequestEvents(
 		return nil, errors.New("parent: request event ledger is not configured")
 	}
 	var out []ParentRequestEventView
-	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
 			return err
 		}

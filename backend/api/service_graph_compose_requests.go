@@ -531,6 +531,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
+		Runtime:      ParentPortalRuntime{},
 		CareProfiles: profiles, ChildRepo: NewParentChildReads(careplanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
 		EnrollmentSettings: b.settingsService, EnrollmentRequestRepo: NewParentEnrollmentReads(careplanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: people.GuardianProfiles, Attendance: BindParentAttendance(b.Presence.Presence), StatusDayRepo: b.CarePlanWiring.StatusDays,

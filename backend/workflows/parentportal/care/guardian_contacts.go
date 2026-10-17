@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CreateGuardianContact adds an accountless contact to the child.
@@ -37,7 +36,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	}
 
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		created, err := s.createGuardianContactInTx(txCtx, child, accountID, studentID, input)
 		result = created
 		return err
@@ -106,7 +105,7 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	result := projectChildGuardian(profile, link, phones, accountID, true,
 		child.HasPermission(authorize.GuardianPermissionPickupManage), false)
 	capturedTenant := child.TenantID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(capturedTenant, studentID)
 	})
 	return result, nil
@@ -223,7 +222,7 @@ func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		}
 	}
 	var out []*ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var loadErr error
 		out, loadErr = s.loadChildGuardians(txCtx, child.TenantID, accountID, studentID, canEdit, canManage)
 		return loadErr

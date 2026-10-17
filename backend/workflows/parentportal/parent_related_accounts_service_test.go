@@ -78,6 +78,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
@@ -416,6 +417,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
@@ -488,6 +490,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),

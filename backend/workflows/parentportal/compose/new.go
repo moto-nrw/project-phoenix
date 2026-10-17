@@ -27,11 +27,12 @@ type (
 	OfferingBooking = care.OfferingBooking
 )
 
-// Dependencies are the collaborators of the guardian portal. Optional
-// notifiers may be nil; tests set only what their flows reach.
+// Dependencies are the collaborators of the guardian portal. Runtime is
+// required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	Runtime care.Runtime
+	Logger  *slog.Logger
+	Now     func() time.Time
 
 	ChildRepo             care.ChildReads
 	EnrollablePhaseRepo   care.EnrollablePhaseReads
@@ -107,17 +108,16 @@ type Dependencies struct {
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
 	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows}))
-	childFlows = parentportal.NewChildFlows(careConfig(deps, messagingFlows))
+	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
-func careConfig(deps Dependencies, messagingFlows *messaging.Service) care.Config {
-	bound := bindOwners(deps)
+func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
 		CareExceptions: bound.careExceptions, DataRequests: bound.dataRequests,
 		GuardianAbsences: bound.guardianAbsences, GuardianPickups: bound.guardianPickups,
 		Guardians: bound.guardians, Students: bound.students,
-		Logger: deps.Logger, Now: deps.Now,
+		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime,
 		ChildRepo: deps.ChildRepo, EnrollablePhaseRepo: deps.EnrollablePhaseRepo,
 		EnrollmentSettings: deps.EnrollmentSettings, EnrollmentRequestRepo: deps.EnrollmentRequestRepo,
 		StudentRepo: deps.StudentRepo, PersonRepo: deps.PersonRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
@@ -148,7 +148,7 @@ func careConfig(deps Dependencies, messagingFlows *messaging.Service) care.Confi
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Children: resolver,
+		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,

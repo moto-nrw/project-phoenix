@@ -32,6 +32,7 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
@@ -95,6 +96,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	)
 
 	cfg := parentportalcompose.Dependencies{
+		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),

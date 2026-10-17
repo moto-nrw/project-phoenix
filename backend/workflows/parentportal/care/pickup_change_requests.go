@@ -35,7 +35,7 @@ func (s *Service) EditPickupChangeRequest(
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
 	var out *carerequests.Request
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -94,7 +94,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	}
 	legs := pickupChangeLegs{pickupTime: !pickupTime.IsZero(), departureMode: departureMode != ""}
 	var result *carerequests.Request
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.lockPickupChangeDay(txCtx, studentID, date, today, legs); err != nil {
 			return err
 		}

@@ -77,6 +77,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:         api.ParentPortalRuntime{},
 		CarePlan:        repos.CareExceptions,
 		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		CareProfiles:    careProfiles(t, db),
@@ -226,6 +227,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CareExceptions,
 		People:        api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:     repos.ParentChildReads(),

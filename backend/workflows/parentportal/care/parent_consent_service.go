@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
@@ -55,7 +54,7 @@ func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int
 	}
 
 	var consents []ChildConsent
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -96,7 +95,7 @@ func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	}
 
 	var consents []ChildConsent
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var txErr error
 		consents, txErr = s.changePhotoConsent(txCtx, child.TenantID, accountID, studentID, action)
 		return txErr
@@ -209,7 +208,7 @@ func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int
 		}
 		photos.ScheduleUnlinkAfterCommit(ctx, storedURL)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(tenantID, student.ID)
 	})
 	return nil

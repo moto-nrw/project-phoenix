@@ -29,6 +29,7 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersM
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),

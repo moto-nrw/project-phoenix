@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // declarationFeedFacts are the batched reads behind the declaration items of
@@ -176,7 +175,7 @@ func (s *Service) DeclarationProof(ctx context.Context, accountID, announcementI
 		return nil, ErrAnnouncementNotFound
 	}
 	proof := &DeclarationProof{SchoolName: child.SchoolName, ChildName: child.StudentName, Versions: map[int64]*usersModels.DeclarationVersion{}}
-	err = tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		return s.loadDeclarationProof(adminCtx, proof, accountID, announcementID, studentID, child.TenantID)
 	})
 	if err != nil {

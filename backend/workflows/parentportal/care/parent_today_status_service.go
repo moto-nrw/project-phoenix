@@ -40,7 +40,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 	today := s.todayDate()
 	facts := todayStatusFacts{NowHHMM: berlinHHMM(s.now())}
 
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		absent, absErr := s.hasActiveAbsenceToday(txCtx, studentID, today)
 		if absErr != nil {
 			return absErr

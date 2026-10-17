@@ -36,6 +36,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
@@ -1426,6 +1427,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),

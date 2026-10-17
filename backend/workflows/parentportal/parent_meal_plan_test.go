@@ -46,6 +46,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	}
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:       api.ParentPortalRuntime{},
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),

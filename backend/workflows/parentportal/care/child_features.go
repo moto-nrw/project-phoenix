@@ -83,7 +83,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 // phantom badge.
 func (s *Service) hasOpenChangeRequest(ctx context.Context, tenantID, accountID, studentID int64) bool {
 	open := false
-	err := InTenant(ctx, tenantID, func(txCtx context.Context) error {
+	err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		visibility, err := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
 		if err != nil {
 			return err
