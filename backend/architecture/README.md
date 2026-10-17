@@ -3997,7 +3997,7 @@ result and dependency types, its errors and the `GuardianService` port the
 roots and the HTTP layer name are values of `modules/peopledirectory/ports`;
 its transactions run through the `GuardianTransactions` port the composition
 binds to the tenant runtime (`compose/guardian_service.go`). The composition
-goes to 5,087 LOC.
+goes to 5,084 LOC.
 
 ### Enrollment wiring out of services (#4012)
 
