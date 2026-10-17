@@ -25,6 +25,7 @@ type retiredDoubles struct {
 	retiredBefore                 []time.Time
 	logged                        []int64
 	live                          map[int64]bool
+	student                       map[int64]bool
 	rehireBeforeMembershipRecheck map[int64]bool
 	anonymizationCalls            int
 }
@@ -60,6 +61,13 @@ func (d *retiredDoubles) FindPersonForMutation(_ context.Context, id int64) (peo
 		d.live[id] = true
 	}
 	return peopledirectory.Person{ID: id, UpdatedAt: time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)}, nil
+}
+
+func (d *retiredDoubles) ListStudentsByPersonID(_ context.Context, personIDs []int64) ([]peopledirectory.Student, error) {
+	if d.student[personIDs[0]] {
+		return []peopledirectory.Student{{PersonID: personIDs[0]}}, nil
+	}
+	return nil, nil
 }
 
 func (d *retiredDoubles) AnonymizeRetiredStaffPerson(_ context.Context, personID int64, _ time.Time) (bool, error) {
@@ -118,6 +126,20 @@ func TestStaffRetentionDoesNotAnonymizeAPersonRehiredBeforeTheFinalMembershipChe
 	require.NoError(t, err)
 	assert.Equal(t, staffoffboarding.RetentionResult{Deleted: 1, RetentionDays: 730}, result)
 	assert.Zero(t, doubles.anonymizationCalls, "the locked membership check keeps a rehired person's identity")
+}
+
+func TestStaffRetentionDoesNotAnonymizeAPersonWithAStudentMembership(t *testing.T) {
+	t.Parallel()
+	doubles := &retiredDoubles{
+		due:     []int64{3},
+		student: map[int64]bool{30: true},
+	}
+
+	result, err := newRetentionDoubles(t, doubles, 730, nil).DeleteExpiredStaff(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, staffoffboarding.RetentionResult{Deleted: 1, RetentionDays: 730}, result)
+	assert.Zero(t, doubles.anonymizationCalls, "the student membership keeps the shared identity")
 }
 
 func TestStaffRetentionCountsTheWindowFromTheDayAfterTheExit(t *testing.T) {

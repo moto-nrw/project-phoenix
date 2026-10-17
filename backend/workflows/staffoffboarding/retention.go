@@ -59,6 +59,7 @@ type RetiredTimetable interface {
 // RetiredPeople anonymizes the person of a retired staff member.
 type RetiredPeople interface {
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
+	ListStudentsByPersonID(ctx context.Context, personIDs []int64) ([]peopledirectory.Student, error)
 	AnonymizeRetiredStaffPerson(ctx context.Context, personID int64, updatedAt time.Time) (bool, error)
 }
 
@@ -250,7 +251,8 @@ func (r *Retention) removeSupervisions(ctx context.Context, staffID int64) (int6
 }
 
 // anonymize leaves a person alone who is on the staff again under a newer
-// membership, and one an earlier membership's erasure anonymized already.
+// membership, still has a student membership, or was anonymized by an earlier
+// membership's erasure.
 func (r *Retention) anonymize(ctx context.Context, personID int64) (bool, error) {
 	person, err := r.deps.People.FindPersonForMutation(ctx, personID)
 	if errors.Is(err, peopledirectory.ErrPersonNotFound) {
@@ -272,6 +274,17 @@ func (r *Retention) anonymize(ctx context.Context, personID int64) (bool, error)
 	}
 	if !errors.Is(err, schoolmembership.ErrStaffNotFound) {
 		return false, err
+	}
+	// A person can also be a student in the same school. Keep that identity
+	// until the student retention workflow has removed its own membership.
+	// The person lock above prevents a concurrent student profile from being
+	// attached between this check and the anonymization.
+	students, err := r.deps.People.ListStudentsByPersonID(ctx, []int64{personID})
+	if err != nil {
+		return false, err
+	}
+	if len(students) > 0 {
+		return false, nil
 	}
 	anonymized, err := r.deps.People.AnonymizeRetiredStaffPerson(ctx, person.ID, person.UpdatedAt)
 	if err != nil {

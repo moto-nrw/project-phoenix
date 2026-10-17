@@ -210,6 +210,30 @@ func TestNightlyRetentionKeepsTheNameOfARehiredStaffMember(t *testing.T) {
 	assert.False(t, logged[0].PersonAnonymized)
 }
 
+func TestNightlyRetentionKeepsTheNameOfAStaffMemberWhoIsStillAStudent(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	former := suite.staffWithRecords(t, school, "Doppelrolle")
+	suite.retire(t, former.staffID, 800)
+	student := suite.insertID(t, `INSERT INTO users.student_profiles (tenant_id, person_id) VALUES (?, ?) RETURNING id`,
+		school, former.personID)
+	membership := suite.insertID(t, `INSERT INTO users.student_school_memberships (tenant_id, student_profile_id, school_class)
+		VALUES (?, ?, '4a') RETURNING id`, school, student)
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO users.student_care_profiles (tenant_id, membership_id) VALUES (?, ?)`, school, membership)
+	require.NoError(t, err)
+
+	suite.run(t, school)
+
+	assert.Zero(t, suite.staffRecords(t, former.staffID), "the retired staff records still expire")
+	assert.Equal(t, staffPerson{FirstName: "Doppelrolle", LastName: "Personal"}, suite.staffPerson(t, former.personID),
+		"the active student keeps the shared identity")
+	assert.True(t, suite.exists(t, "users.student_school_memberships", membership))
+	logged := suite.staffDeletionLog(t, school, former.staffID)
+	require.Len(t, logged, 1)
+	assert.False(t, logged[0].PersonAnonymized)
+}
+
 func TestNightlyStaffRetentionKeepsSickNotesUntilTheirOwnWindowEnds(t *testing.T) {
 	t.Parallel()
 	suite := newRetentionSuite(t)
