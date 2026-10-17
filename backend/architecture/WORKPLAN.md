@@ -3,15 +3,15 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 186 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
+Stand 17.10.2026 · Ratchet 185 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-54.056 in `compose`
+54.050 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 21 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 186 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 185 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -507,3 +507,11 @@ bauen über Root; alle 44 bisherigen Assertions bleiben semantisch und nach
 Namespace-Normalisierung AST-identisch. Fünf Regeln und zwei #4078-Keys entfallen,
 keine Nachfolger, Selektoren, neuen Freigaben oder Root-Graph-Felder. Composition
 1.657 und Budget-Caps bleiben unverändert. Routen, Responses und Goldens bleiben gleich.
+
+#4078 / #4076: People Directory nennt für Dokument-Bytes nur einen eigenen
+Koordinator-Port. Root bindet dieselbe lazy Backend-Auflösung und File Storages
+nativen Koordinator über dessen reine Komposition. Native IO-/Header-/Cleanup-
+Methoden bleiben unverändert; der identische doppelte Dateinamen-Generator
+entfällt aus Compose. Ein #4076-Key fällt; keine Regel, Owner- oder Policy-Änderung.
+File Storage Compose 642 → 636, Gesamtkappe 55.887 → 55.881; Composition 1.657
+bleibt gleich. Routen, Responses und gesamte Golden-Dateien bleiben unverändert.
