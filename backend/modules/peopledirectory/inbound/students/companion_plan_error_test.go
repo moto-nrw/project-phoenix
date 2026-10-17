@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
@@ -73,7 +74,8 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}}
+			rs := &Resource{ResourceConfig: ResourceConfig{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}}
 			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":true}`, "100")
 			w := httptest.NewRecorder()
 
@@ -123,7 +125,8 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &Resource{ResourceConfig: ResourceConfig{CareRequestService: &companionErrCareRequestService{decideErr: tt.err}}}
+			rs := &Resource{ResourceConfig: ResourceConfig{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, CareRequestService: &companionErrCareRequestService{decideErr: tt.err}}}
 			req := staffRequest(http.MethodPost, "/students/care-schedule-change-requests/100/decide", `{"approve":true}`, "100")
 			w := httptest.NewRecorder()
 

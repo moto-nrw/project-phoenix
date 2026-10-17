@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -59,7 +60,8 @@ func responseCode(t *testing.T, w *httptest.ResponseRecorder) string {
 func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestConflictService: svc}}
 	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
 		`"expected_versions":["v1","v2"],"chosen_request_id":"13",`+
 		`"conflict_key":"absence:2026-09-01","reason":"Mit den Eltern geklärt"}`)
@@ -80,7 +82,8 @@ func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
 func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestConflictService: svc}}
 	w, req := resolveConflictRequest(t, `{"kind":"pickup_change","request_ids":["12","13"],`+
 		`"expected_versions":["v1","v2"],"staff_value":{"value":"15:30"},"reason":"Kompromiss"}`)
 
@@ -95,7 +98,8 @@ func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
 func TestResolveRequestConflictRejectsMalformedIDs(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{err: errors.New("must not be called")}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestConflictService: svc}}
 	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","no"],`+
 		`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
 
@@ -144,6 +148,7 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			rs := &Resource{ResourceConfig: ResourceConfig{
+				ConstraintViolation:          transactionFailures.IsConstraintViolation,
 				ParentRequestConflictService: &conflictServiceStub{err: tt.err},
 			}}
 			w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -91,7 +92,8 @@ func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID in
 }
 
 func buildCareOfferingRouter(svc CareOfferingCatalog) chi.Router {
-	rs := &Resource{CareOfferingService: svc}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, CareOfferingService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/care-offerings", rs.listCareOfferings)
@@ -629,7 +631,8 @@ func TestCareOfferingRouter_BookingStatsIsNotTreatedAsAnID(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockCareOfferingService{bookingStatsResult: []CareOfferingBookingStat{}}
-	rs := &Resource{CareOfferingService: mock}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, CareOfferingService: mock}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Route("/care-offerings", func(r chi.Router) {

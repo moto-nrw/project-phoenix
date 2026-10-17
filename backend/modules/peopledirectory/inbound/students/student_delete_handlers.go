@@ -44,7 +44,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		// The route middleware owns the ambient transaction and commits on
 		// every non-5xx response, so the 4xx paths request the rollback here.
 		tenant.MarkRollback(r.Context())
-		renderError(w, r, studentDeletionErrorRenderer(err))
+		renderError(w, r, rs.studentDeletionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Student and linked data deleted successfully")
@@ -96,7 +96,7 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 	}
 	impact, err := rs.StudentDeletion.Preview(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, studentDeletionErrorRenderer(err))
+		renderError(w, r, rs.studentDeletionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Student deletion impact retrieved")
@@ -174,7 +174,7 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 	}
 	if _, err := rs.StudentDeletion.PurgeGraduate(r.Context(), student.ID); err != nil {
 		tenant.MarkRollback(r.Context())
-		renderError(w, r, purgeGraduatedStudentErrorRenderer(err))
+		renderError(w, r, rs.purgeGraduatedStudentErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Graduated student permanently deleted")
@@ -184,61 +184,63 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 // response. It reuses the ordinary delete's classification and adds the one
 // purge-specific case: the child was restored between the Abgänge list and
 // the locked re-read, so the list is stale rather than the request malformed.
-func purgeGraduatedStudentErrorRenderer(err error) render.Renderer {
+func (rs *Resource) purgeGraduatedStudentErrorRenderer(err error) render.Renderer {
 	if errors.Is(err, studentdeletion.ErrNotGraduated) {
 		return common.ErrorConflictMessage(err.Error())
 	}
-	return studentDeletionErrorRenderer(err)
+	return rs.studentDeletionErrorRenderer(err)
 }
 
-var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	// The child graduated while this request was in flight. Answered with the
-	// same 404 the shared alumnus gate returns, so a delete never depends on
-	// which of the two transactions won the race.
-	{Target: studentdeletion.ErrGraduatedUnderLock, Render: func(error) render.Renderer {
-		return common.ErrorNotFound(errors.New("student not found"))
-	}},
-	{Target: studentdeletion.ErrStudentNotFound, Render: func(error) render.Renderer {
-		return common.ErrorNotFound(errors.New("student not found"))
-	}},
-	{Target: studentdeletion.ErrUnauthorized, Render: func(err error) render.Renderer {
-		return common.ErrorForbidden(err)
-	}},
-	{Target: studentdeletion.ErrPreviewChanged, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionPreviewChanged)
-	}},
-	{Target: studentdeletion.ErrConfirmationMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionConfirmationMismatch)
-	}},
-	{Target: studentdeletion.ErrNotAcknowledged, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionAcknowledgementRequired)
-	}},
-	{Target: studentdeletion.ErrInvalidReason, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionInvalidReason)
-	}},
-	{Target: studentdeletion.ErrAlumnus, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionAlumnus)
-	}},
-	{Target: studentdeletion.ErrRetentionNotEnded, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionRetentionNotEnded)
-	}},
-	{Target: studentdeletion.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionBlocked)
-	}},
-	{Target: studentdeletion.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionLockBusy)
-	}},
-	{Target: studentdeletion.ErrWithdrawalNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, common.CodeStudentsCareWithdrawalNotFound)
-	}},
-	{Target: studentdeletion.ErrWithdrawalAlreadyResolved, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
-	}},
-	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
-		return common.ErrorConflictWithCode(
-			//nolint:staticcheck // ST1005: user-facing German message
-			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
-			common.CodeStudentsDeletionConstraintsChanged,
-		)
-	}},
-}, common.ErrorInternalServer)
+func (rs *Resource) studentDeletionErrorRenderer(err error) render.Renderer {
+	return common.RenderWithRules(err, []common.ErrorRule{
+		// The child graduated while this request was in flight. Answered with the
+		// same 404 the shared alumnus gate returns, so a delete never depends on
+		// which of the two transactions won the race.
+		{Target: studentdeletion.ErrGraduatedUnderLock, Render: func(error) render.Renderer {
+			return common.ErrorNotFound(errors.New("student not found"))
+		}},
+		{Target: studentdeletion.ErrStudentNotFound, Render: func(error) render.Renderer {
+			return common.ErrorNotFound(errors.New("student not found"))
+		}},
+		{Target: studentdeletion.ErrUnauthorized, Render: func(err error) render.Renderer {
+			return common.ErrorForbidden(err)
+		}},
+		{Target: studentdeletion.ErrPreviewChanged, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionPreviewChanged)
+		}},
+		{Target: studentdeletion.ErrConfirmationMismatch, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionConfirmationMismatch)
+		}},
+		{Target: studentdeletion.ErrNotAcknowledged, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionAcknowledgementRequired)
+		}},
+		{Target: studentdeletion.ErrInvalidReason, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionInvalidReason)
+		}},
+		{Target: studentdeletion.ErrAlumnus, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionAlumnus)
+		}},
+		{Target: studentdeletion.ErrRetentionNotEnded, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionRetentionNotEnded)
+		}},
+		{Target: studentdeletion.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionBlocked)
+		}},
+		{Target: studentdeletion.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionLockBusy)
+		}},
+		{Target: studentdeletion.ErrWithdrawalNotFound, Render: func(err error) render.Renderer {
+			return common.ErrorNotFoundWithCode(err, common.CodeStudentsCareWithdrawalNotFound)
+		}},
+		{Target: studentdeletion.ErrWithdrawalAlreadyResolved, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
+		}},
+		{Match: rs.ConstraintViolation, Render: func(error) render.Renderer {
+			return common.ErrorConflictWithCode(
+				//nolint:staticcheck // ST1005: user-facing German message
+				errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
+				common.CodeStudentsDeletionConstraintsChanged,
+			)
+		}},
+	}, common.ErrorInternalServer)
+}

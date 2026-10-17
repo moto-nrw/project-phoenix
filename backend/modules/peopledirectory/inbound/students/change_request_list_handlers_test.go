@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -298,6 +299,7 @@ func newAggResource() (*Resource, *aggFakes) {
 		panic(err)
 	}
 	rs := NewResource(ResourceConfig{
+		ConstraintViolation:   transactionFailures.IsConstraintViolation,
 		ExcusedRequestService: fakes.excused,
 		RequestReview:         review,
 	})

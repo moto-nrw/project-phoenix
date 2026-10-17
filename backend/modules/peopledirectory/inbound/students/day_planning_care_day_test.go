@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +54,8 @@ func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 		10: careplan.CareDayScheduled,
 		11: careplan.CareDayNotScheduled,
 	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
 		context.Background(), timetableSet(10, 11), calendar.NewDate(2026, 7, 20),
@@ -73,7 +75,8 @@ func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 	stub := &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{
 		20: careplan.CareDayUnknown,
 	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
 		context.Background(), timetableSet(20), calendar.NewDate(2026, 7, 20),
@@ -94,7 +97,8 @@ func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
 	stub := &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{
 		21: careplan.CareDayCancelled,
 	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
 		context.Background(), timetableSet(21), calendar.NewDate(2026, 7, 18),
@@ -110,7 +114,8 @@ func TestFilterTimetableIDsByCareDayKeepsMissingVerdict(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{ResourceConfig: ResourceConfig{
-		CareDayService: &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{}},
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		CareDayService:      &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{}},
 	}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
@@ -140,7 +145,8 @@ func TestFilterTimetableIDsByCareDayPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubCareDayService{err: errors.New("boom")}
-	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, CareDayService: stub}}
 
 	_, err := rs.filterTimetableIDsByCareDay(
 		context.Background(), timetableSet(50), calendar.NewDate(2026, 7, 20),

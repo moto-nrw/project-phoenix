@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestResolveTenant_EarlyCheckoutNote_DefaultOnWithFifteenMinutes(t *testing.
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -67,7 +68,7 @@ func TestResolveTenant_EarlyCheckoutNote_SchoolOverrides(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteEnabled, false, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteToleranceMinutes, 30, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -84,7 +85,7 @@ func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsClosed(t *testing.T
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyEarlyCheckoutNoteToleranceMinutes, json.RawMessage(`"viel"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)

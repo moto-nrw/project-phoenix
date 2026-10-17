@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -41,7 +42,8 @@ func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	(&Resource{
-		uploads: nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var body struct {
@@ -68,7 +70,8 @@ func TestUploadLegalDocument_RejectsNonPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	(&Resource{
-		uploads: nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -83,7 +86,8 @@ func TestDeleteLegalDocument_RemovesUnreferencedTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{
-		uploads: nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
 	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
@@ -101,7 +105,8 @@ func TestDeleteLegalDocument_KeepsReferencedTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{
-		uploads: nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{referenced: true}}
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{referenced: true}}
 	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
@@ -121,7 +126,8 @@ func TestDeleteLegalDocument_ChecksReferencesInTenantTx(t *testing.T) {
 	type txContextKey struct{}
 	sawTenantTxContext := false
 	res := &Resource{
-		uploads: nativeUploads.UploadFiles{},
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{},
 		legalDocumentRefs: fakeLegalDocumentReferenceRepository{
 			referenced: true,
 			checkCtx: func(ctx context.Context) {
@@ -149,7 +155,8 @@ func TestDeleteLegalDocument_RejectsOtherTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{
-		uploads: nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
 	res.deleteLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)

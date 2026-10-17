@@ -50,8 +50,9 @@ type AccountLifecycle interface {
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService AccountLifecycle
-	Sessions    AccountSessions
+	ConstraintViolation func(error) bool
+	AuthService         AccountLifecycle
+	Sessions            AccountSessions
 	// Invitations is the Identity & Access invitation capability the
 	// invitation routes call directly (#3332).
 	Invitations Invitations
@@ -103,8 +104,12 @@ type RoleGrantPolicy interface {
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool) *Resource {
+	if constraintViolation == nil {
+		panic("account resource: database failure classifier is required")
+	}
 	return &Resource{
+		ConstraintViolation: constraintViolation,
 		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,

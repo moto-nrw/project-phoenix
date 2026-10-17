@@ -2,10 +2,8 @@ package common_test
 
 import (
 	"context"
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -456,35 +454,6 @@ func TestErrorGone_ResponseBody(t *testing.T) {
 // IsConstraintViolation Tests
 // =============================================================================
 
-func TestIsConstraintViolation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("detects foreign key violation string", func(t *testing.T) {
-		err := errors.New(`ERROR: update or delete on table "staff" violates foreign key constraint "fk_attendance_checked_in_by"`)
-		assert.True(t, common.IsConstraintViolation(err))
-	})
-
-	t.Run("detects not-null violation string from cascading SET NULL", func(t *testing.T) {
-		err := errors.New(`ERROR: null value in column "tenant_id" of relation "groups" violates not-null constraint`)
-		assert.True(t, common.IsConstraintViolation(err))
-	})
-
-	t.Run("detects wrapped FK violation string", func(t *testing.T) {
-		inner := errors.New(`violates foreign key constraint "fk_test"`)
-		wrapped := fmt.Errorf("database error: %w", inner)
-		assert.True(t, common.IsConstraintViolation(wrapped))
-	})
-
-	t.Run("returns false for nil error", func(t *testing.T) {
-		assert.False(t, common.IsConstraintViolation(nil))
-	})
-
-	t.Run("returns false for unrelated error", func(t *testing.T) {
-		err := errors.New("connection refused")
-		assert.False(t, common.IsConstraintViolation(err))
-	})
-}
-
 // =============================================================================
 // ErrorConflictWithCode Tests
 // =============================================================================
@@ -636,29 +605,6 @@ func TestErrorInternalServerWrap(t *testing.T) {
 	wrapped, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.ErrorIs(t, wrapped.Err, cause)
-}
-
-func TestIsTransientDatabaseError_DetectsBadConnection(t *testing.T) {
-	t.Parallel()
-
-	err := fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn)
-
-	assert.True(t, common.IsTransientDatabaseError(err))
-}
-
-func TestIsTransientDatabaseError_IgnoresRequestContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, common.IsTransientDatabaseError(context.Canceled))
-	assert.False(t, common.IsTransientDatabaseError(context.DeadlineExceeded))
-}
-
-func TestIsTransientDatabaseError_IgnoresDomainValidation(t *testing.T) {
-	t.Parallel()
-
-	err := errors.New("invalid session data: check-in time must be before check-out time")
-
-	assert.False(t, common.IsTransientDatabaseError(err))
 }
 
 // =============================================================================

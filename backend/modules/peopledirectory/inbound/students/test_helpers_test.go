@@ -15,6 +15,7 @@ import (
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -253,6 +254,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	})
 	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		ConstraintViolation:    transactionFailures.IsConstraintViolation,
 		Uploads:                nativeUploads.UploadFiles{},
 		PeopleDirectory:        svc.PeopleDirectory,
 		Persons:                svc.StudentRoutePersons(),

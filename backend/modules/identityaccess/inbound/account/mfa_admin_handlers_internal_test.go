@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,8 @@ func TestMFAAdminOverrideRequest_Bind(t *testing.T) {
 func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation}
 
 	cases := []struct {
 		name   string

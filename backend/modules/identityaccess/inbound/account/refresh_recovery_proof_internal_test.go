@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,8 @@ func TestRefreshToken_PassesRecoveryProofHeaderToSessions(t *testing.T) {
 	t.Parallel()
 
 	sessions := &refreshRecoveryProofStub{}
-	rs := &Resource{Sessions: sessions}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: sessions}
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	req.Header.Set(recoveryProofHeader, "independent-recovery-secret")

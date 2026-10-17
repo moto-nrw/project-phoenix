@@ -45,19 +45,24 @@ type GroupPeople interface {
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService   GroupService
-	ActiveService      studentpresence.Presence
-	People             GroupPeople
-	UserContextService CallerGroups
+	ConstraintViolation func(error) bool
+	EducationService    GroupService
+	ActiveService       studentpresence.Presence
+	People              GroupPeople
+	UserContextService  CallerGroups
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups) *Resource {
+func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups, constraintViolation func(error) bool) *Resource {
+	if constraintViolation == nil {
+		panic("group resource: database failure classifier is required")
+	}
 	return &Resource{
-		EducationService:   educationService,
-		ActiveService:      activeService,
-		People:             people,
-		UserContextService: userContextService,
+		ConstraintViolation: constraintViolation,
+		EducationService:    educationService,
+		ActiveService:       activeService,
+		People:              people,
+		UserContextService:  userContextService,
 	}
 }
 
@@ -446,7 +451,7 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
 		return rs.EducationService.DeleteGroup(ctx, id)
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Gruppe kann nicht gelöscht werden: Gruppe wird noch in anderen Bereichen referenziert"))
 			return
 		}
