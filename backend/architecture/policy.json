@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 71,
+  "policy_epoch": 72,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -14406,16 +14406,6 @@
       "source_owner": "delivery-platform",
       "source_role": "application",
       "target_class": "delivery"
-    },
-    {
-      "id": "external.crypto.identity-access.production.compose",
-      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_class": "crypto"
     },
     {
       "id": "external.crypto.identity-access.production.application",
