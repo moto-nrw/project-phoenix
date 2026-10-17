@@ -33,16 +33,14 @@ if [[ -n "$test_output" ]]; then
 fi
 
 # Production mode excludes, line for line:
-# - test-support packages (test/, testutil/, testdb/, *test/) and the root's
-#   test composition hooks (*_test_helpers.go): they serve tests only. #4094
-#   takes the hooks out of the production build and deletes this exclusion.
+# - test-support packages (test/, testutil/, testdb/, *test/): they serve tests only.
 # - internal/architecture/: its production entry point is the architecture
 #   command in scripts/backend-architecture, a module of its own that no
 #   backend main reaches. The last run below checks the package from that
 #   command, so it is not exempt, only measured there.
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go'); then
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/'); then
   :
 else
   production_filter_status=$?

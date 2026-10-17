@@ -273,19 +273,6 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 	return rr
 }
 
-// ExecuteRequestForTest is ExecuteRequest with t's disposable database
-// runtime when the test opted into one.
-func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
-	t.Helper()
-	rr := httptest.NewRecorder()
-	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		ctx = tenant.WithTenantID(ctx, tenantID)
-	}
-	servedBy(ctx, router).ServeHTTP(rr, req.WithContext(ctx))
-	return rr
-}
-
 // Response represents a standard success response for testing.
 type Response struct {
 	Status  string      `json:"status"`

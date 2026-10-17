@@ -29,25 +29,22 @@ func TestHandlerScannersUseProductionBuildNotHookFileNames(t *testing.T) {
 	require.Equal(t, map[string]int{"api/" + active + ":handle": 16}, scores)
 }
 
-func TestAPIProductionBuildExcludesTestHooks(t *testing.T) {
+func TestProductionBuildExcludesTestHooks(t *testing.T) {
 	t.Parallel()
 	root, err := findBackendRoot()
 	require.NoError(t, err)
 	active, err := productionGoSources(root)
 	require.NoError(t, err)
 	for path := range active {
-		if filepath.Dir(path) != filepath.Join(root, "api") {
-			continue
-		}
 		if strings.HasSuffix(path, "_test_helpers.go") {
-			t.Errorf("API test hooks compile in production: %s", path)
+			t.Errorf("test hooks compile in production: %s", path)
 		}
 		_, source, err := parseGoSourceCached(path, nil)
 		require.NoError(t, err)
 		for _, declaration := range source.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if ok && function.Name.IsExported() && strings.Contains(function.Name.Name, "ForTest") {
-				t.Errorf("test-only API export compiles in production: %s in %s", function.Name.Name, path)
+				t.Errorf("test-only export compiles in production: %s in %s", function.Name.Name, path)
 			}
 		}
 	}

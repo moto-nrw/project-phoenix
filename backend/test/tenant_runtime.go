@@ -44,12 +44,6 @@ func ContextWithTenantRuntime(ctx context.Context, runtime tenant.UnitOfWork) co
 	return tenant.WithUnitOfWork(ctx, runtime)
 }
 
-// ContextWithTransaction makes tx the ambient tenant transaction of ctx, so a
-// repository test can hold a lock in one transaction and contend in another.
-func ContextWithTransaction(ctx context.Context, tx any) context.Context {
-	return tenant.WithTransactionForTest(ctx, tx)
-}
-
 // ErrSavepointControl is the tenant runtime's failure to control a savepoint,
 // for doubles that report untrusted transaction state.
 var ErrSavepointControl = tenant.ErrSavepointControl
