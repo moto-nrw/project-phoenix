@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // lifecyclePresets stands in for the Security Runtime policy: parents default
 // to the legal guardian preset, everything else to custom, and only the legal
 // guardian preset grants permissions.
-func lifecyclePresets() GuardianRolePresetFuncs {
-	return GuardianRolePresetFuncs{
+func lifecyclePresets() ports.GuardianRolePresetFuncs {
+	return ports.GuardianRolePresetFuncs{
 		Default: func(relationshipType string, _, _, _ bool) string {
 			if relationshipType == "Parent" || relationshipType == "parent" {
 				return "legal_guardian"

@@ -8,21 +8,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
-type Observation = internalports.Observation
+type Observation = ports.Observation
 
 // GuardianLinkOwners are Care Plan's pickup permission and Identity &
 // Access's portal access: the two halves a guardian link writes besides its
 // relationship (#2756).
-type GuardianLinkOwners = internalports.GuardianLinkOwners
+type GuardianLinkOwners = ports.GuardianLinkOwners
 
 // StudentDirectoryRows is the student directory projection the root binds.
 type StudentDirectoryRows = postgres.StudentDirectory
@@ -70,7 +71,7 @@ type Dependencies struct {
 	GuardianLinkOwners GuardianLinkOwners
 	// GuardianRolePresets is the role policy the guardian lifecycle links and
 	// promotes with. Optional on the same terms.
-	GuardianRolePresets GuardianRolePresets
+	GuardianRolePresets peoplePorts.GuardianRolePresets
 	// GuardianLinkRows is the guardian link projection the root binds; without
 	// it the link reads fail closed.
 	GuardianLinkRows postgres.GuardianLinks
@@ -111,29 +112,29 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		dependencies.Observe(observation)
 	}
 	service := application.New(postgres.New(database), transaction{}, observe)
-	var companions internalports.StudentCompanions
+	var companions ports.StudentCompanions
 	if dependencies.StudentCompanions != nil {
 		companions = application.NewStudentCompanions(dependencies.StudentCompanions)
 	}
 	owners := application.NewStudentOwners(dependencies.StudentOwners)
 	noteStore := postgres.NewStudentNoteStore(database)
-	var noteDeletionAudit internalports.StudentNoteDeletionAudit
+	var noteDeletionAudit ports.StudentNoteDeletionAudit
 	if dependencies.StudentNoteDeletionAudit != nil {
 		noteDeletionAudit = application.NewStudentNoteDeletionAudit(dependencies.StudentNoteDeletionAudit)
 	}
 	students := application.NewStudents(postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships), dependencies.GuardianLinkRows), dependencies.GuardianLinkOwners, transaction{}, observe)
-	var auditLog internalports.StudentFieldAuditLog
+	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = application.NewStudentFieldAuditLog(dependencies.StudentFieldAudit)
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
-	var consentHistory internalports.StudentConsentHistory
+	var consentHistory ports.StudentConsentHistory
 	if dependencies.StudentConsentHistory != nil {
 		consentHistory = dependencies.StudentConsentHistory
 	}
 	studentConsents := application.NewStudentConsents(consentHistory, observe)
-	photoRuntime := internalports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
+	photoRuntime := ports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now

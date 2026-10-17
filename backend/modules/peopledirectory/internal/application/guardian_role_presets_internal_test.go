@@ -1,16 +1,18 @@
-package compose
+package application
 
 import (
 	"testing"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/stretchr/testify/assert"
+
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // presetTable stands in for the Security Runtime policy: "pickup_only" grants
 // one permission, everything else normalizes to "primary_guardian" with two.
-func presetTable() GuardianRolePresetFuncs {
-	return GuardianRolePresetFuncs{
+func presetTable() ports.GuardianRolePresetFuncs {
+	return ports.GuardianRolePresetFuncs{
 		Default: func(relationshipType string, isPrimary, _, canPickup bool) string {
 			if canPickup && !isPrimary && relationshipType == "other" {
 				return "pickup_only"

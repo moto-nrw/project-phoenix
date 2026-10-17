@@ -144,7 +144,7 @@ type serviceGraph struct {
 	StudentDocuments         careplan.StudentDocuments
 	FileStore                *filestorageModule.Module
 	CaregiverCapability      peopleCompose.CaregiverCapabilityService
-	Guardian                 *peopleCompose.GuardianService
+	Guardian                 peoplePorts.GuardianService
 	PeopleDirectory          peopledirectory.Capability
 	Emergency                emergencysnapshot.Query
 	SlotLists                classday.SlotLists
@@ -410,7 +410,7 @@ type IdentityComposition struct {
 // GuardianInvitationReads serves the People Directory guardian list and the
 // parents portal over the guardian invitations.
 type GuardianInvitationReads interface {
-	peopleCompose.GuardianInvitations
+	peoplePorts.GuardianInvitations
 	ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error)
 }
 
