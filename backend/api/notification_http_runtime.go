@@ -15,10 +15,10 @@ import (
 func notificationHTTPRuntime() notificationsHTTP.Runtime {
 	runtime := notificationProblems()
 	runtime.ProtectedTenant = func(r chi.Router, register func(chi.Router, notificationsHTTP.Middleware)) {
-		common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) { register(r, withTx) })
+		ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) { register(r, withTx) })
 	}
 	runtime.ProtectedSchool = func(r chi.Router, register func(chi.Router, notificationsHTTP.Middleware)) {
-		common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) { register(r, withTx) })
+		ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) { register(r, withTx) })
 	}
 	runtime.TenantOperation = common.TenantOperationMiddleware
 	runtime.TenantID = tenant.FromContext

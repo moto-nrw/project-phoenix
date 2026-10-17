@@ -41,9 +41,9 @@ func (rs *Resource) logger() *slog.Logger {
 // Router registers the statistics routes. Both routes need config:read
 // (the report gate used by the other admin reports) AND users:read (the
 // per-child rows are personal data), mirroring the class-roster export.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		guard := rs.Runtime.ReportGuard
 		r.With(guard, withTx).Get("/report", rs.getReport)
 		r.With(guard, withTx).Get("/export", rs.exportReport)

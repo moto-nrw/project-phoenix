@@ -83,7 +83,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
 	"modules/classday/internal/application/slotlist_export.go:(*service).RenderList":                                                            71,
-	"modules/classday/internal/application/slotlist_build.go:(*service).buildList":                                                              127,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).classifyPlannedRow":                                                     128,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).loadSlotPresence":                                                       74,
 	"modules/classday/internal/application/slotlist_build.go:slotHeadingDisambiguation":                                                         72,
@@ -172,7 +171,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).createStaffAppointment":                                           91,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":                                           102,
 	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":                                                64,
-	"modules/schoolportal/api.go:(*Resource).RouterWithAuthRateLimiter":                                                                         86,
+	"modules/schoolportal/api.go:(*Resource).RouterWithAuthRateLimiter":                                                                         83,
 	"modules/schoolportal/auth_handlers.go:(*Resource).login":                                                                                   64,
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions":                                           64,
 	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":                                                    63,

@@ -27,11 +27,11 @@ func NewResource(snapshot emergencysnapshot.Query) *Resource {
 }
 
 // Router mounts the routes.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/snapshot/export", rs.exportSnapshot)
 	})
 

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +25,7 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 	t.Parallel()
 	tc := setupAuthRoute(t)
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(rootAPI.TenantSessionChain))
 
 	email := fmt.Sprintf("link-perm-%d@example.com", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, email, "SecurePass123!")

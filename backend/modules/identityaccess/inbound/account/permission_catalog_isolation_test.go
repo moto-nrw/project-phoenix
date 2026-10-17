@@ -142,6 +142,6 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{})
 	authResource.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(serveDB)
-	router.Mount("/auth", authResource.Router())
+	router.Mount("/auth", authResource.Router(api.TenantSessionChain))
 	return router
 }

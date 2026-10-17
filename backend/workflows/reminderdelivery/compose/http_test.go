@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -48,7 +50,7 @@ func TestListRemindersAdminScope(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{result: &reminder.Result{Enabled: true}}
-			runtime := compose.HTTPRuntime()
+			runtime := compose.HTTPRuntime(rootAPI.ProtectedTenantRoutes)
 			// These scope tests start with authenticated claims, as the former
 			// direct-handler tests did. Keep the real permission middleware.
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
@@ -76,7 +78,7 @@ func TestReminderHTTPErrorContract(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{err: tt.err}
-			runtime := compose.HTTPRuntime()
+			runtime := compose.HTTPRuntime(rootAPI.ProtectedTenantRoutes)
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
 				register(router, func(next http.Handler) http.Handler { return next })
 			}

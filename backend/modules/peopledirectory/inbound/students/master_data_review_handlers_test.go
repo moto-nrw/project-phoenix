@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +67,7 @@ func reviewItem(status string) *masterdatarequests.ReviewItem {
 
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	t.Parallel()
-	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
+	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router(scopeTestTenantRoutes(testpkg.TenantSessionGates()))
 	// The decide route gates on users:update (deciding a request is the same
 	// child write as editing the child directly), with per-child scope enforced
 	// in the service. A caller with only users:read cannot reach it.

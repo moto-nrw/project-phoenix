@@ -7,6 +7,8 @@ package me
 import (
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 )
@@ -67,6 +69,6 @@ func TestProfileUpdateRequest_PartialFields(t *testing.T) {
 func TestNewResource_ReturnsResource(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(identityaccess.CallerContext{}, nil)
+	resource := NewResource(identityaccess.CallerContext{}, nil, scopeTestTenantSession(testpkg.TenantSessionGates()))
 	assert.NotNil(t, resource)
 }

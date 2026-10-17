@@ -45,7 +45,7 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 	className := fmt.Sprintf("sc%d", time.Now().UnixNano()%100000)
 	_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Scope", "Kind", className)
-	router := resource.Router()
+	router := resource.Router(SchoolSessionChain, ProtectedSchoolRoutes)
 
 	// A fixed future Monday: the service refuses past dates and weekends,
 	// and nothing here may depend on the wall clock.

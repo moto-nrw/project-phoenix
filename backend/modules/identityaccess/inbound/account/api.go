@@ -165,7 +165,7 @@ func requirePlatformScope(next http.Handler) http.Handler {
 // RouterWithAuthRateLimiter returns the auth router with the given rate
 // limiter middleware on the public login, password-reset, MFA and
 // passkey-login routes; nil mounts them unthrottled.
-func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -175,7 +175,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	rs.mountPublicRoutes(r, authRateLimiter)
 	rs.mountSessionRoutes(r)
 	// Protected routes that require access token
-	r.Group(rs.mountAuthenticatedRoutes)
+	r.Group(func(r chi.Router) { rs.mountAuthenticatedRoutes(r, configureSession) })
 
 	return r
 }
@@ -249,14 +249,11 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 // mountAuthenticatedRoutes registers the routes that require an access token:
 // the caller's own account, tenant switch, staff-view preview, and the admin
 // routes behind the tenant transaction.
-func (rs *Resource) mountAuthenticatedRoutes(r chi.Router) {
-	r.Use(sessiontoken.Authenticator)
+func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func(chi.Router)) {
 	// Write block for admin staff-view preview tokens (#2893): a preview
 	// token must not switch tenants, change passwords, manage roles, or
 	// start another preview. Same placement as in ProtectedTenantGroup.
-	r.Use(common.ReadOnlyPreviewMiddleware)
-	r.Use(common.TenantScopeMiddleware)
-	r.Use(common.SecurityPrincipalMiddleware)
+	configureSession(r)
 
 	// Tenant switching
 	r.Post("/switch-tenant", rs.switchTenant)

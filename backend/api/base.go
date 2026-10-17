@@ -690,7 +690,7 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			if access == mealplanAPI.AccessParticipants {
@@ -744,7 +744,7 @@ func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanMod
 func newUsersResource(module peopleModule.Capability, accountEmails func(context.Context, []int64) (map[int64]string, error), tagExists func(context.Context, string) (bool, error)) *usersAPI.Resource {
 	return usersAPI.NewResource(module, usersAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -778,7 +778,7 @@ func newUsersResource(module peopleModule.Capability, accountEmails func(context
 func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) feedbackAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -1098,7 +1098,7 @@ func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 	}
 	resource := requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		CurrentTenantID:  func(r *http.Request) int64 { return sessiontoken.ClaimsFromCtx(r.Context()).TenantID },
 		CurrentAccountID: func(r *http.Request) int64 { return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID) },
@@ -1520,7 +1520,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		ListExportService:            lists.NewRenderer(),
 		Logger:                       in.logger.With("handler", "students"),
 	})
-	tenant.Mount("/students", students.Router())
+	tenant.Mount("/students", students.Router(ProtectedTenantRoutes))
 	return students, nil
 }
 
@@ -1536,7 +1536,7 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
@@ -1640,7 +1640,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 	tenant.Mount("/shift-types", newShiftTypesResource(svc.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
 	tenant.Mount("/substitutions", newSubstitutionsResource(SubstitutionCapability(svc.Substitution)).Router())
-	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar).Router())
+	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar).Router(ProtectedTenantRoutes))
 	return staffAdmin, nil
 }
 
@@ -1675,11 +1675,11 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// seam (#2970) behind its one public capability.
 	classDay := classdayHTTP.NewResource(svc.ClassDayArrivalExceptions, in.logger.With("handler", "class-day"))
 	school := NewSchoolPortalHTTP(SchoolPortalAuth(in.modules.identity), SchoolPortalMFA(in.modules.identity), schoolPasswordResets(in.modules.identity), classDay, timetable, staffMessaging, staffNotices, notifications)
-	tenant.Mount("/staff-messages", staffMessaging.Router())
-	tenant.Mount("/staff-notices", staffNotices.Router())
-	tenant.Mount("/timetable", timetable.Router())
+	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
+	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
+	tenant.Mount("/timetable", timetable.Router(ProtectedTenantRoutes))
 	tenant.Mount("/notifications", notifications.Router())
-	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware(), SchoolSessionChain, ProtectedSchoolRoutes))
 	return nil
 }
 
@@ -1727,11 +1727,11 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: modules.listExport,
-	}, logger.With("handler", "rooms")).Router())
-	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router())
-	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router())
+	}, logger.With("handler", "rooms"), ProtectedTenantRoutes).Router())
+	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router(ProtectedTenantRoutes))
+	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
-	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router())
+	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router(TenantSessionChain))
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the service graph composes it and the IoT service hands it
 	// back here (#2676).
@@ -1742,7 +1742,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, TimeframeChangeGuard(
 		svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		svc.EnrollmentCareOffering.ValidateTimeframeChange,
-	), pool).Router())
+	), pool).Router(ProtectedTenantRoutes))
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(svc.Settings)
 	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
@@ -1754,7 +1754,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		Students: modules.imports.Student, Staff: modules.imports.Staff, ClassList: modules.imports.ClassList,
 		Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(svc.PeopleDirectory, modules.membership, modules.imports.OpeningBalance),
 	}).Router())
-	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
+	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router(ProtectedTenantRoutes))
 }
 
 // newEnrollmentResource mounts Enrollment's staff and public routes. The
@@ -1788,7 +1788,7 @@ func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollm
 // the meal plan under /api.
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
-	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(modules.listExport), logger.With("handler", "statistics")).Router())
+	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(modules.listExport), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
 	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, NewGuardianDirectoryRuntime(svc, modules.listExport, modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
@@ -1797,19 +1797,19 @@ func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 		return found, err
 	}).Router())
 	// Birthday display and staff birthday list (#1542).
-	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, modules.listExport, modules.userContext, logger.With("handler", "birthdays")).Router())
-	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext).Router())
-	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router())
+	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, modules.listExport, modules.userContext, logger.With("handler", "birthdays")).Router(ProtectedTenantRoutes))
+	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext, TenantSessionChain).Router())
+	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router(ProtectedTenantRoutes))
 }
 
 // mountCommunicationRoutes serves parent messages and announcements, staff
 // reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 	svc := in.modules.services
-	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router())
-	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router())
+	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router(ProtectedTenantRoutes))
+	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
-	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, reminderCompose.HTTPRuntime()).Router())
+	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, reminderCompose.HTTPRuntime(ProtectedTenantRoutes)).Router())
 	// PWA standalone-usage reporting (#2189).
 	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
 	// User-facing platform announcements.
@@ -1824,7 +1824,7 @@ func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
 	svc := in.modules.services
 	calendar := calendarAPI.NewResource(svc.Calendar, in.logger.With("handler", "calendar"))
-	tenant.Mount("/calendar", calendar.Router())
+	tenant.Mount("/calendar", calendar.Router(TenantSessionChain))
 
 	// Public parent calendar subscription feed (no auth — the token in the URL
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
@@ -1849,11 +1849,11 @@ func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
 	files := filestoreAPI.NewResource(svc.FileStore, in.logger.With("handler", "filestore"))
 	sse := sseAPI.NewResource(svc.RealtimeHub, in.modules.userContext, NewSSEHTTPRuntime(), in.logger.With("handler", "sse"))
 	sse.SetSchoolAccess(in.modules.identity)
-	tenant.Mount("/files", files.Router())
+	tenant.Mount("/files", files.Router(ProtectedTenantRoutes))
 	// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
 	// Route unter /parent-announcements: die Bytes gehören der
 	// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
-	tenant.Mount("/announcement-attachments", files.AnnouncementAttachmentRouter())
+	tenant.Mount("/announcement-attachments", files.AnnouncementAttachmentRouter(ProtectedTenantRoutes))
 	tenant.Mount("/sse", NewSSEHTTPRouter(sse))
 	// Parent-portal SSE stream: only whitelisted triggers (parent_message)
 	// for the tenants of the guardian's children.
@@ -1861,7 +1861,7 @@ func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
 	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Der
 	// Empfängerkreis der Mitteilung entscheidet; wer nicht dazugehört,
 	// bekommt 404.
-	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter())
+	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter(ProtectedParentGroup))
 	// School-portal SSE stream (#2208): account-addressed triggers only
 	// (Team-Chat).
 	root.Mount("/school-sse", newSchoolSSERouter(sse))
@@ -1873,13 +1873,13 @@ func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
 func mountPortalRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) error {
 	// RouterWithAuthRateLimiter applies the limiter only to the public login,
 	// password-reset, MFA and passkey-login routes.
-	root.Mount("/auth", newAccountResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	root.Mount("/auth", newAccountResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware(), TenantSessionChain))
 	operator, err := newOperatorRouter(in, limiters)
 	if err != nil {
 		return err
 	}
 	root.Mount("/operator", operator)
-	root.Mount("/parent", newParentResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	root.Mount("/parent", newParentResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware(), ParentSessionChain))
 	return nil
 }
 
@@ -1999,7 +1999,7 @@ func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 			router.Group(func(r chi.Router) {
 				r.Use(sessiontoken.Authenticator)
 				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-				r.Use(apiCommon.TenantScopeMiddleware)
+				r.Use(TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
 				register(r)
 			})
@@ -2163,7 +2163,7 @@ func databaseStatsRouter(in routeInputs) chi.Router {
 
 func newDatabaseStatsRouter(read DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
-	apiCommon.ProtectedTenantRoutes(router, func(router chi.Router, withTx apiCommon.Middleware) {
+	ProtectedTenantRoutes(router, func(router chi.Router, withTx apiCommon.Middleware) {
 		// The reader redacts every count the caller may not read, so the
 		// route opens for any permission authorize.NewDatabaseStatsCapabilities
 		// honours: the Datenverwaltung hub shows its counts to a lead role a

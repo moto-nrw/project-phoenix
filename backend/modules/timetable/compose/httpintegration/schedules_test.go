@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +52,7 @@ func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 	return &schedulesTestContext{
 		db:       db,
 		resource: resource,
-		router:   resource.Router(),
+		router:   resource.Router(rootAPI.ProtectedTenantRoutes),
 	}
 }
 
@@ -238,7 +240,7 @@ func TestSchedulesRouter_ReturnsValidRouter(t *testing.T) {
 
 	ctx := setupSchedulesRoute(t)
 
-	router := ctx.resource.Router()
+	router := ctx.resource.Router(rootAPI.ProtectedTenantRoutes)
 	assert.NotNil(t, router, "Router should not be nil")
 }
 

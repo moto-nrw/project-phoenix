@@ -36,12 +36,12 @@ func NewSchedulesResource(dateframes Dateframes, timeframes Timeframes, guard Ti
 }
 
 // Router returns a configured router for schedule endpoints
-func (rs *SchedulesResource) Router() chi.Router {
+func (rs *SchedulesResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Current dateframe endpoint - requires schedules:read permission
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)

@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -72,7 +74,7 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 	resource := filestoreAPI.NewResource(svc.FileStore, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/files", resource.Router())
+	router.Mount("/files", resource.Router(rootAPI.ProtectedTenantRoutes))
 
 	suffix := time.Now().UnixNano()
 	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, db, "Leitung", fmt.Sprintf("Admin-%d", suffix))

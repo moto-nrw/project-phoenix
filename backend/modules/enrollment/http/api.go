@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // GuardianProfiles loads the guardian profile an account holds in one school,
@@ -101,7 +100,7 @@ func NewResource(
 // Router returns a chi router scoped to /enrollment. PR 5 added the
 // admin form-schema endpoints; PR 6 adds care-offering admin CRUD +
 // the public open-window endpoint.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -112,10 +111,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Authenticated admin endpoints.
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(common.TenantScopeMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
+		configureSession(r)
 
 		rs.mountConfigRoutes(r)
 		rs.mountPhaseRoutes(r)

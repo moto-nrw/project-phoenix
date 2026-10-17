@@ -11,10 +11,10 @@ import (
 )
 
 // HTTPRuntime preserves tenant transactions, permission checks, and responses.
-func HTTPRuntime() remindersHTTP.Runtime {
+func HTTPRuntime(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) remindersHTTP.Runtime {
 	return remindersHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
-			common.ProtectedTenantRoutes(router, register)
+			protectedTenantRoutes(router, register)
 		},
 		ReadPermission: common.RequiresPermission(permissions.UsersRead),
 		EffectiveAdmin: common.HasEffectiveAdminScope,

@@ -109,10 +109,10 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 // Router builds a standalone /staff router for this resource. The composition
 // root registers the workforce routes into the shared /staff router via
 // RegisterStaffRoutes instead, so membership and workforce keep one prefix.
-func (rs *StaffAdminResource) Router() chi.Router {
+func (rs *StaffAdminResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	common.ProtectedTenantRoutes(r, rs.RegisterStaffRoutes)
+	protectedTenantRoutes(r, rs.RegisterStaffRoutes)
 	return r
 }
 

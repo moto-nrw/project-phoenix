@@ -29,10 +29,10 @@ func NewResource(service communication.ParentMessagingCapability) *Resource {
 }
 
 // Router returns the chi router scoped to /messages.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// users:read is the coarse gate; per-child access is enforced in the
 		// service via authorize.CanReadStudent. Starting/sending a thread

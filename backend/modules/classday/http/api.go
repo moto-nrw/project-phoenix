@@ -41,11 +41,11 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 // Since the cutover (#2207 PR 3) this is the ONLY mount: the tenant-portal
 // twin under /api/class-day is gone, so a Lehrkraft reaches the view through
 // moto schule and nowhere else.
-func (rs *Resource) SchoolRouter() chi.Router {
+func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.registerRoutes(r, withTx)
 	})
 

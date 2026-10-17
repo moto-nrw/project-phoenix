@@ -49,7 +49,7 @@ func newStaffShiftsResource(deps staffShiftsDependencies) *staffshiftsHTTP.Resou
 func staffShiftsRuntime(deps staffShiftsDependencies) staffshiftsHTTP.Runtime {
 	return staffshiftsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, staffshiftsHTTP.Middleware)) {
-			common.ProtectedTenantRoutes(router, routes)
+			ProtectedTenantRoutes(router, routes)
 		},
 		Permission: common.RequiresPermission,
 		ParseID:    common.ParseID,
@@ -154,7 +154,7 @@ func newShiftTypesResource(types workforce.ShiftTypeAdministration) *shifttypesH
 func shiftTypesRuntime() shifttypesHTTP.Runtime {
 	return shifttypesHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, shifttypesHTTP.Middleware)) {
-			common.ProtectedTenantRoutes(router, routes)
+			ProtectedTenantRoutes(router, routes)
 		},
 		Permission:         common.RequiresPermission,
 		ParseID:            common.ParseID,

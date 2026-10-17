@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +48,7 @@ func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, module := setupUserContextModule(t)
-	resource := me.NewResource(module.UserContext.Caller(), module.UserContext)
+	resource := me.NewResource(module.UserContext.Caller(), module.UserContext, rootAPI.TenantSessionChain)
 
 	return &testContext{
 		db: db,

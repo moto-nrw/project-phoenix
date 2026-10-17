@@ -52,11 +52,11 @@ func NewResource(
 }
 
 // Router returns the configured router.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		// users:read is the permission that already grants the child directory
 		// this list is a narrow slice of, and the handler additionally applies
 		// the caller's student data scope so the list never reaches past that

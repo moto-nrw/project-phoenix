@@ -39,11 +39,11 @@ import (
 // what the Betreuungsplan gave her, she does not invent blocks), reopen (a
 // correction on a finished block is office work), and active-sessions /
 // roster-by-active-group (both answer for the whole school).
-func (rs *Resource) SchoolSupervisionRouter() chi.Router {
+func (rs *Resource) SchoolSupervisionRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		own := common.RequiresPermission(permissions.SupervisionOwn)
 		attendance := common.RequireWebAttendanceEnabled(rs.SettingsService)
 

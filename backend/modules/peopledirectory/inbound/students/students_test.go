@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/stretchr/testify/assert"
@@ -1459,7 +1461,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 	tc := setupStudentsRoute(t)
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	assert.NotNil(t, router, "Router should not be nil")
 }
 

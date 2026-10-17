@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -178,13 +180,13 @@ func executeAdminJSON(t *testing.T, router chi.Router, method, path string, body
 	return w
 }
 
-// executeAdminRouteWithPermissions drives the routes rs.Router() mounts with
+// executeAdminRouteWithPermissions drives the routes rs.Router(scopeTestTenantSession(testpkg.TenantSessionGates())) mounts with
 // a signed tenant session that holds exactly the given permissions, so a test
 // pins the gate the production route carries.
 func executeAdminRouteWithPermissions(t *testing.T, rs *Resource, method, path string, permissions []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims := routetest.TenantUserTestClaims(1, 4242)
-	return routetest.ExecuteWithAuthPermissions(t, rs.Router(), httptest.NewRequest(method, path, nil), claims, permissions)
+	return routetest.ExecuteWithAuthPermissions(t, rs.Router(scopeTestTenantSession(testpkg.TenantSessionGates())), httptest.NewRequest(method, path, nil), claims, permissions)
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.

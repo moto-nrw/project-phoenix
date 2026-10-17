@@ -217,7 +217,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 
 	env := &takeoverLockEnv{
 		db:       db,
-		router:   testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
+		router:   testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID: tenantID,
 		phaseID:  phase.ID,
 		token:    submitted.Request.StatusToken,
