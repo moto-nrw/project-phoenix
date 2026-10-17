@@ -19,16 +19,14 @@
 package schoolportal
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	classdayAPI "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application
@@ -45,18 +43,31 @@ type StaffNoticesRouter interface {
 	SchoolRouter() chi.Router
 }
 
+// SchoolRouter is a school-scoped route resource supplied by Root.
+// The portal host does not import the HTTP adapters it mounts.
+type SchoolRouter interface {
+	SchoolRouter() chi.Router
+}
+
+// SupervisionsRouter is the assignment-bound supervision surface Root binds.
+type SupervisionsRouter interface {
+	SchoolSupervisionRouter() chi.Router
+}
+
 // Resource bundles the school-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService AuthRuntime
-	MFAService  MFARuntime
+	// TenantContext is the enrollment-audit context Root binds from native runtime.
+	TenantContext func(context.Context, int64) context.Context
+	AuthService   AuthRuntime
+	MFAService    MFARuntime
 	// Resets is the reset runtime the composition root binds to Identity &
 	// Access (#3332); the zero value leaves the reset routes answering 500.
 	Resets         PasswordResetRuntime
-	ClassDay       *classdayAPI.Resource
-	Timetable      *timetableAPI.Resource
+	ClassDay       SchoolRouter
+	Timetable      SupervisionsRouter
 	StaffMessaging StaffMessagingRouter
 	StaffNotices   StaffNoticesRouter
-	Notifications  *notificationsAPI.Resource
+	Notifications  SchoolRouter
 }
 
 // NewResource builds the school-portal resource. An incomplete resets
@@ -66,13 +77,15 @@ func NewResource(
 	auth AuthRuntime,
 	mfa MFARuntime,
 	resets PasswordResetRuntime,
-	classDay *classdayAPI.Resource,
-	timetable *timetableAPI.Resource,
+	classDay SchoolRouter,
+	timetable SupervisionsRouter,
 	staffMessaging StaffMessagingRouter,
 	staffNotices StaffNoticesRouter,
-	notifications *notificationsAPI.Resource,
+	notifications SchoolRouter,
+	tenantContext func(context.Context, int64) context.Context,
 ) *Resource {
 	return &Resource{
+		TenantContext:  tenantContext,
 		AuthService:    auth,
 		MFAService:     mfa,
 		Resets:         resets,
