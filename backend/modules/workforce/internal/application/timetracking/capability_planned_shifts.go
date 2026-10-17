@@ -1,11 +1,11 @@
-package compose
+package timetracking
 
 import (
 	"context"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimeTrackingShifts serves the time-tracking planned-shift port from the
@@ -22,7 +22,7 @@ func NewTimeTrackingShifts(shifts workforce.ShiftQuery) *TimeTrackingShifts {
 	return &TimeTrackingShifts{shifts: shifts}
 }
 
-func (r *TimeTrackingShifts) FindByStaffIDsAndDate(ctx context.Context, ids []int64, date timezone.Date) ([]*TimeTrackingShift, error) {
+func (r *TimeTrackingShifts) FindByStaffIDsAndDate(ctx context.Context, ids []int64, date calendar.Date) ([]*TimeTrackingShift, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -32,21 +32,21 @@ func (r *TimeTrackingShifts) FindByStaffIDsAndDate(ctx context.Context, ids []in
 	})
 }
 
-func (r *TimeTrackingShifts) FindByStaffAndDateRange(ctx context.Context, id int64, from, to timezone.Date) ([]*TimeTrackingShift, error) {
+func (r *TimeTrackingShifts) FindByStaffAndDateRange(ctx context.Context, id int64, from, to calendar.Date) ([]*TimeTrackingShift, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
 		StaffID: id, From: from.String(), To: to.String(),
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *TimeTrackingShifts) FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*TimeTrackingShift, error) {
+func (r *TimeTrackingShifts) FindByDateRange(ctx context.Context, from, to calendar.Date) ([]*TimeTrackingShift, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
 		From: from.String(), To: to.String(),
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *TimeTrackingShifts) FindByStaffIDsAndDateRange(ctx context.Context, ids []int64, from, to timezone.Date) (map[int64][]*TimeTrackingShift, error) {
+func (r *TimeTrackingShifts) FindByStaffIDsAndDateRange(ctx context.Context, ids []int64, from, to calendar.Date) (map[int64][]*TimeTrackingShift, error) {
 	result := make(map[int64][]*TimeTrackingShift, len(ids))
 	if len(ids) == 0 {
 		return result, nil
@@ -72,7 +72,7 @@ func (r *TimeTrackingShifts) list(ctx context.Context, filter workforce.StaffShi
 	result := make([]*TimeTrackingShift, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, &TimeTrackingShift{
-			StaffID: row.StaffID, Date: timezone.Date(row.Date),
+			StaffID: row.StaffID, Date: calendar.Date(row.Date),
 			StartTime: timeTrackingWallClock(row.StartTime), EndTime: timeTrackingWallClock(row.EndTime),
 			BreakMinutes: row.BreakMinutes, Cancelled: row.Cancelled,
 		})

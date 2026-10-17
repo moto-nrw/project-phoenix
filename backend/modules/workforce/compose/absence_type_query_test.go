@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestAbsenceTypeReaderUsesNativeOwner(t *testing.T) {
@@ -19,7 +21,7 @@ func TestAbsenceTypeReaderUsesNativeOwner(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	typ, err := module.Catalog.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Reader contract", AllowanceEnabled: true})
 	require.NoError(t, err)
-	reader := workforceCompose.AbsenceTypes(module.Catalog)
+	reader := timetracking.AbsenceTypes(module.Catalog)
 	value, err := reader.GetAbsenceType(ctx, typ.ID)
 	require.NoError(t, err)
 	require.NotNil(t, value)
@@ -46,7 +48,7 @@ func TestAbsenceTypeReaderUsesNativeOwner(t *testing.T) {
 	_, err = reader.ResolveForAbsence(ctx, 0)
 	require.EqualError(t, err, "diese Abwesenheitsart gibt es nicht")
 	failure := errors.New("read unavailable")
-	broken := workforceCompose.AbsenceTypes(nativeAbsenceTypeReadFailure{AbsenceTypeQuery: module.Catalog, failure: failure})
+	broken := timetracking.AbsenceTypes(nativeAbsenceTypeReadFailure{AbsenceTypeQuery: module.Catalog, failure: failure})
 	value, err = broken.GetAbsenceType(ctx, typ.ID)
 	assert.Nil(t, value)
 	require.ErrorIs(t, err, failure)

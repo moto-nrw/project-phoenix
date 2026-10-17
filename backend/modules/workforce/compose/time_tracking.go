@@ -160,7 +160,7 @@ func timeTrackingRows(capability workforce.Capability) timetracking.Rows {
 	return timetracking.Rows{
 		TargetOverrides:  capability,
 		MonthSnapshots:   timetracking.MonthSnapshotCapability(capability),
-		AbsenceTypes:     AbsenceTypes(capability),
+		AbsenceTypes:     timetracking.AbsenceTypes(capability),
 		Sessions:         timetracking.NewWorkSessionRows(capability),
 		Breaks:           timetracking.NewWorkSessionBreakRows(capability),
 		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability),
