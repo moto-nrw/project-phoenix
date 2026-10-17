@@ -54,6 +54,7 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:    api.ParentDeparturePolicy(),
 		GuardianPolicy:     api.ParentGuardianPolicy{},
 		Fingerprints:       api.SecurityFingerprints{},
 		Declarations:       api.ParentDeclarationPolicy(),
@@ -64,7 +65,7 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 		CareProfiles:       careProfiles(t, db),
 		ChildRepo:          repos.ParentChildReads(),
 		StatusDayRepo:      repos.StudentStatusDay,
-		StudentRepo:        repos.Student,
+		StudentRepo:        api.NewParentStudentReads(repos.Student),
 		CareExceptions:     repos.CarePlan(),
 		Settings:           reasonPolicySettings{policy: policy},
 		ExcusedRequests:    excused,

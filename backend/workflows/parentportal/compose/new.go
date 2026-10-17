@@ -16,23 +16,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
-// CarePeriod and OfferingBooking are the Enrollment values the root binds
-// behind CarePeriods and OfferingHistory.
-type (
-	CarePeriod      = care.CarePeriod
-	OfferingBooking = care.OfferingBooking
-)
-
 // Dependencies are the collaborators of the guardian portal. Runtime is
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
-	GuardianPolicy care.GuardianPolicy
-	Fingerprints   messaging.ContentFingerprints
-	Declarations   messaging.DeclarationPolicy
-	Locales        care.Locales
-	Runtime        care.Runtime
-	Logger         *slog.Logger
-	Now            func() time.Time
+	GuardianPolicy  care.GuardianPolicy
+	DeparturePolicy care.DeparturePolicy
+	Fingerprints    messaging.ContentFingerprints
+	Declarations    messaging.DeclarationPolicy
+	Locales         care.Locales
+	Runtime         care.Runtime
+	Logger          *slog.Logger
+	Now             func() time.Time
 
 	ChildRepo             care.ChildReads
 	EnrollablePhaseRepo   care.EnrollablePhaseReads
@@ -132,7 +126,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ParentRequestEvents: deps.ParentRequestEvents,
 		GuardianChanges:     guardianChanges{log: auditcompose.NewGuardianChangeLog()},
 		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
-		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy,
+		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
 		RequestSharing: requestSharing{messaging: messagingFlows},

@@ -113,7 +113,7 @@ func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDat
 
 	var created []*usersModels.StudentDataChangeRequest
 	for _, c := range changes {
-		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, masterDataPersonValues(person), masterDataStudentValues(student), c.Value)
+		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, MasterDataPersonValues(person), MasterDataStudentValues(student), c.Value, s.DeparturePolicy)
 		if fieldErr != nil {
 			return nil, fieldErr
 		}
@@ -310,7 +310,7 @@ func (s *Service) editMasterDataRequestInTx(
 	// Same validator the create path runs, against the CURRENT record: an edit
 	// may not propose a value the submit path would have refused, and one that
 	// meanwhile equals the live value is no request at all.
-	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, masterDataPersonValues(person), masterDataStudentValues(student), newValue)
+	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, MasterDataPersonValues(person), MasterDataStudentValues(student), newValue, s.DeparturePolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (s *Service) editMasterDataRequestInTx(
 	return row, nil
 }
 
-func trackBFieldState(target, field string, person *masterDataPerson, student *masterDataStudent, value json.RawMessage) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
+func trackBFieldState(target, field string, person *MasterDataPerson, student *MasterDataStudent, value json.RawMessage, policy DeparturePolicy) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
 	switch target {
 	case usersModels.DataChangeTargetPerson:
 		return trackBPersonFieldState(field, person, value)
@@ -348,13 +348,13 @@ func trackBFieldState(target, field string, person *masterDataPerson, student *m
 		if field != "allowed_departure_modes" {
 			return nil, nil, false, ErrMasterDataFieldNotEditable
 		}
-		return trackBDepartureState(student, value)
+		return trackBDepartureState(student, value, policy)
 	default:
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
 }
 
-func trackBStudentFieldState(field string, student *masterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBStudentFieldState(field string, student *MasterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	if field != "school_class" {
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
@@ -365,7 +365,7 @@ func trackBStudentFieldState(field string, student *masterDataStudent, value jso
 	return jsonString(student.SchoolClass), jsonString(newClass), newClass != student.SchoolClass, nil
 }
 
-func trackBPersonFieldState(field string, person *masterDataPerson, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBPersonFieldState(field string, person *MasterDataPerson, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	newStr, decErr := decodeStringValue(value)
 	if decErr != nil {
 		return nil, nil, false, decErr
@@ -397,7 +397,7 @@ func trackBPersonFieldState(field string, person *masterDataPerson, value json.R
 	}
 }
 
-func birthdayPtr(person *masterDataPerson) *string {
+func birthdayPtr(person *MasterDataPerson) *string {
 	if person.Birthday == nil {
 		return nil
 	}
@@ -405,23 +405,23 @@ func birthdayPtr(person *masterDataPerson) *string {
 	return &s
 }
 
-func trackBDepartureState(student *masterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
-	var modes usersModels.AllowedDepartureModes
-	if err := json.Unmarshal(value, &modes); err != nil {
+func trackBDepartureState(student *MasterDataStudent, value json.RawMessage, policy DeparturePolicy) (json.RawMessage, json.RawMessage, bool, error) {
+	next, err := policy.Inspect(value, true)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	if err := modes.Validate(); err != nil {
+	currentRaw, err := json.Marshal(student.AllowedDepartureModes)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	if modes.HasMode(usersModels.DepartureAccompanied) ||
-		student.AllowedDepartureModes.HasMode(usersModels.DepartureAccompanied) {
+	current, err := policy.Inspect(currentRaw, false)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	normalized := modes.Normalize()
-	current := student.AllowedDepartureModes.Normalize()
-	newRaw, _ := json.Marshal(normalized)
-	oldRaw, _ := json.Marshal(current)
-	return oldRaw, newRaw, !bytes.Equal(newRaw, oldRaw), nil
+	if next.Accompanied || current.Accompanied {
+		return nil, nil, false, ErrMasterDataInvalidValue
+	}
+	return current.Normalized, next.Normalized, !bytes.Equal(next.Normalized, current.Normalized), nil
 }
 
 // isPendingChangeRequestUniqueViolation reports Care Plan's refusal of a

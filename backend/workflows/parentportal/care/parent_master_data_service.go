@@ -88,8 +88,8 @@ type ChildMasterData struct {
 	PrimaryPhoneID         *int64
 
 	// Permanent weekday departure config — Track B editable, shown read-only.
-	DepartureDays         usersModels.DepartureDays
-	AllowedDepartureModes usersModels.AllowedDepartureModes
+	DepartureDays         DepartureDays
+	AllowedDepartureModes AllowedDepartureModes
 
 	// PendingChanges are the child's open Track B requests (awaiting staff).
 	PendingChanges []*usersModels.StudentDataChangeRequest

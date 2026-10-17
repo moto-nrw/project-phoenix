@@ -9,9 +9,9 @@ import (
 // renders, named by the flow that returns them. The composition matches them
 // through the workflow port instead of importing the owner models (#3421).
 type (
-	AllowedDepartureModes    = usersModels.AllowedDepartureModes
-	DepartureDays            = usersModels.DepartureDays
-	DepartureMode            = usersModels.DepartureMode
+	AllowedDepartureModes    = PortalAllowedDepartureModes
+	DepartureDays            = PortalDepartureDays
+	DepartureMode            = PortalDepartureMode
 	StudentDataChangeRequest = usersModels.StudentDataChangeRequest
 )
 
@@ -19,7 +19,7 @@ const (
 	DataChangeStatusPending = usersModels.DataChangeStatusPending
 	DataChangeTargetPerson  = usersModels.DataChangeTargetPerson
 	DataChangeTargetStudent = usersModels.DataChangeTargetStudent
-	DeparturePickup         = usersModels.DeparturePickup
+	DeparturePickup         = PortalDepartureMode("pickup")
 )
 
 // ErrGuardianProfileNotFound is the profile flows' answer for an account
@@ -31,3 +31,8 @@ var ErrGuardianProfileNotFound = usersModels.ErrGuardianProfileNotFound
 func CanonicalDayToISOWeekday(day string) (int, bool) {
 	return calendar.CanonicalDayToISOWeekday(day)
 }
+
+const (
+	DepartureAlone       PortalDepartureMode = "alone"
+	DepartureAccompanied PortalDepartureMode = "accompanied"
+)

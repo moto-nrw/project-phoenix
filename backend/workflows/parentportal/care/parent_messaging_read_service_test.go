@@ -60,7 +60,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
-		StudentRepo:           repos.Student,
+		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		GuardianProfileRepo:   api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Settings:              settings,
 		MessageThreadRepo:     repos.ParentMessageThread,

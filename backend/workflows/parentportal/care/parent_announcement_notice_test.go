@@ -35,7 +35,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Messa
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
 		AnnouncementRepo:      repos.ParentAnnouncement,
-		StudentRepo:           repos.Student,
+		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
 				parentportal.KeyParentNewsEnabled: newsEnabled,

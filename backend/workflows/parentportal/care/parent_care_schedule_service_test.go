@@ -71,7 +71,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
-		StudentRepo:    repos.Student,
+		StudentRepo:    api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{

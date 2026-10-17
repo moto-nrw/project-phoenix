@@ -30,8 +30,8 @@ type EnrollmentRequestReads interface {
 
 // StudentReads reads and locks the child's row.
 type StudentReads interface {
-	FindByID(ctx context.Context, id any) (*usersModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error)
+	FindByID(ctx context.Context, id int64) (*PortalStudent, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*PortalStudent, error)
 }
 
 // PersonReads reads the child's person row.

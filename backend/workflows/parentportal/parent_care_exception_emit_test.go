@@ -40,6 +40,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.ParentGuardianPolicy{},
 		Fingerprints:      api.SecurityFingerprints{},
 		Declarations:      api.ParentDeclarationPolicy(),
@@ -51,7 +52,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       repos.Student,
+		StudentRepo:       api.NewParentStudentReads(repos.Student),
 		CareExceptions:    repos.CarePlan(),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
@@ -111,6 +112,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.ParentGuardianPolicy{},
 		Fingerprints:      api.SecurityFingerprints{},
 		Declarations:      api.ParentDeclarationPolicy(),
@@ -122,7 +124,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       repos.Student,
+		StudentRepo:       api.NewParentStudentReads(repos.Student),
 		CareExceptions:    repos.CarePlan(),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
