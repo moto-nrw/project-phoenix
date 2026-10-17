@@ -44,7 +44,7 @@ func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Se
 		Notifier:   notifications.NewService(settings, slog.Default()),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 	return svc, db, repos
 }
 

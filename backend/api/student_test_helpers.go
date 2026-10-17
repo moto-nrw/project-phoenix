@@ -176,8 +176,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB:          db.Pool(),
-		Runtime:     unit,
+
+		Runtime:     NewCommunicationEventRuntime(db.Pool() != nil, unit),
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
 		Settings:    settingsService,

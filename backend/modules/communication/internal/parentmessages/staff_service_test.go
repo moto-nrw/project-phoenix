@@ -69,8 +69,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		ReadRepo:    repos.Read,
 		Persons:     persons,
 		Settings:    settings,
-		DB:          db,
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 // newServiceWithBrokenRetention wires a service whose retention setting cannot
@@ -89,8 +88,7 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 		MessageRepo: repos.Message,
 		ReadRepo:    repos.Read,
 		Settings:    settings,
-		DB:          db,
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 // asAccount returns a context that authenticates as the given account inside

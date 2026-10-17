@@ -18,8 +18,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/uptrace/bun"
-
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -27,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const maxMessageLen = 2000
@@ -78,6 +75,7 @@ type PersonLookup interface {
 // Service is the staff-side messaging service.
 type Service struct {
 	Config
+	runtime Runtime
 }
 
 // Config is the dependency-injection bundle.
@@ -89,7 +87,6 @@ type Config struct {
 	UserContext StudentReadAccess
 	Settings    parentmessaging.SettingsResolver
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 
 	// Notifier and Preferences push a staff reply to the guardian's devices
@@ -115,11 +112,11 @@ type Config struct {
 }
 
 // NewService wires a staff messaging service.
-func NewService(cfg Config) *Service {
+func NewService(cfg Config, runtime Runtime) *Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg}
+	return &Service{Config: cfg, runtime: runtime}
 }
 
 // StudentReadAccess applies the Security Runtime's student read rules to the
@@ -500,7 +497,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 
 	accountID := accountIDFromCtx(ctx)
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -550,7 +547,7 @@ func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID i
 		return nil, err
 	}
 
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -684,7 +681,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastValues(tenantID, guardianAccountID, threadID, studentID)
 	})
 }
@@ -783,7 +780,7 @@ func (s *Service) broadcastReadAfterCommit(ctx context.Context, thread *usersMod
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 	})
 }

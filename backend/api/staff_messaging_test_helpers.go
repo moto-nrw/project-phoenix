@@ -38,8 +38,8 @@ func NewStaffMessagingTestModule(db transactionruntime.Database, unit tenant.Uni
 	messaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo: repos.Thread, MessageRepo: repos.Message, ReadRepo: repos.Read,
 		Persons: people.Users, Settings: settings.Settings, Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
-		DB: db.Pool(), Logger: slog.Default(), Notifier: delivery.Notifications,
+		Logger: slog.Default(), Notifier: delivery.Notifications,
 		Preferences: delivery.NotificationPreferences, Observe: func(communicationCompose.Observation) {},
-	})
+	}, CommunicationRequestRuntime{})
 	return StaffMessagingTestModule{StaffMessaging: messaging, Settings: settings.Settings}, nil
 }

@@ -9,7 +9,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Cancellation notice (#2601).
@@ -81,7 +80,7 @@ func (s *service) CareCancellationReachFor(ctx context.Context, studentIDs []int
 	if len(ids) == 0 {
 		return reach, nil
 	}
-	count, err := s.repo.CountReachableGuardiansForStudents(ctx, tenant.FromContext(ctx), ids)
+	count, err := s.repo.CountReachableGuardiansForStudents(ctx, s.runtime.TenantID(ctx), ids)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: count reachable guardians: %w", err)
 	}

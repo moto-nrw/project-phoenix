@@ -1,6 +1,8 @@
 package announcement
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"errors"
 	"io"
@@ -211,7 +213,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}, testpkg.TenantTransactionRuntime{}).(*service)
 	svc.SetAttachmentPurger(digestStub{&stubPurger{}})
 
 	_, err := svc.Publish(ctx, announcement.ID)
@@ -287,7 +289,7 @@ func TestDeclarationWithSubmissionsKeepsItsDeliveryMode(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}).(*service)
 
 	in := declarationTestInput()
 	in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
@@ -310,7 +312,7 @@ func TestDeclarationWithSubmissionsKeepsItsRules(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}).(*service)
 
 	in := declarationTestInput()
 	in.Declaration.Signers = usersModels.DeclarationSignersAll

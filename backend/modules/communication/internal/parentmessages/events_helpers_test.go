@@ -1,6 +1,8 @@
 package messaging_test
 
 import (
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"log/slog"
 	"testing"
 
@@ -22,6 +24,6 @@ func newMockEmitter(
 	logger *slog.Logger,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(messaging.NewEventEmitter(db, testpkg.TenantRuntime(t, db), threadRepo, messageRepo, settings, broadcaster, logger))
+	emitter := parentmessaging.NewEmitter(messaging.NewEventEmitter(api.NewCommunicationEventRuntime(db != nil, testpkg.TenantRuntime(t, db)), threadRepo, messageRepo, settings, broadcaster, logger))
 	return emitter
 }

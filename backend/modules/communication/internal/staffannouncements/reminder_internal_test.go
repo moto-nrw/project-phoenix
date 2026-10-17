@@ -6,6 +6,8 @@
 package announcement
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"errors"
 	"log/slog"
@@ -92,7 +94,7 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		Outbox:           h.outbox,
 		ParentsURL:       "https://parents.example.test",
 		Logger:           slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 	h.svc.SetAttachmentPurger(&stubPurger{})
 	return h
 }

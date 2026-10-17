@@ -188,6 +188,7 @@ type Service interface {
 }
 
 type service struct {
+	runtime          Runtime
 	repo             usersModels.ParentAnnouncementRepository
 	settings         Settings
 	outbox           OutboxEnqueuer
@@ -202,27 +203,6 @@ type service struct {
 	// two services point at each other).
 	attachments AttachmentPurger
 	logger      *slog.Logger
-}
-
-// NewService wires the staff announcement service.
-func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return &service{
-		repo:             cfg.Repo,
-		settings:         cfg.Settings,
-		outbox:           cfg.Outbox,
-		pushOutbox:       cfg.PushOutbox,
-		notifier:         cfg.Notifier,
-		reminderNotifier: cfg.ReminderNotifier,
-		preferences:      cfg.Preferences,
-		deliveries:       cfg.Deliveries,
-		fingerprints:     cfg.Fingerprints,
-		parentsURL:       cfg.ParentsURL,
-		logger:           logger,
-	}
 }
 
 // newsEnabled reports whether the parent-news feature is on for the current

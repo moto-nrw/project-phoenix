@@ -61,21 +61,21 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	require.NoError(t, err)
 	outbox := testpkg.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		UserContext:      api.StaffStudentReads{},
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      parentStore.NewParentMessageRepository(db),
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      testpkg.NewRecordingBroadcaster(),
-		DB:               db,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: parentStore.NewParentMessageRepository(db),
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     newPersons(repos, db),
+		Settings:    stubSettings{messagingEnabled: true},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           outbox,
 		GuardianProfiles: repos.GuardianProfile,
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")

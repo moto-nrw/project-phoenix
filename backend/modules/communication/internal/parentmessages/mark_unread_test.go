@@ -326,8 +326,8 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
-		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
-	})
+		Broadcaster: f.bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{})
 	ctx := adminCtx(t, f.staffAccount)
 
 	count, err := disabled.UnreadMessageCount(ctx)
