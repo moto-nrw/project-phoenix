@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // JWTSigner is the signing primitive supplied by composition. Identity owns the
@@ -19,8 +21,8 @@ type JWTSigner interface {
 
 // SignedIdentityTokens serves the session and MFA challenge ports with one signer.
 type SignedIdentityTokens interface {
-	TokenCodec
-	MFAChallengeCodec
+	identityPorts.TokenCodec
+	identityPorts.MFAChallengeCodec
 	InvitationOwnerTokens
 }
 

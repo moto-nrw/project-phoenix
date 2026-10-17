@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +79,7 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 
 // seedTenantChallenge writes an active tenant-portal challenge with a known
 // code, so a test can drive a flow that redeems one.
-func seedTenantChallenge(t *testing.T, repo identityaccessCompose.AccountMFARecords, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
+func seedTenantChallenge(t *testing.T, repo identityPorts.AccountMFARecords, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
 	t.Helper()
 	hash := testpkg.HashTestPassword(t, code)
 	challenge := identityaccess.AccountMFAChallenge{

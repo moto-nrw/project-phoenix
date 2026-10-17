@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"golang.org/x/sync/singleflight"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"golang.org/x/sync/singleflight"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // AccountAuthentication runs tenant, parent and school login, refresh, tenant
@@ -130,3 +134,115 @@ type mintGuardError struct{ err error }
 
 func (e *mintGuardError) Error() string { return e.err.Error() }
 func (e *mintGuardError) Unwrap() error { return e.err }
+
+type SchoolDirectory struct{ Source identityPorts.SchoolDirectory }
+
+func (d SchoolDirectory) FindSchool(ctx context.Context, id int64) (domain.School, bool, error) {
+	school, found, err := d.Source.FindSchool(ctx, id)
+	return domain.School(school), found, err
+}
+
+func (d SchoolDirectory) FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, error) {
+	school, found, err := d.Source.FindSchoolBySubdomain(ctx, subdomain)
+	return domain.School(school), found, err
+}
+
+func (d SchoolDirectory) LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error) {
+	school, found, err := d.Source.LockSchoolShared(ctx, id)
+	return domain.School(school), found, err
+}
+
+func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error) {
+	schools, err := d.Source.ListActiveSchoolsByID(ctx, schoolIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.School, 0, len(schools))
+	for _, school := range schools {
+		result = append(result, domain.School(school))
+	}
+	return result, nil
+}
+
+func (d SchoolDirectory) ManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	return d.Source.ListManageableSchoolIDs(ctx, organizationID)
+}
+
+type TokenCodec struct{ Source identityPorts.TokenCodec }
+
+func (c TokenCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (string, string, error) {
+	return c.Source.IssueTokenPair(identityaccess.SessionClaims(access), identityaccess.RefreshClaims(refresh))
+}
+
+func (c TokenCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
+	return c.Source.IssueMFAEnrollmentToken(accountID, tenantID, scope, ttl)
+}
+
+func (c TokenCodec) ParseAccessToken(token string) (domain.SessionClaims, error) {
+	claims, err := c.Source.ParseAccessToken(token)
+	return domain.SessionClaims(claims), err
+}
+
+func (c TokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {
+	claims, err := c.Source.ParseRefreshToken(token)
+	return domain.RefreshClaims(claims), err
+}
+
+func (c TokenCodec) RefreshExpiry() time.Duration { return c.Source.RefreshExpiry() }
+
+type AuthAudit struct{ Source identityPorts.AuthAudit }
+
+func (a AuthAudit) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
+	public := identityaccess.AuthEvent{
+		AccountID: event.AccountID, TenantID: event.TenantID, Type: event.Type, Success: event.Success,
+		IPAddress: event.IPAddress, UserAgent: event.UserAgent, ErrorMessage: event.ErrorMessage,
+	}
+	if event.TenantAccess != nil {
+		evidence := identityaccess.TenantAccessEvidence(*event.TenantAccess)
+		public.TenantAccess = &evidence
+	}
+	if event.RevokedSessions != nil {
+		evidence := identityaccess.RevokedSessionsEvidence(*event.RevokedSessions)
+		public.RevokedSessions = &evidence
+	}
+	if event.PendingWipe != nil {
+		evidence := identityaccess.PendingWipeEvidence(*event.PendingWipe)
+		public.PendingWipe = &evidence
+	}
+	if event.MFA != nil {
+		evidence := identityaccess.MFAEvidence{
+			ChallengeID: event.MFA.ChallengeID, DeviceID: event.MFA.DeviceID, LockedUntil: event.MFA.LockedUntil,
+		}
+		if event.MFA.Admin != nil {
+			admin := identityaccess.MFAAdminEvidence(*event.MFA.Admin)
+			evidence.Admin = &admin
+		}
+		public.MFA = &evidence
+	}
+	if event.CompletedWipe != nil {
+		evidence := identityaccess.CompletedWipeEvidence(*event.CompletedWipe)
+		public.CompletedWipe = &evidence
+	}
+	return a.Source.RecordAuthEvent(ctx, public)
+}
+
+func (a AuthAudit) ListPendingAccountWideWipes(ctx context.Context) ([]domain.PendingAccountWideWipe, error) {
+	pending, err := a.Source.ListPendingAccountWideWipes(ctx)
+	return pendingWipes(pending), err
+}
+
+func (a AuthAudit) ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]domain.PendingAccountWideWipe, error) {
+	pending, err := a.Source.ClaimPendingAccountWideWipes(ctx, accountID)
+	return pendingWipes(pending), err
+}
+
+func pendingWipes(values []identityaccess.PendingAccountWideWipe) []domain.PendingAccountWideWipe {
+	if values == nil {
+		return nil
+	}
+	result := make([]domain.PendingAccountWideWipe, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.PendingAccountWideWipe(value))
+	}
+	return result
+}

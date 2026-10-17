@@ -13,11 +13,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-type Observation = ports.Observation
+type Observation = internalports.Observation
 
 type Dependencies struct {
 	DB      *bun.DB
@@ -92,7 +92,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, capabilityGate{flows.Capability})
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -61,7 +62,7 @@ func (w *GuardianInvitationWiring) complete() bool {
 // guardianInvitationDependencies binds the delivery and the enrollment claim
 // the lifecycle flows consume; a nil wiring composes the module without
 // them, which is what the read-only and fixture roots want.
-func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityaccessCompose.GuardianInvitationDelivery, identityaccessCompose.GuardianEnrollments, error) {
+func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
 	if wiring == nil {
 		return unsentGuardianMail{}, nil, nil
 	}
@@ -79,13 +80,13 @@ func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
 	return GuardianTokenExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityPorts.GuardianProfile, string) (int64, bool) {
 	return 0, false
 }
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityPorts.GuardianProfile, string) (int64, bool) {
 	return 0, false
 }
-func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string, int64) {
+func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.GuardianProfile, int64, string, int64) {
 }
 
 // --- delivery ---------------------------------------------------------------
@@ -131,11 +132,11 @@ func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	})
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityPorts.GuardianProfile, schoolName string) (int64, bool) {
 	return d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityPorts.GuardianProfile, schoolName string) (int64, bool) {
 	return d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
 }
 
@@ -144,7 +145,7 @@ func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Cont
 // parameters, but their transaction must be rolled back before enqueueing.
 // Each operation therefore has its own savepoint; neither may abort the
 // invitation transaction.
-func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
+func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityPorts.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
 	var helpURL string
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
@@ -166,7 +167,7 @@ func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(c
 	}
 }
 
-func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {
+func guardianMailRecipient(profile identityPorts.GuardianProfile) GuardianMailRecipient {
 	return GuardianMailRecipient{FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email}
 }
 

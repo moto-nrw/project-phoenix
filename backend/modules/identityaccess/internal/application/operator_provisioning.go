@@ -9,8 +9,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // OperatorProvisioning runs the operator invitation and e-mail change flows
@@ -432,4 +434,34 @@ func (p *OperatorProvisioning) record(ctx context.Context, entry domain.Operator
 			slog.Any("error", err),
 		)
 	}
+}
+
+type EmailFormat struct{ Source identityPorts.EmailFormat }
+
+func (f EmailFormat) IsRoutable(address string) bool { return f.Source.IsRoutable(address) }
+
+type OperatorInvitationDelivery struct {
+	Source identityPorts.OperatorInvitationDelivery
+	Expiry time.Duration
+}
+
+func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) {
+	d.Source.DispatchOperatorInvitation(ctx, PublicOperatorInvitation(invitation), inviterName, d.Expiry)
+}
+
+type OperatorEmailChangeDelivery struct {
+	Source identityPorts.OperatorEmailChangeDelivery
+	Expiry time.Duration
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) {
+	d.Source.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) {
+	d.Source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
+	d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
 }

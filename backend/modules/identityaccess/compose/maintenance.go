@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The Identity & Access compositions of the command roots: the cleanup CLI's
@@ -59,9 +62,9 @@ func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context
 type SessionMaintenanceDependencies struct {
 	DB      *bun.DB
 	Runtime tenant.UnitOfWork
-	Schools SchoolDirectory
+	Schools identityPorts.SchoolDirectory
 	Persons PersonDirectory
-	Audit   AuthAudit
+	Audit   identityPorts.AuthAudit
 	Push    PushSubscriptionCleanup
 	// ResetExpiry configures the reset flows; the sweep only deletes spent
 	// links and stale rate-limit windows and never issues one.
@@ -87,12 +90,12 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 	module, err := New(Dependencies{
 		DB: deps.DB, Observe: func(Observation) {},
 		Sessions: &SessionDependencies{
-			Schools: deps.Schools, Persons: deps.Persons, Passwords: unusablePasswords{},
-			Codec: unsignedSessions{}, MFALock: unlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
+			Schools: deps.Schools, Persons: deps.Persons, Passwords: application.UnusablePasswords{},
+			Codec: application.UnsignedSessions{}, MFALock: application.UnlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
 			Logger: deps.Logger,
 		},
 		Resets: &PasswordResetDependencies{
-			Delivery: unsentPasswordResets{}, Passwords: unusablePasswords{}, Expiry: deps.ResetExpiry, Logger: deps.Logger,
+			Delivery: application.UnsentPasswordResets{}, Passwords: application.UnusablePasswords{}, Expiry: deps.ResetExpiry, Logger: deps.Logger,
 		},
 	})
 	if err != nil {
@@ -102,57 +105,4 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 		return nil, err
 	}
 	return &SessionMaintenance{AccountSessionMaintenance: module, PasswordResets: module}, nil
-}
-
-// errMaintenanceOnly is what a flow the maintenance composition does not
-// serve reports.
-var errMaintenanceOnly = errors.New("identity access compose: the maintenance composition neither signs sessions nor checks passwords")
-
-type unsignedSessions struct{}
-
-func (unsignedSessions) IssueTokenPair(identityaccess.SessionClaims, identityaccess.RefreshClaims) (string, string, error) {
-	return "", "", errMaintenanceOnly
-}
-
-func (unsignedSessions) IssueMFAEnrollmentToken(int64, int64, string, time.Duration) (string, error) {
-	return "", errMaintenanceOnly
-}
-
-func (unsignedSessions) ParseAccessToken(string) (identityaccess.SessionClaims, error) {
-	return identityaccess.SessionClaims{}, errMaintenanceOnly
-}
-
-func (unsignedSessions) ParseRefreshToken(string) (identityaccess.RefreshClaims, error) {
-	return identityaccess.RefreshClaims{}, errMaintenanceOnly
-}
-
-func (unsignedSessions) RefreshExpiry() time.Duration { return 0 }
-
-func (unsignedSessions) IssueAccessToken(identityaccess.SessionClaims) (string, error) {
-	return "", errMaintenanceOnly
-}
-
-func (unsignedSessions) ParseAccessTokenAllowExpired(string) (identityaccess.SessionClaims, error) {
-	return identityaccess.SessionClaims{}, errMaintenanceOnly
-}
-
-func (unsignedSessions) AccessExpiry() time.Duration { return 0 }
-
-type unusablePasswords struct{}
-
-func (unusablePasswords) VerifyPassword(string, string) (bool, error) {
-	return false, errMaintenanceOnly
-}
-
-func (unusablePasswords) ValidatePasswordStrength(string) error { return errMaintenanceOnly }
-
-func (unusablePasswords) HashPassword(string) (string, error) { return "", errMaintenanceOnly }
-
-type unlockedMFAPolicy struct{}
-
-func (unlockedMFAPolicy) LockMFAPolicySharedForTenant(context.Context, int64) error { return nil }
-
-type unsentPasswordResets struct{}
-
-func (unsentPasswordResets) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) {
 }

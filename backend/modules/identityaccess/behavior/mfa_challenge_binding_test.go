@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,7 +24,7 @@ import (
 
 // seedChallenge writes an active challenge with a known code and returns the
 // row, so a test can drive verify with the plaintext.
-func seedChallenge(t *testing.T, repo identityaccessCompose.AccountMFARecords, accountID int64, code string, ttl time.Duration) identityaccess.AccountMFAChallenge {
+func seedChallenge(t *testing.T, repo identityPorts.AccountMFARecords, accountID int64, code string, ttl time.Duration) identityaccess.AccountMFAChallenge {
 	t.Helper()
 	hash := testpkg.HashTestPassword(t, code)
 	challenge := identityaccess.AccountMFAChallenge{
