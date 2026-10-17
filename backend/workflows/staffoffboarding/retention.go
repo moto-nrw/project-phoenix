@@ -50,6 +50,12 @@ type RetiredWorkforce interface {
 	EraseRetiredStaffRecords(ctx context.Context, staffID int64, retiredBefore time.Time) (map[string]int64, error)
 }
 
+// RetiredTimetable removes planned supervision assignments that may predate
+// the regular offboarding workflow.
+type RetiredTimetable interface {
+	DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error)
+}
+
 // RetiredPeople anonymizes the person of a retired staff member.
 type RetiredPeople interface {
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
@@ -59,10 +65,11 @@ type RetiredPeople interface {
 // Erasure is what the automatic deletion removed for one staff member; the
 // deletion log records it.
 type Erasure struct {
-	StaffID      int64
-	Membership   schoolmembership.RetiredStaffErasure
-	Workforce    map[string]int64
-	Supervisions int64
+	StaffID             int64
+	Membership          schoolmembership.RetiredStaffErasure
+	Workforce           map[string]int64
+	Supervisions        int64
+	PlannedSupervisions int64
 	// PersonAnonymized is false when the person is on the staff again
 	// under a newer membership, or was anonymized before.
 	PersonAnonymized bool
@@ -75,6 +82,7 @@ func (e Erasure) Counts() map[string]int64 {
 		"teachers": e.Membership.Teachers, "group_teacher": e.Membership.GroupAssignments,
 		"guests":         e.Membership.Guests,
 		"class_teachers": e.Membership.ClassAssignments, "group_supervisors": e.Supervisions,
+		"planned_supervisors": e.PlannedSupervisions,
 	}
 	for kind, count := range e.Workforce {
 		counts[kind] += count
@@ -105,6 +113,7 @@ type RetentionDependencies struct {
 	Membership RetiredMembership
 	LiveStaff  LiveStaff
 	Workforce  RetiredWorkforce
+	Timetable  RetiredTimetable
 	// SupervisionIDs lists every supervision record of a staff member and
 	// RemoveSupervision removes one (Student Presence).
 	SupervisionIDs    func(ctx context.Context, staffID int64) ([]int64, error)
@@ -141,7 +150,7 @@ type RetentionResult struct {
 
 func NewRetention(deps RetentionDependencies) (*Retention, error) {
 	if deps.Window == nil || deps.Tenant == nil || deps.Today == nil || deps.Membership == nil || deps.LiveStaff == nil ||
-		deps.Workforce == nil || deps.SupervisionIDs == nil || deps.RemoveSupervision == nil || deps.People == nil || deps.AppendAudit == nil || deps.Isolate == nil {
+		deps.Workforce == nil || deps.Timetable == nil || deps.SupervisionIDs == nil || deps.RemoveSupervision == nil || deps.People == nil || deps.AppendAudit == nil || deps.Isolate == nil {
 		return nil, errors.New("staff retention: all dependencies are required")
 	}
 	if deps.Logger == nil {
@@ -151,9 +160,9 @@ func NewRetention(deps RetentionDependencies) (*Retention, error) {
 }
 
 // DeleteExpiredStaff erases, in ID order, the staff members of the school in
-// ctx who left before the first Berlin day the window keeps. A staff member
-// whose person was edited meanwhile is skipped and logged; it stays for the
-// next run.
+// ctx whose Berlin exit day is at least one complete retention window ago. A
+// staff member whose person was edited meanwhile is skipped and logged; it
+// stays for the next run.
 func (r *Retention) DeleteExpiredStaff(ctx context.Context) (RetentionResult, error) {
 	days, err := r.deps.Window(ctx)
 	if err != nil {
@@ -166,7 +175,10 @@ func (r *Retention) DeleteExpiredStaff(ctx context.Context) (RetentionResult, er
 	if tenantID <= 0 {
 		return RetentionResult{}, ErrUnauthorized
 	}
-	retiredBefore := r.deps.Today().AddDays(-days).BerlinMidnight()
+	// The stores use a strict before comparison. Advance the cutoff to the
+	// following Berlin midnight so staff who left on the retention boundary are
+	// eligible for this run, regardless of their exit time on that day.
+	retiredBefore := r.deps.Today().AddDays(-days + 1).BerlinMidnight()
 	result := RetentionResult{RetentionDays: days}
 	// The cursor moves past every staff member taken, so a refused one,
 	// whose savepoint rolled the marking back, is not taken again.
@@ -208,6 +220,9 @@ func (r *Retention) eraseNext(ctx context.Context, retiredBefore time.Time, curs
 	*cursor = membership.StaffID
 	erasure := Erasure{StaffID: membership.StaffID, Membership: membership}
 	if erasure.Workforce, err = r.deps.Workforce.EraseRetiredStaffRecords(ctx, erasure.StaffID, retiredBefore); err != nil {
+		return err
+	}
+	if erasure.PlannedSupervisions, err = r.deps.Timetable.DeletePlannedSupervisorsByStaff(ctx, erasure.StaffID); err != nil {
 		return err
 	}
 	if erasure.Supervisions, err = r.removeSupervisions(ctx, erasure.StaffID); err != nil {

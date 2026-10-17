@@ -100,7 +100,7 @@ var tableRetentions = map[string]tableRetention{
 	"activities.groups":                                     notPersonal("activity definitions (name, notes, capacity); only staff link is created_by FK (NO ACTION)"),
 	"activities.schedules":                                  notPersonal("activity weekly schedule configuration"),
 	"activities.student_enrollments":                        parent("users.student_profiles"),
-	"activities.supervisors":                                own("staff offboarding: Timetable deletes every planned supervision of the leaving staff member (#2709)"),
+	"activities.supervisors":                                staffRetention("Timetable capability DeletePlannedSupervisorsByStaff"),
 	"audit.attendance_corrections":                          parent("users.student_profiles"),
 	"audit.auth_events":                                     own("nightly retention step auth_event_retention, DeleteExpiredAuthEvents -> SQL audit.delete_expired_auth_events"),
 	"audit.class_list_entry_changes":                        own("nightly retention step class_list_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),

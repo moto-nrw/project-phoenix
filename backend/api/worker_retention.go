@@ -289,12 +289,16 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 	if err != nil {
 		return nil, err
 	}
+	plannedSupervisions, err := NewCleanupTimetable(db)
+	if err != nil {
+		return nil, err
+	}
 	return staffoffboarding.NewRetention(staffoffboarding.RetentionDependencies{
 		Window: func(ctx context.Context) (int, error) {
 			return settings.ResolveInt(ctx, settingsModule.KeyGDPRTimeTrackingRetentionDays)
 		},
 		Tenant: tenant.FromContext, Today: calendar.TodayDate,
-		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(),
+		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(), Timetable: plannedSupervisions,
 		SupervisionIDs: func(ctx context.Context, staffID int64) ([]int64, error) {
 			supervisions, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffIDs: []int64{staffID}})
 			ids := make([]int64, 0, len(supervisions))

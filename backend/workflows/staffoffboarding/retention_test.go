@@ -21,13 +21,16 @@ type retiredDoubles struct {
 	cursors                       []int64
 	refuse                        map[int64]bool
 	failStaff                     map[int64]error
+	plannedSupervisions           map[int64]int64
+	retiredBefore                 []time.Time
 	logged                        []int64
 	live                          map[int64]bool
 	rehireBeforeMembershipRecheck map[int64]bool
 	anonymizationCalls            int
 }
 
-func (d *retiredDoubles) EraseNextRetiredStaff(_ context.Context, _ time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, error) {
+func (d *retiredDoubles) EraseNextRetiredStaff(_ context.Context, retiredBefore time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, error) {
+	d.retiredBefore = append(d.retiredBefore, retiredBefore)
 	d.cursors = append(d.cursors, afterID)
 	for _, id := range d.due {
 		if id > afterID {
@@ -46,6 +49,10 @@ func (d *retiredDoubles) FindStaffByPerson(_ context.Context, personID int64) (s
 
 func (d *retiredDoubles) EraseRetiredStaffRecords(_ context.Context, staffID int64, _ time.Time) (map[string]int64, error) {
 	return map[string]int64{"master_data": 1}, d.failStaff[staffID]
+}
+
+func (d *retiredDoubles) DeletePlannedSupervisorsByStaff(_ context.Context, staffID int64) (int64, error) {
+	return d.plannedSupervisions[staffID], nil
 }
 
 func (d *retiredDoubles) FindPersonForMutation(_ context.Context, id int64) (peopledirectory.Person, error) {
@@ -72,6 +79,7 @@ func newRetentionDoubles(t *testing.T, doubles *retiredDoubles, window int, isol
 		Membership:        doubles,
 		LiveStaff:         doubles,
 		Workforce:         doubles,
+		Timetable:         doubles,
 		SupervisionIDs:    func(context.Context, int64) ([]int64, error) { return []int64{1}, nil },
 		RemoveSupervision: func(context.Context, int64) error { return nil },
 		People:            doubles,
@@ -112,20 +120,32 @@ func TestStaffRetentionDoesNotAnonymizeAPersonRehiredBeforeTheFinalMembershipChe
 	assert.Zero(t, doubles.anonymizationCalls, "the locked membership check keeps a rehired person's identity")
 }
 
+func TestStaffRetentionUsesTheMidnightAfterTheBerlinRetentionBoundary(t *testing.T) {
+	t.Parallel()
+	doubles := &retiredDoubles{due: []int64{3}}
+
+	_, err := newRetentionDoubles(t, doubles, 730, nil).DeleteExpiredStaff(context.Background())
+
+	require.NoError(t, err)
+	require.NotEmpty(t, doubles.retiredBefore)
+	assert.Equal(t, calendar.NewDate(2028, time.June, 1).AddDays(-729).BerlinMidnight(), doubles.retiredBefore[0])
+}
+
 func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
 	t.Parallel()
 	erasure := staffoffboarding.Erasure{
-		StaffID:          3,
-		Membership:       schoolmembership.RetiredStaffErasure{Teachers: 1, GroupAssignments: 2, ClassAssignments: 2},
-		Workforce:        map[string]int64{"master_data": 1, "documents": 4},
-		Supervisions:     3,
-		PersonAnonymized: true,
+		StaffID:             3,
+		Membership:          schoolmembership.RetiredStaffErasure{Teachers: 1, GroupAssignments: 2, ClassAssignments: 2},
+		Workforce:           map[string]int64{"master_data": 1, "documents": 4},
+		Supervisions:        3,
+		PlannedSupervisions: 2,
+		PersonAnonymized:    true,
 	}
 
 	assert.Equal(t, map[string]int64{
-		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "master_data": 1, "documents": 4,
+		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "planned_supervisors": 2, "master_data": 1, "documents": 4,
 	}, erasure.Counts())
-	assert.Equal(t, 14, erasure.Records(), "every deleted row and the anonymized person")
+	assert.Equal(t, 16, erasure.Records(), "every deleted row and the anonymized person")
 }
 
 func TestStaffRetentionStopsWhenTheSavepointFails(t *testing.T) {
