@@ -961,7 +961,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	// scope gate. A group mounted without it fails closed.
 	graph.router.Use(sessionAuth.Verifier())
 	// Sentry events name the session they affect (#3643).
-	graph.router.Use(apiCommon.SentrySessionContext)
+	graph.router.Use(SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
 	graph.router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(retained.Settings, logger)))

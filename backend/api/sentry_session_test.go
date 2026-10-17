@@ -1,9 +1,8 @@
-package common
+package api
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +51,8 @@ func serveSentrySession(t *testing.T, session *sessiontoken.AppClaims, handler h
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
-	router.Use(ServerErrorReporting)
+	report, _ := sentrySessionTestAdapters()
+	router.Use(report)
 	router.Use(tokenAuth.Verifier())
 	router.Use(SentrySessionContext)
 	var requestID string
@@ -81,9 +81,8 @@ func serveSentrySession(t *testing.T, session *sessiontoken.AppClaims, handler h
 }
 
 func failWithCode(w http.ResponseWriter, r *http.Request) {
-	errResp := ErrorInternalServer(errors.New("load student: connection reset")).(*ErrResponse)
-	errResp.Code = "STUDENT_LOAD_FAILED"
-	RenderError(w, r, errResp)
+	_, fail := sentrySessionTestAdapters()
+	fail(w, r)
 }
 
 func panicking(http.ResponseWriter, *http.Request) { panic("nil student record") }
