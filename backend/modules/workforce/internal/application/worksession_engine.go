@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -9,34 +9,32 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
-// --- work sessions ---
-
-func (e engine) FindWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
+func (e Engine) FindWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
 	value, err := e.service.FindWorkSession(ctx, id)
 	return workSessionToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) LockOpenWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
+func (e Engine) LockOpenWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
 	value, err := e.service.LockOpenWorkSession(ctx, id)
 	return workSessionToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (workforce.WorkSession, error) {
+func (e Engine) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (workforce.WorkSession, error) {
 	value, err := e.service.OpenWorkSessionOn(ctx, staffID, date, lock)
 	return workSessionToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) TodayOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
+func (e Engine) TodayOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
 	value, err := e.service.TodayOpenWorkSession(ctx, staffID)
 	return workSessionToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) LatestOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
+func (e Engine) LatestOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
 	value, err := e.service.LatestOpenWorkSession(ctx, staffID)
 	return workSessionToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) ListWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) ([]workforce.WorkSession, error) {
+func (e Engine) ListWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) ([]workforce.WorkSession, error) {
 	order := make([]domain.WorkSessionOrder, 0, len(filter.Order))
 	for _, entry := range filter.Order {
 		order = append(order, domain.WorkSessionOrder{Field: domain.WorkSessionOrderField(entry.Field), Descending: entry.Descending})
@@ -49,12 +47,12 @@ func (e engine) ListWorkSessions(ctx context.Context, filter workforce.WorkSessi
 	return workSessionsToPublic(values), mapWorkSessionError(err)
 }
 
-func (e engine) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error) {
+func (e Engine) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error) {
 	values, err := e.service.ListOverlappingWorkSessions(ctx, staffIDs, from, to)
 	return workSessionsToPublic(values), mapWorkSessionError(err)
 }
 
-func (e engine) CountWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) (int, error) {
+func (e Engine) CountWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) (int, error) {
 	value, err := e.service.CountWorkSessions(ctx, domain.WorkSessionFilter{
 		IDs: filter.IDs, StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Date: filter.Date,
 		DateFrom: filter.DateFrom, DateTo: filter.DateTo, DateBefore: filter.DateBefore, Open: filter.Open,
@@ -62,100 +60,96 @@ func (e engine) CountWorkSessions(ctx context.Context, filter workforce.WorkSess
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) OldestWorkSessionDate(ctx context.Context, column, before string) (string, error) {
+func (e Engine) OldestWorkSessionDate(ctx context.Context, column, before string) (string, error) {
 	value, err := e.service.OldestWorkSessionDate(ctx, column, before)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) DeleteWorkSessionsOlderThan(ctx context.Context, column, cutoff string) (int64, error) {
+func (e Engine) DeleteWorkSessionsOlderThan(ctx context.Context, column, cutoff string) (int64, error) {
 	value, err := e.service.DeleteWorkSessionsOlderThan(ctx, column, cutoff)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) WorkPresenceMap(ctx context.Context) (map[int64]string, error) {
+func (e Engine) WorkPresenceMap(ctx context.Context) (map[int64]string, error) {
 	value, err := e.service.WorkPresenceMap(ctx)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) CreateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
+func (e Engine) CreateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
 	created, err := e.service.CreateWorkSession(ctx, workSessionToDomain(value))
 	return workSessionToPublic(created), mapWorkSessionError(err)
 }
 
-func (e engine) UpdateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
+func (e Engine) UpdateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
 	updated, err := e.service.UpdateWorkSession(ctx, workSessionToDomain(value))
 	return workSessionToPublic(updated), mapWorkSessionError(err)
 }
 
-func (e engine) DeleteWorkSession(ctx context.Context, id int64) error {
+func (e Engine) DeleteWorkSession(ctx context.Context, id int64) error {
 	return mapWorkSessionError(e.service.DeleteWorkSession(ctx, id))
 }
 
-func (e engine) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error) {
+func (e Engine) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error) {
 	value, err := e.service.SetWorkSessionBreakMinutes(ctx, id, minutes)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error) {
+func (e Engine) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error) {
 	value, err := e.service.CloseWorkSession(ctx, id, checkOut, autoCheckedOut)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+func (e Engine) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
 	return mapWorkSessionError(e.service.LockStaffBalanceWrites(ctx, staffID))
 }
 
-// --- breaks ---
-
-func (e engine) FindWorkSessionBreak(ctx context.Context, id int64) (workforce.WorkSessionBreak, error) {
+func (e Engine) FindWorkSessionBreak(ctx context.Context, id int64) (workforce.WorkSessionBreak, error) {
 	value, err := e.service.FindWorkSessionBreak(ctx, id)
 	return workSessionBreakToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error) {
+func (e Engine) ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error) {
 	values, err := e.service.ListWorkSessionBreaks(ctx, domain.WorkSessionBreakFilter{
 		SessionID: filter.SessionID, SessionIDs: filter.SessionIDs, Active: filter.Active, Limit: filter.Limit, Offset: filter.Offset,
 	})
 	return workSessionBreaksToPublic(values), mapWorkSessionError(err)
 }
 
-func (e engine) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, error) {
+func (e Engine) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, error) {
 	values, err := e.service.ExpiredWorkSessionBreaks(ctx, before)
 	return workSessionBreaksToPublic(values), mapWorkSessionError(err)
 }
 
-func (e engine) CreateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
+func (e Engine) CreateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
 	created, err := e.service.CreateWorkSessionBreak(ctx, workSessionBreakToDomain(value))
 	return workSessionBreakToPublic(created), mapWorkSessionError(err)
 }
 
-func (e engine) UpdateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
+func (e Engine) UpdateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
 	updated, err := e.service.UpdateWorkSessionBreak(ctx, workSessionBreakToDomain(value))
 	return workSessionBreakToPublic(updated), mapWorkSessionError(err)
 }
 
-func (e engine) DeleteWorkSessionBreak(ctx context.Context, id int64) error {
+func (e Engine) DeleteWorkSessionBreak(ctx context.Context, id int64) error {
 	return mapWorkSessionError(e.service.DeleteWorkSessionBreak(ctx, id))
 }
 
-func (e engine) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, error) {
+func (e Engine) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, error) {
 	value, err := e.service.EndWorkSessionBreak(ctx, id, endedAt, durationMinutes)
 	return value, mapWorkSessionError(err)
 }
 
-func (e engine) SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, error) {
+func (e Engine) SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, error) {
 	value, err := e.service.SetWorkSessionBreakDuration(ctx, id, durationMinutes, endedAt)
 	return value, mapWorkSessionError(err)
 }
 
-// --- staff balance adjustments ---
-
-func (e engine) FindStaffBalanceAdjustment(ctx context.Context, id int64) (workforce.StaffBalanceAdjustment, error) {
+func (e Engine) FindStaffBalanceAdjustment(ctx context.Context, id int64) (workforce.StaffBalanceAdjustment, error) {
 	value, err := e.service.FindStaffBalanceAdjustment(ctx, id)
 	return adjustmentToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) ListStaffBalanceAdjustments(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, error) {
+func (e Engine) ListStaffBalanceAdjustments(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, error) {
 	values, err := e.service.ListStaffBalanceAdjustments(ctx, domain.StaffBalanceAdjustmentFilter{
 		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Types: filter.Types,
 		EffectiveFrom: filter.EffectiveFrom, EffectiveTo: filter.EffectiveTo, Limit: filter.Limit, Offset: filter.Offset,
@@ -170,28 +164,26 @@ func (e engine) ListStaffBalanceAdjustments(ctx context.Context, filter workforc
 	return result, mapWorkSessionError(err)
 }
 
-func (e engine) CreateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
+func (e Engine) CreateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
 	created, err := e.service.CreateStaffBalanceAdjustment(ctx, adjustmentToDomain(value))
 	return adjustmentToPublic(created), mapWorkSessionError(err)
 }
 
-func (e engine) UpdateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
+func (e Engine) UpdateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
 	updated, err := e.service.UpdateStaffBalanceAdjustment(ctx, adjustmentToDomain(value))
 	return adjustmentToPublic(updated), mapWorkSessionError(err)
 }
 
-func (e engine) DeleteStaffBalanceAdjustment(ctx context.Context, id int64) error {
+func (e Engine) DeleteStaffBalanceAdjustment(ctx context.Context, id int64) error {
 	return mapWorkSessionError(e.service.DeleteStaffBalanceAdjustment(ctx, id))
 }
 
-// --- staff vacation openings ---
-
-func (e engine) FindStaffVacationOpening(ctx context.Context, id int64) (workforce.StaffVacationOpening, error) {
+func (e Engine) FindStaffVacationOpening(ctx context.Context, id int64) (workforce.StaffVacationOpening, error) {
 	value, err := e.service.FindStaffVacationOpening(ctx, id)
 	return openingToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) ListStaffVacationOpenings(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationOpening, error) {
+func (e Engine) ListStaffVacationOpenings(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationOpening, error) {
 	values, err := e.service.ListStaffVacationOpenings(ctx, vacationFilterToDomain(filter))
 	if values == nil {
 		return nil, mapWorkSessionError(err)
@@ -203,28 +195,26 @@ func (e engine) ListStaffVacationOpenings(ctx context.Context, filter workforce.
 	return result, mapWorkSessionError(err)
 }
 
-func (e engine) CreateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
+func (e Engine) CreateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
 	created, err := e.service.CreateStaffVacationOpening(ctx, openingToDomain(value))
 	return openingToPublic(created), mapWorkSessionError(err)
 }
 
-func (e engine) UpdateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
+func (e Engine) UpdateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
 	updated, err := e.service.UpdateStaffVacationOpening(ctx, openingToDomain(value))
 	return openingToPublic(updated), mapWorkSessionError(err)
 }
 
-func (e engine) DeleteStaffVacationOpening(ctx context.Context, id int64) error {
+func (e Engine) DeleteStaffVacationOpening(ctx context.Context, id int64) error {
 	return mapWorkSessionError(e.service.DeleteStaffVacationOpening(ctx, id))
 }
 
-// --- staff vacation quota ---
-
-func (e engine) FindStaffVacationQuota(ctx context.Context, id int64) (workforce.StaffVacationQuota, error) {
+func (e Engine) FindStaffVacationQuota(ctx context.Context, id int64) (workforce.StaffVacationQuota, error) {
 	value, err := e.service.FindStaffVacationQuota(ctx, id)
 	return quotaToPublic(value), mapWorkSessionError(err)
 }
 
-func (e engine) ListStaffVacationQuotas(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationQuota, error) {
+func (e Engine) ListStaffVacationQuotas(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationQuota, error) {
 	values, err := e.service.ListStaffVacationQuotas(ctx, vacationFilterToDomain(filter))
 	if values == nil {
 		return nil, mapWorkSessionError(err)
@@ -236,25 +226,23 @@ func (e engine) ListStaffVacationQuotas(ctx context.Context, filter workforce.St
 	return result, mapWorkSessionError(err)
 }
 
-func (e engine) CreateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
+func (e Engine) CreateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
 	created, err := e.service.CreateStaffVacationQuota(ctx, quotaToDomain(value))
 	return quotaToPublic(created), mapWorkSessionError(err)
 }
 
-func (e engine) UpdateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
+func (e Engine) UpdateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
 	updated, err := e.service.UpdateStaffVacationQuota(ctx, quotaToDomain(value))
 	return quotaToPublic(updated), mapWorkSessionError(err)
 }
 
-func (e engine) DeleteStaffVacationQuota(ctx context.Context, id int64) error {
+func (e Engine) DeleteStaffVacationQuota(ctx context.Context, id int64) error {
 	return mapWorkSessionError(e.service.DeleteStaffVacationQuota(ctx, id))
 }
 
-func (e engine) UpsertStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) error {
+func (e Engine) UpsertStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) error {
 	return mapWorkSessionError(e.service.UpsertStaffVacationQuota(ctx, quotaToDomain(value)))
 }
-
-// --- mapping ---
 
 func workSessionToDomain(value workforce.WorkSession) domain.WorkSession {
 	return domain.WorkSession{
@@ -388,6 +376,6 @@ func mapWorkSessionError(err error) error {
 	case errors.Is(err, domain.ErrWorkSessionAlreadyOpen):
 		return &workforce.ConflictError{Kind: workforce.ErrWorkSessionAlreadyOpen, Cause: conflictCause(err)}
 	default:
-		return mapError(err)
+		return MapError(err)
 	}
 }
