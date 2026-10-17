@@ -68,11 +68,11 @@ type Config struct {
 	StudentGuardianRepo care.StudentGuardianReads
 	GuardianProfileRepo GuardianProfileReads
 
-	AnnouncementRepo usersModels.ParentAnnouncementRepository
+	AnnouncementRepo AnnouncementAccess
 
-	MessageThreadRepo     usersModels.ParentMessageThreadRepository
-	MessageRepo           usersModels.ParentMessageRepository
-	MessageReadRepo       usersModels.ParentMessageReadRepository
+	MessageThreadRepo     MessageThreadAccess
+	MessageRepo           MessageReads
+	MessageReadRepo       MessageInboxReads
 	Conversations         ConversationCore
 	MessagingEnabled      MessagingGate
 	ParentMessageNotifier care.StaffParentMessageNotifier
@@ -83,8 +83,8 @@ type Config struct {
 	ExcusedRequestRepo        ExcusedRequestReads
 	OfferingChangeRequestRepo OfferingChangeRequestReads
 	FamilyProtectionEvents    FamilyProtectionReads
-	ParentRequestShares       usersModels.ParentRequestShareEventRepository
-	ParentRequestEvents       usersModels.ParentRequestEventRepository
+	ParentRequestShares       RequestShareRecords
+	ParentRequestEvents       RequestEvents
 }
 
 // Service implements the retained messaging portal operations.
