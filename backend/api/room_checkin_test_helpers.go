@@ -39,6 +39,12 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
+	moduleDevices := NewActiveTestDevices(db, unit, clocks...)
+	modulePresence := NewActiveTestPresence(db, unit, clocks...)
+	modulePeople := NewActiveTestPeople(db, unit, clocks...)
+	moduleTimetable := NewActiveTestTimetable(db, unit, clocks...)
+	moduleEducation := NewActiveTestEducation(db, unit, clocks...)
+	moduleSettings := NewActiveTestSettings(db, unit, clocks...)
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
 		return CheckinTestModule{}, err
@@ -46,16 +52,16 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	logger := slog.Default()
 	rosters := MustNewUnobservedTimetable(db)
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
-		Fleet:      module.IoT.Fleet(),
+		Fleet:      moduleDevices.IoT.Fleet(),
 		Presence:   NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,
-		Active:     module.Active,
-		Users:      NewDeviceScanPeople(module.Users),
-		Activities: DeviceActivityCatalog(module.Activities),
+		Active:     modulePresence.Active,
+		Users:      NewDeviceScanPeople(modulePeople.Users),
+		Activities: DeviceActivityCatalog(moduleTimetable.Activities),
 		Rosters:    rosters,
-		Education:  module.Education,
+		Education:  moduleEducation.Education,
 		Pickups:    module.PickupSchedule,
-		Settings:   newDeviceScanSettings(module.Settings),
+		Settings:   newDeviceScanSettings(moduleSettings.Settings),
 		Now:        OptionalClock(clocks),
 		Logger:     logger,
 	})

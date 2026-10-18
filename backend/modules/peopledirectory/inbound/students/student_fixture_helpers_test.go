@@ -61,16 +61,23 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 	require.NoError(t, err)
 	svc, live, people, audit, decisions, groupLive, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
 	require.NoError(t, err)
+	liveEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	livePeople := api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	livePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveTimetable := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveDevices := api.NewActiveTestDevices(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	resource, _, _, _, _, _, mount, err := api.NewStudentHTTPTestResources(
-		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, live, people, audit, groupLive, broadcaster, tenantScopedCaller{live.UserContext},
+		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, live, liveSettings, liveEducation, liveCaller, livePeople, livePresence, liveTimetable, people, audit, groupLive, broadcaster, tenantScopedCaller{liveCaller},
 		testpkg.StudentDirectory{}, &testpkg.FeedbackEntryCounterMock{}, testpkg.RequestAuditActor,
-		deviceAuthenticator(t, db, live), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
+		deviceAuthenticator(t, db, liveDevices, liveSettings), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
 	)
 	require.NoError(t, err)
 	router := func() chi.Router { return mount(nil) }
 	return &testContext{careRequests: svc.CareRequests, enrollmentDecision: decisions, db: db, resource: resource,
-		settingsService: live.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
+		settingsService: liveSettings.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
 }
 
 type tenantScopedCaller struct{ *api.CallerRows }
@@ -134,11 +141,11 @@ func deleteStudentConfirmed(t *testing.T, tc *testContext, claims sessiontoken.A
 
 // deviceAuthenticator is the kiosk device authentication over the module's
 // fleet and settings, with the root's guard against deleted schools.
-func deviceAuthenticator(t testing.TB, db *bun.DB, live api.ActiveTestModule) common.Middleware {
+func deviceAuthenticator(t testing.TB, db *bun.DB, live api.DeviceTestModule, liveSettings api.ActiveSettings) common.Middleware {
 	t.Helper()
 	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, live.Settings, testDevicePIN).Device()
+	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, liveSettings.Settings, testDevicePIN).Device()
 }
 
 func setupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.BirthdayTestModule, *api.CallerRows, api.SettingsTestModule) {

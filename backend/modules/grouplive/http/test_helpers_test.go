@@ -35,9 +35,10 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	db := testpkg.SetupTestDB(t)
 	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	_, live, _, _, _, groupLive, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	_, _, _, _, _, groupLive, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
 	require.NoError(t, err)
-	return &testContext{db: db, resource: groupLiveHTTP.NewResource(groupLive), settingsService: live.Settings}
+	liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	return &testContext{db: db, resource: groupLiveHTTP.NewResource(groupLive), settingsService: liveSettings.Settings}
 }
 func authExec(t *testing.T, tc *testContext, req *http.Request, claims testutil.Claims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()

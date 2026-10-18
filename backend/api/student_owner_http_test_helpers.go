@@ -43,7 +43,7 @@ import (
 
 // NewStudentHTTPTestResources uses the same owner bindings and tenant mounts as production.
 // The caller supplies its existing fixture reader and actor, not a second row model.
-func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule, live ActiveTestModule, peopleServices StudentTestPeople, audit auditModels.Command, groupLive grouplive.Query,
+func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveEducation ActiveEducation, liveCaller *CallerRows, livePeople ActivePeople, livePresence ActivePresence, liveTimetable ActiveTimetable, peopleServices StudentTestPeople, audit auditModels.Command, groupLive grouplive.Query,
 	broadcaster realtime.Broadcaster, caller peopleStudentsHTTP.CallerContext, studentRows carePlanCompose.StudentDirectory,
 	feedback studentdeletioncompose.Feedback, auditActor peoplePorts.RequestAuditActor,
 	authenticateDevice common.Middleware, deviceID peopleStudentsHTTP.DeviceIdentity, authoritative *bool, clock func() time.Time,
@@ -64,14 +64,14 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	messages := NewStudentMessageRows(store)
-	parentEventEmitter := NewParentEventEmitter(store, unit, messages.ParentMessageThread, messages.ParentMessage, live.Settings, broadcaster, slog.Default())
+	parentEventEmitter := NewParentEventEmitter(store, unit, messages.ParentMessageThread, messages.ParentMessage, liveSettings.Settings, broadcaster, slog.Default())
 	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
-	schoolGroups := studentSchoolGroups{GroupManagement: live.Education}
+	schoolGroups := studentSchoolGroups{GroupManagement: liveEducation.Education}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: store.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	requestReview, careReviews, err := newStudentHTTPTestReviews(store, svc, live, peopleServices, studentRows, clock)
+	requestReview, careReviews, err := newStudentHTTPTestReviews(store, svc, liveCaller, liveSettings, peopleServices, studentRows, clock)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -85,7 +85,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	}
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
 		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactoryTimetable.Timetable,
-		Feedback: feedback, IsVerifiedStaff: live.UserContext.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
+		Feedback: feedback, IsVerifiedStaff: liveCaller.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
 		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: audit, Now: clock,
 	})
 	if err != nil {
@@ -118,7 +118,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			FamilyProtection:    peopleServices.PeopleDirectory,
 			Logger:              slog.Default(),
 			PeopleDirectory:     peopleServices.PeopleDirectory,
-			Persons:             peopleCompose.NewStudentRoutePersons(live.Users),
+			Persons:             peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			StudentAuditService: peopleServices.PeopleDirectory,
 			StudentPhotos:       peopleServices.PeopleDirectory,
 			Uploads:             nativeUploads.UploadFiles{},
@@ -140,10 +140,10 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			ParentRequestBulkService: svc.ParentRequests,
 			PartialAbsenceService:    svc.PartialAbsence,
 			PeopleDirectory:          peopleServices.PeopleDirectory,
-			Persons:                  peopleCompose.NewStudentRoutePersons(live.Users),
+			Persons:                  peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PickupAdjustmentService:  svc.PickupAdjustments,
 			PickupScheduleService:    live.PickupSchedule,
-			SettingsService:          live.Settings,
+			SettingsService:          liveSettings.Settings,
 			StudentAuditService:      peopleServices.PeopleDirectory,
 			StudentConsents:          NewStudentHTTPTestConsents(store),
 			StudentPhotos:            peopleServices.PeopleDirectory,
@@ -151,23 +151,23 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			WeekdayPickupNotes:       students.CarePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(live)),
-			ActiveService:          live.Active,
+			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(livePeople)),
+			ActiveService:          livePresence.Active,
 			ArrivalScheduleService: live.ArrivalSchedule,
 			CareDayService:         live.CareDay,
 			CareLifecycleService:   lifecycle,
 			CompanionService:       NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
 			ExcusedRequestService:  svc.ExcusedRequests,
-			InstanceService:        live.Instance,
+			InstanceService:        liveTimetable.Instance,
 			ListExportService:      lists.NewRenderer(),
 			Logger:                 slog.Default(),
 			Now:                    clock,
 			PeopleDirectory:        peopleServices.PeopleDirectory,
-			Persons:                peopleCompose.NewStudentRoutePersons(live.Users),
+			Persons:                peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PickupScheduleService:  live.PickupSchedule,
 			SchoolGroups:           schoolGroups,
 			SchoolService:          studentSchoolDirectory{schools: schools},
-			SettingsService:        live.Settings,
+			SettingsService:        liveSettings.Settings,
 			StudentConsents:        NewStudentHTTPTestConsents(store),
 			StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 				rooms, err := repoFactoryRooms.Room.FindByIDs(ctx, ids)
@@ -184,15 +184,15 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			UserContextService:      caller,
 		},
 		presenceStudentsHTTP.ResourceConfig{
-			ActiveService:           live.Active,
+			ActiveService:           livePresence.Active,
 			Broadcaster:             broadcaster,
 			Logger:                  slog.Default(),
 			Now:                     clock,
 			ParentEventEmitter:      parentEventEmitter,
 			PeopleDirectory:         peopleServices.PeopleDirectory,
-			Persons:                 peopleCompose.NewStudentRoutePersons(live.Users),
+			Persons:                 peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PrivacyConsents:         presence,
-			SettingsService:         live.Settings,
+			SettingsService:         liveSettings.Settings,
 			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
@@ -206,7 +206,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		reviewStudentsHTTP.ResourceConfig{
 			PeopleDirectory:     peopleServices.PeopleDirectory,
 			RequestReview:       requestReview,
-			RequestReviewAccess: NewParentRequestReviewPolicy(live.UserContext.Caller().ParentRequestReviews),
+			RequestReviewAccess: NewParentRequestReviewPolicy(liveCaller.Caller().ParentRequestReviews),
 		},
 	)
 
@@ -222,7 +222,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	return people, care, projection, status, deletion, review, router, nil
 
 }
-func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live ActiveTestModule, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
+func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live *CallerRows, liveSettings ActiveSettings, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
 	reviewGroups, err := NewSchoolStructure(store)
 	if err != nil {
 		return nil, nil, err
@@ -237,7 +237,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	}
 	// The production root binds the same Identity & Access policy for the
 	// projection as for the decisions (#3804).
-	reviews := live.UserContext.Caller().ParentRequestReviews
+	reviews := live.Caller().ParentRequestReviews
 	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, sessiontoken.PermissionsFromCtx(ctx))
 		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
@@ -255,7 +255,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		People: peopleServices.PeopleDirectory,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
-			return live.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+			return liveSettings.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
@@ -296,7 +296,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		return nil, nil, err
 	}
 	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, peopleServices.PeopleDirectory, func(ctx context.Context) bool {
-		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, live.UserContext.HasCurrentStaff)
+		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, live.HasCurrentStaff)
 	})
 	if err != nil {
 		return nil, nil, err

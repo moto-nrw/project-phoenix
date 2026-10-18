@@ -27,14 +27,14 @@ func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModul
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule) (chi.Router, error) {
-	parent, err := NewParentCareScheduleTestService(db, module, live)
+func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveCaller *CallerRows) (chi.Router, error) {
+	parent, err := NewParentCareScheduleTestService(db, module, live, liveSettings)
 	if err != nil {
 		return nil, err
 	}
 	students := NewCareHTTPUnitResource(careStudentsHTTP.ResourceConfig{
-		CareRequestService: module.CareRequests, UserContextService: live.UserContext,
-		SettingsService: live.Settings, Logger: slog.Default(),
+		CareRequestService: module.CareRequests, UserContextService: liveCaller,
+		SettingsService: liveSettings.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
 	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router(ParentSessionChain))

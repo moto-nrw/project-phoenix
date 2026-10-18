@@ -65,7 +65,7 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory, live, schoolCalendar := buildTimetableScenarioModule(t, clocks...)
+	db, factory, live, livePeople, liveCaller, liveSettings, schoolCalendar := buildTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
@@ -74,15 +74,15 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		ClosingDays:            schoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
-		People:                 rootAPI.NewTimetablePeople(live.Users),
+		People:                 rootAPI.NewTimetablePeople(livePeople.Users),
 		Templates:              factory.TimetableData.Templates,
 		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
 		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
 		Deviations:             factory.TimetableData.Deviations,
 		TimetableData:          factory.TimetableData.Data,
 		ConflictDetection:      factory.TimetableData.ConflictDetection,
-		UserContextService:     live.UserContext,
-		SettingsService:        live.Settings,
+		UserContextService:     liveCaller,
+		SettingsService:        liveSettings.Settings,
 		Staffing:               factory.Instance,
 		Logger:                 slog.Default(),
 	})

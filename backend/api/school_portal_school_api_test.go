@@ -50,9 +50,10 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	db, services, classDay, delivery := setupSchoolPortalModule(t, clocks...)
 	classDayResource := classdayhttp.NewResource(classDay.ClassDay, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
-		OperationsService: classDay.TimetableOperations,
-		SupervisionSheets: NewTimetableSupervisionSheets(classDay.ClassDay), SettingsService: classDay.Settings,
-		Now: firstSchoolClock(clocks),
+		OperationsService: NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...).TimetableOperations,
+		SupervisionSheets: NewTimetableSupervisionSheets(classDay.ClassDay),
+		SettingsService:   NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...).Settings,
+		Now:               firstSchoolClock(clocks),
 	})
 	resource := NewSchoolPortalHTTP(
 		services.SchoolAuth, services.SchoolMFA,

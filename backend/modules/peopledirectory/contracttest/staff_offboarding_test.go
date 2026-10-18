@@ -139,8 +139,9 @@ func TestOffboardStaff_ConcurrentSupervisionCannotAttachAfterRetirement(t *testi
 func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
-	active, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	require.NoError(t, err)
+	activePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent supervision")
@@ -159,10 +160,10 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "replace" {
-					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
+					_, err := activePresence.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
 					return err
 				}
-				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
+				return activePresence.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
 					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: calendar.TodayDate().String(),
 				})
 			})

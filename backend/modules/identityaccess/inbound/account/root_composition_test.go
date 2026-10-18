@@ -18,7 +18,7 @@ import (
 
 func parentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, live api.ActiveTestModule, accountID int64) []int64 {
 	t.Helper()
-	portal, err := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live)
+	portal, err := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live, api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)))
 	require.NoError(t, err)
 	children, err := portal.ListChildrenForAccount(ctx, accountID)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func storeRawTenantSetting(t *testing.T, db *bun.DB, tenantID int64, key string,
 
 func submitParentCareScheduleRequest(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, live api.ActiveTestModule, accountID, studentID int64, payload map[string]any) (requestID int64, err error) {
 	t.Helper()
-	portal, composeErr := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live)
+	portal, composeErr := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live, api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)))
 	require.NoError(t, composeErr)
 	view, err := portal.CreateCareScheduleRequest(ctx, accountID, studentID, payload)
 	if err != nil {

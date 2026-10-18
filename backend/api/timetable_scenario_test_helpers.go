@@ -32,6 +32,7 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
+	liveSettings := NewActiveTestSettings(db, unit, clocks...)
 	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
@@ -41,7 +42,7 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
 	cleanup, err := NewTimetableCleanup(r.Timetable, NewDataDeletionTestRepository(db, command),
-		NewTimetableDeviationAudit(db).DeviationEvent, live.Settings, slog.Default(), OptionalClock(clocks))
+		NewTimetableDeviationAudit(db).DeviationEvent, liveSettings.Settings, slog.Default(), OptionalClock(clocks))
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}

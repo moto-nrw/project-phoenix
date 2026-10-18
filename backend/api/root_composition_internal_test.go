@@ -28,12 +28,14 @@ func setupGuardianModule(t *testing.T) (*bun.DB, GuardianTestModule) {
 	return db, module
 }
 
-func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, StudentTestModule, ActiveTestModule) {
+func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, StudentTestModule, ActiveTestModule, ActiveSettings, *CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	feedback, err := NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	module, live, _, _, _, _, err := NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
 	require.NoError(t, err)
-	return db, module, live
+	liveSettings := NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveCaller := NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	return db, module, live, liveSettings, liveCaller
 }

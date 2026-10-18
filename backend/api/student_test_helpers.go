@@ -113,6 +113,12 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
+	liveSettings := NewActiveTestSettings(db, unit, clocks...)
+	livePeople := NewActiveTestPeople(db, unit, clocks...)
+	liveCaller := NewActiveTestCaller(db, unit, clocks...)
+	liveEducation := NewActiveTestEducation(db, unit, clocks...)
+	livePresence := NewActiveTestPresence(db, unit, clocks...)
+	liveTimetable := NewActiveTestTimetable(db, unit, clocks...)
 	care, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -134,17 +140,17 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
-	settingsService := live.Settings
+	settingsService := liveSettings.Settings
 	// Care Plan is composed after the live graph's person directory; the
 	// module hands out the copy that reaches it.
-	usersService := live.Users.WithCareParticipation(CareParticipationResolver(func() careplan.CareParticipation {
+	usersService := livePeople.Users.WithCareParticipation(CareParticipationResolver(func() careplan.CareParticipation {
 		return care.CareLifecycle
 	}))
-	live.Users = usersService
-	userContextService := live.UserContext
-	educationService := live.Education
-	activeService := live.Active
-	instanceService := live.Instance
+	livePeople.Users = usersService
+	userContextService := liveCaller
+	educationService := liveEducation.Education
+	activeService := livePresence.Active
+	instanceService := liveTimetable.Instance
 	pickupScheduleService := live.PickupSchedule
 	arrivalScheduleService := live.ArrivalSchedule
 	careDayService := live.CareDay
@@ -330,7 +336,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: live.Deviations, Staff: NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+		Deviations: liveTimetable.Deviations, Staff: NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
 		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance),
 		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
 	})
@@ -398,7 +404,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 
 // StudentTestStatusDayOverviewPeople serves the absence overview's people
 // reads from the live graph's users service.
-func StudentTestStatusDayOverviewPeople(live ActiveTestModule) presenceservice.StatusDayOverviewPeople {
+func StudentTestStatusDayOverviewPeople(live ActivePeople) presenceservice.StatusDayOverviewPeople {
 	return StatusDayOverviewPeople(live.Users)
 }
 

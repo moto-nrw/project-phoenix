@@ -27,7 +27,7 @@ type SettingsCallbacksTestModule struct {
 // NewSettingsCallbacksTestModule composes the tenant settings over db and
 // returns them with the realtime hub a settings change broadcasts on.
 func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peoplePorts.PhotoUnlinker) (SettingsCallbacksTestModule, *realtime.Hub, error) {
-	module, err := NewOperatorSettingsTestModule(db, unit)
+	module, _, err := NewOperatorSettingsTestModule(db, unit)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}

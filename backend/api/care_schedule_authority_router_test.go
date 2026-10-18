@@ -21,8 +21,8 @@ import (
 
 func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	t.Parallel()
-	db, module, live := setupStudentModule(t)
-	resource, err := newCareScheduleTestRouter(testpkg.NewDatabase(t, db), module, live)
+	db, module, live, liveSettings, liveCaller := setupStudentModule(t)
+	resource, err := newCareScheduleTestRouter(testpkg.NewDatabase(t, db), module, live, liveSettings, liveCaller)
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

@@ -16,7 +16,7 @@ import (
 
 // NewParentCareScheduleTestService composes the parent portal over the
 // student graph's Care Plan side and the live graph it runs beside.
-func NewParentCareScheduleTestService(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule) (*parentService.Portal, error) {
+func NewParentCareScheduleTestService(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings) (*parentService.Portal, error) {
 	students, repos, err := NewStudentTestRepositories(db, nil)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Runtime:         ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(members.GuardianProfile),
-		Settings:         BindParentSettings(live.Settings),
+		Settings:         BindParentSettings(liveSettings.Settings),
 		ArrivalSchedules: NewParentArrivalSchedules(live.ArrivalSchedule),
 		PickupSchedules:  NewParentPickupSchedules(live.PickupSchedule),
 		CareRequests:     module.CareRequests, CareRequestRepo: NewParentCareRequestReads(students.CarePlan),
