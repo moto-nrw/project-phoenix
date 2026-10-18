@@ -6341,28 +6341,6 @@
       "target_role": "port"
     },
     {
-      "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its own HTTP adapter (#4064).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "http"
-    },
-    {
-      "id": "reminder-delivery.compose.permissions",
-      "description": "Reminder composition binds the users:read permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "reminder-delivery.compose.orm",
       "description": "Reminder composition supplies the transaction runtime database.",
       "scopes": [
@@ -6371,16 +6349,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "reminder-delivery.compose.router",
-      "description": "Reminder composition binds HTTP middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "http-router"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
