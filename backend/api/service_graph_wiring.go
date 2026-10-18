@@ -33,7 +33,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -186,7 +186,7 @@ type PeopleWiring struct {
 	StatusDayPeople          func(peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople
 	GroupRosterPeople        func(peoplePorts.PersonDirectory) GroupRoster
 	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
-	ParentRequestCoordinator func(ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error)
+	ParentRequestCoordinator func(*careplanCompose.MasterDataDecisions, careplan.ExcusedAbsenceRequests, any, careplanCompose.ParentRequestConflicts, peopledirectory.ParentRequestEvents, func(context.Context) []string) (parentrequests.Coordinator, error)
 	ParentRequestWriteScope  func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
 }
 
@@ -350,20 +350,20 @@ type EnrollmentDecisionSettings interface {
 // EnrollmentStudentAuditor records tracked profile changes made while
 // approving or synchronizing enrollment data for an existing student.
 type EnrollmentStudentAuditor interface {
-	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
-	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
+	RecordChangesForActor(ctx context.Context, before, after *peopledirectory.StudentState, editedBy int64) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 }
 
 // EnrollmentConsentAuditor records effective consent transitions made while an
 // enrollment submission is applied to a student.
 type EnrollmentConsentAuditor interface {
-	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
+	RecordTransitions(ctx context.Context, before, after *peopledirectory.StudentState, source string, actorAccountID *int64, changedAt time.Time) error
 }
 
 // EnrollmentDepartureCompanions reads Care Plan's "läuft mit" edges of a
 // student.
 type EnrollmentDepartureCompanions interface {
-	ListForStudent(context.Context, int64) ([]*userModels.StudentCompanion, error)
+	ListForStudent(context.Context, int64) ([]*careplan.CompanionEdge, error)
 	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
 }
 
@@ -492,7 +492,7 @@ type EnrollmentChangeRequestSources struct {
 
 // EnrollmentReviewerPersons resolves the persons behind reviewer accounts.
 type EnrollmentReviewerPersons interface {
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // EnrollmentReportOwnerReads are the Enrollment owner reads of the reports.
@@ -585,7 +585,7 @@ type OfferingChangeInputs struct {
 	// Permissions reads the permissions of the request claims.
 	Permissions func(context.Context) []string
 	Emitter     *communicationCompose.ParentEventEmitter
-	Events      ParentRequestEvents
+	Events      peopledirectory.ParentRequestEvents
 	Shares      careplanCompose.ShareVisibility
 	Today       func() timezone.Date
 	Logger      *slog.Logger
@@ -636,7 +636,7 @@ type GroupTeacherRepository interface {
 	education.GroupTeacherStore
 	// ListGroupTeacherBlockers returns group assignments as
 	// caregiver-capability blocker rows.
-	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
+	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]peopledirectory.BlockerGroup, error)
 }
 
 // ClassTeacherRepository is the retained contract of the staff-to-school-class
@@ -662,8 +662,8 @@ type GroupRoster interface {
 // StudentConsentRecords resolves and records a child's consent states over the
 // People Directory and the Audit Platform trail.
 type StudentConsentRecords interface {
-	CurrentStates(ctx context.Context, student *userModels.Student, canManagePhoto bool) ([]userModels.StudentConsentState, error)
-	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
+	CurrentStates(ctx context.Context, student *peopledirectory.StudentState, canManagePhoto bool) ([]peopledirectory.StudentConsentState, error)
+	RecordTransitions(ctx context.Context, before, after *peopledirectory.StudentState, source string, actorAccountID *int64, changedAt time.Time) error
 	CurrentStudentConsents(ctx context.Context, snapshot peopledirectory.StudentConsentSnapshot, canManagePhoto bool) ([]peopledirectory.StudentConsentState, error)
 	RecordStudentConsentTransitions(ctx context.Context, before, after peopledirectory.StudentConsentSnapshot, source string, actorAccountID *int64, changedAt time.Time) error
 }
@@ -685,22 +685,10 @@ type MasterDataDecisionWiring struct {
 	Scope       careplanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
-	Events      ParentRequestEvents
+	Events      peopledirectory.ParentRequestEvents
 	Shares      careplanCompose.ShareVisibility
 	Logger      *slog.Logger
 	Today       func() timezone.Date
-}
-
-// ParentRequestCoordinatorWiring names the four request queues the
-// cross-kind commands are composed over.
-type ParentRequestCoordinatorWiring struct {
-	MasterData *careplanCompose.MasterDataDecisions
-	Excused    careplan.ExcusedAbsenceRequests
-	Care       any
-	Offering   careplanCompose.ParentRequestConflicts
-	Events     ParentRequestEvents
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
 }
 
 // PresenceWiring is what the root builds for Student Presence, Facilities,

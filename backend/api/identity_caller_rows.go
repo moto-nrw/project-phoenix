@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -20,8 +22,8 @@ import (
 type CallerRows struct {
 	caller     identityaccess.CallerContext
 	groups     groupRows
-	staffByID  func(context.Context, int64) (*userModels.Staff, error)
-	teacher    func(context.Context, int64) (*userModels.Teacher, error)
+	staffByID  func(context.Context, int64) (*peopleValues.Staff, error)
+	teacher    func(context.Context, int64) (*peopleValues.Teacher, error)
 	students   studentRows
 	activities timetablePorts.CallerActivityGroups
 	sessions   studentpresence.SessionRecords
@@ -45,8 +47,10 @@ type CallerRowSources struct {
 func NewCallerRows(caller identityaccess.CallerContext, sources CallerRowSources) *CallerRows {
 	return &CallerRows{
 		caller: caller, groups: sources.Groups,
-		staffByID: func(ctx context.Context, id int64) (*userModels.Staff, error) { return sources.Staff.FindByID(ctx, id) },
-		teacher: func(ctx context.Context, id int64) (*userModels.Teacher, error) {
+		staffByID: func(ctx context.Context, id int64) (*peopleValues.Staff, error) {
+			return sources.Staff.FindByID(ctx, id)
+		},
+		teacher: func(ctx context.Context, id int64) (*peopleValues.Teacher, error) {
 			return sources.Teachers.FindByID(ctx, id)
 		},
 		students: sources.Students, activities: sources.Activities, sessions: sources.Sessions,
@@ -273,7 +277,7 @@ func (r *CallerRows) SessionRows(ctx context.Context, ids []int64) (any, error) 
 // StudentRows returns the students the /api/me/groups/{id}/students route
 // renders.
 func (r *CallerRows) StudentRows(ctx context.Context, ids []int64) (any, error) {
-	result := make([]*userModels.Student, 0, len(ids))
+	result := make([]*peopleValues.StudentState, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -291,11 +295,11 @@ func (r *CallerRows) StudentRows(ctx context.Context, ids []int64) (any, error) 
 
 // callerNavigationRow is the /api/me/navigation wire shape.
 type callerNavigationRow struct {
-	EducationalGroups   []*callerGroupRow `json:"educational_groups"`
-	SupervisedGroups    any               `json:"supervised_groups"`
-	CurrentStaff        *userModels.Staff `json:"current_staff"`
-	Incomplete          bool              `json:"incomplete"`
-	UnavailableSections []string          `json:"unavailable_sections"`
+	EducationalGroups   []*callerGroupRow   `json:"educational_groups"`
+	SupervisedGroups    any                 `json:"supervised_groups"`
+	CurrentStaff        *peopleValues.Staff `json:"current_staff"`
+	Incomplete          bool                `json:"incomplete"`
+	UnavailableSections []string            `json:"unavailable_sections"`
 }
 
 // NavigationRow loads the rows of the caller's navigation context. A group

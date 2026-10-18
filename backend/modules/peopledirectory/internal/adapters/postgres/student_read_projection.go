@@ -219,7 +219,7 @@ func (s *StudentStore) ListRosterByGroups(
 	records, stats, err := s.reads.ListRosterByGroups(ctx, groupIDs, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record.DirectoryRecord()), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -231,7 +231,7 @@ func (s *StudentStore) ListRoster(
 	records, stats, err := s.reads.ListRoster(ctx, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record.DirectoryRecord()), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -243,7 +243,7 @@ func (s *StudentStore) ListRosterOverlapping(
 	records, stats, err := s.reads.ListRosterOverlapping(ctx, from, to, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record.DirectoryRecord()), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }

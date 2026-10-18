@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -51,7 +53,7 @@ var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequi
 // because the People Directory composition seams that observe the owner's
 // not-found and the retained callers that branch on it may not import each
 // other (#3349).
-var ErrStudentRowMissing = errors.New("student row not found")
+var ErrStudentRowMissing = contact.ErrStudentRowMissing
 
 // Student is the joined student DTO consumed by the retained API and service
 // interfaces. It has no owned storage table: writes go through People

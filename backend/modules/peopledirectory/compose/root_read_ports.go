@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 )
@@ -14,14 +13,14 @@ import (
 
 // personNameSource is the slice of the person service that resolves names.
 type personNameSource interface {
-	GetByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // roomSnapshotSource is the slice of the person service the room snapshot
 // export reads.
 type roomSnapshotSource interface {
 	personNameSource
-	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 }
 
 // RoomSnapshotPeople serves the Students port of the room snapshot export

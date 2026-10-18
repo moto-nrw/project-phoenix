@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -360,19 +362,11 @@ func newPickupBaselineService(records careplan.Capability, links careplan.Approv
 
 // guardianLinkHasPermission reports whether a relationship grants the
 // parents-portal permission, the way the authorization helper reads it.
-func guardianLinkHasPermission(link *usersModels.StudentGuardian, permission string) bool {
+func guardianLinkHasPermission(link *peopleValues.GuardianRelationshipSnapshot, permission string) bool {
 	if link == nil {
 		return false
 	}
-	_, _, _, _, _, permissions := link.GuardianAuthorizationData()
-	value, exists := permissions[permission]
-	if !exists {
-		return false
-	}
-	if granted, ok := value.(bool); ok {
-		return granted
-	}
-	return value != nil
+	return testpkg.GuardianPermissionsGrant(link.Permissions, permission)
 }
 
 func nextWeekday(from calendar.Date, weekday time.Weekday) calendar.Date {
@@ -398,10 +392,10 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo usersModels.CareWithdrawalCompletionRepository,
+	repo api.CareWithdrawalRecords,
 	studentID int64,
-) (*usersModels.CareWithdrawalCompletion, error) {
-	rows, _, err := repo.ListPending(ctx, usersModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+) (*careplan.WithdrawalCompletion, error) {
+	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}

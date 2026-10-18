@@ -13,12 +13,12 @@ import (
 
 // The fixture facets delegate to the same concrete store, including its
 // validation, locks, defaults, clock_timestamp stamps, errors and caller tx.
-func (r *GuardianRelationshipRepository) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
+func (r nativeStudentGuardianRepository) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
 	row, err := guardianLinkFixtureRow(value)
 	if err != nil {
 		return err
 	}
-	err = r.Create(ctx, row)
+	err = r.rawStudentGuardianRepository.Create(ctx, row)
 	if value != nil && row != nil {
 		copied, copyErr := guardianLinkFixtureValue(row)
 		if copyErr != nil {
@@ -81,9 +81,9 @@ func guardianLinkFixtureValue(row *usersModels.StudentGuardian) (*peopledirector
 	}, nil
 }
 
-func (r *guardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
+func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
 	row := guardianPhoneFixtureRow(value)
-	err := r.Create(ctx, row)
+	err := r.rawGuardianPhoneNumberRepository.Create(ctx, row)
 	if value != nil && row != nil {
 		*value = *guardianPhoneFixtureValue(row)
 	}
@@ -189,3 +189,6 @@ func (r *ParentRequestEventRepository) ListParentRequestEventFixtures(ctx contex
 	}
 	return values, err
 }
+
+var _ peopledirectory.GuardianLinkFixtureWriter = nativeStudentGuardianRepository{}
+var _ peopledirectory.GuardianPhoneFixtureWriter = nativeGuardianPhoneNumberRepository{}

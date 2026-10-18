@@ -9,7 +9,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Error messages and SQL fragments
@@ -23,8 +22,8 @@ type guardianPhoneNumberRepository struct {
 	runtime Runtime
 }
 
-// NewGuardianPhoneNumberRepository creates a new GuardianPhoneNumberRepository instance
-func NewGuardianPhoneNumberRepository(runtime Runtime) ports.GuardianPhoneNumberRepository {
+// newRawGuardianPhoneNumberRepository creates a new GuardianPhoneNumberRepository instance
+func newRawGuardianPhoneNumberRepository(runtime Runtime) rawGuardianPhoneNumberRepository {
 	return &guardianPhoneNumberRepository{runtime: requireRuntime(runtime)}
 }
 

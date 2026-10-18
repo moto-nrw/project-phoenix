@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 555
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 2898
+const moduleLegacyFileBudgetTotal = 2897
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -146,14 +146,14 @@ var moduleLegacyFileBudgets = map[string]int{
 	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
 	"modules/timetable/compose/legacy_errors.go":                              121,
 	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_interface.go":                           85,
+	"modules/timetable/compose/legacy_interface.go":                           84,
 	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
 	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 32764
+const moduleComposeBudgetTotal = 32613
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -164,7 +164,7 @@ const moduleComposeBudgetTotal = 32764
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                  528,
 	"modules/auditlog/compose":                      266,
-	"modules/careplan/compose":                      2556,
+	"modules/careplan/compose":                      2551,
 	"modules/careplan/requestfeed/compose":          68,
 	"modules/classday/compose":                      461,
 	"modules/communication/composition":             1480,
@@ -197,8 +197,7 @@ var moduleComposeBudgets = map[string]int{
 	// Timetable's advisory locks moved into the root and gave up more than
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2654,
-	"modules/peopledirectory/compose/vocabulary":      106,
+	"modules/peopledirectory/compose":                 2617,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1069,
 	"modules/schedulerruntime/compose":                83,
@@ -212,8 +211,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       4173,
-	"modules/timetable/compose/httpadapter":           3563,
+	"modules/timetable/compose":                       4171,
+	"modules/timetable/compose/httpadapter":           3562,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,

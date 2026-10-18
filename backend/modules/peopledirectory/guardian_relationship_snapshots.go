@@ -13,22 +13,22 @@ var ErrGuardianProfileNotFound = contact.ErrGuardianProfileNotFound
 var ErrStudentGuardianNotFound = contact.ErrStudentGuardianNotFound
 
 type GuardianRelationshipSnapshot struct {
-	ID                 int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	TenantID           int64
-	StudentID          int64
-	GuardianProfileID  int64
-	RelationshipType   string
-	GuardianRole       string
-	IsPrimary          bool
-	IsEmergencyContact bool
-	CanPickup          bool
-	PickupNotes        *string
-	EmergencyPriority  int
-	IsPayer            bool
-	Permissions        json.RawMessage
-	Student            *StudentSnapshot
+	ID                 int64           `json:"id"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	TenantID           int64           `json:"tenant_id"`
+	StudentID          int64           `json:"student_id"`
+	GuardianProfileID  int64           `json:"guardian_profile_id"`
+	RelationshipType   string          `json:"relationship_type"`
+	GuardianRole       string          `json:"guardian_role"`
+	IsPrimary          bool            `json:"is_primary"`
+	IsEmergencyContact bool            `json:"is_emergency_contact"`
+	CanPickup          bool            `json:"can_pickup"`
+	PickupNotes        *string         `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int             `json:"emergency_priority"`
+	IsPayer            bool            `json:"is_payer"`
+	Permissions        json.RawMessage `json:"permissions,omitempty"`
+	Student            *StudentState   `json:"student,omitempty"`
 }
 type GuardianLinkedChildSnapshot struct {
 	GuardianProfileID int64

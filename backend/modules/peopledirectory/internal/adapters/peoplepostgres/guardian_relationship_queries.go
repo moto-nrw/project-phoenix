@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -130,9 +132,9 @@ func (r *GuardianRelationshipRepository) FindByStudentAndGuardianForUpdate(ctx c
 // matches with linked children without a per-guardian N+1 (#1513). Tenant
 // isolation is enforced by RLS on the ambient tenant transaction plus the
 // student directory's own tenant scope. Soft-deleted persons are excluded.
-func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*users.GuardianLinkedChild, error) {
+func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*owner0.GuardianLinkedChildSnapshot, error) {
 	if len(guardianProfileIDs) == 0 {
-		return []*users.GuardianLinkedChild{}, nil
+		return []*owner0.GuardianLinkedChildSnapshot{}, nil
 	}
 	const query = `
 		SELECT sg.guardian_profile_id AS guardian_profile_id,
@@ -145,7 +147,7 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 		WHERE sg.guardian_profile_id IN (?)
 		  AND p.deleted_at IS NULL
 		ORDER BY p.last_name ASC, p.first_name ASC`
-	var rows []*users.GuardianLinkedChild
+	var rows []*owner0.GuardianLinkedChildSnapshot
 	db := r.runtime.DB(ctx)
 	if err := db.NewRaw(query, r.students.StudentRows(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
@@ -383,8 +385,8 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 // assigned payer appear with a nil GuardianProfileID. Showing the gaps is the
 // point: a Bankverbindungen list that silently omits the children nobody
 // assigned looks complete while missing exactly the rows that need work.
-func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error) {
-	var rows []users.GuardianPaymentAssignment
+func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]owner0.GuardianPaymentAssignment, error) {
+	var rows []owner0.GuardianPaymentAssignment
 	query := r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
@@ -393,7 +395,7 @@ func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Cont
 		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`COALESCE("guardian".first_name, '') AS guardian_first_name`).
 		ColumnExpr(`COALESCE("guardian".last_name, '') AS guardian_last_name`).
-		ColumnExpr(`COALESCE("student_guardian".relationship_type, '') AS relationship_type`).
+		ColumnExpr(`COALESCE("student_guardian".relationship_type, '') AS relationship_type_raw`).
 		Join(`JOIN users.persons AS "student_person" ON "student_person".id = "student".person_id`).
 		Join(`LEFT JOIN users.student_guardian_relationships AS "student_guardian"
 			ON "student_guardian".student_id = "student".id AND "student_guardian".is_payer`).

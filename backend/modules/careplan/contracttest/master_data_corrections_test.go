@@ -6,11 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -32,7 +34,7 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = bc })
 
-	approve := func(t *testing.T, row *userModels.StudentDataChangeRequest) {
+	approve := func(t *testing.T, row *careplan.StudentDataChangeRequest) {
 		t.Helper()
 		bc.Reset()
 		_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
@@ -40,7 +42,7 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	}
 
 	t.Run("a departure approval without links stays silent", func(t *testing.T) {
-		row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
+		row := f.insert(t, peopledirectory.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
 		approve(t, row)
 		assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"a plan change that trims no link changed no Laufgemeinschaft to announce")
@@ -57,15 +59,15 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 		require.NoError(t, err)
 		current, err := json.Marshal(student.AllowedDepartureModes)
 		require.NoError(t, err)
-		narrowed := userModels.AllowedDepartureModes{}
+		narrowed := peopledirectory.AllowedDepartureModes{}
 		for day, allowed := range student.AllowedDepartureModes {
 			narrowed[day] = allowed
 		}
-		narrowed[userModels.PickupDayTuesday] = []userModels.DepartureMode{userModels.DepartureBus}
+		narrowed[peopledirectory.PickupDayTuesday] = []peopledirectory.DepartureMode{peopledirectory.DepartureBus}
 		requested, err := json.Marshal(narrowed)
 		require.NoError(t, err)
 
-		row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", string(current), string(requested))
+		row := f.insert(t, peopledirectory.DataChangeTargetDeparture, "allowed_departure_modes", string(current), string(requested))
 		approve(t, row)
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
@@ -83,11 +85,11 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 	for _, studentID := range []int64{partner.ID, f.chain.StudentID} {
 		student, err := f.repos.Student.FindByID(ctx, studentID)
 		require.NoError(t, err)
-		modes := userModels.AllowedDepartureModes{}
+		modes := peopledirectory.AllowedDepartureModes{}
 		for day, allowed := range student.AllowedDepartureModes {
 			modes[day] = allowed
 		}
-		modes[userModels.PickupDayTuesday] = []userModels.DepartureMode{userModels.DepartureAccompanied}
+		modes[peopledirectory.PickupDayTuesday] = []peopledirectory.DepartureMode{peopledirectory.DepartureAccompanied}
 		student.AllowedDepartureModes = modes
 		student.DepartureDays = nil
 		student.BusDays = nil
@@ -98,7 +100,7 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 	}
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*careplan.CompanionEdge{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {
@@ -122,7 +124,7 @@ func TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
@@ -130,7 +132,7 @@ func TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue(t *testing.T) {
 
 	require.NoError(t, f.correct(t, svc, row.ID, false, "Falsch entschieden"))
 	assert.Equal(t, "Felix", f.personFirstName(t))
-	assert.Equal(t, userModels.DataChangeStatusRejected, f.status(t, row.ID))
+	assert.Equal(t, peopledirectory.DataChangeStatusRejected, f.status(t, row.ID))
 }
 
 // If the office changed the field after the approval, the value on record is
@@ -140,7 +142,7 @@ func TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision(t *testing
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
@@ -160,7 +162,7 @@ func TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision(t *testing
 func TestMasterDataCorrect_RefusesAnUndecidedRequest(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	err := f.correct(t, f.decisions(t), row.ID, false, "Korrektur")
 	require.ErrorIs(t, err, parentrequests.ErrNotDecided)
@@ -176,7 +178,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
 	queue := f.queue(t, careplantest.SchoolWideReviewScope)
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
 		items, _, err := queue.ListPending(ctx, careplan.RequestQueueFilter{})
@@ -188,7 +190,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	// The child graduates (grade-transition apply).
 	_, err := f.db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("status = ?", string(userModels.StudentStatusAlumnus)).
+		Set("status = ?", string(peopledirectory.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -207,7 +209,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	}))
 
 	// The request is untouched, so a transition revert restores a coherent state.
-	assert.Equal(t, userModels.DataChangeStatusPending, f.status(t, row.ID))
+	assert.Equal(t, peopledirectory.DataChangeStatusPending, f.status(t, row.ID))
 }
 
 // TestMasterDataReview_ListHistory proves the decided-request history:
@@ -221,9 +223,9 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.
-	rejected := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
-	autoApplied := f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Schmidt"`)
-	pending := f.insert(t, userModels.DataChangeTargetPerson, "language_preference", `"de"`, `"en"`)
+	rejected := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	autoApplied := f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Schmidt"`)
+	pending := f.insert(t, peopledirectory.DataChangeTargetPerson, "language_preference", `"de"`, `"en"`)
 
 	decided, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{
 		RequestID: rejected.ID, Approve: false, Reason: "unpassend", ReviewedBy: reviewerAccount.ID,
@@ -233,7 +235,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 	// The auto-applied row never went through a decision — flip it directly,
 	// like the auto-apply path does (no reviewer).
 	_, err = f.db.NewUpdate().TableExpr("users.student_data_change_requests").
-		Set("status = ?", userModels.DataChangeStatusAutoApplied).
+		Set("status = ?", peopledirectory.DataChangeStatusAutoApplied).
 		Set("applied_at = ?", autoAppliedAt).
 		Set("updated_at = ?", autoAppliedAt).
 		Where("id = ?", autoApplied.ID).
@@ -261,7 +263,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 		assert.Equal(t, "unpassend", *rej.Request.ReviewReason)
 
 		auto := byID[autoApplied.ID]
-		assert.Equal(t, userModels.DataChangeStatusAutoApplied, auto.Request.Status)
+		assert.Equal(t, peopledirectory.DataChangeStatusAutoApplied, auto.Request.Status)
 		assert.Empty(t, auto.ReviewerName, "auto-applied rows carry no reviewer")
 		// The auto-applied row was stamped one second later, so it must lead.
 		assert.Equal(t, autoApplied.ID, items[0].Request.ID, "newest decision first")
@@ -290,7 +292,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "nein"})
 	require.NoError(t, err)
 

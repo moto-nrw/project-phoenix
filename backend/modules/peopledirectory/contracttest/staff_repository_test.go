@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	t.Run("creates staff member with valid data", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Create")
 
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID: person.ID,
 		}
 
@@ -53,7 +54,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	t.Run("creates staff member with notes", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Notes")
 
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID:   person.ID,
 			StaffNotes: "Initial staff notes",
 		}
@@ -74,7 +75,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with missing person ID", func(t *testing.T) {
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID: 0, // Invalid
 		}
 
@@ -395,7 +396,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 		results, err := repo.ListAllWithPerson(ctx)
 		require.NoError(t, err)
-		var found *userModels.Staff
+		var found *peopleValues.Staff
 		for _, s := range results {
 			if s.ID == staff.ID {
 				found = s
@@ -426,7 +427,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find our staff member
-		var found *userModels.Staff
+		var found *peopleValues.Staff
 		for _, s := range results {
 			if s.ID == staff.ID {
 				found = s

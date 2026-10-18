@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -19,7 +20,7 @@ type guestMembershipRepository struct {
 
 var _ peoplePorts.GuestRepository = guestMembershipRepository{}
 
-func guestFieldsFromLegacy(guest *userModels.Guest) schoolmembership.GuestFields {
+func guestFieldsFromLegacy(guest *peopleValues.Guest) schoolmembership.GuestFields {
 	return schoolmembership.GuestFields{
 		StaffID:           guest.StaffID,
 		Organization:      guest.Organization,
@@ -32,7 +33,7 @@ func guestFieldsFromLegacy(guest *userModels.Guest) schoolmembership.GuestFields
 	}
 }
 
-func applyGuestToLegacy(target *userModels.Guest, value schoolmembership.Guest) {
+func applyGuestToLegacy(target *peopleValues.Guest, value schoolmembership.Guest) {
 	target.ID = value.ID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
@@ -47,21 +48,21 @@ func applyGuestToLegacy(target *userModels.Guest, value schoolmembership.Guest) 
 	target.Notes = value.Notes
 }
 
-func toLegacyGuest(value schoolmembership.Guest) *userModels.Guest {
-	guest := new(userModels.Guest)
+func toLegacyGuest(value schoolmembership.Guest) *peopleValues.Guest {
+	guest := new(peopleValues.Guest)
 	applyGuestToLegacy(guest, value)
 	return guest
 }
 
-func toLegacyGuestList(values []schoolmembership.Guest) []*userModels.Guest {
-	result := make([]*userModels.Guest, 0, len(values))
+func toLegacyGuestList(values []schoolmembership.Guest) []*peopleValues.Guest {
+	result := make([]*peopleValues.Guest, 0, len(values))
 	for _, value := range values {
 		result = append(result, toLegacyGuest(value))
 	}
 	return result
 }
 
-func (r guestMembershipRepository) Create(ctx context.Context, entity *userModels.Guest) error {
+func (r guestMembershipRepository) Create(ctx context.Context, entity *peopleValues.Guest) error {
 	if entity == nil {
 		return repositoryError("create guest", errors.New("guest cannot be nil"))
 	}
@@ -73,7 +74,7 @@ func (r guestMembershipRepository) Create(ctx context.Context, entity *userModel
 	return nil
 }
 
-func (r guestMembershipRepository) Update(ctx context.Context, entity *userModels.Guest) error {
+func (r guestMembershipRepository) Update(ctx context.Context, entity *peopleValues.Guest) error {
 	if entity == nil {
 		return repositoryError("update guest", errors.New("guest cannot be nil"))
 	}
@@ -93,7 +94,7 @@ func (r guestMembershipRepository) Delete(ctx context.Context, id any) error {
 	return membershipError("delete guest", r.membership.DeleteGuest(ctx, guestID))
 }
 
-func (r guestMembershipRepository) FindByID(ctx context.Context, id any) (*userModels.Guest, error) {
+func (r guestMembershipRepository) FindByID(ctx context.Context, id any) (*peopleValues.Guest, error) {
 	guestID, err := membershipID(id)
 	if err != nil {
 		return nil, repositoryError("find guest by id", err)
@@ -105,7 +106,7 @@ func (r guestMembershipRepository) FindByID(ctx context.Context, id any) (*userM
 	return toLegacyGuest(value), nil
 }
 
-func (r guestMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*userModels.Guest, error) {
+func (r guestMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*peopleValues.Guest, error) {
 	value, err := r.membership.FindGuestByStaff(ctx, staffID)
 	if err != nil {
 		return nil, membershipError("find by staff ID", err)
@@ -200,7 +201,7 @@ func legacyFilterBool(kind, field string, value any) (bool, error) {
 	return flag, nil
 }
 
-func (r guestMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*userModels.Guest, error) {
+func (r guestMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*peopleValues.Guest, error) {
 	filter, err := guestFilterFromLegacy(filters)
 	if err != nil {
 		return nil, repositoryError("list guests", err)
@@ -209,11 +210,11 @@ func (r guestMembershipRepository) List(ctx context.Context, filters map[string]
 }
 
 // ActiveGuests lists the guests whose window covers today's calendar date.
-func (r guestMembershipRepository) ActiveGuests(ctx context.Context) ([]*userModels.Guest, error) {
+func (r guestMembershipRepository) ActiveGuests(ctx context.Context) ([]*peopleValues.Guest, error) {
 	return r.listGuests(ctx, schoolmembership.GuestFilter{ActiveOn: calendar.TodayDate().String()})
 }
 
-func (r guestMembershipRepository) listGuests(ctx context.Context, filter schoolmembership.GuestFilter) ([]*userModels.Guest, error) {
+func (r guestMembershipRepository) listGuests(ctx context.Context, filter schoolmembership.GuestFilter) ([]*peopleValues.Guest, error) {
 	values, err := r.membership.ListGuests(ctx, filter)
 	if err != nil {
 		return nil, membershipError("list guests", err)

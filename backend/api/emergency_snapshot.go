@@ -19,7 +19,7 @@ import (
 	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -43,7 +43,7 @@ type emergencySnapshotPresenceMode interface {
 // projection needs: the record carries the health note no public facade
 // exposes yet.
 type emergencySnapshotStudents interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 }
 
 // emergencySnapshotPersons is the People Directory read of display
@@ -54,7 +54,7 @@ type emergencySnapshotPersons interface {
 
 // emergencySnapshotContacts is the People Directory guardian-contact query.
 type emergencySnapshotContacts interface {
-	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]users.GuardianEmergencyContactRow, error)
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianEmergencyContactRow, error)
 }
 
 // emergencySnapshotRooms is the Facilities read of room names.

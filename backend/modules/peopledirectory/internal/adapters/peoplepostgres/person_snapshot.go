@@ -13,9 +13,9 @@ var _ directory.DirectoryPersonReads = (*personRepository)(nil)
 // this store only projects its complete result into the native owner facade.
 func (r *personRepository) PersonSnapshotByID(ctx context.Context, id int64) (*directory.DirectoryPersonSnapshot, error) {
 	row, err := r.FindByID(ctx, id)
-	return directoryPersonSnapshot(row), err
+	return NativeDirectoryPerson(row), err
 }
-func directoryPersonSnapshot(row *models.Person) *directory.DirectoryPersonSnapshot {
+func NativeDirectoryPerson(row *models.Person) *directory.DirectoryPersonSnapshot {
 	if row == nil {
 		return nil
 	}

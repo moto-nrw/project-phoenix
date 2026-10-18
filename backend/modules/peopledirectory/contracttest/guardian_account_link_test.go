@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -62,7 +64,7 @@ func TestGuardianAccountLink_DoesNotDetachAnotherSchool(t *testing.T) {
 	require.NoError(t, repo.LinkAccount(otherCtx, other.ID, account.ID))
 	next := testpkg.CreateTestGuardianProfile(t, db, "local-contact")
 	require.NoError(t, repo.LinkAccount(ctx, next.ID, account.ID))
-	require.ErrorIs(t, repo.LinkAccount(ctx, other.ID, account.ID), userModels.ErrGuardianProfileNotFound)
+	require.ErrorIs(t, repo.LinkAccount(ctx, other.ID, account.ID), peopleValues.ErrGuardianProfileNotFound)
 	for _, id := range []int64{other.ID, next.ID} {
 		profile, err := repo.FindByID(ctx, id)
 		require.NoError(t, err)

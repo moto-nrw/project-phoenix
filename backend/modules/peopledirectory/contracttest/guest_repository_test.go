@@ -3,9 +3,10 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			Organization:      "Test Org",
@@ -46,7 +47,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with contact info", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Art",
 			ContactEmail:      "guest@test.local",
@@ -65,7 +66,7 @@ func TestGuestRepository_Create(t *testing.T) {
 		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(90)
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Dance",
 			StartDate:         &startDate,
@@ -87,7 +88,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails without staff ID", func(t *testing.T) {
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			ActivityExpertise: "Music",
 		}
 
@@ -99,7 +100,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails without activity expertise", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID: staff.ID,
 		}
 
@@ -111,7 +112,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails with invalid email", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			ContactEmail:      "not-an-email",

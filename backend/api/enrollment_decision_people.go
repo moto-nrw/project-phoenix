@@ -2,13 +2,16 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -60,9 +63,15 @@ func (enrollmentPeopleRules) ValidateGuardianProfile(profile *enrollmentCompose.
 }
 
 func (enrollmentPeopleRules) ValidateStudentGuardian(link *enrollmentCompose.StudentGuardian) error {
-	row := decisionStudentGuardianRow(link)
+	row := &peopledirectory.GuardianRelationshipSnapshot{StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID, RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole}
+	if link.Permissions != nil {
+		row.Permissions = []byte(`{}`)
+	}
 	err := row.Validate()
-	link.RelationshipType, link.GuardianRole, link.Permissions = row.RelationshipType, row.GuardianRole, row.Permissions
+	link.RelationshipType, link.GuardianRole = row.RelationshipType, row.GuardianRole
+	if row.Permissions != nil && link.Permissions == nil {
+		link.Permissions = make(map[string]any)
+	}
 	return err
 }
 
@@ -143,8 +152,8 @@ func (p enrollmentPersons) PersonByAccount(ctx context.Context, accountID int64)
 	return decisionPersonRecord(row), err
 }
 
-func decisionPersonRow(person *enrollmentCompose.Person) *userModels.Person {
-	row := &userModels.Person{
+func decisionPersonRow(person *enrollmentCompose.Person) *peopledirectory.DirectoryPersonSnapshot {
+	row := &peopledirectory.DirectoryPersonSnapshot{
 		FirstName: person.FirstName, LastName: person.LastName, Birthday: person.Birthday,
 		TagID: person.TagID, AccountID: person.AccountID,
 	}
@@ -153,7 +162,7 @@ func decisionPersonRow(person *enrollmentCompose.Person) *userModels.Person {
 	return row
 }
 
-func decisionPersonRecord(row *userModels.Person) *enrollmentCompose.Person {
+func decisionPersonRecord(row *peopledirectory.DirectoryPersonSnapshot) *enrollmentCompose.Person {
 	if row == nil {
 		return nil
 	}
@@ -184,8 +193,8 @@ func (s enrollmentStudentRecords) FindStudent(ctx context.Context, id int64) err
 }
 
 // decisionStudentRow is the People Directory row of a decision's student.
-func decisionStudentRow(student *enrollmentCompose.Student) *userModels.Student {
-	row := &userModels.Student{
+func decisionStudentRow(student *enrollmentCompose.Student) *peopledirectory.StudentState {
+	row := &peopledirectory.StudentState{
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass, GroupID: student.GroupID,
 		AddressStreet: student.AddressStreet, AddressCity: student.AddressCity, AddressPostalCode: student.AddressPostalCode,
 		ExtraInfo: student.ExtraInfo, SupervisorNotes: student.SupervisorNotes, HealthInfo: student.HealthInfo,
@@ -193,7 +202,7 @@ func decisionStudentRow(student *enrollmentCompose.Student) *userModels.Student 
 		AllowedDepartureModes: student.AllowedDepartureModes, DepartureCompanionNote: student.DepartureCompanionNote,
 		DepartureCompanionDays: student.DepartureCompanionDays, PickupDays: student.PickupDays, BusDays: student.BusDays,
 		Sick: student.Sick, SickSince: student.SickSince, Excused: student.Excused, ExcusedSince: student.ExcusedSince,
-		Status: userModels.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
+		Status: string(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
 		PhotoPath: student.PhotoPath, PhotoConsentGivenAt: student.PhotoConsentGivenAt, PhotoConsentGivenBy: student.PhotoConsentGivenBy,
 		AGBAcceptedAt: student.AGBAcceptedAt, DataProcessingAcceptedAt: student.DataProcessingAcceptedAt,
 		EmailContactAcceptedAt: student.EmailContactAcceptedAt,
@@ -201,7 +210,7 @@ func decisionStudentRow(student *enrollmentCompose.Student) *userModels.Student 
 	row.ID, row.CreatedAt, row.UpdatedAt = student.ID, student.CreatedAt, student.UpdatedAt
 	row.TenantID = student.TenantID
 	if baseline := student.DepartureBaseline; baseline != nil {
-		row.DepartureBaseline = &userModels.DeparturePlanSnapshot{
+		row.DepartureBaseline = &departure.Plan{
 			DepartureDays: baseline.DepartureDays, AllowedDepartureModes: baseline.AllowedDepartureModes,
 			BusDays: baseline.BusDays, PickupDays: baseline.PickupDays,
 		}
@@ -220,7 +229,7 @@ func (a enrollmentStudentAudit) RecordChangesForActor(ctx context.Context, befor
 }
 
 func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error {
-	return a.auditor.RecordSystemStatusChange(ctx, studentID, userModels.StudentStatus(before), userModels.StudentStatus(after))
+	return a.auditor.RecordSystemStatusChange(ctx, studentID, string(before), string(after))
 }
 
 // enrollmentGuardianProfiles reads and writes the tenant's guardian profiles;
@@ -232,7 +241,7 @@ type enrollmentGuardianProfiles struct {
 
 func (g enrollmentGuardianProfiles) GuardianProfileByAccount(ctx context.Context, accountID int64) (*enrollmentCompose.GuardianProfile, error) {
 	row, err := g.repo.FindByAccountID(ctx, accountID)
-	if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+	if errors.Is(err, peopledirectory.ErrGuardianProfileNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -243,7 +252,7 @@ func (g enrollmentGuardianProfiles) GuardianProfileByAccount(ctx context.Context
 
 func (g enrollmentGuardianProfiles) GuardianProfileByEmail(ctx context.Context, email string) (*enrollmentCompose.GuardianProfile, error) {
 	row, err := g.repo.FindByEmail(ctx, email)
-	if errors.Is(err, userModels.ErrGuardianProfileNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
+	if errors.Is(err, peopledirectory.ErrGuardianProfileNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -326,8 +335,8 @@ func (g enrollmentGuardianProfiles) LinkGuardianAccount(ctx context.Context, pro
 	return g.accounts.LinkGuardianProfileToAccount(ctx, profileID, accountID)
 }
 
-func decisionGuardianProfileRow(profile *enrollmentCompose.GuardianProfile) *userModels.GuardianProfile {
-	row := &userModels.GuardianProfile{
+func decisionGuardianProfileRow(profile *enrollmentCompose.GuardianProfile) *peopledirectory.GuardianProfileSnapshot {
+	row := &peopledirectory.GuardianProfileSnapshot{
 		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
 		AddressStreet: profile.AddressStreet, AddressCity: profile.AddressCity, AddressPostalCode: profile.AddressPostalCode,
 		AccountID: profile.AccountID, HasAccount: profile.HasAccount,
@@ -339,7 +348,7 @@ func decisionGuardianProfileRow(profile *enrollmentCompose.GuardianProfile) *use
 	return row
 }
 
-func decisionGuardianProfileRecord(row *userModels.GuardianProfile) *enrollmentCompose.GuardianProfile {
+func decisionGuardianProfileRecord(row *peopledirectory.GuardianProfileSnapshot) *enrollmentCompose.GuardianProfile {
 	if row == nil {
 		return nil
 	}
@@ -368,22 +377,37 @@ func (s enrollmentStudentGuardians) GuardianLinksOfStudent(ctx context.Context, 
 	}
 	links := make([]*enrollmentCompose.StudentGuardian, 0, len(rows))
 	for _, row := range rows {
-		links = append(links, decisionStudentGuardianRecord(row))
+		value, mapErr := decisionStudentGuardianRecord(row)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		links = append(links, value)
 	}
 	return links, nil
 }
 
 func (s enrollmentStudentGuardians) CreateGuardianLink(ctx context.Context, link *enrollmentCompose.StudentGuardian) error {
-	row := decisionStudentGuardianRow(link)
+	row, err := decisionStudentGuardianRow(link)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.Create(ctx, row); err != nil {
 		return err
 	}
-	*link = *decisionStudentGuardianRecord(row)
+	mapped, mapErr := decisionStudentGuardianRecord(row)
+	if mapErr != nil {
+		return mapErr
+	}
+	*link = *mapped
 	return nil
 }
 
 func (s enrollmentStudentGuardians) UpdateGuardianLink(ctx context.Context, link *enrollmentCompose.StudentGuardian) error {
-	return s.repo.Update(ctx, decisionStudentGuardianRow(link))
+	row, err := decisionStudentGuardianRow(link)
+	if err != nil {
+		return err
+	}
+	return s.repo.Update(ctx, row)
 }
 
 func (s enrollmentStudentGuardians) DeleteGuardianLink(ctx context.Context, id int64) error {
@@ -395,47 +419,70 @@ func (s enrollmentStudentGuardians) GuardianLinkForUpdate(ctx context.Context, s
 	if err != nil {
 		return nil, err
 	}
-	return decisionStudentGuardianRecord(row), nil
+	return decisionStudentGuardianRecord(row)
 }
 
 func (s enrollmentStudentGuardians) LinkGuardianIfMissing(ctx context.Context, link *enrollmentCompose.StudentGuardian) (bool, error) {
-	row := decisionStudentGuardianRow(link)
+	row, err := decisionStudentGuardianRow(link)
+	if err != nil {
+		return false, err
+	}
 	inserted, err := s.repo.LinkIfNotExists(ctx, row)
 	if err == nil {
-		*link = *decisionStudentGuardianRecord(row)
+		mapped, mapErr := decisionStudentGuardianRecord(row)
+		if mapErr != nil {
+			return false, mapErr
+		}
+		*link = *mapped
 	}
 	return inserted, err
 }
 
 func (s enrollmentStudentGuardians) UpdateGuardianLinkRole(ctx context.Context, link *enrollmentCompose.StudentGuardian) (int64, error) {
-	return s.repo.UpdateColumns(ctx, decisionStudentGuardianRow(link), peopledirectory.GuardianRoleColumns()...)
+	row, err := decisionStudentGuardianRow(link)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.UpdateColumns(ctx, row, peopledirectory.GuardianRoleColumns()...)
 }
 
-func decisionStudentGuardianRow(link *enrollmentCompose.StudentGuardian) *userModels.StudentGuardian {
-	row := &userModels.StudentGuardian{
+func decisionStudentGuardianRow(link *enrollmentCompose.StudentGuardian) (*peopledirectory.GuardianRelationshipSnapshot, error) {
+	row := &peopledirectory.GuardianRelationshipSnapshot{
 		StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID,
 		RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole,
 		IsPrimary: link.IsPrimary, IsEmergencyContact: link.IsEmergencyContact, CanPickup: link.CanPickup,
 		PickupNotes: link.PickupNotes, EmergencyPriority: link.EmergencyPriority, IsPayer: link.IsPayer,
-		Permissions: link.Permissions,
 	}
 	row.ID, row.CreatedAt, row.UpdatedAt = link.ID, link.CreatedAt, link.UpdatedAt
 	row.TenantID = link.TenantID
-	return row
+	if link.Permissions != nil {
+		raw, err := json.Marshal(link.Permissions)
+		if err != nil {
+			return nil, err
+		}
+		row.Permissions = raw
+	}
+	return row, nil
 }
 
-func decisionStudentGuardianRecord(row *userModels.StudentGuardian) *enrollmentCompose.StudentGuardian {
+func decisionStudentGuardianRecord(row *peopledirectory.GuardianRelationshipSnapshot) (*enrollmentCompose.StudentGuardian, error) {
 	if row == nil {
-		return nil
+		return nil, nil
 	}
-	return &enrollmentCompose.StudentGuardian{
+	value := &enrollmentCompose.StudentGuardian{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
 		RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole,
 		IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup,
 		PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer,
-		Permissions: row.Permissions,
 	}
+	if row.Permissions != nil {
+		if err := json.Unmarshal(row.Permissions, &value.Permissions); err != nil {
+			return nil, err
+		}
+	}
+	return value, nil
+
 }
 
 // enrollmentGuardianPhones reads and adds guardian phone numbers.
@@ -464,9 +511,9 @@ func (p enrollmentGuardianPhones) GuardianPhonesByGuardian(ctx context.Context, 
 }
 
 func (p enrollmentGuardianPhones) CreateGuardianPhone(ctx context.Context, phone *enrollmentCompose.GuardianPhone) error {
-	row := &userModels.GuardianPhoneNumber{
+	row := &peopledirectory.GuardianProfilePhoneSnapshot{
 		GuardianProfileID: phone.GuardianProfileID, PhoneNumber: phone.PhoneNumber,
-		PhoneType: userModels.PhoneType(phone.PhoneType), Label: phone.Label,
+		PhoneType: string(phone.PhoneType), Label: phone.Label,
 		IsPrimary: phone.IsPrimary, Priority: phone.Priority,
 	}
 	row.ID, row.CreatedAt, row.UpdatedAt = phone.ID, phone.CreatedAt, phone.UpdatedAt
@@ -478,7 +525,7 @@ func (p enrollmentGuardianPhones) CreateGuardianPhone(ctx context.Context, phone
 	return nil
 }
 
-func decisionGuardianPhoneRecords(rows []*userModels.GuardianPhoneNumber) []*enrollmentCompose.GuardianPhone {
+func decisionGuardianPhoneRecords(rows []*peopledirectory.GuardianProfilePhoneSnapshot) []*enrollmentCompose.GuardianPhone {
 	phones := make([]*enrollmentCompose.GuardianPhone, 0, len(rows))
 	for _, row := range rows {
 		phones = append(phones, decisionGuardianPhoneRecord(row))
@@ -486,7 +533,7 @@ func decisionGuardianPhoneRecords(rows []*userModels.GuardianPhoneNumber) []*enr
 	return phones
 }
 
-func decisionGuardianPhoneRecord(row *userModels.GuardianPhoneNumber) *enrollmentCompose.GuardianPhone {
+func decisionGuardianPhoneRecord(row *peopledirectory.GuardianProfilePhoneSnapshot) *enrollmentCompose.GuardianPhone {
 	if row == nil {
 		return nil
 	}

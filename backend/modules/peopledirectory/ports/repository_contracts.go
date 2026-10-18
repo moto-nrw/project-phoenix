@@ -2,10 +2,11 @@ package ports
 
 import (
 	"context"
-	"encoding/json"
+
+	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -36,26 +37,26 @@ type CRUDRepository[T any] interface {
 // PersonRepository defines operations for managing persons
 type PersonRepository interface {
 	peopledirectory.DirectoryPersonReads
-	CRUDRepository[*users.Person]
+	CRUDRepository[*peopledirectory.DirectoryPersonSnapshot]
 
 	// FindByIDForUpdate retrieves and locks a person row for a transaction.
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// FindByIDs retrieves multiple persons by their IDs in a single query
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// FindByTagID retrieves a person by their RFID tag ID
-	FindByTagID(ctx context.Context, tagID string) (*users.Person, error)
+	FindByTagID(ctx context.Context, tagID string) (*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// FindByAccountID retrieves a person by their account ID
-	FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// FindByAccountIDs retrieves persons for the given account IDs in one
 	// query, keyed by account ID.
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*users.Person, error)
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// ListWithOptions retrieves persons with type-safe query options
-	ListWithOptions(ctx context.Context, options *QueryOptions) ([]*users.Person, error)
+	ListWithOptions(ctx context.Context, options *QueryOptions) ([]*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// LinkToAccount associates a person with an account
 	LinkToAccount(ctx context.Context, personID int64, accountID int64) error
@@ -70,7 +71,7 @@ type PersonRepository interface {
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 
 	// FindWithAccount retrieves a person with their associated account
-	FindWithAccount(ctx context.Context, id int64) (*users.Person, error)
+	FindWithAccount(ctx context.Context, id int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 
 	// AnonymizeAndSoftDelete overwrites the person's PII with placeholder
 	// values and stamps deleted_at (GDPR person deletion).
@@ -80,10 +81,10 @@ type PersonRepository interface {
 // StudentRepository defines operations for managing students
 type StudentRepository interface {
 	peopledirectory.StudentSnapshotReads
-	CRUDRepository[*users.Student]
+	CRUDRepository[*peopledirectory.StudentState]
 
 	// FindByIDs retrieves multiple students by their IDs in a single query
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 
 	// FindReadScopeByIDs retrieves a lightweight projection of the given students
 	// — only id, group_id, person_id, and school_class — without the weekday
@@ -92,16 +93,16 @@ type StudentRepository interface {
 	// reminders service) and must not pay for schema probing and jsonb hydration
 	// on data they never read. The returned *Student values have ONLY those four
 	// fields populated.
-	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 
 	// FindByPersonID retrieves a student by their person ID
-	FindByPersonID(ctx context.Context, personID int64) (*users.Student, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.StudentState, error)
 
 	// FindByGroupID retrieves students by their group ID
-	FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*peopledirectory.StudentState, error)
 
 	// FindByGroupIDs retrieves students by multiple group IDs
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*users.Student, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopledirectory.StudentState, error)
 
 	// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
 	// student (active OR pending — a child approved before its service
@@ -128,15 +129,15 @@ type StudentRepository interface {
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.
-	FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error)
+	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
 
 	// ListWithOptions retrieves students with query options
 	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
 	// the rule that follows decides per child whether a graduate still counts.
-	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*users.Student, error)
+	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*peopledirectory.StudentState, error)
 	// ListClassRoster is the class-roster report's candidate set — one class,
 	// or every child when the report spans all of them.
-	ListClassRoster(ctx context.Context, schoolClass string) ([]*users.Student, error)
+	ListClassRoster(ctx context.Context, schoolClass string) ([]*peopledirectory.StudentState, error)
 	// CountEnrolled counts the children of the school, graduates excluded.
 	CountEnrolled(ctx context.Context) (int, error)
 
@@ -147,41 +148,41 @@ type StudentRepository interface {
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
-	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error)
+	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*peopledirectory.StudentRosterEntry, error)
 	// FindByTeacherStaffIDsWithGroups retrieves the distinct students supervised by teachers for any requested staff ID.
-	FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*users.StudentWithGroupInfo, error)
+	FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*peopledirectory.StudentRosterEntry, error)
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
-	FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error)
+	FindAllWithGroups(ctx context.Context) ([]*peopledirectory.StudentRosterEntry, error)
 	// FindOverlappingWithGroups retrieves the non-alumni students enrolled on
 	// at least one day of the inclusive report range, with their current
 	// group. Membership follows EnrolledOn, so today decides whether an
 	// immediately activated child (active, enrolled_from still ahead) counts.
-	FindOverlappingWithGroups(ctx context.Context, from, to, today calendar.Date) ([]*users.StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(ctx context.Context, from, to, today calendar.Date) ([]*peopledirectory.StudentRosterEntry, error)
 	// FindOverlappingWithGroupsOnDate is the composition-boundary variant. The
 	// instant is converted to the current Berlin date inside the repository.
-	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*users.StudentWithGroupInfo, error)
+	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*peopledirectory.StudentRosterEntry, error)
 
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
 	// Unconditional: it overwrites whatever status the row currently carries, so
 	// it must NOT be used by background lifecycle work that decided on a status
 	// it read earlier — use TransitionStatus for that.
-	UpdateStatus(ctx context.Context, studentID int64, newStatus users.StudentStatus) error
+	UpdateStatus(ctx context.Context, studentID int64, newStatus string) error
 
 	// TransitionStatus is the compare-and-set form: the row flips to next only
 	// while it still holds expected. Returns false for a stale transition.
 	// Tenant-scoped via context.
-	TransitionStatus(ctx context.Context, studentID int64, expected, next users.StudentStatus) (bool, error)
+	TransitionStatus(ctx context.Context, studentID int64, expected, next string) (bool, error)
 
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.
-	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*users.Student, error)
+	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*peopledirectory.StudentState, error)
 
 	// FindActiveDueForDeactivation returns students whose status='active' AND
 	// enrolled_until <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick to flip rows to 'inactive'.
-	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*users.Student, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*peopledirectory.StudentState, error)
 
 	// Both per-tenant gates this repository takes — the photo-feature lock and
 	// the shared class-writes gate — moved to People Directory in #3349. The
@@ -193,7 +194,7 @@ type StudentRepository interface {
 	// lock the next UPDATE on the row will use. Used by the photo
 	// upload flow to close a lost-update race against concurrent
 	// consent withdrawals from another tab.
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
 
 	// VerifyCompanionStrandingBatch decides the "läuft mit" stranding verdicts
 	// that the departure-plan writes of a coordinated multi-child edit deferred
@@ -209,7 +210,7 @@ type StudentRepository interface {
 	// order), so batch writers acquire all their row locks in one query and
 	// overlapping batches serialize instead of deadlocking. Unknown or
 	// foreign ids are absent from the returned map.
-	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 
 	// FindCareBoundsByIDs returns the last care day of each given child that
 	// has one. Deliberately a projection of a single DATE column rather than
@@ -227,16 +228,16 @@ type CaregiverBindingLocker interface {
 
 // StaffRepository defines operations for managing staff members
 type StaffRepository interface {
-	CRUDRepository[*users.Staff]
+	CRUDRepository[*peopledirectory.Staff]
 
 	// FindByIDForUpdate retrieves and locks a staff row for a transaction.
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.Staff, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 
 	// FindByPersonID retrieves a staff member by their person ID
-	FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
 
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
-	ListAllWithPerson(ctx context.Context) ([]*users.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*peopledirectory.Staff, error)
 
 	// FindReachableCalendarStaffIDs returns the subset of the given staff IDs
 	// (or all staff when ids is empty) that can use the calendar for the current
@@ -247,22 +248,22 @@ type StaffRepository interface {
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
 	// FindWithPerson retrieves a staff member with their associated person data
-	FindWithPerson(ctx context.Context, id int64) (*users.Staff, error)
+	FindWithPerson(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 
 	// FindByIDs retrieves multiple staff members by their IDs in a single query
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
 
 	// FindWithPersonByIDs retrieves multiple staff members with their associated person data in a single query
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
 
 	// ListStaffWithPermission returns all active staff whose effective
 	// permissions match the given permission name (wildcard-aware,
 	// tenant-scoped). Used for absence-request email fan-out (#1419).
-	ListStaffWithPermission(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error)
+	ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopledirectory.StaffWithRoleInfo, error)
 
 	// GetStaffContactInfo returns name + account email for one staff member
 	// (staff → person → account join). Used for absence-decision emails (#1419).
-	GetStaffContactInfo(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error)
+	GetStaffContactInfo(ctx context.Context, staffID int64) (*peopledirectory.StaffWithRoleInfo, error)
 
 	// ListAccountIDsByStaffIDs maps the given staff members to their login
 	// accounts. Staff without an account are omitted rather than mapped to
@@ -276,18 +277,18 @@ type StaffRepository interface {
 
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
-	ListStaffByRoles(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error)
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*peopledirectory.StaffWithRoleInfo, error)
 
 	// FindBirthdaysOn returns the staff members whose birthday falls on one of
 	// the given annually recurring days, excluding everyone who opted out of
 	// the display (#1542). The opt-out is applied in the query so no caller
 	// can bypass it.
-	FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error)
+	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
 
 	// ListBirthdaysForExport returns every staff member with a stored birth
 	// date, opt-outs included. Backs the administrative Geburtstagsliste,
 	// which is gated on the same permission as the Stammdaten it reads.
-	ListBirthdaysForExport(ctx context.Context) ([]users.BirthdayEntry, error)
+	ListBirthdaysForExport(ctx context.Context) ([]peopleBirthday.BirthdayEntry, error)
 
 	// SetBirthdayDisplayOptOut flips one staff member's dashboard opt-out.
 	SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
@@ -295,49 +296,49 @@ type StaffRepository interface {
 
 // TeacherRepository defines operations for managing teachers
 type TeacherRepository interface {
-	CRUDRepository[*users.Teacher]
+	CRUDRepository[*peopledirectory.Teacher]
 
 	// ListActiveCaregivers returns every active caregiver for the tenant in
 	// context (teachers with an active account, tenant mapping, and system
 	// user/teacher role), ordered by name.
-	ListActiveCaregivers(ctx context.Context) ([]*users.ActiveCaregiver, error)
+	ListActiveCaregivers(ctx context.Context) ([]*peopledirectory.ActiveCaregiver, error)
 
 	// FindActiveCaregiverByAccountID returns the active caregiver bound to
 	// the account, or nil when the account is not an active caregiver.
-	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*users.ActiveCaregiver, error)
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*peopledirectory.ActiveCaregiver, error)
 
 	// FindByStaffID retrieves a teacher by their staff ID
-	FindByStaffID(ctx context.Context, staffID int64) (*users.Teacher, error)
+	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Teacher, error)
 
 	// FindByStaffIDs retrieves teachers by multiple staff IDs in a single query
 	// Returns a map of staff_id -> Teacher for efficient lookup
-	FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*users.Teacher, error)
+	FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*peopledirectory.Teacher, error)
 
 	// FindBySpecialization retrieves teachers by their specialization
-	FindBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error)
+	FindBySpecialization(ctx context.Context, specialization string) ([]*peopledirectory.Teacher, error)
 
 	// FindByGroupID retrieves teachers assigned to a group
-	FindByGroupID(ctx context.Context, groupID int64) ([]*users.Teacher, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*peopledirectory.Teacher, error)
 
 	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
-	FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Teacher, error)
+	FindWithStaffAndPerson(ctx context.Context, id int64) (*peopledirectory.Teacher, error)
 
 	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
-	ListAllWithStaffAndPerson(ctx context.Context) ([]*users.Teacher, error)
+	ListAllWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
 
 	// FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs
-	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*users.Teacher, error)
+	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }
 
 // GuestRepository defines operations for managing guests
 type GuestRepository interface {
-	CRUDRepository[*users.Guest]
+	CRUDRepository[*peopledirectory.Guest]
 
 	// FindByStaffID retrieves a guest by their staff ID
-	FindByStaffID(ctx context.Context, staffID int64) (*users.Guest, error)
+	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Guest, error)
 
 	// ActiveGuests retrieves the guests whose start/end window covers today.
-	ActiveGuests(ctx context.Context) ([]*users.Guest, error)
+	ActiveGuests(ctx context.Context) ([]*peopledirectory.Guest, error)
 }
 
 // StudentGuardianRepository is the retained composition seam over the
@@ -348,30 +349,30 @@ type GuestRepository interface {
 type StudentGuardianRepository interface {
 	peopledirectory.GuardianRelationshipReads
 	// Create links a guardian to a child across the three owners.
-	Create(ctx context.Context, relationship *users.StudentGuardian) error
+	Create(ctx context.Context, relationship *peopledirectory.GuardianRelationshipSnapshot) error
 	// FindByID retrieves one relationship with its three halves.
-	FindByID(ctx context.Context, id any) (*users.StudentGuardian, error)
+	FindByID(ctx context.Context, id any) (*peopledirectory.GuardianRelationshipSnapshot, error)
 	// Update rewrites every field of the relationship across its owners.
-	Update(ctx context.Context, relationship *users.StudentGuardian) error
+	Update(ctx context.Context, relationship *peopledirectory.GuardianRelationshipSnapshot) error
 	// Delete unlinks a guardian; the owners' halves follow the relationship.
 	Delete(ctx context.Context, id any) error
 	// List retrieves the relationships matching the equality filters, keyed
 	// by column of the old row shape.
-	List(ctx context.Context, filters map[string]any) ([]*users.StudentGuardian, error)
+	List(ctx context.Context, filters map[string]any) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// ListEmergencyContactRows returns guardian/phone rows for the given
 	// students, emergency contacts and primary entries first.
-	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]users.GuardianEmergencyContactRow, error)
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianEmergencyContactRow, error)
 
 	// FindByStudentID retrieves relationships by student ID
-	FindByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error)
+	FindByStudentID(ctx context.Context, studentID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// FindByStudentIDs retrieves relationships for many students in one query,
 	// avoiding an N+1 when resolving whole-school / group / class parent targets.
-	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*users.StudentGuardian, error)
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
-	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error)
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -412,7 +413,7 @@ type StudentGuardianRepository interface {
 	// reads role/account state and then writes cannot have that state changed out
 	// from under it between the authorization check and the write. Must run inside
 	// a tenant transaction (RLS-scoped via TenantWhere).
-	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error)
+	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// LinkIfNotExists inserts the student↔guardian relationship, treating a
 	// duplicate (same tenant_id + student_id + guardian_profile_id) as a no-op
@@ -420,14 +421,14 @@ type StudentGuardianRepository interface {
 	// when the link already existed. Race-safe and transaction-safe — a duplicate
 	// never raises a unique violation (which would abort the surrounding tenant
 	// tx). On conflict the existing row is left untouched.
-	LinkIfNotExists(ctx context.Context, rel *users.StudentGuardian) (bool, error)
+	LinkIfNotExists(ctx context.Context, rel *peopledirectory.GuardianRelationshipSnapshot) (bool, error)
 
 	// ListLinkedChildrenForGuardians returns, in a single query, the children
 	// linked to any of the given guardian profiles (id + name only). Backs the
 	// guardian picker search so it never falls into a per-guardian N+1. Tenant
 	// isolation is enforced by RLS on the ambient tenant transaction (the query
 	// carries no explicit tenant predicate).
-	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*users.GuardianLinkedChild, error)
+	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*peopledirectory.GuardianLinkedChildSnapshot, error)
 
 	// UpdateColumns writes only the named columns of the relationship row
 	// (matched by primary key, tenant-scoped). Use it to edit a bounded subset
@@ -435,7 +436,7 @@ type StudentGuardianRepository interface {
 	// parent editing only pickup flags/notes must not overwrite guardian_role,
 	// permissions, or relationship_type a staff editor may have changed
 	// concurrently. Returns the number of rows affected.
-	UpdateColumns(ctx context.Context, relationship *users.StudentGuardian, columns ...string) (int64, error)
+	UpdateColumns(ctx context.Context, relationship *peopledirectory.GuardianRelationshipSnapshot, columns ...string) (int64, error)
 
 	// SetPrimary sets a guardian as the primary guardian for a student
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
@@ -452,36 +453,7 @@ type StudentGuardianRepository interface {
 	// ListPaymentAssignments returns one row per non-alumnus child with the
 	// guardian marked as payer joined in. Children without an assigned payer
 	// are included with a nil GuardianProfileID so the list shows the gaps.
-	ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error)
-}
-
-// StudentCompanionRepository defines operations for the child-to-child
-// departure links ("läuft mit" / Laufgemeinschaft, users.student_companions).
-//
-// An edge is stored once in normalized low/high order, so every read has to
-// consider both endpoint columns — that is why there is no generic
-// List(filters) usage here: a filter map cannot express the OR.
-type StudentCompanionRepository interface {
-	// ListForStudent returns every edge touching the student, all weekdays.
-	ListForStudent(ctx context.Context, studentID int64) ([]*users.StudentCompanion, error)
-
-	// ListLinksForStudents returns the edges folded per companion, with
-	// names, for the offline lists that render the "mit wem" detail of a
-	// whole school.
-	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]users.CompanionLink, error)
-
-	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
-	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
-
-	// CompanionCountsExcluding returns, per student, the number of DISTINCT
-	// other children they are linked to, ignoring links to excludeID.
-	CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error)
-
-	// CompanionDaysCoveredExcluding returns, per student, the weekday keys on
-	// which they keep at least one edge to a child other than excludeID. The
-	// "mit wem" cover is per weekday, so removal checks need this per-day view.
-	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
-	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
+	ListPaymentAssignments(ctx context.Context) ([]peopledirectory.GuardianPaymentAssignment, error)
 }
 
 // GuardianProfileRepository defines operations for managing guardian profiles
@@ -491,54 +463,54 @@ type GuardianProfileRepository interface {
 	peopledirectory.GuardianProfileReads
 
 	// Create inserts a new guardian profile into the database
-	Create(ctx context.Context, profile *users.GuardianProfile) error
+	Create(ctx context.Context, profile *peopledirectory.GuardianProfileSnapshot) error
 
 	// FindByID retrieves a guardian profile by their ID
-	FindByID(ctx context.Context, id int64) (*users.GuardianProfile, error)
+	FindByID(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
 	// LockByIDForUpdate locks a guardian profile row for the current
 	// transaction. Used by full-delete flows to block concurrent link inserts.
 	LockByIDForUpdate(ctx context.Context, id int64) error
 
 	// FindByEmail retrieves a guardian profile by their email address
-	FindByEmail(ctx context.Context, email string) (*users.GuardianProfile, error)
+	FindByEmail(ctx context.Context, email string) (*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindByAccountID retrieves a guardian profile by their account ID
-	FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindWithoutAccount retrieves guardian profiles without portal accounts
-	FindWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)
+	FindWithoutAccount(ctx context.Context) ([]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindInvitable retrieves guardians who can be invited (has email, no account)
-	FindInvitable(ctx context.Context) ([]*users.GuardianProfile, error)
+	FindInvitable(ctx context.Context) ([]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// ListWithOptions retrieves guardian profiles with pagination and filters
-	ListWithOptions(ctx context.Context, options *QueryOptions) ([]*users.GuardianProfile, error)
+	ListWithOptions(ctx context.Context, options *QueryOptions) ([]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindByEmails retrieves the tenant's guardian profiles whose trimmed
 	// email is one of the given addresses, in one query: the batched lookup
 	// of an enrollment decision's contact list.
-	FindByEmails(ctx context.Context, emails []string) ([]*users.GuardianProfile, error)
+	FindByEmails(ctx context.Context, emails []string) ([]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// SearchByText retrieves guardian profiles whose first name, last name, or
 	// email matches the search text (case-insensitive substring). Tenant-scoped
 	// via RLS; results are capped by limit to keep the picker payload small.
-	SearchByText(ctx context.Context, searchText string, limit int) ([]*users.GuardianProfile, error)
+	SearchByText(ctx context.Context, searchText string, limit int) ([]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindByIDs retrieves guardian profiles for the given ids in a single query,
 	// keyed by id. Missing ids are simply absent from the map.
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindActivePortalProfilesByIDs retrieves guardian profiles with a linked
 	// account and active account_tenants membership for the current tenant.
-	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error)
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// FindLoginReadyPortalProfilesByIDs retrieves guardian profiles whose
 	// linked account can authenticate with a password at the current tenant.
-	FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error)
+	FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
 
 	// Update updates an existing guardian profile
-	Update(ctx context.Context, profile *users.GuardianProfile) error
+	Update(ctx context.Context, profile *peopledirectory.GuardianProfileSnapshot) error
 
 	// Delete removes a guardian profile
 	Delete(ctx context.Context, id int64) error
@@ -552,28 +524,28 @@ type GuardianProfileRepository interface {
 	// (nil, nil) when no profile exists in the current tenant context
 	// — callers fall through to claims-derived defaults instead of
 	// erroring. RLS narrows reads to the tenant in context.
-	LoadProfileWithChildren(ctx context.Context, accountID int64) (*users.GuardianProfileWithChildren, error)
+	LoadProfileWithChildren(ctx context.Context, accountID int64) (*peopledirectory.GuardianProfileWithChildren, error)
 }
 
 // GuardianPhoneNumberRepository defines operations for managing guardian phone numbers
 type GuardianPhoneNumberRepository interface {
 	peopledirectory.GuardianPhoneReads
 	// Create inserts a new phone number into the database
-	Create(ctx context.Context, phone *users.GuardianPhoneNumber) error
+	Create(ctx context.Context, phone *peopledirectory.GuardianProfilePhoneSnapshot) error
 
 	// FindByID retrieves a phone number by its ID
-	FindByID(ctx context.Context, id int64) (*users.GuardianPhoneNumber, error)
+	FindByID(ctx context.Context, id int64) (*peopledirectory.GuardianProfilePhoneSnapshot, error)
 
 	// FindByGuardianID retrieves all phone numbers for a guardian profile
-	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*users.GuardianPhoneNumber, error)
+	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianProfilePhoneSnapshot, error)
 
 	// FindByGuardianIDs retrieves all phone numbers for the given guardian
 	// profile ids in a single query, grouped by profile id. Each group is
 	// ordered primary-first, matching FindByGuardianID.
-	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*users.GuardianPhoneNumber, error)
+	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*peopledirectory.GuardianProfilePhoneSnapshot, error)
 
 	// Update updates an existing phone number
-	Update(ctx context.Context, phone *users.GuardianPhoneNumber) error
+	Update(ctx context.Context, phone *peopledirectory.GuardianProfilePhoneSnapshot) error
 
 	// Delete removes a phone number
 	Delete(ctx context.Context, id int64) error
@@ -589,63 +561,4 @@ type GuardianPhoneNumberRepository interface {
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)
-}
-
-// StudentDataChangeRequestRepository is the tenant-scoped data-access contract.
-// All methods MUST run inside a tenant transaction (the parent service resolves
-// the child's tenant first, then wraps the call in tenant.WithTenantTx); the
-// staff review queue runs under the request's tenant middleware.
-type StudentDataChangeRequestRepository interface {
-	Create(ctx context.Context, req *users.StudentDataChangeRequest) error
-	// FindByID takes `any` to match the generic CRUDRepository.
-	FindByID(ctx context.Context, id any) (*users.StudentDataChangeRequest, error)
-
-	// ListByStudent returns the student's change rows newest-first. When
-	// statuses is non-empty the result is filtered to that set; limit <= 0
-	// returns all matching rows.
-	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*users.StudentDataChangeRequest, error)
-
-	// ListParentVisibleByStudent returns only child-level Track B request rows
-	// that may be shown in the parent portal. It deliberately excludes Track A
-	// guardian contact audit rows because those can contain another guardian's
-	// private email, phone, or address values.
-	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*users.StudentDataChangeRequest, error)
-
-	// ListPendingForTenant returns every pending Track B row for the current
-	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*users.StudentDataChangeRequest, error)
-
-	// ListDecidedForTenant returns the tenant's decided rows (auto-applied,
-	// approved, rejected) newest-decision-first via keyset pagination on
-	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
-	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*users.StudentDataChangeRequest, error)
-
-	// HasPendingForField reports whether an undecided pending row already
-	// exists for the same student/target/field, so the parent flow can reject
-	// duplicate requests instead of stacking them.
-	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
-
-	// FindPendingByIDForUpdate locks a request row for staff decision
-	// processing. It returns ErrChangeRequestNotFound when the row is missing
-	// in the current tenant and ErrChangeRequestNotPending when it exists but
-	// is already decided / audit-only.
-	FindPendingByIDForUpdate(ctx context.Context, id int64) (*users.StudentDataChangeRequest, error)
-
-	// UpdatePending rewrites a still-pending row's proposed value — the
-	// guardian edit path (#2267). old_value stays untouched: it is the
-	// baseline the request was filed against.
-	UpdatePending(ctx context.Context, id int64, newValue json.RawMessage) error
-
-	// Decide moves a pending row to approved/rejected, stamping review_reason,
-	// reviewed_by, reviewed_at and (for approvals) applied_at.
-	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
-
-	// FindByIDForUpdate locks a request row whatever its status — the
-	// correction path (#2267), which starts from a DECIDED row.
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.StudentDataChangeRequest, error)
-
-	// Redecide rewrites an already decided row. Separate from Decide on
-	// purpose: Decide only ever touches pending rows, and a correction must
-	// not be able to slip past that guard by accident.
-	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
 }

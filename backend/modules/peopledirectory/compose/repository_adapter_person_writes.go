@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -33,7 +32,7 @@ func NewPersonWrites(directory PersonWriteCapability) *PersonWrites {
 // CreatePerson writes the row and reflects the stored values — the owner
 // assigns the id and the timestamps, and trims the names — back onto the
 // caller's struct, which is the contract the retained handlers rely on.
-func (d *PersonWrites) CreatePerson(ctx context.Context, person *userModels.Person) error {
+func (d *PersonWrites) CreatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
 	created, err := d.directory.CreatePerson(ctx, peopleModule.CreatePerson{
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
@@ -48,7 +47,7 @@ func (d *PersonWrites) CreatePerson(ctx context.Context, person *userModels.Pers
 	return nil
 }
 
-func (d *PersonWrites) UpdatePerson(ctx context.Context, person *userModels.Person) error {
+func (d *PersonWrites) UpdatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
 	updated, err := d.directory.UpdatePerson(ctx, peopleModule.UpdatePerson{
 		ID:        person.ID,
 		FirstName: person.FirstName,
@@ -68,19 +67,19 @@ func (d *PersonWrites) DeletePerson(ctx context.Context, id int64) error {
 	return translatePersonWriteError(d.directory.DeletePerson(ctx, id))
 }
 
-func personBirthday(person *userModels.Person) string {
+func personBirthday(person *peopleModule.DirectoryPersonSnapshot) string {
 	if person.Birthday == nil {
 		return ""
 	}
 	return person.Birthday.String()
 }
 
-func applyPersonRecord(person *userModels.Person, record peopleModule.Person) {
+func applyPersonRecord(person *peopleModule.DirectoryPersonSnapshot, record peopleModule.Person) {
 	person.ID, person.CreatedAt, person.UpdatedAt = record.ID, record.CreatedAt, record.UpdatedAt
 	person.SetTenantID(record.TenantID)
 	person.FirstName, person.LastName = record.FirstName, record.LastName
 	person.TagID, person.AccountID = record.TagID, record.AccountID
-	person.Birthday = userModels.OptionalCalendarDate(record.Birthday)
+	person.Birthday = peopleModule.OptionalCalendarDate(record.Birthday)
 	person.DeletedAt = record.DeletedAt
 }
 
@@ -91,7 +90,7 @@ func applyPersonRecord(person *userModels.Person, record peopleModule.Person) {
 // they rendered the constraint violation it replaces.
 func translatePersonWriteError(err error) error {
 	if err != nil && errors.Is(err, peopleModule.ErrPersonNotFound) {
-		return userModels.ErrPersonRowMissing
+		return peopleModule.ErrPersonRowMissing
 	}
 	return err
 }

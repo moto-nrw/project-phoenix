@@ -44,19 +44,14 @@ type CareRequestEffects interface {
 	ports.RequestSubmissionEffects
 	ports.RequestEditEvents
 	ports.RequestDecisionEffects
-	RecordCorrection(context.Context, *carerequests.Request, int64, map[string]any) error
-	NotifyCorrection(context.Context, *carerequests.Request, int64, bool, string) error
+	ports.RequestCorrectionEffects
 }
 
 // CareRequestEffectPorts binds the owners a care request reports to.
 type CareRequestEffectPorts application.CareRequestEffectPorts
 
 func NewCareRequestEffects(deps CareRequestEffectPorts) (CareRequestEffects, error) {
-	effects, err := application.NewCareRequestEffects(application.CareRequestEffectPorts(deps), TenantHooks{})
-	if err != nil {
-		return nil, err
-	}
-	return effects, nil
+	return application.NewCareRequestEffects(application.CareRequestEffectPorts(deps), TenantHooks{})
 }
 
 type requestDecisionRecords struct{ RequestDecisionRecords }

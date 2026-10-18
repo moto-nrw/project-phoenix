@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
@@ -355,13 +356,13 @@ func IsRepositoryNoRows(err error) bool {
 // with it when it binds the Identity & Access seams (#3364).
 func RowMissing(err error) bool {
 	return errors.Is(err, ErrRepositoryNotFound) ||
-		errors.Is(err, usersModels.ErrGuardianProfileNotFound) || errors.Is(err, usersModels.ErrStudentGuardianNotFound)
+		errors.Is(err, peopleValues.ErrGuardianProfileNotFound) || errors.Is(err, peopleValues.ErrStudentGuardianNotFound)
 }
 
 // MissingStudentError is the not-found shape of a child that is not there,
 // with the no-rows sentinel the retained callers match (#3349).
 func MissingStudentError(op string) error {
-	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, transactionruntime.ErrNoRows, usersModels.ErrStudentRowMissing)}
+	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, transactionruntime.ErrNoRows, peopleValues.ErrStudentRowMissing)}
 }
 
 // postgresError is the driver error shape the constraint classification

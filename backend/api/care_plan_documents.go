@@ -5,11 +5,13 @@ import (
 	"errors"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -43,7 +45,7 @@ type studentDocumentAudit struct {
 
 // studentDocumentStudents reads the child row the document gate decides on.
 type studentDocumentStudents interface {
-	FindByID(ctx context.Context, id any) (*userModels.Student, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.StudentState, error)
 }
 
 // studentDocumentEdits and studentDocumentAccessLog are the Audit Platform

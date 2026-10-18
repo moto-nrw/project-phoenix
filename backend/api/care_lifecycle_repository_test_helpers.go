@@ -8,12 +8,16 @@ import (
 	"fmt"
 	"log/slog"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -25,7 +29,7 @@ import (
 // Audit persistence (NewCareLifecycleTestRepositories).
 type CareLifecycleTestRepositories struct {
 	TimetableTestRepositories
-	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
+	CareWithdrawal   CareWithdrawalRecords
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 	db               transactionruntime.Database
 	sources          CareLifecycleOwnerSources
@@ -67,7 +71,7 @@ type CareLifecycleTestConfig struct {
 	// LockCareBookingWrites is the booking-write gate. nil takes none.
 	LockCareBookingWrites func(context.Context) error
 	// Today defaults to the Berlin calendar day.
-	Today func() usersModels.CalendarDate
+	Today func() owner0.Date
 }
 
 // NewCareLifecycle composes the native Care Plan lifecycle over these
@@ -105,11 +109,8 @@ func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.
 // NewStudentCompanionRepository. It stages departure-companion fixtures for
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
-func ReplaceStudentCompanions(ctx context.Context, links peoplePorts.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
-	repository, ok := links.(CompanionRepository)
-	if !ok {
-		return errors.New("companion links are not served by the Care Plan owner")
-	}
+func ReplaceStudentCompanions(ctx context.Context, links CompanionRepository, studentID int64, edges []*careplan.CompanionEdge) error {
+	repository := links
 	values := make([]careplan.CompanionEdge, 0, len(edges))
 	for _, edge := range edges {
 		if edge == nil {
@@ -127,19 +128,19 @@ func ReplaceStudentCompanions(ctx context.Context, links peoplePorts.StudentComp
 // children on one weekday, normalized into the low/high order the DB CHECK
 // requires, for suites that stage companion fixtures through
 // ReplaceStudentCompanions. Production edges come from Care Plan's domain.
-func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
+func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*careplan.CompanionEdge, error) {
 	if studentID <= 0 || companionID <= 0 {
-		return nil, usersModels.ErrCompanionStudentIDRequired
+		return nil, departure.ErrCompanionStudentIDRequired
 	}
 	if studentID == companionID {
-		return nil, usersModels.ErrCompanionSelfLink
+		return nil, departure.ErrCompanionSelfLink
 	}
-	if _, ok := usersModels.CompanionWeekdayKeys[weekday]; !ok {
-		return nil, fmt.Errorf("%w: got %d", usersModels.ErrCompanionInvalidWeekday, weekday)
+	if _, ok := peopleValues.CompanionWeekdayKeys[weekday]; !ok {
+		return nil, fmt.Errorf("%w: got %d", departure.ErrCompanionInvalidWeekday, weekday)
 	}
 	low, high := studentID, companionID
 	if low > high {
 		low, high = high, low
 	}
-	return &usersModels.StudentCompanion{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
+	return &careplan.CompanionEdge{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
 }

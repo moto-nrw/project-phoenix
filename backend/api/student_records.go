@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
@@ -14,9 +15,9 @@ import (
 // presenceStudentSource is the slice of the student repository the presence
 // adapter needs.
 type presenceStudentSource interface {
-	FindByID(context.Context, any) (*users.Student, error)
-	FindByIDForUpdate(context.Context, int64) (*users.Student, error)
-	FindByIDsForUpdate(context.Context, []int64) (map[int64]*users.Student, error)
+	FindByID(context.Context, any) (*peopleValues.StudentState, error)
+	FindByIDForUpdate(context.Context, int64) (*peopleValues.StudentState, error)
+	FindByIDsForUpdate(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
 }
 
 type presenceStudents struct {
@@ -82,8 +83,8 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *studentp
 // statusDayOverviewSource is the slice of the person service the absence
 // overview reads.
 type statusDayOverviewSource interface {
-	GetStudentsByGroupIDs(context.Context, []int64) ([]*users.Student, error)
-	GetByIDs(context.Context, []int64) (map[int64]*users.Person, error)
+	GetStudentsByGroupIDs(context.Context, []int64) ([]*peopleValues.StudentState, error)
+	GetByIDs(context.Context, []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 type statusDayOverviewPeople struct{ source statusDayOverviewSource }

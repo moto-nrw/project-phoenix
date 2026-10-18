@@ -11,14 +11,13 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
@@ -46,7 +45,7 @@ func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) 
 	// The child graduates (grade-transition apply).
 	_, err = f.db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Set("status = ?", string(peopleValues.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -74,5 +73,5 @@ func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) 
 		Column("status").
 		Where("id = ?", req.ID).
 		Scan(ctx, &status))
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, status)
+	assert.Equal(t, carerequests.StatusPending, status)
 }

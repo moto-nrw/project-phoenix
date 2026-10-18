@@ -115,7 +115,3 @@ func (p recoveryPresence) ReopenSession(ctx context.Context, instanceID, activeG
 	_, err := p.ReopenActivitySession(ctx, instanceID, activeGroupID)
 	return err
 }
-
-func (p recoveryPresence) RestoreGroup(ctx context.Context, activeGroupID int64, now time.Time) error {
-	return p.Module.RestoreGroup(ctx, activeGroupID, now)
-}

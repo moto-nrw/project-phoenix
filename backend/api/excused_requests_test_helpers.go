@@ -6,11 +6,13 @@ import (
 	"errors"
 	"log/slog"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -25,7 +27,7 @@ type ExcusedRequestTestOptions struct {
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
-	Events      usersModels.ParentRequestEventRepository
+	Events      owner0.ParentRequestEvents
 	Logger      *slog.Logger
 	Today       func() timezone.Date
 }

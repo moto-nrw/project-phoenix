@@ -5,9 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -143,7 +146,7 @@ func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.
 			"without stored care days and without the booking mode nothing is planned")
 
 		staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Fallback")
-		testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayTuesday, staff.ID, "")
+		testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayTuesday, staff.ID, "")
 		withRow, rowErr := classOnly.Project(ctx, []int64{studentID}, monday, monday.AddDays(1))
 		require.NoError(t, rowErr)
 		require.NotNil(t, withRow.ForDate(studentID, monday.AddDays(1)))
@@ -171,7 +174,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	setArrivalClassTimes(t, env, "3b", map[string]string{"mon": "11:45", "thu": "11:45"})
 
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Altzeile")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
@@ -184,7 +187,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	assert.Nil(t, projection.ForDate(studentID, thursday),
 		"a stored row on an unbooked weekday must not make the child expected")
 
-	stored, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Len(t, stored, 1, "the stale row is ignored on read, never deleted behind the school's back")
 }
@@ -245,7 +248,7 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 	// The child is booked for Monday only, but a row from before the
 	// Abmeldung still sits on Thursday.
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Erwartet")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	careDays := bookingModeCareDays(t, env, true)
 
@@ -275,8 +278,8 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 		t, env, offering.ID, "pickup-boundary@example.com", "Paula", 2,
 	)
 	staff := testpkg.CreateTestStaff(t, env.db, "Abholung", "Grenze")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, staff.ID, "15:30")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayTuesday, staff.ID, "16:00")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, staff.ID, "15:30")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayTuesday, staff.ID, "16:00")
 
 	pickups := bookingModePickupService(env, true)
 
@@ -288,10 +291,10 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 	week, err := pickups.GetStudentPickupSchedules(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, week, 1, "the weekly views must keep the booked day and hide the stale row")
-	assert.Equal(t, scheduleModels.WeekdayMonday, week[0].Weekday)
+	assert.Equal(t, timetable.WeekdayMonday, week[0].Weekday)
 
 	require.NoError(t, pickups.UpsertBulkStudentPickupSchedules(ctx, studentID, week))
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2, "saving the visible booked week must preserve ignored legacy rows")
 

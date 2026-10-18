@@ -62,7 +62,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, staying.ID)
 		assert.Contains(t, ids, lastDayToday.ID,
@@ -76,7 +76,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, staying.ID)
 		assert.NotContains(t, ids, departed.ID)

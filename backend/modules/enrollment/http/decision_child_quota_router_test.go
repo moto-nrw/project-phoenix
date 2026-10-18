@@ -13,13 +13,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -53,7 +55,7 @@ func requireChildStillOpen(t *testing.T, harness offeringGuardHarness) {
 
 // matchExistingStudent turns the harness child into the re-enrollment of an
 // existing student in the given status.
-func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status usersModels.StudentStatus) *testpkg.Student {
+func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status string) *testpkg.Student {
 	t.Helper()
 	student := testpkg.CreateTestStudent(t, db, "Wieder", "Angemeldet", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
@@ -95,14 +97,14 @@ func TestDecideAdminChild_RenewalOfAnUncountedChildRefusedByAFullKinderkontingen
 	db := testpkg.SetupTestDB(t)
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	returning := matchExistingStudent(t, db, harness, usersModels.StudentStatusInactive)
+	returning := matchExistingStudent(t, db, harness, peopleValues.StudentStatusInactive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
 	requireChildQuotaRefusal(t, rec, 1, 1)
 	requireChildStillOpen(t, harness)
-	assert.Equal(t, string(usersModels.StudentStatusInactive), studentStatus(t, db, returning.ID), "the child is not brought back")
+	assert.Equal(t, string(peopleValues.StudentStatusInactive), studentStatus(t, db, returning.ID), "the child is not brought back")
 }
 
 func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(t *testing.T) {
@@ -110,7 +112,7 @@ func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(
 	db := testpkg.SetupTestDB(t)
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	departed := matchExistingStudent(t, db, harness, usersModels.StudentStatusActive)
+	departed := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", departed.ID).Exec(harness.ctx)
@@ -127,14 +129,14 @@ func TestDecideAdminChild_RenewalOfACountedChildPassesAFullKinderkontingent(t *t
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
-	counted := matchExistingStudent(t, db, harness, usersModels.StudentStatusActive)
+	counted := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
 	require.Equal(t, http.StatusOK, rec.Code, "Body: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"status":"approved"`)
-	assert.Equal(t, string(usersModels.StudentStatusActive), studentStatus(t, db, counted.ID))
+	assert.Equal(t, string(peopleValues.StudentStatusActive), studentStatus(t, db, counted.ID))
 }
 
 // The admin area reads why an open enrollment was left to the school.

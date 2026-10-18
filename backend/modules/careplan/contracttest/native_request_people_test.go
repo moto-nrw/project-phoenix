@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -36,14 +36,14 @@ func (d *requestPlanDirectory) UpdateStudent(_ context.Context, write peopledire
 }
 
 type requestPlanAudit struct {
-	before, after *usersModels.Student
+	before, after *peopledirectory.StudentState
 }
 
-func (*requestPlanAudit) RecordChanges(context.Context, *usersModels.Student, *usersModels.Student, int64, string) error {
+func (*requestPlanAudit) RecordChanges(context.Context, *peopledirectory.StudentState, *peopledirectory.StudentState, int64, string) error {
 	return errors.New("request approval must use authenticated actor auditing")
 }
 
-func (a *requestPlanAudit) RecordChangesForActor(_ context.Context, before, after *usersModels.Student, _ int64) error {
+func (a *requestPlanAudit) RecordChangesForActor(_ context.Context, before, after *peopledirectory.StudentState, _ int64) error {
 	a.before, a.after = before, after
 	return nil
 }
@@ -63,19 +63,19 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			require.NoError(t, err)
 			note := "Together"
 			student.AllowedDepartureModes, student.DepartureDays = nil, nil
-			student.BusDays = usersModels.BusDays{"tue": true}
-			student.PickupDays = usersModels.PickupDays{"wed": true}
+			student.BusDays = peopledirectory.BusDays{"tue": true}
+			student.PickupDays = peopledirectory.PickupDays{"wed": true}
 			student.DepartureCompanionNote = &note
 			student.EnrolledUntil = "2026-12-31"
 			if canonical {
-				student.AllowedDepartureModes = usersModels.AllowedDepartureModes{"mon": {usersModels.DepartureBus, usersModels.DeparturePickup}}
+				student.AllowedDepartureModes = peopledirectory.AllowedDepartureModes{"mon": {peopledirectory.DepartureBus, peopledirectory.DeparturePickup}}
 			}
 			directory := &requestPlanDirectory{RequestPeople: f.sf.PeopleDirectory, student: student}
 			audit := &requestPlanAudit{}
 			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 				f.repos.CarePlan(), directory, f.sf.ArrivalSchedule, f.sf.PickupSchedule,
 				nil, nil, nil, f.sf.UserContext, nil, nil,
-				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
+				testpkg.RequestReviewPolicy[*peopledirectory.StudentState]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
 				// The child is enrolled until 2026-12-31; on a live clock the
 				// approval finds no request from 2027 on (#4027).
 				api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
@@ -90,14 +90,14 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 				assert.ElementsMatch(t, student.AllowedDepartureModes["mon"], audit.before.AllowedDepartureModes["mon"])
 				assert.NotContains(t, audit.before.AllowedDepartureModes, "tue", "canonical modes take precedence over stale projections")
 			} else {
-				assert.Equal(t, []usersModels.DepartureMode{usersModels.DepartureBus}, directory.baseline.AllowedDepartureModes["tue"])
-				assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, directory.baseline.AllowedDepartureModes["wed"])
+				assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DepartureBus}, directory.baseline.AllowedDepartureModes["tue"])
+				assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, directory.baseline.AllowedDepartureModes["wed"])
 				assert.True(t, directory.baseline.BusDays["tue"])
 			}
 			assert.Equal(t, &note, audit.before.DepartureCompanionNote)
 			require.NotNil(t, audit.before.EnrolledUntil)
 			assert.Equal(t, "2026-12-31", audit.before.EnrolledUntil.String())
-			assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, audit.after.AllowedDepartureModes["fri"])
+			assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, audit.after.AllowedDepartureModes["fri"])
 		})
 	}
 }

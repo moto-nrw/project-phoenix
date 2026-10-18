@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -26,9 +25,9 @@ type CallerContext interface {
 // SupervisorDirectory is the People Directory read port of the supervisor
 // routes: teachers by specialization and the staff behind them.
 type SupervisorDirectory interface {
-	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
-	ListStaffWithPerson(ctx context.Context) ([]*users.Staff, error)
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*timetableModule.SupervisorTeacher, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetableModule.StaffMember, error)
+	ListStaffWithPerson(ctx context.Context) ([]*timetableModule.StaffMember, error)
 }
 
 // Resource defines the activities API resource

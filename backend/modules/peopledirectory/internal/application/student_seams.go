@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
@@ -69,7 +68,7 @@ func (a studentCompanions) DeleteEdges(ctx context.Context, edgeIDs []int64) err
 		return err
 	}
 	if len(edgeIDs) > 0 {
-		users.RecordCompanionChange(ctx)
+		peopledirectory.RecordCompanionChange(ctx)
 	}
 	return nil
 }

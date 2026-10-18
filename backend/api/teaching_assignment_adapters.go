@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -194,14 +195,14 @@ func (r *groupTeacherRepository) list(ctx context.Context, filter schoolmembersh
 	return groupAssignmentModels(assignments), nil
 }
 
-func (r *groupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error) {
+func (r *groupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]peopleValues.BlockerGroup, error) {
 	blockers, err := schoolmembership.GroupTeacherBlockers(ctx, r.membership, r.groupNames, teacherID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list group teacher blockers: %w", err)
 	}
-	result := make([]userModels.BlockerGroup, 0, len(blockers))
+	result := make([]peopleValues.BlockerGroup, 0, len(blockers))
 	for _, blocker := range blockers {
-		result = append(result, userModels.BlockerGroup{
+		result = append(result, peopleValues.BlockerGroup{
 			ID: blocker.AssignmentID, GroupID: blocker.GroupID, GroupName: blocker.GroupName,
 			TeacherID: blocker.TeacherID, TeacherIDs: blocker.TeacherIDs,
 		})

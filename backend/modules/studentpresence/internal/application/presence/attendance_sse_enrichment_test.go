@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -48,15 +47,12 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.Capability)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
-	syncer := newAttendanceMirror(t,
-		timetableRepos.ActivityInstance,
-		timetableRepos.InstanceStudent,
-		slog.Default(),
-	)
+	syncer := newAttendanceMirror(t, api.TimetableOwnerRows{Instances: mirrorRepos.Instances, Participants: mirrorRepos.Participants}, slog.Default())
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
@@ -99,19 +95,18 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          room.ID,
-		Status:          scheduleModels.InstanceStatusActive,
+		Status:          studentpresence.ActivitySessionActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
-	isRepo := timetableRepos.InstanceStudent
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: instance.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
+	isRepo := mirrorRepos.Participants
+	row := api.NewAttendanceMirrorParticipant()
+	row.InstanceID = instance.ID
+	row.StudentID = student.ID
+	row.Status = studentpresence.SessionAttendanceExpected
+	row.TenantID = testpkg.Tenant(t)
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
@@ -132,7 +127,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, *ev.Data.AttendanceStatus)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, *ev.Data.AttendanceStatus)
 	// Substatus/note are null for a first-time flip — the column defaults
 	// are NULL and no PATCH has happened.
 	assert.Nil(t, ev.Data.AttendanceSubstatus)
@@ -141,7 +136,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// DB post-condition: the mirrored row flipped to 'present'.
 	updated, err := isRepo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, updated.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, updated.Status)
 	require.NotNil(t, updated.CheckedInAt, "checked_in_at must be stamped by the mirror write")
 
 	// Create a second bridged care slot, then move the same visit. The source
@@ -158,18 +153,17 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:          targetRoom.ID,
-		Status:          scheduleModels.InstanceStatusActive,
+		Status:          studentpresence.ActivitySessionActive,
 		ActiveGroupID:   &targetGroup.ID,
 	}
 	targetInstance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, targetInstance)
 
-	targetRow := &scheduleModels.InstanceStudent{
-		InstanceID: targetInstance.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
-	targetRow.SetTenantID(testpkg.Tenant(t))
+	targetRow := api.NewAttendanceMirrorParticipant()
+	targetRow.InstanceID = targetInstance.ID
+	targetRow.StudentID = student.ID
+	targetRow.Status = studentpresence.SessionAttendanceExpected
+	targetRow.TenantID = testpkg.Tenant(t)
 	require.NoError(t, isRepo.Create(ctx, targetRow))
 
 	visit.ActiveGroupID = targetGroup.ID
@@ -183,7 +177,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	targetAfterTransfer, err := isRepo.FindByID(ctx, targetRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, targetAfterTransfer.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, targetAfterTransfer.Status)
 	require.NotNil(t, targetAfterTransfer.CheckedInAt, "transfer must open the target slot")
 	assert.Nil(t, targetAfterTransfer.CheckedOutAt, "transfer must not immediately close the target slot")
 	assert.WithinDuration(t, *sourceAfterTransfer.CheckedOutAt, *targetAfterTransfer.CheckedInAt, time.Millisecond)
@@ -211,12 +205,9 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.Capability)
 	suffix := time.Now().UnixNano()
-	syncer := newAttendanceMirror(t,
-		timetableRepos.ActivityInstance,
-		timetableRepos.InstanceStudent,
-		slog.Default(),
-	)
+	syncer := newAttendanceMirror(t, api.TimetableOwnerRows{Instances: mirrorRepos.Instances, Participants: mirrorRepos.Participants}, slog.Default())
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))

@@ -225,11 +225,11 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Groups:            r.Timetable,
 		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List),
 		Categories:        r.ActivityCategory,
-		Rooms:             rows.RoomNames(),
+		Rooms:             rows.Rooms,
 		RoomOccupancy:     TimetableRoomOccupancy{Sessions: r.ActiveGroup},
-		DeviationEvents:   rows.DeviationEventReader(),
+		DeviationEvents:   rows.DeviationEvents,
 		ConflictAcks:      r.Timetable,
-		Locks:             rows.AttendanceLocks(),
+		Locks:             rows.Locks,
 		Advisory:          timetableAdvisoryLocks{},
 	})
 	if err != nil {

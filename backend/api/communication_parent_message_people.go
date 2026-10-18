@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	people "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // BindParentMessagePeople uses the same owner reads and original predicates.
 func BindParentMessagePeople(source interface {
-	GetStudentByID(context.Context, int64) (*people.Student, error)
-	FindByAccountID(context.Context, int64) (*people.Person, error)
+	GetStudentByID(context.Context, int64) (*peopleValues.StudentState, error)
+	FindByAccountID(context.Context, int64) (*peopleValues.DirectoryPersonSnapshot, error)
 }) communication.ParentMessagePeople {
 	if source == nil {
 		return nil
@@ -27,7 +28,7 @@ func BindParentMessagePeople(source interface {
 // BindParentMessageGuardianProfiles preserves raw contact facts and errors from
 // the original account-scoped lookup. Locale and mail policy stay in messaging.
 func BindParentMessageGuardianProfiles(source interface {
-	FindByAccountID(context.Context, int64) (*people.GuardianProfile, error)
+	FindByAccountID(context.Context, int64) (*peopleValues.GuardianProfileSnapshot, error)
 }) communication.ParentMessageGuardianProfiles {
 	if source == nil {
 		return nil

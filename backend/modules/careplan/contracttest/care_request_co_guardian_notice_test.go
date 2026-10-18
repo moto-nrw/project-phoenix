@@ -5,11 +5,12 @@ import (
 	"log/slog"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	communicationtest "github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -97,7 +98,7 @@ func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith [
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.repos.CarePlan(),
 		f.sf.UserContext, emitter, nil,
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
+		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
 		nil, slog.Default(), f.sf.StudentAudit,
 		api.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)

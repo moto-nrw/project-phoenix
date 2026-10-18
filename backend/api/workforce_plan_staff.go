@@ -3,16 +3,17 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // planStaffRows are the People Directory staff reads the Dienstplan and the
 // substitution overview take, in the retained row shape.
 type planStaffRows interface {
-	FindByID(ctx context.Context, id any) (*users.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*users.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 // planStaffDirectory serves those reads as Workforce plan staff (#2729).
@@ -57,7 +58,7 @@ func (d planStaffDirectory) FindWithPersonByIDs(ctx context.Context, ids []int64
 }
 
 // planStaff maps one staff row; a nil row stays nil.
-func planStaff(row *users.Staff) *workforce.PlanStaff {
+func planStaff(row *peopleValues.Staff) *workforce.PlanStaff {
 	if row == nil {
 		return nil
 	}

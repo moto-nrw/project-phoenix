@@ -5,12 +5,13 @@ import (
 	"strconv"
 	"testing"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -80,9 +81,9 @@ func submitApprovedAdjustmentChild(
 }
 
 func rowsByGroupForAdjustmentTest(
-	rows []activitiesModels.StudentEnrollment,
-) map[int64]activitiesModels.StudentEnrollment {
-	byGroup := make(map[int64]activitiesModels.StudentEnrollment, len(rows))
+	rows []timetable.StudentEnrollment,
+) map[int64]timetable.StudentEnrollment {
+	byGroup := make(map[int64]timetable.StudentEnrollment, len(rows))
 	for _, row := range rows {
 		byGroup[row.ActivityGroupID] = row
 	}
@@ -144,15 +145,15 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 
 	oldRow, ok := byGroup[oldGroup.ID]
 	require.True(t, ok, "row of the group attended before the switch must survive")
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), oldRow.ValidFrom)
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), oldRow.ValidFrom)
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(switchDate), *oldRow.ValidUntil, "old row ends exclusively on the switch date")
+	assert.Equal(t, string(switchDate), *oldRow.ValidUntil, "old row ends exclusively on the switch date")
 
 	newRow, ok := byGroup[newGroup.ID]
 	require.True(t, ok, "new selection must be materialized")
-	assert.Equal(t, activitiesModels.Date(switchDate), newRow.ValidFrom, "new row starts on the switch date")
+	assert.Equal(t, string(switchDate), newRow.ValidFrom, "new row starts on the switch date")
 	require.NotNil(t, newRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(*originalValidUntil), *newRow.ValidUntil, "new row runs to the end of the care period")
+	assert.Equal(t, string(*originalValidUntil), *newRow.ValidUntil, "new row runs to the end of the care period")
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
 
@@ -227,11 +228,11 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 	keptRow, ok := byGroup[keptGroup.ID]
 	require.True(t, ok)
 	assert.Equal(t, keptRowID, keptRow.ID, "unchanged offering keeps its original row")
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), keptRow.ValidFrom)
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), keptRow.ValidFrom)
 
 	addedRow, ok := byGroup[addedGroup.ID]
 	require.True(t, ok)
-	assert.Equal(t, activitiesModels.Date(switchDate), addedRow.ValidFrom)
+	assert.Equal(t, string(switchDate), addedRow.ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesScheduledSwitch(t *testing.T) {
@@ -281,7 +282,7 @@ func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesSchedule
 	assert.Equal(t, scheduledOffering.ID, futureLinks[0].CareOfferingID)
 
 	rows := rowsByGroupForAdjustmentTest(listStudentEnrollmentRowsForDecisionTest(t, env, studentID))
-	assert.Equal(t, activitiesModels.Date(switchDate), rows[scheduledGroup.ID].ValidFrom)
+	assert.Equal(t, string(switchDate), rows[scheduledGroup.ID].ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOfferingPastSupersededSwitch(t *testing.T) {
@@ -337,11 +338,11 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	kept, ok := rows[keptGroup.ID]
 	require.True(t, ok)
 	require.NotNil(t, kept.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
+	assert.Equal(t, string(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
 		"the retained offering must not end at the superseded switch date")
 	_, firstStillPlanned := rows[firstAddedGroup.ID]
 	assert.False(t, firstStillPlanned)
-	assert.Equal(t, activitiesModels.Date(secondSwitch), rows[secondAddedGroup.ID].ValidFrom)
+	assert.Equal(t, string(secondSwitch), rows[secondAddedGroup.ID].ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUnstartedRow(t *testing.T) {
@@ -389,7 +390,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, studentID)
 	require.Len(t, rows, 1, "a row that never took effect is dropped, not capped")
 	assert.Equal(t, newGroup.ID, rows[0].ActivityGroupID)
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom,
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom,
 		"an effective date before the care period must not widen the window")
 }
 

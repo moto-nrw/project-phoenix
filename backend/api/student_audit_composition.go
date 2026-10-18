@@ -5,7 +5,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // This file is the translation seam between the retained users.Student
@@ -35,7 +34,7 @@ func NewStudentAuditFor(capability StudentAuditCapability) *StudentAudit {
 
 func (s *StudentAudit) RecordChanges(
 	ctx context.Context,
-	before, after *userModels.Student,
+	before, after *peopleModule.StudentState,
 	editedBy int64,
 	editedByName string,
 ) error {
@@ -60,8 +59,8 @@ func (s *StudentAudit) RecordPickupPlan(
 func (s *StudentAudit) RecordSystemStatusChange(
 	ctx context.Context,
 	studentID int64,
-	before userModels.StudentStatus,
-	after userModels.StudentStatus,
+	before string,
+	after string,
 ) error {
 	return s.capability.RecordStudentChanges(
 		ctx,
@@ -89,7 +88,7 @@ func (s *StudentAudit) GetChangeHistory(ctx context.Context, studentID int64) ([
 
 // studentAuditSnapshot projects the retained row onto the owner's tracked
 // slice. CareEnd travels as a calendar date so the owner renders it.
-func studentAuditSnapshot(student *userModels.Student) peopleModule.StudentAuditSnapshot {
+func studentAuditSnapshot(student *peopleModule.StudentState) peopleModule.StudentAuditSnapshot {
 	snapshot := peopleModule.StudentAuditSnapshot{
 		StudentID:              student.ID,
 		Status:                 string(student.Status),

@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 
+	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -41,7 +43,7 @@ type birthdayRow struct {
 // birthday today") can differ without the repository guessing.
 const birthdayDayCondition = `TO_CHAR("person".birthday, 'MM-DD') IN (?)`
 
-func birthdayDayValues(days []users.MonthDay) []string {
+func birthdayDayValues(days []peopleBirthday.MonthDay) []string {
 	values := make([]string, 0, len(days))
 	for _, day := range days {
 		values = append(values, formatMonthDay(day))
@@ -49,7 +51,7 @@ func birthdayDayValues(days []users.MonthDay) []string {
 	return values
 }
 
-func formatMonthDay(day users.MonthDay) string {
+func formatMonthDay(day peopleBirthday.MonthDay) string {
 	return fmt.Sprintf("%02d-%02d", int(day.Month), day.Day)
 }
 
@@ -60,7 +62,7 @@ func formatMonthDay(day users.MonthDay) string {
 // check), which is what makes the display degrade gracefully when a school has
 // not maintained every date — the card simply shows fewer names instead of
 // failing (#1542).
-func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error) {
+func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error) {
 	if len(days) == 0 {
 		return nil, nil
 	}
@@ -94,17 +96,17 @@ func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 		return nil, &ports.DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
 	}
 
-	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil
+	return mapBirthdayRows(rows, peopleBirthday.BirthdayKindStudent), nil
 }
 
 // The staff birthday projections moved to the School Membership composition
 // (database/repositories/staff_membership_adapters.go): staff rows belong to
 // that owner, so the staff half can no longer join users.staff here.
 
-func mapBirthdayRows(rows []birthdayRow, kind users.BirthdayKind) []users.BirthdayEntry {
-	entries := make([]users.BirthdayEntry, 0, len(rows))
+func mapBirthdayRows(rows []birthdayRow, kind peopleBirthday.BirthdayKind) []peopleBirthday.BirthdayEntry {
+	entries := make([]peopleBirthday.BirthdayEntry, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, users.BirthdayEntry{
+		entries = append(entries, peopleBirthday.BirthdayEntry{
 			Kind:        kind,
 			ID:          row.ID,
 			FirstName:   row.FirstName,

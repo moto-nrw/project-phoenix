@@ -51,12 +51,12 @@ func TestGuardianProfileSnapshotRetainsMetadataAndLoadedPhones(t *testing.T) {
 	phone.ID, phone.TenantID, phone.CreatedAt, phone.UpdatedAt = 31, row.TenantID, stamp, stamp
 	for _, relation := range [][]*users.GuardianPhoneNumber{nil, {}, {phone, nil}} {
 		row.PhoneNumbers = relation
-		restored := guardianProfileRow(guardianProfileSnapshot(row))
+		restored := GuardianProfileRow(NativeGuardianProfile(row))
 		if !reflect.DeepEqual(row, restored) {
 			t.Fatalf("profile snapshot lost fields or nil semantics: got %+v, want %+v", restored, row)
 		}
 	}
-	if guardianProfileSnapshot(nil) != nil {
+	if NativeGuardianProfile(nil) != nil {
 		t.Fatal("missing profile must stay nil")
 	}
 }

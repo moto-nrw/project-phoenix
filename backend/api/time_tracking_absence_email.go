@@ -4,11 +4,13 @@ import (
 	"context"
 	"log/slog"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
@@ -54,8 +56,8 @@ func (d absenceEmailSchoolDirectory) FindSchoolSubdomain(ctx context.Context, id
 }
 
 type absenceEmailStaffRecords interface {
-	GetStaffContactInfo(context.Context, int64) (*users.StaffWithRoleInfo, error)
-	ListStaffWithPermission(context.Context, string) ([]*users.StaffWithRoleInfo, error)
+	GetStaffContactInfo(context.Context, int64) (*peopleValues.StaffWithRoleInfo, error)
+	ListStaffWithPermission(context.Context, string) ([]*peopleValues.StaffWithRoleInfo, error)
 }
 
 type absenceEmailStaffDirectory struct{ source absenceEmailStaffRecords }
@@ -77,7 +79,7 @@ func (d absenceEmailStaffDirectory) ListAbsenceApprovers(ctx context.Context) ([
 	return contacts, err
 }
 
-func absenceEmailContact(row *users.StaffWithRoleInfo) *workforceCompose.AbsenceEmailContact {
+func absenceEmailContact(row *peopleValues.StaffWithRoleInfo) *workforceCompose.AbsenceEmailContact {
 	if row == nil {
 		return nil
 	}

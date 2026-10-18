@@ -6,8 +6,9 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -24,14 +25,14 @@ type StudentTestRepositories struct {
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    timetablePorts.CareScheduleRequestRows
 	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
-	ParentRequestEvent           usersModels.ParentRequestEventRepository
-	StudentDataChangeRequest     peoplePorts.StudentDataChangeRequestRepository
+	ParentRequestEvent           owner0.ParentRequestEvents
+	StudentDataChangeRequest     studentDataRequestRepository
 	FamilyProtection             peoplePorts.FamilyProtectionRecords
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
 	SubstitutionChange           auditModels.SubstitutionChangeCreator
-	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
+	CareWithdrawal               CareWithdrawalRecords
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository

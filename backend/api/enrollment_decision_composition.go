@@ -5,11 +5,13 @@ import (
 	"strings"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
@@ -58,9 +60,9 @@ func NewEnrollmentDecisions(src EnrollmentDecisionSources) *enrollmentCompose.De
 func enrollmentPeopleDirectory(src EnrollmentDecisionSources) enrollmentCompose.PeopleDirectory {
 	people := enrollmentCompose.PeopleDirectory{
 		Rules:                          enrollmentPeopleRules{},
-		ErrGuardianLinkNotFound:        userModels.ErrStudentGuardianNotFound,
-		ErrCompanionWouldLoseDeparture: userModels.ErrCompanionWouldLoseDeparture,
-		ErrCompanionLockBusy:           userModels.ErrCompanionLockBusy,
+		ErrGuardianLinkNotFound:        peopleValues.ErrStudentGuardianNotFound,
+		ErrCompanionWouldLoseDeparture: peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture),
+		ErrCompanionLockBusy:           peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionLockBusy),
 		IsLockNotAvailable:             isPostgresLockNotAvailable,
 	}
 	if src.Persons != nil {

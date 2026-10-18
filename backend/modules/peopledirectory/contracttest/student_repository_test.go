@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -53,7 +52,7 @@ func TestStudentRepository_Create(t *testing.T) {
 		// Create person first
 		person := testpkg.CreateTestPerson(t, db, "Create", "Student")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
 		}
@@ -77,7 +76,7 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "All")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "2c",
 			BusDays:     peopledirectory.BusDaysFromLegacyFlag(true),
@@ -88,7 +87,7 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		for _, day := range userModels.BusDayOrder {
+		for _, day := range peopledirectory.BusDayOrder {
 			assert.True(t, found.BusDays[day], "bus_days should enable %s", day)
 		}
 
@@ -99,10 +98,10 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "Empty")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "2d",
-			BusDays:     userModels.BusDays{},
+			BusDays:     peopledirectory.BusDays{},
 		}
 
 		err := repo.Create(ctx, student)
@@ -124,7 +123,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid data - missing school class", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "Student")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "", // Required field
 		}
@@ -137,10 +136,10 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid bus days before persistence", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "BusDays")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
-			BusDays: userModels.BusDays{
+			BusDays: peopledirectory.BusDays{
 				"sat": true,
 			},
 		}
@@ -255,7 +254,7 @@ func TestStudentRepository_Delete(t *testing.T) {
 
 		// Cleanup person (student is already deleted)
 		_, _ = db.NewDelete().
-			Model((*userModels.Person)(nil)).
+			Model((*peopledirectory.DirectoryPersonSnapshot)(nil)).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, personID).
 			Exec(ctx)
@@ -342,7 +341,7 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 	})
 }
 
-// NOTE: AssignToGroup and RemoveFromGroup use Model((*userModels.Student)(nil)) which
+// NOTE: AssignToGroup and RemoveFromGroup use Model((*peopledirectory.StudentState)(nil)) which
 // doesn't properly set the schema-qualified table name. These tests verify the
 // methods exist but the implementation has a known issue with nil model table expressions.
 // In production, this may work if the PostgreSQL search_path includes the "users" schema.
@@ -491,7 +490,7 @@ func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	require.Positive(t, before)
 
 	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", peopledirectory.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -512,7 +511,7 @@ func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", peopledirectory.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -598,7 +597,7 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 		results, err := repo.FindByTeacherIDWithGroups(ctx, teacher.ID)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-		assert.Equal(t, student.ID, results[0].ID)
+		assert.Equal(t, student.ID, results[0].Record.ID)
 		assert.Contains(t, results[0].GroupName, "ClassWithName") // Contains since unique suffix added
 	})
 }
@@ -623,11 +622,11 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		// Find our test student in results
 		var found bool
 		for _, r := range results {
-			if r.ID == student.ID {
+			if r.Record.ID == student.ID {
 				found = true
 				assert.Contains(t, r.GroupName, "AllGroupTest")
-				assert.NotNil(t, r.Person)
-				assert.Equal(t, "AllWith", r.Person.FirstName)
+				assert.NotNil(t, r.Record.Person)
+				assert.Equal(t, "AllWith", r.Record.Person.FirstName)
 				break
 			}
 		}
@@ -643,7 +642,7 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 
 		var found bool
 		for _, r := range results {
-			if r.ID == student.ID {
+			if r.Record.ID == student.ID {
 				found = true
 				assert.Empty(t, r.GroupName) // COALESCE returns ''
 				break
@@ -662,10 +661,10 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		// Find positions of our two test students
 		posAlpha, posBeta := -1, -1
 		for i, r := range results {
-			if r.ID == s1.ID {
+			if r.Record.ID == s1.ID {
 				posAlpha = i
 			}
-			if r.ID == s2.ID {
+			if r.Record.ID == s2.ID {
 				posBeta = i
 			}
 		}
@@ -704,7 +703,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	}
 	// A graduated child stays out even while the interval overlaps: alumni are
 	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
-	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, userModels.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, peopledirectory.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	// A day after the window: nobody gets the immediate-activation override,
@@ -712,20 +711,20 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	afterWindow := to.AddDays(1)
 	results, err := repo.FindOverlappingWithGroups(ctx, from, to, afterWindow)
 	require.NoError(t, err)
-	ids := make(map[int64]*userModels.StudentWithGroupInfo, len(results))
+	ids := make(map[int64]*peopledirectory.StudentRosterEntry, len(results))
 	for _, result := range results {
-		ids[result.ID] = result
+		ids[result.Record.ID] = result
 	}
 	assert.Contains(t, ids, overlapping.ID)
 	assert.NotContains(t, ids, past.ID)
 	assert.NotContains(t, ids, future.ID)
 	assert.NotContains(t, ids, alumnus.ID)
-	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
-	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
+	require.NotNil(t, ids[overlapping.ID].Record.EnrolledUntil)
+	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].Record.EnrolledUntil)
 
 	_, err = db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set(`status = ?`, userModels.StudentStatusInactive).
+		Set(`status = ?`, peopledirectory.StudentStatusInactive).
 		Where(`student_profile_id = ? AND deleted_at IS NULL`, overlapping.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -738,25 +737,25 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	require.NoError(t, err)
 	historicalIDs := make(map[int64]bool, len(historical))
 	for _, result := range historical {
-		historicalIDs[result.ID] = true
+		historicalIDs[result.Record.ID] = true
 	}
 	assert.True(t, historicalIDs[overlapping.ID], "a child enrolled on the list date remains eligible after becoming inactive")
 	assert.False(t, historicalIDs[future.ID], "immediate activation must not apply retroactively to a historical list")
 
 	// Immediate activation deliberately applies from today onward. A child
 	// activated before the formal service start therefore remains eligible on
-	// a future kitchen-list date, matching userModels.EnrolledOn and slot lists.
+	// a future kitchen-list date, matching peopledirectory.EnrolledOn and slot lists.
 	futureList, err := repo.FindOverlappingWithGroups(ctx, to, to, to.AddDays(-1))
 	require.NoError(t, err)
 	futureListIDs := make(map[int64]bool, len(futureList))
 	for _, result := range futureList {
-		futureListIDs[result.ID] = true
+		futureListIDs[result.Record.ID] = true
 	}
 	assert.True(t, futureListIDs[future.ID], "immediate activation applies to future dates from today onward")
 }
 
 // TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the
-// enrollment rule of userModels.EnrolledOn at the query: a child activated
+// enrollment rule of peopledirectory.EnrolledOn at the query: a child activated
 // immediately (status active, enrolled_from still ahead) is in care from today
 // on, so a window containing today must list them — otherwise the statistics
 // drop their attendance and their room visits. The same child in status
@@ -778,12 +777,12 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	startsLater := calendar.NewDate(2026, 9, 1)
 	for _, update := range []struct {
 		id     int64
-		status userModels.StudentStatus
+		status string
 		from   *calendar.Date
 	}{
-		{activated.ID, userModels.StudentStatusActive, &startsLater},
-		{pending.ID, userModels.StudentStatusPending, &startsLater},
-		{dormant.ID, userModels.StudentStatusInactive, nil},
+		{activated.ID, peopledirectory.StudentStatusActive, &startsLater},
+		{pending.ID, peopledirectory.StudentStatusPending, &startsLater},
+		{dormant.ID, peopledirectory.StudentStatusInactive, nil},
 	} {
 		query := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, update.status)
 		if update.from != nil {
@@ -793,12 +792,12 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 		require.NoError(t, err)
 	}
 
-	contains := func(today calendar.Date) map[int64]*userModels.StudentWithGroupInfo {
+	contains := func(today calendar.Date) map[int64]*peopledirectory.StudentRosterEntry {
 		results, err := repo.FindOverlappingWithGroups(ctx, from, to, today)
 		require.NoError(t, err)
-		ids := make(map[int64]*userModels.StudentWithGroupInfo, len(results))
+		ids := make(map[int64]*peopledirectory.StudentRosterEntry, len(results))
 		for _, result := range results {
-			ids[result.ID] = result
+			ids[result.Record.ID] = result
 		}
 		return ids
 	}
@@ -809,10 +808,10 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	assert.NotContains(t, inWindow, dormant.ID, "an inactive row without an interval is no longer enrolled")
 
 	// The row must carry the lifecycle status, not only pass the WHERE clause:
-	// userModels.EnrolledOn reads it per day, so a zero value would drop the very
+	// peopledirectory.EnrolledOn reads it per day, so a zero value would drop the very
 	// child this query just admitted (#2606).
 	require.NotNil(t, inWindow[activated.ID])
-	assert.Equal(t, userModels.StudentStatusActive, inWindow[activated.ID].Status)
+	assert.Equal(t, peopledirectory.StudentStatusActive, inWindow[activated.ID].Record.Status)
 
 	afterWindow := contains(to.AddDays(1))
 	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")

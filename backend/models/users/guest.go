@@ -1,10 +1,6 @@
 package users
 
 import (
-	"errors"
-	"net/mail"
-	"strings"
-
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -23,74 +19,4 @@ type Guest struct {
 
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
-}
-
-// Validate ensures guest data is valid
-func (g *Guest) Validate() error {
-	if g.StaffID <= 0 {
-		return errors.New("staff ID is required")
-	}
-
-	if g.ActivityExpertise == "" {
-		return errors.New("activity expertise is required")
-	}
-
-	// Trim spaces from fields
-	g.ActivityExpertise = strings.TrimSpace(g.ActivityExpertise)
-
-	if g.Organization != "" {
-		g.Organization = strings.TrimSpace(g.Organization)
-	}
-
-	// Validate contact email if provided
-	if g.ContactEmail != "" {
-		g.ContactEmail = strings.TrimSpace(g.ContactEmail)
-		if _, err := mail.ParseAddress(g.ContactEmail); err != nil {
-			return errors.New("invalid contact email format")
-		}
-	}
-
-	// Validate contact phone if provided. Uses the shared canonical
-	// validator (phone_validation.go) so this rule can never drift from
-	// the student/enrollment phone format.
-	if g.ContactPhone != "" {
-		g.ContactPhone = strings.TrimSpace(g.ContactPhone)
-		if err := ValidateOptionalPhone(g.ContactPhone); err != nil {
-			return errors.New("invalid contact phone format")
-		}
-	}
-
-	// Validate date range if both dates are provided
-	if g.StartDate != nil && g.EndDate != nil {
-		if g.EndDate.Before(*g.StartDate) {
-			return errors.New("end date cannot be before start date")
-		}
-	}
-
-	return nil
-}
-
-// SetStaff links this guest to a staff member
-func (g *Guest) SetStaff(staff *Staff) {
-	g.Staff = staff
-	if staff != nil {
-		g.StaffID = staff.ID
-	}
-}
-
-// GetFullName returns the full name of the guest from the linked staff and person
-func (g *Guest) GetFullName() string {
-	if g.Staff != nil && g.Staff.Person != nil {
-		return g.Staff.Person.GetFullName()
-	}
-	return ""
-}
-
-// AddNotes adds notes about this guest
-func (g *Guest) AddNotes(notes string) {
-	if g.Notes == "" {
-		g.Notes = notes
-	} else {
-		g.Notes += "\n" + notes
-	}
 }

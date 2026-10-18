@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -108,7 +109,7 @@ func (s *RetainedGuardianService) updateGuardianPaymentInTx(ctx context.Context,
 		return err
 	}
 
-	var current users.GuardianFinancialData
+	var current peopleValues.GuardianPayment
 	if data != nil {
 		current = *data
 	}
@@ -133,7 +134,7 @@ func (s *RetainedGuardianService) updateGuardianPaymentInTx(ctx context.Context,
 	}
 
 	if data == nil {
-		fresh := &users.GuardianFinancialData{GuardianProfileID: guardianProfileID}
+		fresh := &peopleValues.GuardianPayment{GuardianProfileID: guardianProfileID}
 		fresh.IBAN = normalized.IBAN
 		fresh.AccountHolder = normalized.AccountHolder
 		return s.GuardianFinancialRepo.Create(ctx, fresh)
@@ -148,7 +149,7 @@ func (s *RetainedGuardianService) updateGuardianPaymentInTx(ctx context.Context,
 // change with identical last-4), but the audit rows carry masked values only —
 // the trail must not become a second store of bank data outside the
 // guardians:financial gate.
-func guardianPaymentChanges(current users.GuardianFinancialData, normalized peoplePorts.GuardianPaymentInput) []stammdatenChange {
+func guardianPaymentChanges(current peopleValues.GuardianPayment, normalized peoplePorts.GuardianPaymentInput) []stammdatenChange {
 	var changes []stammdatenChange
 	if strPtrAuditValue(current.IBAN) != strPtrAuditValue(normalized.IBAN) {
 		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN,
@@ -222,7 +223,7 @@ func (s *RetainedGuardianService) setStudentPayerInTx(ctx context.Context, stude
 
 // studentPayerState reports the child's current payer and whether the
 // requested guardian is linked to the child at all.
-func studentPayerState(relationships []*users.StudentGuardian, guardianProfileID *int64) (*int64, bool) {
+func studentPayerState(relationships []*peopleValues.GuardianRelationshipSnapshot, guardianProfileID *int64) (*int64, bool) {
 	var currentPayer *int64
 	linked := false
 	for _, rel := range relationships {
@@ -320,7 +321,7 @@ func (s *RetainedGuardianService) buildPaymentRowsInTx(
 }
 
 // payerGuardianIDs lists each assigned payer once, in assignment order.
-func payerGuardianIDs(assignments []users.GuardianPaymentAssignment) []int64 {
+func payerGuardianIDs(assignments []peopleValues.GuardianPaymentAssignment) []int64 {
 	guardianIDs := make([]int64, 0, len(assignments))
 	seen := make(map[int64]struct{}, len(assignments))
 	for _, a := range assignments {
@@ -338,7 +339,7 @@ func payerGuardianIDs(assignments []users.GuardianPaymentAssignment) []int64 {
 
 // guardianPaymentRow builds one Bankverbindungen row. The full IBAN is set
 // only when unmasked; the masked one always.
-func guardianPaymentRow(a users.GuardianPaymentAssignment, financial map[int64]*users.GuardianFinancialData, unmasked bool) peoplePorts.GuardianPaymentRow {
+func guardianPaymentRow(a peopleValues.GuardianPaymentAssignment, financial map[int64]*peopleValues.GuardianPayment, unmasked bool) peoplePorts.GuardianPaymentRow {
 	row := peoplePorts.GuardianPaymentRow{
 		StudentID:        a.StudentID,
 		StudentName:      joinName(a.StudentFirstName, a.StudentLastName),
@@ -373,8 +374,8 @@ func guardianPaymentRow(a users.GuardianPaymentAssignment, financial map[int64]*
 // loadPaymentAudited resolves the guardian, loads the bank row (nil when none
 // exists) and writes the data-access log entry. Callers must not serve any
 // value when the returned error is non-nil.
-func (s *RetainedGuardianService) loadPaymentAudited(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
-	var result *users.GuardianFinancialData
+func (s *RetainedGuardianService) loadPaymentAudited(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*peopleValues.GuardianPayment, error) {
+	var result *peopleValues.GuardianPayment
 	err := s.transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		var err error
 		result, err = s.loadPaymentAuditedInTx(txCtx, guardianProfileID, actorAccountID, actorRole, access)
@@ -383,7 +384,7 @@ func (s *RetainedGuardianService) loadPaymentAudited(ctx context.Context, guardi
 	return result, err
 }
 
-func (s *RetainedGuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
+func (s *RetainedGuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*peopleValues.GuardianPayment, error) {
 	if s.DataAccessLog == nil {
 		return nil, fmt.Errorf("data access log repository is not wired; refusing unaudited payment read")
 	}

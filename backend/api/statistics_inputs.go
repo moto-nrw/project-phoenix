@@ -4,10 +4,12 @@ import (
 	"context"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -71,7 +73,7 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 
 // statisticsStudentRows are the student rows the report's roster reads.
 type statisticsStudentRows interface {
-	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*peopleValues.StudentRosterEntry, error)
 }
 
 type StatisticsReportStudents struct {
@@ -85,13 +87,13 @@ func (r StatisticsReportStudents) FindOverlappingWithGroups(ctx context.Context,
 	}
 	result := make([]*presenceCompose.StatisticsStudent, 0, len(values))
 	for _, value := range values {
-		if value == nil || value.Student == nil {
+		if value == nil || value.Record == nil {
 			continue
 		}
-		student := value.Student
+		student := value.Record
 		row := &presenceCompose.StatisticsStudent{
 			ID: student.ID, SchoolClass: student.SchoolClass, GroupID: student.GroupID, GroupName: value.GroupName,
-			EnrolledOn: func(day, reportToday timezone.Date) bool { return userModels.EnrolledOn(student, day, reportToday) },
+			EnrolledOn: func(day, reportToday timezone.Date) bool { return peopleValues.EnrolledOn(student, day, reportToday) },
 		}
 		if student.Person != nil {
 			row.FirstName = student.Person.FirstName

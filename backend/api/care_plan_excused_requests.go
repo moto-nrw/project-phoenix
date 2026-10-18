@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -27,7 +29,7 @@ type ExcusedRequestServiceWiring struct {
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
-	Events      ParentRequestEvents
+	Events      peopledirectory.ParentRequestEvents
 	notifier    deliveryCompose.AbsenceNotifier
 	shares      carePlanCompose.ShareVisibility
 	observe     CarePlanObserver
