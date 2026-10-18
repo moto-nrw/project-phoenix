@@ -15,8 +15,9 @@ import (
 	"fmt"
 	"time"
 
+	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -96,8 +97,8 @@ func (a supervisionAccess) Caller(ctx context.Context) (supervisiondashboard.Cal
 		TokenAdmin:          claims.IsAdmin,
 		AdminScope:          admin,
 		OperationalOverview: overview,
-		CanReadSchedules:    securityruntime.HasPermission(permissions.SchedulesRead, userPermissions),
-		CanReadStudents:     securityruntime.HasPermission(permissions.UsersRead, userPermissions),
+		CanReadSchedules:    securityruntime.HasPermission(supervisionDashboardHTTP.ScheduleReadPermission, userPermissions),
+		CanReadStudents:     securityruntime.HasPermission(supervisionDashboardHTTP.StudentReadPermission, userPermissions),
 	}, nil
 }
 

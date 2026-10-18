@@ -10310,6 +10310,18 @@
       "source_package": "modules/schoolsetup/http"
     },
     {
+      "id": "calendar-view.http.security-contract",
+      "description": "The supervision dashboard HTTP adapter names the permissions it checks for its caller (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/supervisiondashboard/http"
+    },
+    {
       "id": "class-day-view.http.identity-runtime",
       "description": "The Class Day HTTP adapter reads authenticated account claims through the session runtime.",
       "scopes": [
