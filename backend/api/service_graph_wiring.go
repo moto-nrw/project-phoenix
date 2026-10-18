@@ -185,9 +185,17 @@ type PeopleWiring struct {
 	StudentChangeLogCleanup  func(edits peoplePorts.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peoplePorts.StudentChangeLogCleanupService
 	StatusDayPeople          func(peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople
 	GroupRosterPeople        func(peoplePorts.PersonDirectory) GroupRoster
-	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
-	ParentRequestCoordinator func(ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error)
-	ParentRequestWriteScope  func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
+	MasterDataDecisions      func(
+		carePlan careplan.Capability, fields MasterDataPeople, students masterDataStudentRows, persons masterDataPersonRows,
+		audit peoplePorts.StudentChangeRecorder, scope careplanCompose.ReviewScopeResolver,
+		emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster, events ParentRequestEvents,
+		shares careplanCompose.ShareVisibility, logger *slog.Logger, today func() timezone.Date,
+	) (*careplanCompose.MasterDataDecisions, error)
+	ParentRequestCoordinator func(
+		masterData *careplanCompose.MasterDataDecisions, excused careplan.ExcusedAbsenceRequests, careRequests any,
+		offering careplanCompose.ParentRequestConflicts, events ParentRequestEvents, permissions func(context.Context) []string,
+	) (parentrequests.Coordinator, error)
+	ParentRequestWriteScope func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
 }
 
 // The Audit Platform trails the root's adapters append to, as the narrow
@@ -672,35 +680,6 @@ type StudentConsentRecords interface {
 // decision writes with.
 type ParentRequestScopePolicy interface {
 	Scope(ctx context.Context, permissions []string) (bool, []int64, error)
-}
-
-// MasterDataDecisionWiring is the graph's view of the Stammdaten decision's
-// dependencies. Nil effects are skipped.
-type MasterDataDecisionWiring struct {
-	CarePlan    careplan.Capability
-	Fields      MasterDataPeople
-	Students    masterDataStudentRows
-	Persons     masterDataPersonRows
-	Audit       peoplePorts.StudentChangeRecorder
-	Scope       careplanCompose.ReviewScopeResolver
-	Emitter     *communicationCompose.ParentEventEmitter
-	Broadcaster realtime.Broadcaster
-	Events      ParentRequestEvents
-	Shares      careplanCompose.ShareVisibility
-	Logger      *slog.Logger
-	Today       func() timezone.Date
-}
-
-// ParentRequestCoordinatorWiring names the four request queues the
-// cross-kind commands are composed over.
-type ParentRequestCoordinatorWiring struct {
-	MasterData *careplanCompose.MasterDataDecisions
-	Excused    careplan.ExcusedAbsenceRequests
-	Care       any
-	Offering   careplanCompose.ParentRequestConflicts
-	Events     ParentRequestEvents
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
 }
 
 // PresenceWiring is what the root builds for Student Presence, Facilities,

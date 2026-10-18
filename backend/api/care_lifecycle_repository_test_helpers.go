@@ -28,7 +28,9 @@ type CareLifecycleTestRepositories struct {
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 	db               transactionruntime.Database
-	sources          CareLifecycleOwnerSources
+	// lifecycleOwners are bound without the change trail, which each suite
+	// supplies through its audit (NewCareLifecycle).
+	lifecycleOwners carePlanCompose.CareLifecycleOwners
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
@@ -50,12 +52,10 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		TimetableTestRepositories: tt,
 		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 		db:                        db,
-		sources: CareLifecycleOwnerSources{
-			Students: tt.Student, Persons: tt.Person, Membership: membership,
-			People: people, Timetable: tt.Timetable, Calendar: calendar,
-			Presence: NewUnloggedStudentPresence(db), PlanReads: newPresenceProjectionReads(db),
-			Enrollment: tt.Enrollment(),
-		},
+		lifecycleOwners: NewCareLifecycleOwners(
+			tt.Student, tt.Person, membership, people, tt.Timetable, calendar,
+			NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
+		),
 	}, nil
 }
 
@@ -77,10 +77,12 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	if lock == nil {
 		lock = func(context.Context) error { return nil }
 	}
+	owners := r.lifecycleOwners
+	owners.ChangeTrail = NewCareEndRecorder(config.Audit)
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               r.db.Pool(), Records: r.CarePlan,
-		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
+		Owners:                owners,
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Fingerprint:           securityruntime.Fingerprint,

@@ -199,19 +199,23 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
-		Catalog: offeringLinks.Catalog, Timetable: repos.Timetable, Rosters: rosterReconciler, Students: persons,
-		Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approvedOfferings,
-		Settings: settingsService, Bookings: repos.CarePlan, Withdrawals: careLifecycleService,
-		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: guardianAccess,
-		Pickup: pickupBaselines, PickupRows: repos.CarePlan,
-		LockRecurrence:           recurrenceLock.LockRecurrenceWrites,
-		ResyncPickupAutoExcusals: pickupAutoExcusal.ResyncFutureExceptions,
-		Broadcaster:              realtimeHub,
-		GuardianNotifier:         pillEmitter,
-		Today:                    today,
-		Logger:                   logger.With("service", "care-plan-bookings"),
-	})
+	careBookingDeps, err := bookingMaterializationOwners(
+		repos.Timetable, rosterReconciler, persons, repos.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
+		repos.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, repos.CarePlan,
+	)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	careBookingDeps.Catalog = offeringLinks.Catalog
+	careBookingDeps.Settings = settingsValues.NewCareBookingValues(settingsService)
+	careBookingDeps.Bookings = repos.CarePlan
+	careBookingDeps.Withdrawals = careLifecycleService
+	careBookingDeps.LockTemplateRecurrence = recurrenceLock.LockRecurrenceWrites
+	careBookingDeps.ResyncPickupAutoExcusals = pickupAutoExcusal.ResyncFutureExceptions
+	careBookingDeps.PickupGuardians = pillEmitter
+	careBookingDeps.Today = today
+	careBookingDeps.Logger = logger.With("service", "care-plan-bookings")
+	careBookings, err := newBookingMaterialization(careBookingDeps, realtimeHub)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -288,39 +292,34 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	newPickupAdjustmentsFor := func(offerings careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error) {
-		return NewPickupAdjustments(PickupAdjustmentInputs{
-			CarePlan: repos.CarePlan, PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
-			Baselines: pickupBaselines, Offerings: offerings, Settings: settingsService,
-			Audit: studentAuditService, Students: repos.Student, Today: today,
-		})
+		return NewPickupAdjustments(
+			repos.CarePlan, pickupScheduleService, arrivalScheduleService, pickupBaselines, offerings,
+			settingsService, studentAuditService, repos.Student, today,
+		)
 	}
 	pickupAdjustments, err := newPickupAdjustmentsFor(offeringChanges)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	excusedRequestService, err := NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
-		CarePlan: repos.CarePlan, Students: repos.Student, Persons: repos.Person,
-		Scope:   ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
-		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
-		Logger: logger.With("service", "excused-requests"),
-	})
+	excusedRequestService, err := NewExcusedAbsenceRequestService(
+		repos.CarePlan, repos.Student, repos.Person, ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
+		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataDecisions, err := NewMasterDataDecisions(MasterDataDecisionWiring{
-		CarePlan: repos.CarePlan, Fields: persons, Students: repos.Student, Persons: repos.Person,
-		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
-		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
-		Logger: logger.With("service", "master-data-review"),
-	})
+	masterDataDecisions, err := NewMasterDataDecisions(
+		repos.CarePlan, persons, repos.Student, repos.Person, studentAuditService,
+		ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
+		pillEmitter, realtimeHub, parentRequestEvents, nil, logger.With("service", "master-data-review"), nil,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
-		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
-		Offering: newOfferingChangeConflicts(offeringChanges), Events: parentRequestEvents,
-		Permissions: requestTokenReads.Permissions,
-	})
+	parentRequestCoordinator, err := NewParentRequestCoordinator(
+		masterDataDecisions, excusedRequestService, careRequestService,
+		newOfferingChangeConflicts(offeringChanges), parentRequestEvents, requestTokenReads.Permissions,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
