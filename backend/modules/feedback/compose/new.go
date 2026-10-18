@@ -76,6 +76,14 @@ type Settings struct {
 
 func NewSettings() *Settings { return &Settings{} }
 
+// NewBoundSettings is NewSettings with the resolvers bound at construction.
+func NewBoundSettings(enabled func(context.Context) (bool, error), retention func(context.Context) (int, error)) (*Settings, error) {
+	if enabled == nil || retention == nil {
+		return nil, errors.New("feedback settings: both resolvers are required")
+	}
+	return &Settings{enabled: enabled, retention: retention}, nil
+}
+
 func (s *Settings) Bind(enabled func(context.Context) (bool, error), retention func(context.Context) (int, error)) {
 	if enabled == nil || retention == nil {
 		panic("feedback settings: both resolvers are required")
