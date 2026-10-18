@@ -30,7 +30,7 @@ type ServiceConfig struct {
 	Fingerprints Fingerprints
 	// Attachments is the file side of the attachments. A service without
 	// one refuses to delete an announcement that could still own
-	// attachments; see SetAttachmentPurger.
+	// attachments rather than orphaning their bytes silently.
 	Attachments AttachmentPurger
 	ParentsURL  string
 	Logger      *slog.Logger

@@ -546,8 +546,7 @@ func TestService_Delete(t *testing.T) {
 		deleteFn:   func(_ context.Context, _ int64) error { deleted = true; return nil },
 	}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { cancelled = true; return 2, nil }}
-	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	svc.SetAttachmentPurger(&stubPurger{})
+	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox, Attachments: &stubPurger{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if err := svc.Delete(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
