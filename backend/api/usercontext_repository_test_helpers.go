@@ -9,35 +9,32 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
+// UserContextTestRepositories are the Identity & Access account profiles
+// and the group substitutions the caller context reads. The School
+// Structure's staff groups come beside them.
 type UserContextTestRepositories struct {
-	Timetable     TimetableTestRepositories
 	Profile       identityaccess.AccountProfiles
 	Substitutions GroupSubstitutionRepository
-	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
-func NewUserContextTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (UserContextTestRepositories, error) {
-	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members)
-	if err != nil {
-		return UserContextTestRepositories{}, err
-	}
+func NewUserContextTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (UserContextTestRepositories, schoolstructure.StaffGroupQuery, error) {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
-		return UserContextTestRepositories{}, err
+		return UserContextTestRepositories{}, nil, err
 	}
 	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
-		return UserContextTestRepositories{}, err
+		return UserContextTestRepositories{}, nil, err
 	}
 	structure, err := NewSchoolStructure(db)
 	if err != nil {
-		return UserContextTestRepositories{}, err
+		return UserContextTestRepositories{}, nil, err
 	}
 	staffGroups, err := schoolStructureCompose.NewStaffGroups(schoolStructureCompose.StaffGroupsDependencies{Groups: structure, Assignments: membership, Substitutions: workTime})
 	if err != nil {
-		return UserContextTestRepositories{}, err
+		return UserContextTestRepositories{}, nil, err
 	}
 	return UserContextTestRepositories{
-		Timetable: timetable, Profile: NewPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
-	}, nil
+		Profile: NewPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution,
+	}, staffGroups, nil
 }

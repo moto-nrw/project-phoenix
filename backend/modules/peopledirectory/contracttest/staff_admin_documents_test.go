@@ -39,8 +39,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	ownersWorkforce := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	admin, err := api.NewStaffAdmin(api.StaffAdminDependencies{
-		DB: testpkg.NewDatabase(t, db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+	admin, err := api.NewStaffAdmin(testpkg.NewDatabase(t, db), repos.Staff, repos.Person, repos.SchoolMembership(), api.StaffAdminDependencies{
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
 	})
 	require.NoError(t, err)

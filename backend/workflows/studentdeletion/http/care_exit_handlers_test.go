@@ -18,7 +18,7 @@ import (
 func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
-	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
+	repos := newStudentTestPeopleRows(testpkg.NewDatabase(t, tc.db))
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
 	_, actor := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CareWithdrawal", "StaleDelete")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate())

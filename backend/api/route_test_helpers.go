@@ -19,22 +19,22 @@ import (
 
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
-func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
+func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, work WorkforceTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
+	capabilities := NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule) (chi.Router, error) {
-	parent, err := NewParentCareScheduleTestService(db, module)
+func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule) (chi.Router, error) {
+	parent, err := NewParentCareScheduleTestService(db, module, live)
 	if err != nil {
 		return nil, err
 	}
 	students := NewCareHTTPUnitResource(careStudentsHTTP.ResourceConfig{
-		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
-		SettingsService: module.Settings, Logger: slog.Default(),
+		CareRequestService: module.CareRequests, UserContextService: live.UserContext,
+		SettingsService: live.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
 	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router(ParentSessionChain))

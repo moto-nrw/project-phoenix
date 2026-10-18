@@ -82,6 +82,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	r.TimetableTestRepositories = withTimetableTestAudit(db, r.TimetableTestRepositories)
+	r.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -98,7 +99,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	work, err := NewWorkSessionTestModule(db, unit, clocks...)
+	work, _, err := NewWorkSessionTestModule(db, unit, clocks...)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -110,7 +111,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	tt, err := NewTimetableTestModule(db, unit, clocks...)
+	tt, _, _, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -173,7 +174,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.TimeTracking.AutoCheckIn},
+		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}

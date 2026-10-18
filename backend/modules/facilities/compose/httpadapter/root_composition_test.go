@@ -19,14 +19,14 @@ func init() {
 	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(error) bool) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
-		svc, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svc, listExport, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		require.NoError(t, err)
 		prefetch, constraintViolation := api.RoomsHTTPBindingsForTest()
 		return db, httpadapter.RoomsComposition{
 			Dependencies: httpadapter.Dependencies{
 				Facilities: svc.Facilities, RoomHistorySettings: api.NewRoomHistorySettings(svc.Settings, slog.Default(), prefetch),
 				UserContext: svc.UserContext, Active: svc.Active, Users: api.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
-				ListExport: svc.ListExport,
+				ListExport: listExport,
 			},
 			Settings: svc.Settings,
 			Usage:    svc.RoomUsage,

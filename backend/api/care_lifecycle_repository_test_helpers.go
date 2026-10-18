@@ -25,6 +25,13 @@ import (
 // Audit persistence (NewCareLifecycleTestRepositories).
 type CareLifecycleTestRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
+	TimetableSchoolCalendar
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 	db               transactionruntime.Database
@@ -38,6 +45,10 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
+	presence, carePlan, rooms, schoolCalendar, err := newTimetableTestCompanions(db, tt, members)
+	if err != nil {
+		return CareLifecycleTestRepositories{}, err
+	}
 	people := members.People
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
@@ -47,13 +58,13 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	care := tt.CarePlan
+	care := carePlan.CarePlan
 	return CareLifecycleTestRepositories{
-		TimetableTestRepositories: tt,
-		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
-		db:                        db,
+		TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: carePlan, TimetableRoomRows: rooms, TimetableSchoolCalendar: schoolCalendar,
+		CareWithdrawal: NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		db:             db,
 		sources: NewCareLifecycleOwners(
-			tt.Student, tt.Person, membership, people, tt.Timetable, calendar,
+			members.Student, members.Person, membership, people, tt.Timetable, calendar,
 			NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
 		),
 	}, nil

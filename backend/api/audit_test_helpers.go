@@ -71,39 +71,13 @@ func NewTimetableTestRepositories(db transactionruntime.Database, clocks ...func
 }
 
 func withTimetableTestAudit(db transactionruntime.Database, timetable TimetableTestRepositories) TimetableTestRepositories {
-	timetable.DeviationEvent = NewTestAuditPersistence(db, nil).DeviationEvent
-	return timetable
+	return timetable.withDeviationAudit(NewTestAuditPersistence(db, nil).DeviationEvent)
 }
 
-// NewWorkSessionTestRepositories composes the work-session test graph with its
-// edit trail.
-func NewWorkSessionTestRepositories(db transactionruntime.Database, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
-	result, err := NewWorkSessionTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
-	if err != nil {
-		return WorkSessionTestRepositories{}, err
-	}
-	return withWorkSessionTestAudit(db, result), nil
-}
-
-func withWorkSessionTestAudit(db transactionruntime.Database, sessions WorkSessionTestRepositories) WorkSessionTestRepositories {
-	sessions.TimetableTestRepositories = withTimetableTestAudit(db, sessions.TimetableTestRepositories)
-	sessions.WorkSessionEdit = NewTestAuditPersistence(db, nil).WorkSessionEdit
-	return sessions
-}
-
-// NewWorkforceTestRepositories composes the Workforce test graph with its
-// audit trails.
-func NewWorkforceTestRepositories(db transactionruntime.Database, command auditModels.Command, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
-	result, err := NewWorkforceTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
-	if err != nil {
-		return WorkforceTestRepositories{}, err
-	}
-	result.WorkSessionTestRepositories = withWorkSessionTestAudit(db, result.WorkSessionTestRepositories)
-	audits := NewTestAuditPersistence(db, command)
-	result.TimeTrackingDeletion, result.TimeTrackingAuditLog = audits.TimeTrackingDeletion, audits.TimeTrackingAuditLog
-	result.PersonnelNumberChange, result.StaffMasterDataChange = audits.PersonnelNumberChange, audits.StaffMasterDataChange
-	result.DataAccessLog, result.DataDeletion = audits.DataAccessLog, audits.DataDeletion
-	return result, nil
+// NewWorkforceTestRepositories composes the Workforce test graph over the
+// members of the test database.
+func NewWorkforceTestRepositories(db transactionruntime.Database, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+	return NewWorkforceTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 }
 
 // NewEnrollmentTestRepositories composes the enrollment test graph with its
@@ -118,6 +92,7 @@ func NewEnrollmentTestRepositories(db transactionruntime.Database, command audit
 
 func withEnrollmentTestAudit(db transactionruntime.Database, command auditModels.Command, enrollment EnrollmentTestRepositories) EnrollmentTestRepositories {
 	enrollment.TimetableTestRepositories = withTimetableTestAudit(db, enrollment.TimetableTestRepositories)
+	enrollment.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	enrollment.DataAccessLog = NewTestAuditPersistence(db, command).DataAccessLog
 	return enrollment
 }
@@ -130,6 +105,7 @@ func NewEnrollmentFlowTestRepositories(db transactionruntime.Database) (*Enrollm
 		return nil, err
 	}
 	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
+	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	audits := NewTestAuditPersistence(db, nil)
 	result.EnrollmentOfferingAdjustment = audits.EnrollmentOfferingAdjustment
 	result.EnrollmentRestorationAudit = audits.EnrollmentRestorationAudit
@@ -146,42 +122,21 @@ func NewCareLifecycleTestRepositories(db transactionruntime.Database, command au
 		return CareLifecycleTestRepositories{}, err
 	}
 	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
+	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	audits := NewTestAuditPersistence(db, command)
 	result.StudentFieldEdit = audits.StudentFieldEdit
 	return result, nil
 }
 
-// NewStudentTestRepositories composes the student test graph with its audit
-// trails.
-func NewStudentTestRepositories(db transactionruntime.Database, command auditModels.Command) (StudentTestRepositories, error) {
-	result, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+// NewStudentTestRepositories composes the student suites' Care Plan rows
+// and returns them with the Enrollment graph and its access log. The audit
+// trails the suites read back come from NewStudentAuditRows.
+func NewStudentTestRepositories(db transactionruntime.Database, command auditModels.Command) (StudentTestRepositories, EnrollmentTestRepositories, error) {
+	result, enrollment, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return StudentTestRepositories{}, err
+		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	result.EnrollmentTestRepositories = withEnrollmentTestAudit(db, command, result.EnrollmentTestRepositories)
-	audits := NewTestAuditPersistence(db, command)
-	result.EnrollmentOfferingAdjustment = audits.EnrollmentOfferingAdjustment
-	result.EnrollmentRestorationAudit = audits.EnrollmentRestorationAudit
-	result.GuardianFinancialChange = audits.GuardianFinancialChange
-	result.SubstitutionChange = audits.SubstitutionChange
-	result.StudentDeletionAudit = audits.StudentDeletionAudit
-	result.StudentFieldEdit = audits.StudentFieldEdit
-	result.StudentConsentChange = audits.StudentConsentChange
-	result.DataDeletion = audits.DataDeletion
-	return result, nil
-}
-
-// NewStatisticsTestRepositories composes the statistics test graph with its
-// access log.
-func NewStatisticsTestRepositories(db transactionruntime.Database, command auditModels.Command, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
-	result, err := NewStatisticsTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
-	if err != nil {
-		return StatisticsTestRepositories{}, err
-	}
-	result.Timetable = withTimetableTestAudit(db, result.Timetable)
-	audits := NewTestAuditPersistence(db, command)
-	result.AccessLog = audits.DataAccessLog
-	return result, nil
+	return result, withEnrollmentTestAudit(db, command, enrollment), nil
 }
 
 // NewGuardianTestRepositories composes the guardian test repositories with

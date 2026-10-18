@@ -32,15 +32,14 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	svc, err := api.NewStaffAdmin(stammdatenAdminDeps(db, repos))
+	svc, err := api.NewStaffAdmin(testpkg.MustDatabase(db), repos.Staff, repos.Person, repos.SchoolMembership(), stammdatenAdminDeps(db))
 	require.NoError(t, err)
 
 	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
-func stammdatenAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory) api.StaffAdminDependencies {
+func stammdatenAdminDeps(db *bun.DB) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
-		DB: testpkg.MustDatabase(db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
@@ -361,14 +360,14 @@ func TestStaffStammdaten_FinancialValidation(t *testing.T) {
 
 	// Unaudited financial reads are refused outright: the administration
 	// cannot be composed without the access-log repository.
-	noAccessLog := stammdatenAdminDeps(s.db, s.repos)
+	noAccessLog := stammdatenAdminDeps(s.db)
 	noAccessLog.DataAccessLog = nil
-	_, err = api.NewStaffAdmin(noAccessLog)
+	_, err = api.NewStaffAdmin(testpkg.MustDatabase(s.db), s.repos.Staff, s.repos.Person, s.repos.SchoolMembership(), noAccessLog)
 	require.Error(t, err, "without the access-log repository no financial value may be served")
 
 	// Unaudited writes are refused too.
-	noAudit := stammdatenAdminDeps(s.db, s.repos)
+	noAudit := stammdatenAdminDeps(s.db)
 	noAudit.MasterDataAudit = nil
-	_, err = api.NewStaffAdmin(noAudit)
+	_, err = api.NewStaffAdmin(testpkg.MustDatabase(s.db), s.repos.Staff, s.repos.Person, s.repos.SchoolMembership(), noAudit)
 	require.Error(t, err)
 }

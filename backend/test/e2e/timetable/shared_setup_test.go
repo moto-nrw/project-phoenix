@@ -65,24 +65,24 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := buildTimetableScenarioModule(t, clocks...)
+	db, factory, live, schoolCalendar := buildTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
 	resource := newTimetableTestResource(timetableTestDependencies{
-		CalendarPeriods:        factory.SchoolCalendar,
-		ClosingDays:            factory.SchoolCalendar,
+		CalendarPeriods:        schoolCalendar,
+		ClosingDays:            schoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
-		People:                 factory.People,
+		People:                 rootAPI.NewTimetablePeople(live.Users),
 		Templates:              factory.TimetableData.Templates,
 		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
 		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
 		Deviations:             factory.TimetableData.Deviations,
 		TimetableData:          factory.TimetableData.Data,
 		ConflictDetection:      factory.TimetableData.ConflictDetection,
-		UserContextService:     factory.UserContext,
-		SettingsService:        factory.Settings,
+		UserContextService:     live.UserContext,
+		SettingsService:        live.Settings,
 		Staffing:               factory.Instance,
 		Logger:                 slog.Default(),
 	})
@@ -90,8 +90,8 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		t:               t,
 		db:              db,
 		resource:        resource,
-		createVisit:     factory.Active.CreateVisit,
-		endVisit:        factory.Active.EndVisit,
+		createVisit:     live.Active.CreateVisit,
+		endVisit:        live.Active.EndVisit,
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
 		today:           calendar.CalendarDateClock(clocks...),

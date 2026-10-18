@@ -44,7 +44,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 	repos := calendarTestRepositories(t, db)
 	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	userContext := identity.UserContext.Caller()
+	userContext := identity.Caller()
 
 	cfg := api.NewCalendarFacts(repos.Staff, repos.Student,
 		api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),

@@ -13,6 +13,13 @@ import (
 // stores come from the Settings composition (NewDisplayTestRepositories).
 type DisplayReadRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
+	TimetableSchoolCalendar
 	StudentPickupNote timetablePorts.CarePickupNoteRows
 }
 
@@ -22,13 +29,17 @@ func NewDisplayTestRepositoriesWithMembers(db transactionruntime.Database, membe
 	if err != nil {
 		return DisplayReadRepositories{}, err
 	}
+	presence, carePlan, rooms, calendar, err := newTimetableTestCompanions(db, r, members)
+	if err != nil {
+		return DisplayReadRepositories{}, err
+	}
 	people := members.People
 	care, err := NewCarePlan(db, people, r.InstanceStudent)
 	if err != nil {
 		return DisplayReadRepositories{}, err
 	}
 	return DisplayReadRepositories{
-		TimetableTestRepositories: r,
-		StudentPickupNote:         NewPickupNoteRepository(care),
+		TimetableTestRepositories: r, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: carePlan, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
+		StudentPickupNote: NewPickupNoteRepository(care),
 	}, nil
 }

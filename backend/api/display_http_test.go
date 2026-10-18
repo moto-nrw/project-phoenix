@@ -75,7 +75,7 @@ func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database)
 
 func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetLegacy.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
 	t.Helper()
-	repos, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
+	repos, _, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
 	require.NoError(t, err)
 	approvedOfferings, err := NewApprovedOfferingTestProjection(database, repos.Enrollment())
 	require.NoError(t, err)

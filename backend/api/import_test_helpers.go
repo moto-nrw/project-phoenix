@@ -51,7 +51,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	repos, err := NewStudentTestRepositories(db, command)
+	students, _, err := NewStudentTestRepositories(db, command)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -75,7 +75,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	if options.Clock != nil {
 		clocks = append(clocks, options.Clock)
 	}
-	workforce, err := NewWorkforceTestModule(db, unit, clocks...)
+	workforce, _, err := NewWorkforceTestModule(db, unit, clocks...)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -112,7 +112,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	}
 	dataImports := imports{
 		Student: newStudentImport(
-			runtime, rfid, groups, rooms, persons, studentGuardians, repos.CarePlan, NewStudentPresenceForTests(db),
+			runtime, rfid, groups, rooms, persons, studentGuardians, students.CarePlan, NewStudentPresenceForTests(db),
 			auditCompose.NewConsentRecorder(command),
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),

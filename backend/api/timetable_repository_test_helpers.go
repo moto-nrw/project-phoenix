@@ -9,12 +9,10 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -29,9 +27,15 @@ import (
 // over (#3551), named for the suites of other owners that bind them.
 type TimetableOwnerRows = timetableCompose.OwnerRows
 
+// TimetableTestRepositories are the Timetable owner's retained rows and
+// capability over the test database. The rows of the other owners the
+// suites arrange through come beside them: the People Directory and School
+// Structure rows from the members the graph is composed over, and the
+// Student Presence, Care Plan, Facilities, Audit and School Calendar rows
+// from NewTimetablePresenceRows, NewTimetableCarePlanRows,
+// NewTimetableRoomRows, NewTimetableDeviationAudit and
+// NewTimetableSchoolCalendar.
 type TimetableTestRepositories struct {
-	enrollment          *enrollmentCapability.Module
-	schoolCalendar      schoolcalendar.Calendar
 	calendarPeriodUsage timetablePorts.CalendarPeriodUsageRepository
 	Timetable           timetable.Capability
 	// Repositories are the retained Timetable adapters (#2743).
@@ -41,36 +45,23 @@ type TimetableTestRepositories struct {
 	// CalendarRows are the School Calendar rows and the class arrival
 	// exceptions.
 	timetableCompose.CalendarRows
-	Staff           peoplePorts.StaffRepository
-	Teacher         peoplePorts.TeacherRepository
-	ClassTeacher    ClassTeacherRepository
-	GroupTeacher    GroupTeacherRepository
-	Person          peoplePorts.PersonRepository
-	Student         peoplePorts.StudentRepository
-	Group           EducationGroupRepository
-	ActiveGroup     studentpresence.SessionRecords
-	GroupSupervisor studentpresence.SupervisionRecords
 	// CareScheduleRepositories are the Care Plan schedule rows.
 	timetableCompose.CareScheduleRepositories
-	StudentStatusDay *StudentStatusDayRepository
-	// CarePlan is the owner capability the schedule adapters above delegate to.
-	CarePlan careplan.Capability
-	Room     *facilitiesAdapter.Repository
-	// Facilities is the owner capability the Room adapter delegates to.
-	Facilities facilitiesModule.Capability
-	// DeviationEvent is filled by NewTimetableTestRepositories, the
-	// composition that owns Audit persistence (ADR 0049).
-	DeviationEvent auditModels.DeviationEventRepository
+	// The owner's ports over the other owners' rows, which OwnerRows and
+	// TimetableTemplateRows hand the owner's reads.
+	rosterStudents      timetableCompose.RosterStudents
+	educationGroups     timetablePorts.EducationGroupDirectory
+	educationGroupNames timetablePorts.EducationGroupNames
+	ownerRooms          timetableCompose.OwnerRooms
+	deviationEvents     timetablePorts.DeviationEventReader
+	deviations          timetablePorts.DeviationProtocol
 }
 
-// NewTimetableTestRepositoriesWithMembers composes the timetable suites' repository
-// graph over the People Directory and School Membership repositories in
-// members, which services composes (#2743).
+// NewTimetableTestRepositoriesWithMembers composes the timetable suites' repository graph over
+// the People Directory and School Membership repositories in members, which
+// services composes (#2743). The graph has no deviation protocol; the
+// Änderungsprotokoll is bound by NewTimetableTestRepositories.
 func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (TimetableTestRepositories, error) {
-	var now func() time.Time
-	if len(clocks) > 0 {
-		now = clocks[0]
-	}
 	persons := members.People
 	timetableRooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
@@ -96,20 +87,16 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
+	rooms, err := NewTimetableRoomRows(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := NewTimetableRepositoriesWithPresence(db, bookings, persons, groups, rooms, calendar, membership, workTime, NewUnloggedStudentPresence(db))
-	sessions := NewSessionRecords(db, now, nil, rooms, bookings, membership, persons)
+	adapters := NewTimetableRepositoriesWithPresence(db, bookings, persons, groups, rooms.Facilities, calendar, membership, workTime, NewUnloggedStudentPresence(db))
 	carePlan, err := NewCarePlan(db, persons, adapters.InstanceStudent)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	enrollment := enrollmentCompose.New()
 	usage := timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), bookings)
-	room := facilitiesAdapter.New()
-	room.Bind(rooms)
 	result := TimetableTestRepositories{
 		Repositories: adapters,
 		CalendarRows: timetableCompose.CalendarRows{
@@ -117,15 +104,13 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 			ClosingDay:     timetableCompose.NewClosingDayRepository(calendar), Dateframe: timetableCompose.NewDateframeRepository(calendar),
 			ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db.Pool()),
 		},
-		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
-		Person: members.Person, Student: members.Student, Group: members.Group,
-		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
 		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
-		StudentStatusDay:         NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
-		enrollment: enrollment, schoolCalendar: calendar, calendarPeriodUsage: usage,
+		calendarPeriodUsage:      usage,
+		rosterStudents:           members.Student, educationGroups: members.Group,
+		educationGroupNames: TimetableEducationGroupNames(members.Group),
+		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room),
 	}
-	result.Room = room
-	result.Facilities = rooms
+	result.deviationEvents, result.deviations = TimetableDeviationPorts(nil)
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
 	// speak the retained rows reach them through the legacy row adapters
@@ -135,20 +120,23 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	return result, nil
 }
 
+// withDeviationAudit binds the owner rows' Änderungsprotokoll to the Audit
+// Platform's deviation events.
+func (r TimetableTestRepositories) withDeviationAudit(events auditModels.DeviationEventRepository) TimetableTestRepositories {
+	reader, protocol := TimetableDeviationPorts(events)
+	return TimetableTestRepositories{
+		calendarPeriodUsage: r.calendarPeriodUsage, Timetable: r.Timetable, Repositories: r.Repositories,
+		StaffShift: r.StaffShift, ShiftType: r.ShiftType, CalendarRows: r.CalendarRows,
+		CareScheduleRepositories: r.CareScheduleRepositories,
+		rosterStudents:           r.rosterStudents, educationGroups: r.educationGroups,
+		educationGroupNames: r.educationGroupNames, ownerRooms: r.ownerRooms,
+		deviationEvents: reader, deviations: protocol,
+	}
+}
+
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(newEnrollmentBookings(r.enrollment))
+	return NewEnrollmentBookingProjection(newEnrollmentBookings(enrollmentCompose.New()))
 }
-
-// DeviationEventsBetween lists the Änderungsprotokoll entries with an
-// occurrence in [from, to], for suites that read them back without naming the
-// Audit Platform's date.
-func (r TimetableTestRepositories) DeviationEventsBetween(ctx context.Context, from, to timezone.Date) ([]*auditModels.DeviationEvent, error) {
-	return r.DeviationEvent.ListByRange(ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
-}
-
-// SchoolCalendar returns the calendar owner the period, closing-day and
-// dateframe adapters above delegate to.
-func (r TimetableTestRepositories) SchoolCalendar() schoolcalendar.Calendar { return r.schoolCalendar }
 
 // CalendarPeriodUsage returns the planning owners' per-period reference
 // counts (#3124).
@@ -159,15 +147,118 @@ func (r TimetableTestRepositories) CalendarPeriodUsage() timetablePorts.Calendar
 // OwnerRows are the retained rows the Timetable owner's reads run over
 // (#3551), filled from the test repository set.
 func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
-	rows := timetableCompose.OwnerRows{
+	return timetableCompose.OwnerRows{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
-		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
-		EducationGroups: TimetableEducationGroupNames(r.Group), Rooms: facilitiesCompose.NewRoomNameDirectory(r.Room),
+		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.rosterStudents,
+		EducationGroups: r.educationGroupNames, Rooms: r.ownerRooms,
 		PickupExceptions: r.StudentPickupException, ArrivalExceptions: r.StudentArrivalException,
+		DeviationEvents: r.deviationEvents, Deviations: r.deviations,
 	}
-	rows.DeviationEvents, rows.Deviations = TimetableDeviationPorts(r.DeviationEvent)
-	return rows
 }
+
+// TimetablePresenceRows are Student Presence's live sessions and
+// supervisions over the Timetable owner's activities.
+type TimetablePresenceRows struct {
+	ActiveGroup     studentpresence.SessionRecords
+	GroupSupervisor studentpresence.SupervisionRecords
+}
+
+// NewTimetablePresenceRows composes the live sessions and supervisions over
+// the activities of timetable and the people in members.
+func NewTimetablePresenceRows(db transactionruntime.Database, timetable TimetableTestRepositories, members MembershipTestRepositories, clocks ...func() time.Time) (TimetablePresenceRows, error) {
+	var now func() time.Time
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
+	if err != nil {
+		return TimetablePresenceRows{}, err
+	}
+	groups, err := NewSchoolStructure(db)
+	if err != nil {
+		return TimetablePresenceRows{}, err
+	}
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return TimetablePresenceRows{}, err
+	}
+	sessions := NewSessionRecords(db, now, nil, rooms, timetable.Timetable, membership, members.People)
+	return TimetablePresenceRows{ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups)}, nil
+}
+
+// TimetableCarePlanRows are the Care Plan owner and its status-day rows over
+// the Timetable owner's participants.
+type TimetableCarePlanRows struct {
+	StudentStatusDay *StudentStatusDayRepository
+	CarePlan         careplan.Capability
+}
+
+// NewTimetableCarePlanRows composes the Care Plan owner over the participants
+// of timetable and the people in members.
+func NewTimetableCarePlanRows(db transactionruntime.Database, timetable TimetableTestRepositories, members MembershipTestRepositories) (TimetableCarePlanRows, error) {
+	carePlan, err := NewCarePlan(db, members.People, timetable.InstanceStudent)
+	if err != nil {
+		return TimetableCarePlanRows{}, err
+	}
+	return TimetableCarePlanRows{StudentStatusDay: NewStudentStatusDayRepository(carePlan), CarePlan: carePlan}, nil
+}
+
+// TimetableRoomRows are the Facilities rooms the timetable suites arrange
+// through.
+type TimetableRoomRows struct {
+	Room *facilitiesAdapter.Repository
+	// Facilities is the owner capability the Room adapter delegates to.
+	Facilities facilitiesModule.Capability
+}
+
+// NewTimetableRoomRows composes the Facilities owner unobserved with the
+// retained room adapter over it.
+func NewTimetableRoomRows(db transactionruntime.Database) (TimetableRoomRows, error) {
+	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
+	if err != nil {
+		return TimetableRoomRows{}, err
+	}
+	room := facilitiesAdapter.New()
+	room.Bind(rooms)
+	return TimetableRoomRows{Room: room, Facilities: rooms}, nil
+}
+
+// TimetableDeviationAudit is the Audit Platform's Änderungsprotokoll the
+// timetable suites read back.
+type TimetableDeviationAudit struct {
+	DeviationEvent auditModels.DeviationEventRepository
+}
+
+// NewTimetableDeviationAudit composes the deviation events over the test
+// database, the composition that owns Audit persistence (ADR 0049).
+func NewTimetableDeviationAudit(db transactionruntime.Database) TimetableDeviationAudit {
+	return TimetableDeviationAudit{DeviationEvent: NewTestAuditPersistence(db, nil).DeviationEvent}
+}
+
+// DeviationEventsBetween lists the Änderungsprotokoll entries with an
+// occurrence in [from, to], for suites that read them back without naming the
+// Audit Platform's date.
+func (r TimetableDeviationAudit) DeviationEventsBetween(ctx context.Context, from, to timezone.Date) ([]*auditModels.DeviationEvent, error) {
+	return r.DeviationEvent.ListByRange(ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
+}
+
+// TimetableSchoolCalendar is the School Calendar owner the timetable's
+// period, closing-day and dateframe adapters delegate to.
+type TimetableSchoolCalendar struct {
+	schoolCalendar schoolcalendar.Calendar
+}
+
+// NewTimetableSchoolCalendar composes the School Calendar owner over db.
+func NewTimetableSchoolCalendar(db transactionruntime.Database) (TimetableSchoolCalendar, error) {
+	calendar, err := NewSchoolCalendar(db)
+	if err != nil {
+		return TimetableSchoolCalendar{}, err
+	}
+	return TimetableSchoolCalendar{schoolCalendar: calendar}, nil
+}
+
+// SchoolCalendar returns the calendar owner.
+func (c TimetableSchoolCalendar) SchoolCalendar() schoolcalendar.Calendar { return c.schoolCalendar }
 
 // RosterMaintenance is the Timetable owner's roster maintenance over the test
 // repository set (#3424 slice S2), for suites that compose a grade
@@ -202,6 +293,29 @@ func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.Temp
 		Groups: r.ActivityGroup, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
 		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Instances: r.ActivityInstance,
 		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,
-		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.Group,
+		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.educationGroups,
 	}
+}
+
+// newTimetableTestCompanions composes the rows of the other owners the
+// suites arrange through beside timetable: Student Presence, Care Plan,
+// Facilities and the School Calendar.
+func newTimetableTestCompanions(db transactionruntime.Database, timetable TimetableTestRepositories, members MembershipTestRepositories, clocks ...func() time.Time) (TimetablePresenceRows, TimetableCarePlanRows, TimetableRoomRows, TimetableSchoolCalendar, error) {
+	presence, err := NewTimetablePresenceRows(db, timetable, members, clocks...)
+	if err != nil {
+		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
+	}
+	care, err := NewTimetableCarePlanRows(db, timetable, members)
+	if err != nil {
+		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
+	}
+	rooms, err := NewTimetableRoomRows(db)
+	if err != nil {
+		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
+	}
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
+	}
+	return presence, care, rooms, calendar, nil
 }

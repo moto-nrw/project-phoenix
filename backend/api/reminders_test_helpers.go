@@ -33,6 +33,11 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
+	members := MustNewMembershipTestRepositories(db)
+	presence, err := NewTimetablePresenceRows(db, r, members)
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return RemindersTestModule{}, err
@@ -78,8 +83,8 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		CurrentStaff: ReminderStaffIdentity(groups.UserContext),
 		Settings:     ReminderSettings{SettingsService: settings.Settings}, Attendance: NewLoggedStudentPresence(db, slog.Default()), Pickup: ReminderPickupReader{Source: pickup},
 		Instance: ReminderTimetableReader{Source: r.Timetable}, Room: ReminderRoomReader{Source: rooms},
-		Student: ReminderStudentReader{Source: r.Student}, Person: ReminderPersonReader{Source: r.Person}, Supervision: ReminderSupervisionReader{Source: groups.Active, Presence: NewLoggedStudentPresence(db, slog.Default())},
-		Visits: ReminderVisitReader{Source: NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: ReminderBulkSupervisionReader{Source: r.GroupSupervisor}, BulkInstanceStaff: ReminderTimetableReader{Source: r.Timetable},
+		Student: ReminderStudentReader{Source: members.Student}, Person: ReminderPersonReader{Source: members.Person}, Supervision: ReminderSupervisionReader{Source: groups.Active, Presence: NewLoggedStudentPresence(db, slog.Default())},
+		Visits: ReminderVisitReader{Source: NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: ReminderBulkSupervisionReader{Source: presence.GroupSupervisor}, BulkInstanceStaff: ReminderTimetableReader{Source: r.Timetable},
 	})
 	return RemindersTestModule{Reminders: service, Settings: settings.Settings, UserContext: groups.UserContext}, nil
 }
