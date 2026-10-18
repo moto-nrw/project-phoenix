@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 var (

@@ -3,7 +3,7 @@ package settingstest
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

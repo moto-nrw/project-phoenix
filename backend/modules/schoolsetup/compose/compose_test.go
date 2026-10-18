@@ -30,7 +30,7 @@ func newHarness(t *testing.T) *harness {
 	settings := api.NewSettingsTestService(testpkg.SettingsRuntime(t, db))
 	testpkg.SetTenantRuntime(t, settings, db)
 	h := &harness{db: db}
-	service, err := compose.New(compose.Dependencies{Settings: settings})
+	service, err := compose.New(compose.Dependencies{Settings: api.SchoolSetupSettings{Settings: settings}})
 	require.NoError(t, err)
 	h.router = schoolsetuphttp.NewResource(service, harnessRuntime(db)).Router()
 	return h

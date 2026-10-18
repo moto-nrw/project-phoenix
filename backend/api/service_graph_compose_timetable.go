@@ -18,7 +18,7 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -233,11 +233,9 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 			ActiveGroups: b.Presence.SessionRecords, Templates: repos.ActivityGroup, Instances: repos.ActivityInstance,
 			PickupSchedule: b.graph.PickupSchedule,
 		}),
-		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools: b.People.DisplaySchools, Settings: b.settingsService,
-		}),
+		Tenants:      NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),
 		Now:          timezone.Now,
-		OnlineWindow: devicefleetLegacy.NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
+		OnlineWindow: NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
 		Observe: func(observation devicefleetCompose.Observation) {
 			b.ObserveDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
 		},

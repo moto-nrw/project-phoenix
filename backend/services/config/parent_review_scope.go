@@ -1,6 +1,6 @@
 package config
 
-import "github.com/moto-nrw/project-phoenix/models/config"
+import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 
 // Project the compatibility values to the effective three-choice UI. The
 // stored values and override provenance stay intact; merely viewing the schema

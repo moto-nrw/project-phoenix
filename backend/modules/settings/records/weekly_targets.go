@@ -1,4 +1,4 @@
-package config
+package records
 
 // This file holds pure weekly-target derivations shared by consumers that
 // resolve contractual Soll minutes from work-time data (staff schedule

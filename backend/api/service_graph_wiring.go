@@ -7,22 +7,13 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -32,15 +23,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -54,9 +47,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -161,7 +157,7 @@ type PeopleWiring struct {
 	// enrollment flows, the device displays and the parent-message branding.
 	SchoolContacts    deliveryCompose.MailSchoolContacts
 	EnrollmentSchools enrollmentOwner.SchoolDirectory
-	DisplaySchools    devicefleetLegacy.SchoolDirectory
+	DisplaySchools    DisplaySchoolDirectory
 	SchoolNames       interface {
 		FindSchoolName(ctx context.Context, id int64) (string, bool, error)
 	}
@@ -744,7 +740,7 @@ type PresenceWiring struct {
 
 	// Constructors over the values this graph composes.
 	BindClassListEntries func(auditModels.Command) error
-	SessionDevices       func(devicefleetLegacy.SettingsResolver) presenceservice.SessionDeviceDirectory
+	SessionDevices       func(DeviceOnlineWindowSettings) presenceservice.SessionDeviceDirectory
 	AttendanceStaffNames func(peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames
 	ClassDay             func(ClassDaySources) classday.ClassDay
 	Statistics           func(StatisticsSources) studentpresence.StatisticsReports
@@ -769,7 +765,7 @@ type ClassDaySources struct {
 	StudentGuardians       classDayContactRows
 	AccessLog              accessLogLedger
 	ClassArrivalExceptions careplan.ClassArrivalExceptions
-	Settings               classdayCompose.WriteScopeReader
+	Settings               classDayWriteScopeSettings
 	BlockStarts            classdayCompose.BlockStarts
 	// Broadcaster is optional: without it no arrival schedule change is
 	// announced.

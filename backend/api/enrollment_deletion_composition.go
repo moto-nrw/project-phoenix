@@ -4,11 +4,10 @@ import (
 	"context"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	timetableProjection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
 )
 

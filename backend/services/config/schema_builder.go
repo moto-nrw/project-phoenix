@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // buildSchema constructs the full settings schema for tenant admins.

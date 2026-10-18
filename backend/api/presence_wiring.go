@@ -7,7 +7,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -89,7 +88,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 			db.Pool(), owners.CarePlan.LockExceptionDay, owners.Now,
 		),
 		ClassListEntries: NewClassListEntryRosterReader(owners.Membership),
-		SessionDevices: func(settings devicefleetLegacy.SettingsResolver) presenceservice.SessionDeviceDirectory {
+		SessionDevices: func(settings DeviceOnlineWindowSettings) presenceservice.SessionDeviceDirectory {
 			return NewSessionDeviceDirectory(sessionDeviceRecords, settings, logger.With("service", "active"))
 		},
 		BindClassListEntries: func(audit auditModels.Command) error {

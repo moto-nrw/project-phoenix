@@ -1,4 +1,4 @@
-package config
+package records
 
 import (
 	"encoding/json"
@@ -89,9 +89,10 @@ func TestNewAuditEntry(t *testing.T) {
 	oldValue := json.RawMessage(`"old"`)
 	newValue := json.RawMessage(`"new"`)
 
-	entry := NewAuditEntry(5, "test.key", "set", oldValue, newValue, changedBy)
+	const tenantID int64 = 5
+	entry := NewAuditEntry(tenantID, "test.key", "set", oldValue, newValue, changedBy)
 
-	assert.Equal(t, int64(5), entry.TenantID)
+	assert.Equal(t, tenantID, entry.TenantID)
 	assert.Equal(t, "test.key", entry.SettingKey)
 	assert.Equal(t, "set", entry.Action)
 	assert.Equal(t, json.RawMessage(`"old"`), entry.OldValue)

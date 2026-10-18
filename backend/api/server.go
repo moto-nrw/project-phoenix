@@ -12,11 +12,7 @@ import (
 	"sync"
 	"time"
 
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-
 	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -27,9 +23,11 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -247,7 +245,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), settingsValues.NewParentMessageRetentionValues(graph.services.Settings)),
 		settledEnrollments:   graph.services.EnrollmentRejectedCleanup,
-		staffSickNotes:       workforceCompose.NewSickNoteRetention(graph.services.Settings),
+		staffSickNotes:       workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: graph.services.Settings}),
 		auditLedgers:         graph.services.Audit,
 		deliveries:           deliveryCompose.NewRetention(),
 		fileCleanups:         filestorageCompose.NewCleanupRetention(),

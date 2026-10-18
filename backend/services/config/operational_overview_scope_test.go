@@ -13,14 +13,13 @@ import (
 	"log/slog"
 	"testing"
 
+	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	// Registers the real setting definitions — the decision resolves the key
 	// against the production registry, not a test stand-in.

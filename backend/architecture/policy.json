@@ -1289,9 +1289,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/config",
+      "path": "modules/settings/records",
       "owner": "settings-platform",
-      "role": "legacy-model",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2165,13 +2165,6 @@
     },
     {
       "path": "modules/workforce/compose",
-      "owner": "workforce",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/compose/repositoryadapter",
       "owner": "workforce",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -3103,13 +3096,6 @@
     },
     {
       "path": "modules/settings/compose",
-      "owner": "settings-platform",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/settings/compose/vocabulary",
       "owner": "settings-platform",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -7318,15 +7304,15 @@
       "target_role": "contract"
     },
     {
-      "id": "settings-platform.test-support.domain",
-      "description": "The settings test support scripts tenant values against the registry keys they are stored under. The models/* packages carry the legacy-model role (ADR 0057).",
+      "id": "settings-platform.test-support.records-port",
+      "description": "The settings test support scripts tenant values against the registry keys of the owner's records port (#4085).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
       "source_role": "test-support",
       "target_owner": "settings-platform",
-      "target_role": "legacy-model"
+      "target_role": "port"
     },
     {
       "id": "student-presence.http.public",
@@ -10987,13 +10973,35 @@
       "target_role": "contract"
     },
     {
-      "id": "settings-platform.domain.production.settings-platform.review-contract",
-      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179). The models/* packages carry the legacy-model role (ADR 0057).",
+      "id": "settings-platform.postgres.records-port",
+      "description": "The Settings Platform stores persist the owner's own records, which the owner publishes as its port for the root (#4085).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
-      "source_role": "legacy-model",
+      "source_role": "postgres",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.internal-test.settings-platform.port",
+      "description": "The internal tests of the typed roots assert the Settings records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "settings-platform.records-port.review-contract",
+      "description": "The Settings Platform records bind the native request-review identity and tenant-setting contracts (#3179); the records moved from models/config into the owner's port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "port",
       "target_owner": "settings-platform",
       "target_role": "contract"
     },
@@ -11738,15 +11746,15 @@
       "target_role": "test-support"
     },
     {
-      "id": "settings-platform.public.domain",
-      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736). The models/* packages carry the legacy-model role (ADR 0057).",
+      "id": "settings-platform.public.records-port",
+      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736), from the owner's records port (#4085).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
       "source_role": "public",
       "target_owner": "settings-platform",
-      "target_role": "legacy-model"
+      "target_role": "port"
     },
     {
       "id": "settings-platform.compose.tenant-runtime",

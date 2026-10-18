@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // The bindings below connect Enrollment's application services (#3562) to

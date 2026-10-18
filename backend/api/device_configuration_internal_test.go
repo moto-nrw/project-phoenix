@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,7 @@ const mockDeviceTenantID int64 = 987654
 type configurationResolverStub struct {
 	ResolveStringForTenantFn func(context.Context, int64, string) (string, error)
 	ResolveBoolForTenantFn   func(context.Context, int64, string) (bool, error)
-	ResolveManyForTenantFn   func(context.Context, int64, []string) (*configurationSnapshot, error)
+	ResolveManyForTenantFn   func(context.Context, int64, []string) (*settingsCompose.SettingsSnapshot, error)
 }
 
 func (s *configurationResolverStub) ResolveStringForTenant(ctx context.Context, id int64, key string) (string, error) {
@@ -24,7 +25,7 @@ func (s *configurationResolverStub) ResolveStringForTenant(ctx context.Context, 
 func (s *configurationResolverStub) ResolveBoolForTenant(ctx context.Context, id int64, key string) (bool, error) {
 	return s.ResolveBoolForTenantFn(ctx, id, key)
 }
-func (s *configurationResolverStub) ResolveManyForTenant(ctx context.Context, id int64, keys []string) (*configurationSnapshot, error) {
+func (s *configurationResolverStub) ResolveManyForTenant(ctx context.Context, id int64, keys []string) (*settingsCompose.SettingsSnapshot, error) {
 	if s.ResolveManyForTenantFn == nil {
 		return nil, nil
 	}
@@ -52,19 +53,19 @@ func TestConfigurationResolutionFailuresRemainErrors(t *testing.T) {
 				}
 				return bools(ctx, id, requested)
 			}
-			_, err := (configurationSettings{settings}).LoadConfiguration(t.Context(), mockDeviceTenantID)
+			_, err := (DeviceConfiguration{Settings: settings}).LoadConfiguration(t.Context(), mockDeviceTenantID)
 			require.ErrorContains(t, err, "settings unavailable")
 		})
 	}
 	settings := newConfigMock(nil, nil)
-	settings.ResolveManyForTenantFn = func(_ context.Context, id int64, keys []string) (*configurationSnapshot, error) {
+	settings.ResolveManyForTenantFn = func(_ context.Context, id int64, keys []string) (*settingsCompose.SettingsSnapshot, error) {
 		require.Equal(t, mockDeviceTenantID, id)
 		require.Len(t, keys, 6)
 		return nil, fmt.Errorf("settings unavailable")
 	}
-	_, err := (configurationSettings{settings}).LoadConfiguration(t.Context(), mockDeviceTenantID)
+	_, err := (DeviceConfiguration{Settings: settings}).LoadConfiguration(t.Context(), mockDeviceTenantID)
 	require.ErrorContains(t, err, "settings unavailable")
-	_, err = (configurationSettings{}).LoadConfiguration(t.Context(), mockDeviceTenantID)
+	_, err = (DeviceConfiguration{}).LoadConfiguration(t.Context(), mockDeviceTenantID)
 	require.ErrorContains(t, err, "device configuration requires settings service")
 }
 
@@ -102,7 +103,7 @@ func newConfigMock(boolValues map[string]bool, stringValues map[string]string) *
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	t.Parallel()
 
-	rs := configurationSettings{settings: newConfigMock(
+	rs := DeviceConfiguration{Settings: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
@@ -142,7 +143,7 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	t.Parallel()
 
-	rs := configurationSettings{settings: newConfigMock(
+	rs := DeviceConfiguration{Settings: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": false, // typically off in binary (no rooms)
 			"checkout.schulhof_enabled":    true,  // binary + schulhof → 3-button kiosk
@@ -169,7 +170,7 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	t.Parallel()
 
-	rs := configurationSettings{settings: newConfigMock(
+	rs := DeviceConfiguration{Settings: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": false,
 			"checkout.schulhof_enabled":    false,
@@ -200,7 +201,7 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	t.Parallel()
 
-	rs := configurationSettings{settings: newConfigMock(
+	rs := DeviceConfiguration{Settings: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
@@ -228,7 +229,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 func TestGetDeviceConfig_ExplicitEmptyCheckoutTime(t *testing.T) {
 	t.Parallel()
 
-	rs := configurationSettings{settings: newConfigMock(
+	rs := DeviceConfiguration{Settings: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,

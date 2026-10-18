@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // settingsSource is the tenant-settings surface the presence adapters read
