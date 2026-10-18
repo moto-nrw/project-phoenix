@@ -32,7 +32,10 @@ func newWorkflowAuditCommand(db transactionruntime.Database, logger *slog.Logger
 	}
 	command, err := auditCompose.NewCommand(audits.AppendStore, func(event auditCompose.AppendObservation) {
 		if event.Err != nil {
-			logger.Error(message, "event_type", event.EventType, "error", event.Err)
+			logger.Error(message,
+				"event_type", event.EventType,
+				"error", event.Err,
+			)
 		}
 	})
 	if err != nil {
