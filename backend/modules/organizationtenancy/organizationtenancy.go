@@ -107,6 +107,7 @@ type Command interface {
 	CreateSchool(context.Context, CreateSchool) (School, error)
 	UpdateSchool(context.Context, UpdateSchool) (School, error)
 	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
+	UpdateSchoolSettings(ctx context.Context, id int64, update func(string) (string, error)) error
 	SoftDeleteSchool(context.Context, int64) (School, error)
 	RestoreSchool(context.Context, int64) (School, error)
 }

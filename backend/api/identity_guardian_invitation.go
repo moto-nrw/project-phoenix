@@ -2,10 +2,8 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -250,32 +248,10 @@ func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peop
 
 // --- school branding --------------------------------------------------------
 
-// The keys a school's settings JSON carries its branding image under. The
-// login image serves as the fallback so a school that only set that one
-// still brands its invitation pages.
-const (
-	schoolLogoURLKey       = "logoUrl"
-	schoolLoginImageURLKey = "loginImageUrl"
-)
-
 // schoolLogoURLFromSettings reads the branding image out of a school's
-// settings JSON; malformed settings simply carry no branding.
+// settings JSON by Organisation & Tenancy's rule.
 func schoolLogoURLFromSettings(settingsJSON string) string {
-	settingsJSON = strings.TrimSpace(settingsJSON)
-	if settingsJSON == "" {
-		return ""
-	}
-	var settings map[string]any
-	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
-		return ""
-	}
-	for _, key := range []string{schoolLogoURLKey, schoolLoginImageURLKey} {
-		value, ok := settings[key].(string)
-		if ok && strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
+	return organizationtenancy.SchoolLogoURL(settingsJSON)
 }
 
 // --- the parents portal's guardian access runtime ---------------------------
