@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -15,7 +17,6 @@ import (
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -35,7 +36,7 @@ import (
 )
 
 func (ActiveTestModule) WithAttendanceStaff(ctx context.Context, staffID, tenantID int64) context.Context {
-	return devicescanCompose.WithAttendanceStaff(ctx, staffID, tenantID)
+	return deviceauth.WithAttendanceStaff(ctx, staffID, tenantID)
 }
 
 // ActiveTestModule is the Care Plan side of the active graph the presence,
@@ -236,20 +237,20 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	presenceDeps := presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		PrincipalReader: AttendancePrincipal,
 		StudentDisplay:  StudentDisplayProjection{Students: students, Groups: displayGroups},
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
 		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
-		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rRooms.Room),
+		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(rRooms.Room),
 		ActivityGroupRepo: NewSessionActivities(rt.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(rt.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(members.Staff, dataUsers), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
-	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivities.Activities), facilitiesLegacy.OpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
+	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivities.Activities), facilitiesCompose.NewOpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(rt.Timetable, NewPartialAbsencePreview(db)),
 	})
@@ -312,7 +313,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger),
+		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},

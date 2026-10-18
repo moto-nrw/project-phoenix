@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-
 	"github.com/moto-nrw/project-phoenix/api"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -31,7 +29,7 @@ func newSessionCleanupService(db transactionruntime.Database, schools organizati
 	groups, supervisors := presenceCompose.SessionRepositories(sessions)
 	settings := newCleanupSettingsService(db, schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence:  api.NewLoggedStudentPresence(db, logger),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
 		DeviceRepo: api.NewSessionDeviceDirectory(devices, settings, logger), TimetableBridgeCompleter: completion, DB: db.Pool(), Logger: logger,

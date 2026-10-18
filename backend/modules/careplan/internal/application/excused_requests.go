@@ -41,7 +41,7 @@ const (
 type ExcusedRequestDependencies struct {
 	CarePlan    careplan.Capability
 	Students    ports.ExcusedRequestStudents
-	Scope       ports.ReviewScopeResolver
+	Scope       careplan.ReviewScopeResolver
 	Hooks       ports.TransactionHooks
 	Today       func() careplan.Date
 	Observe     ports.Observer
@@ -60,7 +60,7 @@ type ExcusedRequestDependencies struct {
 type ExcusedRequests struct {
 	carePlan    careplan.Capability
 	students    ports.ExcusedRequestStudents
-	scope       ports.ReviewScopeResolver
+	scope       careplan.ReviewScopeResolver
 	hooks       ports.TransactionHooks
 	today       func() careplan.Date
 	observe     ports.Observer
@@ -919,15 +919,15 @@ func staffAbsenceStatus(value string) (string, error) {
 
 // --- guards
 
-func (w *ExcusedRequests) reviewScope(ctx context.Context) (ports.ReviewScope, error) {
+func (w *ExcusedRequests) reviewScope(ctx context.Context) (careplan.ReviewScope, error) {
 	scope, err := w.scope(ctx)
 	if err != nil {
-		return ports.ReviewScope{}, fmt.Errorf("care plan: resolve request reviewer scope: %w", err)
+		return careplan.ReviewScope{}, fmt.Errorf("care plan: resolve request reviewer scope: %w", err)
 	}
 	return scope, nil
 }
 
-func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *ports.ReviewStudent) error {
+func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *careplan.ReviewStudent) error {
 	scope, err := w.reviewScope(ctx)
 	if err != nil {
 		return err
@@ -941,7 +941,7 @@ func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *ports.Re
 // validateAbsenceApproval keeps every path that writes parent-sourced status
 // days behind the same lifecycle, conflict, and guardian-access checks.
 func (w *ExcusedRequests) validateAbsenceApproval(
-	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *ports.ReviewStudent,
+	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent,
 ) error {
 	today := w.today()
 	if student.Alumnus || student.CareEndedOn(today) {
@@ -980,7 +980,7 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 // excusedBulkEligibility answers whether this request can ride a bulk
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
-func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student ports.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
+func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
 	if !absenceBulkEligible(req.Dates, today) {
 		return false, careplan.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
 	}
@@ -1320,7 +1320,7 @@ func (w *ExcusedRequests) listPendingForTenant(ctx context.Context, queue *carep
 	})
 }
 
-func (w *ExcusedRequests) loadStudentNames(ctx context.Context, studentIDs []int64, what string) (map[int64]ports.ReviewStudent, map[int64]ports.PersonName, error) {
+func (w *ExcusedRequests) loadStudentNames(ctx context.Context, studentIDs []int64, what string) (map[int64]careplan.ReviewStudent, map[int64]careplan.PersonName, error) {
 	students, err := w.students.FindStudents(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("care plan: load students for %s: %w", what, err)
@@ -1362,7 +1362,7 @@ func nextCursor[T any](rows []T, limit int, key func(T) (time.Time, int64)) ([]T
 // reviewerDisplayName resolves a nullable reviewer account id to a display
 // name. A decided row whose reviewer account was deleted still shows up, as
 // "Unbekannt", instead of losing the fact that somebody decided it.
-func reviewerDisplayName(reviewers map[int64]ports.PersonName, reviewedBy *int64) string {
+func reviewerDisplayName(reviewers map[int64]careplan.PersonName, reviewedBy *int64) string {
 	if reviewedBy == nil || *reviewedBy <= 0 {
 		return ""
 	}
@@ -1372,7 +1372,7 @@ func reviewerDisplayName(reviewers map[int64]ports.PersonName, reviewedBy *int64
 	return "Unbekannt"
 }
 
-func requestExtendsBeyondCare(req *careplan.ExcusedAbsenceRequest, student *ports.ReviewStudent) bool {
+func requestExtendsBeyondCare(req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent) bool {
 	if req == nil || student == nil || student.EnrolledUntil.IsZero() {
 		return false
 	}

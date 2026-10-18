@@ -3,9 +3,8 @@
 package api
 
 import (
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
@@ -17,11 +16,10 @@ import (
 var (
 	// WithAttendanceStaff and AttendancePrincipal are the device scan's
 	// attendance principal.
-	WithAttendanceStaff = devicescanCompose.WithAttendanceStaff
-	AttendancePrincipal = devicescanCompose.AttendancePrincipal
+	WithAttendanceStaff = deviceauth.WithAttendanceStaff
 	// NewRoomRepository and NewAttendanceRooms are the Facilities room reads.
 	NewRoomRepository  = facilitiesCompose.NewRoomRepository
-	NewAttendanceRooms = facilitiesLegacy.NewAttendanceRooms
+	NewAttendanceRooms = facilitiesCompose.NewAttendanceRooms
 	// PresenceSettings answers the presence questions from the tenant settings.
 	PresenceSettings = settingsCompose.PresenceSettings
 	// NewAttendanceActivityCategories is the Timetable category total.

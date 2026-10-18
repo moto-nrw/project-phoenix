@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -75,7 +76,7 @@ type SessionCleanupTimetableBridge interface {
 // Timetable: the Student Presence session and supervision records, the
 // devices of the sessions and the Timetable completion of their planned
 // instances.
-func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) (studentpresence.SessionRecords, devicefleetLegacy.SessionDeviceRecords, SessionCleanupTimetableBridge) {
+func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) (studentpresence.SessionRecords, devicefleet.SessionDeviceRecords, SessionCleanupTimetableBridge) {
 	if timetableCapability == nil {
 		panic("session cleanup repositories: timetable capability is required")
 	}

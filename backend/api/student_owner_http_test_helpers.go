@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -237,55 +239,57 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	// The production root binds the same Identity & Access policy for the
 	// projection as for the decisions (#3804).
 	reviews := live.Caller().ParentRequestReviews
-	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+	reviewScope := func(ctx context.Context) (careplan.ReviewScope, error) {
 		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, sessiontoken.PermissionsFromCtx(ctx))
-		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
+		return careplan.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(store.Pool(), studentRows, peopleServices.PeopleDirectory,
-		reviewScope, func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	masterDataReviews, err := NewRequestReviewMasterData(store,
+		studentRows,
+		peopleServices.PeopleDirectory,
+		reviewScope,
+		func() careplan.Date {
+			return careplan.Date(calendar.DateFromTime(clock()))
 		},
-		func(requestreviewcompose.CareObservation) {})
+		func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, nil, err
 	}
-	careReviews, err := requestreviewcompose.NewScheduleReviews(store.Pool(), studentRows, requestreviewcompose.ScheduleReviewDependencies{
-		People: peopleServices.PeopleDirectory,
-		Scope:  reviewScope,
-		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+	careReviews, err := NewRequestReviewSchedules(store,
+		studentRows,
+		peopleServices.PeopleDirectory,
+		reviewScope,
+		func(ctx context.Context) (bool, error) {
 			return liveSettings.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today: func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+		func() careplan.Date {
+			return careplan.Date(calendar.DateFromTime(clock()))
 		},
-		ObserveCare:      func(requestreviewcompose.CareObservation) {},
-		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
-		Blocks:           NewStudentHTTPTestPickupReviewBlocks(store),
+		func(carePlanCompose.Observation) {},
+		func(timetableCompose.Observation) {},
+		NewStudentHTTPTestPickupReviewBlocks(store))
+	if err != nil {
+		return nil, nil, err
+	}
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() careplan.Date {
+		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	offeringReviews, err := requestreviewcompose.NewOfferingReviews(store.Pool(), requestreviewcompose.OfferingReviewDependencies{
-		People: peopleServices.PeopleDirectory,
-		Scope:  reviewScope,
-		Today: func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	offeringReviews, err := NewRequestReviewOfferings(store,
+		peopleServices.PeopleDirectory,
+		reviewScope,
+		func() careplan.Date {
+			return careplan.Date(calendar.DateFromTime(clock()))
 		},
-		ObserveCare:      func(requestreviewcompose.CareObservation) {},
-		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
-	})
+		func(carePlanCompose.Observation) {},
+		func(timetableCompose.Observation) {})
 	if err != nil {
 		return nil, nil, err
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() careplan.Date {
+		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
 		return nil, nil, err
@@ -304,8 +308,8 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() careplan.Date {
+		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
 		return nil, nil, err

@@ -68,21 +68,21 @@ type SessionHeartbeat interface {
 type sessionLifecycle struct {
 	store      LifecycleStore
 	people     LifecyclePeople
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	heartbeat  SessionHeartbeat
 	mirror     SessionMirror
 	clock      ports.Clock
 	logger     *slog.Logger
 }
 
-func NewSessionLifecycle(store LifecycleStore, people LifecyclePeople, principals ports.Principals, heartbeat SessionHeartbeat, mirror SessionMirror, clock ports.Clock, logger *slog.Logger) devicescan.SessionLifecycle {
+func NewSessionLifecycle(store LifecycleStore, people LifecyclePeople, principals devicescan.PrincipalReader, heartbeat SessionHeartbeat, mirror SessionMirror, clock ports.Clock, logger *slog.Logger) devicescan.SessionLifecycle {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &sessionLifecycle{store: store, people: people, principals: principals, heartbeat: heartbeat, mirror: mirror, clock: clock, logger: logger}
 }
 
-func (s *sessionLifecycle) device(ctx context.Context) (*ports.Device, error) {
+func (s *sessionLifecycle) device(ctx context.Context) (*devicescan.PrincipalDevice, error) {
 	device, ok := s.principals.Device(ctx)
 	if !ok || device == nil {
 		return nil, devicescan.ErrDeviceUnauthorized

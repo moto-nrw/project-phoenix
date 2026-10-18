@@ -7,7 +7,6 @@ import (
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -66,8 +65,8 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return fail(err)
 	}
 	facility := facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
-		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(RoomOccupancyPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, roomActivityNames{r.Timetable}, membership, people),
-		History: facilitiesLegacy.HistoryProjection(RoomHistoryPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, roomActivityNames{r.Timetable}, membership, people),
+		Rooms: rooms, Occupancy: facilitiesCompose.OccupancyProjection(RoomOccupancyPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, roomActivityNames{r.Timetable}, membership, people),
+		History: facilitiesCompose.HistoryProjection(RoomHistoryPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, roomActivityNames{r.Timetable}, membership, people),
 	})
 	// Data routes also resolve people and RFID tags, beyond activity staff reads.
 	identity, err := NewRFIDTestModule(db)
@@ -79,8 +78,8 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return fail(err)
 	}
 	return IoTDataTestModule{
-			Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}), RoomAvailability: devicescanCompose.NewRoomAvailability(facility),
-			Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(persons), DeviceActivityCatalog(activities.Activities), nil), TagAssignments: identity.TagAssignments,
+			Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}, DeviceScanPrincipal), RoomAvailability: devicescanCompose.NewRoomAvailability(facility, DeviceScanPrincipal),
+			Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(persons), DeviceActivityCatalog(activities.Activities), nil, DeviceScanPrincipal), TagAssignments: identity.TagAssignments,
 		}, activities, persons, devices, facility,
 		&RoomUsage{Sessions: NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, nil
 }

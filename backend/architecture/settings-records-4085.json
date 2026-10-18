@@ -65,7 +65,7 @@
       "backend/modules/settings/records/registry.go",
       "backend/modules/classday/compose/slotlists.go",
       "backend/modules/devicescan/compose/settings.go",
-      "backend/modules/facilities/compose/httpadapter/runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/d8708d82c7c8e18774acc3ee800014649560d666/backend/modules/facilities/compose/httpadapter/runtime.go",
       "backend/modules/schoolsetup/compose/compose.go",
       "backend/modules/workforce/compose/retention.go"
     ],

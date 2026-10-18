@@ -88,8 +88,17 @@ func init() {
 		t.Helper()
 		return api.NewTimetableHTTPTestOfferingSources(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	}
-	root.StaffAccountPeople = func(personID, staffID int64) timetablePorts.OperationPeople {
-		return api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID}
+	root.StaffAccountPeople = func(personID, staffID int64, session timetablePorts.RequestSession) interface {
+		timetablePorts.OperationPeople
+		timetablePorts.OperationCaller
+	} {
+		return struct {
+			timetablePorts.OperationPeople
+			timetablePorts.OperationCaller
+		}{
+			OperationPeople: api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID},
+			OperationCaller: api.TimetableOperationCaller{RequestSession: session},
+		}
 	}
 	root.ErrCareOfferingInvalid = api.TimetableHTTPTestCareOfferingInvalid
 }

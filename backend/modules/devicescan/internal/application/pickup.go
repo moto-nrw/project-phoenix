@@ -65,7 +65,7 @@ func (s *Service) PickupInfo(ctx context.Context, rfidTag string) (*devicescan.P
 // resolvePickupPerson keeps the pickup-query error contract: an unknown card
 // is 404 with an unregistered-scan record, a lookup failure 500, and an
 // unassigned card 404.
-func (s *Service) resolvePickupPerson(ctx context.Context, device *ports.Device, tag string) (*ports.Person, error) {
+func (s *Service) resolvePickupPerson(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Person, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
 		if isPersonNotFound(err) {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -56,7 +58,7 @@ func NewCalendarFacts(
 // as it is.
 func BindCalendarScheduleFacts(
 	cfg calendarCompose.Config, assignments timetablePorts.CalendarAssignmentRows, instances timetablePorts.CalendarInstanceRows,
-	rooms facilitiesCompose.RoomRows, shifts timetablePorts.CalendarShiftRows, shiftTypes timetablePorts.CalendarShiftTypeRows,
+	rooms facilitiesNative.RoomRows, shifts timetablePorts.CalendarShiftRows, shiftTypes timetablePorts.CalendarShiftTypeRows,
 ) calendarCompose.Config {
 	if assignments != nil {
 		cfg.InstanceStaffRepo = calendarAssignmentPort{assignments}
@@ -289,12 +291,12 @@ func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, 
 }
 
 type calendarRoomPort struct {
-	source facilitiesCompose.RoomRows
+	source facilitiesNative.RoomRows
 }
 
 func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.Room, error) {
 	value, err := facilitiesCompose.FindRoomNames(ctx, p.source, ids)
-	return calendarMapSlice(value, func(v *facilitiesCompose.RoomName) *calendarCompose.Room {
+	return calendarMapSlice(value, func(v *facilitiesNative.RoomName) *calendarCompose.Room {
 		if v == nil {
 			return nil
 		}

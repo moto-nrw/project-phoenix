@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
@@ -100,7 +99,7 @@ func newOperatorSettingSideEffects(db transactionruntime.Database, unit tenant.U
 		return nil, nil, err
 	}
 	wc := facilitiesCompose.NewWCService(facilities.Facilities, FacilitiesActivityCatalog(timetableRows.Activities), slog.Default())
-	schulhof, wcSwitch := facilitiesLegacy.SettingHandlers(facilities.SchulhofService, wc)
+	schulhof, wcSwitch := facilitiesCompose.SettingHandlers(facilities.SchulhofService, wc)
 	return []settingsCompose.SettingSideEffect{
 		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
 		{Key: configModels.KeyCheckoutWCEnabled, Handle: wcSwitch},

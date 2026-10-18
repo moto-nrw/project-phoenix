@@ -39,7 +39,7 @@ func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64
 	if row.Status != masterdatarequests.StatusPending {
 		return nil, masterdatarequests.ErrReviewNotFound
 	}
-	facts, err := s.people.ReviewFields(ctx, []ports.MasterDataFieldChange{{
+	facts, err := s.people.ReviewFields(ctx, []careplan.MasterDataFieldChange{{
 		RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
 		OldValue: row.OldValue, NewValue: row.NewValue,
 	}})

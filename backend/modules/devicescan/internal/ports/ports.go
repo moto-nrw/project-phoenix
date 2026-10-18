@@ -17,23 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Device is the authenticated kiosk of a request.
-type Device struct {
-	ID         int64
-	TenantID   int64
-	DeviceID   string
-	DeviceType string
-	Name       *string
-	Status     string
-	LastSeen   *time.Time
-	Active     bool
-}
-
-// Principals reads the identity the device authentication bound.
-type Principals interface {
-	Device(ctx context.Context) (*Device, bool)
-}
-
 // Person is the directory identity behind a card.
 type Person struct {
 	ID        int64

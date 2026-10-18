@@ -5,7 +5,7 @@
 // here after the rows are fetched.
 package displayorder
 
-import "github.com/moto-nrw/project-phoenix/internal/collation"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 
 // ClassListEntry is the part of an entry the order reads. The package keeps
 // its own shape because an adapter of this owner may not reach into the

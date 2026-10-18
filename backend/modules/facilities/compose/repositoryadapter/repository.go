@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -45,7 +44,7 @@ func NewRecords(rooms facilities.Query) *Records {
 	return &Records{roomQuery: rooms}
 }
 
-func (r *Records) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
+func (r *Records) FindByID(ctx context.Context, rawID any) (*facilities.Room, error) {
 	id, err := roomID(rawID)
 	if err != nil {
 		return nil, err
@@ -57,7 +56,7 @@ func (r *Records) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Ro
 	return toLegacyPointer(room), nil
 }
 
-func (r *Records) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
+func (r *Records) List(ctx context.Context, filters map[string]any) ([]*facilities.Room, error) {
 	filter, err := roomFilter(filters)
 	if err != nil {
 		return nil, err
@@ -69,7 +68,7 @@ func (r *Records) List(ctx context.Context, filters map[string]any) ([]*faciliti
 	return toLegacyPointers(values), nil
 }
 
-func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
+func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilities.Room, error) {
 	values, err := r.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -77,7 +76,7 @@ func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesMode
 	return toLegacyPointers(values), nil
 }
 
-func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
+func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilities.Room, error) {
 	room, err := r.FindRoomForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -85,7 +84,7 @@ func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesM
 	return toLegacyPointer(room), nil
 }
 
-func (r *Records) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
+func (r *Records) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room, err := r.FindRoomByName(ctx, name)
 	if err != nil {
 		return nil, err
@@ -160,25 +159,12 @@ func setIntegerFilter(filter *facilities.RoomFilter, field string, value *int) {
 	}
 }
 
-func toLegacyPointers(values []facilities.Room) []*facilitiesModels.Room {
-	result := make([]*facilitiesModels.Room, len(values))
+func toLegacyPointers(values []facilities.Room) []*facilities.Room {
+	result := make([]*facilities.Room, len(values))
 	for index := range values {
 		result[index] = toLegacyPointer(values[index])
 	}
 	return result
 }
 
-func toLegacyPointer(value facilities.Room) *facilitiesModels.Room {
-	room := &facilitiesModels.Room{}
-	applyPublic(room, value)
-	return room
-}
-
-func applyPublic(target *facilitiesModels.Room, source facilities.Room) {
-	target.ID, target.TenantID = source.ID, source.TenantID
-	target.CreatedAt, target.UpdatedAt = source.CreatedAt, source.UpdatedAt
-	target.Name, target.Building = source.Name, source.Building
-	target.Floor, target.Capacity = source.Floor, source.Capacity
-	target.Category, target.Color, target.IsSystem = source.Category, source.Color, source.IsSystem
-	target.IsOpenRoom = source.IsOpenRoom
-}
+func toLegacyPointer(value facilities.Room) *facilities.Room { return &value }

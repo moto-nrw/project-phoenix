@@ -26,7 +26,7 @@ func NewRFIDTestModule(db transactionruntime.Database) (RFIDTestModule, error) {
 	if err != nil {
 		return RFIDTestModule{}, err
 	}
-	return RFIDTestModule{FeedbackStudents: devicescanCompose.NewFeedbackStudents(NewDeviceScanPeople(people)), TagAssignments: devicescanCompose.NewTagAssignments(NewDeviceScanPeople(people), nil)}, nil
+	return RFIDTestModule{FeedbackStudents: devicescanCompose.NewFeedbackStudents(NewDeviceScanPeople(people)), TagAssignments: devicescanCompose.NewTagAssignments(NewDeviceScanPeople(people), nil, DeviceScanPrincipal)}, nil
 }
 
 // NewRFIDTestPeople composes the People Directory's person directory with the

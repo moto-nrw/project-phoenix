@@ -6,11 +6,10 @@ import (
 	"context"
 	"errors"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
-func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) error {
+func (r *Repository) Create(ctx context.Context, room *facilities.Room) error {
 	if room == nil {
 		return errors.New("room cannot be nil")
 	}
@@ -20,12 +19,12 @@ func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) er
 		IsOpenRoom: room.IsOpenRoom,
 	})
 	if err == nil {
-		applyPublic(room, created)
+		*room = created
 	}
 	return err
 }
 
-func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) error {
+func (r *Repository) Update(ctx context.Context, room *facilities.Room) error {
 	if room == nil {
 		return errors.New("room cannot be nil")
 	}
@@ -39,7 +38,7 @@ func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) er
 		IsOpenRoom: &room.IsOpenRoom,
 	})
 	if err == nil {
-		applyPublic(room, updated)
+		*room = updated
 	}
 	return err
 }

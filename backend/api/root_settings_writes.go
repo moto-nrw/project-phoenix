@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -27,7 +28,7 @@ func buildSettingsWrites(
 	env RootEnvironment, settings SettingsOwner, payroll settingsCompose.PayrollStatusGetter, yard FacilitiesYard,
 	authority careplan.BookingAuthority, photos StudentPhotoFeatureToggle, hub *realtime.Hub,
 ) (SettingsWrites, error) {
-	schulhof, wc := facilitiesLegacy.SettingHandlers(yard.Schulhof, yard.WC)
+	schulhof, wc := facilitiesCompose.SettingHandlers(yard.Schulhof, yard.WC)
 	registry, err := settingsCompose.NewSideEffects(env.Observe.SettingsSideEffectFailure,
 		settingsCompose.SettingSideEffect{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
 		settingsCompose.SettingSideEffect{Key: configModels.KeyCheckoutWCEnabled, Handle: wc},

@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 
+	careplanNative "github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
@@ -14,7 +16,7 @@ type CareRequestRows interface {
 // CareRequestStudentNames names the child of a care request. The name only
 // labels the review item; a failed lookup leaves it blank.
 type CareRequestStudentNames interface {
-	StudentName(ctx context.Context, studentID int64) (PersonName, error)
+	StudentName(ctx context.Context, studentID int64) (careplanNative.PersonName, error)
 }
 
 // CareScheduleBroadcaster wakes staff tabs after an approved care request

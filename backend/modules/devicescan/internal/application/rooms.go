@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -15,10 +14,10 @@ type RoomAvailabilitySource interface {
 
 type roomAvailability struct {
 	rooms      RoomAvailabilitySource
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 }
 
-func NewRoomAvailability(rooms RoomAvailabilitySource, principals ports.Principals) devicescan.RoomAvailability {
+func NewRoomAvailability(rooms RoomAvailabilitySource, principals devicescan.PrincipalReader) devicescan.RoomAvailability {
 	if rooms == nil || principals == nil {
 		panic("kiosk room availability: rooms and principals are required")
 	}

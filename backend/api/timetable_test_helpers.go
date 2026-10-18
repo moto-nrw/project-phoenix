@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -120,10 +120,10 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(presence.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, members.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
+		StudentRepo: PresenceStudents(db, members.Student), RoomRepo: facilitiesCompose.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
 		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff),
 		DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,

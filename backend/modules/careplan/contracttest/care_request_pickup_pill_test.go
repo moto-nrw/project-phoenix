@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -231,20 +230,22 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 
 func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReviewQuery {
 	t.Helper()
-	query, err := requestreviewcompose.NewScheduleReviews(f.db, testpkg.StudentDirectory{}, requestreviewcompose.ScheduleReviewDependencies{
-		People: f.persons,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+	query, err := api.NewRequestReviewSchedules(testpkg.NewDatabase(t, f.db),
+		testpkg.StudentDirectory{},
+		f.persons,
+		func(ctx context.Context) (careplan.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
 			wide, _ := securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
 				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.caller)
-			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
+			return careplan.ReviewScope{SchoolWide: wide}, nil
 		},
-		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
-		Today:                 func() careplan.Date { return "2026-09-09" },
-		Blocks:                api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)),
-		ObserveCare:           func(requestreviewcompose.CareObservation) {},
-		ObserveTimetable:      func(requestreviewcompose.TimetableObservation) {},
-	})
+		func(context.Context) (bool, error) { return false, nil },
+		func() careplan.Date { return "2026-09-09" },
+		ignoreReviewObservation,
+		ignoreReviewObservation,
+		api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)))
 	require.NoError(t, err)
 	return query
 }
+
+func ignoreReviewObservation[T any](T) {}

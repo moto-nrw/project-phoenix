@@ -5,9 +5,6 @@ package api
 import (
 	"log/slog"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -73,10 +70,10 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(ttPresence.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		PrincipalReader: AttendancePrincipal,
 		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
 		StaffNames:      NewAttendanceStaffNames(members.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(ttRooms.Room),
+		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(ttRooms.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student),
 		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
 		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),

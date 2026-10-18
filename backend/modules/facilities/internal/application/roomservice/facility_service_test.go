@@ -43,12 +43,12 @@ func TestCompatibilityServiceDelegatesWritesToOwner(t *testing.T) {
 
 	roomID := time.Now().UnixNano()
 	owner := &ownerStub{room: facilitiesModule.Room{ID: roomID, Name: "Igelraum"}}
-	service := NewServiceWithConfig(ServiceConfig{
+	service := newRetainedServiceWithConfig(ServiceConfig{
 		Rooms: owner,
 		Occupancy: func(_ context.Context, rooms []facilitiesModule.Room) ([]RoomWithOccupancy, error) {
 			return []RoomWithOccupancy{{Room: &rooms[0]}}, nil
 		},
-		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
+		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]facilitiesModule.RoomSessionEntry, error) {
 			return nil, nil
 		},
 	})
@@ -66,10 +66,10 @@ func TestCompatibilityServiceDelegatesWritesToOwner(t *testing.T) {
 func TestCompatibilityLookupsReturnNilOnOwnerFailure(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("database unavailable")
-	service := NewServiceWithConfig(ServiceConfig{
+	service := newRetainedServiceWithConfig(ServiceConfig{
 		Rooms:     &ownerStub{err: failure},
 		Occupancy: func(context.Context, []facilitiesModule.Room) ([]RoomWithOccupancy, error) { return nil, nil },
-		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
+		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]facilitiesModule.RoomSessionEntry, error) {
 			return nil, nil
 		},
 	})
@@ -88,10 +88,10 @@ func TestCompatibilityLookupsReturnNilOnOwnerFailure(t *testing.T) {
 func TestCompatibilityListsReturnNilOnOwnerFailure(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("database unavailable")
-	service := NewServiceWithConfig(ServiceConfig{
+	service := newRetainedServiceWithConfig(ServiceConfig{
 		Rooms:     &ownerStub{err: failure},
 		Occupancy: func(context.Context, []facilitiesModule.Room) ([]RoomWithOccupancy, error) { return nil, nil },
-		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
+		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]facilitiesModule.RoomSessionEntry, error) {
 			return nil, nil
 		},
 	})
@@ -215,4 +215,42 @@ func TestSchulhofStatusPrefersCallersSupervisedGroup(t *testing.T) {
 	require.True(t, status.IsUserSupervising)
 	require.Equal(t, 1, status.StudentCount)
 	require.Equal(t, "Ada Lovelace", status.Supervisors[0].Name)
+}
+
+// The retired read conveniences have no runtime consumers. This test-only
+// adapter keeps their existing assertions over the native Catalog boundary.
+func newRetainedServiceWithConfig(config ServiceConfig) *service {
+	return NewServiceWithConfig(config).(*service)
+}
+
+func (s *service) GetRoom(ctx context.Context, id int64) (*facilitiesModule.Room, error) {
+	room, err := s.config.Rooms.FindRoom(ctx, id)
+	if err != nil {
+		return nil, wrap("get room", err)
+	}
+	return roomPointer(room), nil
+}
+
+func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilitiesModule.Room, error) {
+	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{Category: &category})
+	if err != nil {
+		return nil, wrap("find rooms by category", err)
+	}
+	return roomPointers(rooms), nil
+}
+
+func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facilitiesModule.Room, error) {
+	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{MinimumCapacity: &capacity})
+	if err != nil {
+		return nil, wrap("get available rooms", err)
+	}
+	return roomPointers(rooms), nil
+}
+
+func roomPointers(rooms []facilitiesModule.Room) []*facilitiesModule.Room {
+	result := make([]*facilitiesModule.Room, len(rooms))
+	for index := range rooms {
+		result[index] = &rooms[index]
+	}
+	return result
 }

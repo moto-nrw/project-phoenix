@@ -4,29 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
-func toModel(device devicefleet.Device) *iot.Device {
-	return &iot.Device{
-		ID: device.ID, CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt,
-		TenantID: device.TenantID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
-		Name: device.Name, Status: iot.DeviceStatus(device.Status), APIKey: device.APIKey,
-		LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
-		ArchivedAt: device.ArchivedAt, TransferredToDeviceID: device.TransferredToDeviceID,
-		RoomName: device.RoomName,
-	}
-}
-
-func toAdministrationDevice(device *iot.Device) devicefleet.Device {
-	return devicefleet.Device{
-		ID: device.ID, TenantID: device.TenantID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
-		CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt, Name: device.Name, Status: devicefleet.DeviceStatus(device.Status),
-		APIKey: device.APIKey, LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
-		ArchivedAt: device.ArchivedAt, TransferredToDeviceID: device.TransferredToDeviceID, RoomName: device.RoomName,
-	}
-}
+func toModel(device devicefleet.Device) *devicefleet.Device                { return &device }
+func toAdministrationDevice(device *devicefleet.Device) devicefleet.Device { return *device }
 
 // toFilter translates the retained filter map into the owner's typed filter.
 // An unknown key is an error rather than a dynamically built predicate: the
@@ -83,10 +65,6 @@ func assignStatus(filter *devicefleet.DeviceFilter, value any) error {
 	case devicefleet.DeviceStatus:
 		filter.Status = &typed
 		return nil
-	case iot.DeviceStatus:
-		status := devicefleet.DeviceStatus(typed)
-		filter.Status = &status
-		return nil
 	case string:
 		status := devicefleet.DeviceStatus(typed)
 		filter.Status = &status
@@ -100,7 +78,7 @@ func assignString(target **string, field string, value any) error {
 	switch typed := value.(type) {
 	case string:
 		*target = &typed
-	case iot.DeviceStatus:
+	case devicefleet.DeviceStatus:
 		text := string(typed)
 		*target = &text
 	default:

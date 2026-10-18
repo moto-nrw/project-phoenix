@@ -25,7 +25,7 @@ type OfferingChangeDependencies struct {
 	Settings   ports.OfferingChangeSettings
 	Planning   ports.OfferingChangePlanning
 	Bookings   ports.OfferingChangeBookings
-	Scope      ports.ReviewScopeResolver
+	Scope      careplan.ReviewScopeResolver
 	Hooks      ports.TransactionHooks
 
 	Messenger ports.RequestMessenger
@@ -250,7 +250,7 @@ func contiguousCarePeriodEnd(periods []ports.OfferingCarePeriod, initial ports.O
 
 // reviewAllows applies the caller's parent-request review scope to one
 // student.
-func (s *OfferingChanges) reviewAllows(ctx context.Context, student *ports.ReviewStudent) (bool, error) {
+func (s *OfferingChanges) reviewAllows(ctx context.Context, student *careplan.ReviewStudent) (bool, error) {
 	scope, err := s.deps.Scope(ctx)
 	if err != nil {
 		return false, fmt.Errorf("offering change: resolve request reviewer scope: %w", err)
@@ -259,6 +259,6 @@ func (s *OfferingChanges) reviewAllows(ctx context.Context, student *ports.Revie
 }
 
 // careEnded reports whether the student's care ended before the day.
-func careEnded(student *ports.ReviewStudent, day calendar.Date) bool {
+func careEnded(student *careplan.ReviewStudent, day calendar.Date) bool {
 	return student != nil && student.CareEndedOn(careplan.Date(day))
 }

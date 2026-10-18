@@ -11,12 +11,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
-type MasterDataDirectory = ports.MasterDataDirectory
-type MasterDataFieldChange = ports.MasterDataFieldChange
-type MasterDataFieldFacts = ports.MasterDataFieldFacts
+type MasterDataDirectory = careplan.MasterDataDirectory
+type MasterDataFieldChange = careplan.MasterDataFieldChange
+type MasterDataFieldFacts = careplan.MasterDataFieldFacts
 
 type MasterDataReviewDependencies struct {
 	Requests careplan.StudentDataRequestQuery
