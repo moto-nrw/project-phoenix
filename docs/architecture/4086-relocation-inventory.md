@@ -2,6 +2,10 @@
 
 Snapshot: round 2, based on `a70bde68787956afb3b95490e5d157cce6f4ff8a` plus the two round-1 commits on `refactor/4086-timetable-cluster`.
 
+
+
+Integration: development `0f879e2de5dd49cfe39a918972269f0476e1d045` (#4321) was merged before publication. The importer lists below were refreshed from the integrated graph; package/LOC totals still describe the original 39-package relocation snapshot. The one legacy-manifest conflict used normalized relocation identities and base + both deltas: 76 base keys, 70 local, 62 incoming, 56 combined. Policy epoch 75 keeps active relocations above the integrated base epoch 74.
+
 Scope: all production packages under `services/`, `database/repositories/`, `models/`, and every `legacy/` directory; every tracked `legacy_*.go` file is listed separately. Architecture fixture directories under `internal/architecture/testdata/` are checker inputs, not production packages. Test-only companion packages are called out below.
 
 Result: **5 production packages moved (534 LOC), 32 blocked, 2 deferred** out of 39 production packages. The file-only moves are separate from the package/LOC total.
@@ -64,6 +68,7 @@ For blocked packages, each foreign-owner group below is the concrete consumer se
 
 - `audit-platform` (same owner): `database/repositories/audit/integration [XTestImports]`, `modules/auditlog/compose [Imports]`.
 
+
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
 ```text
@@ -88,6 +93,7 @@ FAIL
 **`services/audit`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `audit-platform` (same owner): `modules/auditlog [Imports]`, `modules/auditlog/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -118,15 +124,18 @@ FAIL
 
 - `calendar-view` (same owner): `modules/supervisiondashboard/compose [Imports]`.
 
+
 ### care-plan
 
 **`database/repositories/parent`: deferred.** #4082 group 3: Care Plan. Also subject to the role/consumer constraints below.
 
 - `care-plan` (same owner): `modules/careplan/compose [Imports]`, `modules/careplan/integration [TestImports]`.
 
+
 **`models/parent`: deferred.** #4082 group 3: Care Plan. Also subject to the role/consumer constraints below.
 
 - `care-plan` (same owner): `database/repositories/parent [Imports]`, `modules/careplan/compose [Imports]`, `modules/careplan/integration [TestImports]`, `modules/careplan/internal/adapters/postgres [Imports]`, `modules/careplan/internal/adapters/postgres [TestImports]`, `modules/careplan/internal/application [Imports]`.
+
 
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
@@ -142,11 +151,14 @@ package "modules/careplan/internal/domain/parent" is outside models/ and may not
 
 - `communication` (same owner): `modules/communication/composition [Imports]`, `modules/communication/internal/parentmessages [Imports]`, `modules/communication/internal/parentmessages [XTestImports]`, `modules/communication/internal/staffannouncements [Imports]`.
 
+
+
 ### data-import
 
 **`services/import`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `data-import` (same owner): `modules/dataimport/compose/retained [Imports]`, `services/import/integration [TestImports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -172,6 +184,7 @@ exit status 1
 **`services/import/ports`: blocked.** The import-service cluster is rejected below. Its same-owner `services/import` consumers remain outside `modules/dataimport/`, so the port cannot move independently across Go `internal`.
 
 - `data-import` (same owner): `services/import [Imports]`, `services/import [TestImports]`, `services/import/integration [TestImports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -200,9 +213,11 @@ exit status 1
 
 - `delivery-platform` (same owner): `modules/delivery/compose [Imports]`, `modules/delivery/internal/adapters/postgres [XTestImports]`.
 
+
 **`models/delivery`: blocked.** ADR 0057 pins this role to `models/`; ADR 0020 forbids changing it. Foreign consumers, if any, must use the public contract first.
 
-- `delivery-platform` (same owner): `modules/delivery/internal/adapters/deliverypostgres [Imports]`, `modules/delivery/application/notifications [Imports]`, `modules/delivery/application/notifications [TestImports]`, `modules/delivery/application/pwa [Imports]`, `modules/delivery/application/pwa [TestImports]`, `modules/delivery/compose [Imports]`, `modules/delivery/internal/adapters/postgres [XTestImports]`.
+- `delivery-platform` (same owner): `modules/delivery/application/notifications [Imports]`, `modules/delivery/application/notifications [TestImports]`, `modules/delivery/application/pwa [Imports]`, `modules/delivery/application/pwa [TestImports]`, `modules/delivery/compose [Imports]`, `modules/delivery/internal/adapters/deliverypostgres [Imports]`, `modules/delivery/internal/adapters/postgres [XTestImports]`.
+
 
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
@@ -216,6 +231,7 @@ package "modules/delivery/internal/domain/delivery" is outside models/ and may n
 
 - `device-fleet` (same owner): `modules/devicefleet/compose/httpadapter [XTestImports]`, `modules/devicefleet/compose/legacy [Imports]`, `modules/devicefleet/compose/repositoryadapter [Imports]`, `services/iot [Imports]`.
 
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -228,9 +244,12 @@ package "modules/devicefleet/internal/domain/iot" is outside models/ and may not
 
 - `root-composition` (foreign owner; public-contract prerequisite): `api [Imports]`, `api [TestImports]`.
 
+
+
 **`services/iot`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `device-fleet` (same owner): `modules/devicefleet/compose [Imports]`, `modules/devicefleet/compose/httpadapter [XTestImports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -263,11 +282,14 @@ FAIL
 
 - `facilities` (foreign owner; public-contract prerequisite): `modules/facilities/compose/httpadapter [Imports]`.
 
+
+
 ### emergency-snapshot
 
 **`modules/emergencysnapshot/legacy`: moved.** `modules/emergencysnapshot/internal/adapters/nameorder`
 
 - `emergency-snapshot` (same owner): `modules/emergencysnapshot/compose [Imports]`.
+
 
 ### enrollment
 
@@ -276,6 +298,8 @@ FAIL
 - `care-plan` (foreign owner; public-contract prerequisite): `modules/careplan/contracttest [XTestImports]`.
 
 - `enrollment` (same owner): `modules/enrollment/http [XTestImports]`, `modules/enrollment/internal/application [Imports]`, `modules/enrollment/internal/application [TestImports]`.
+
+
 
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
@@ -289,6 +313,7 @@ package "modules/enrollment/internal/domain/enrollment" is outside models/ and m
 
 - `facilities` (same owner): `modules/facilities/compose [Imports]`, `modules/facilities/compose/legacy [Imports]`, `modules/facilities/compose/legacy [TestImports]`, `modules/facilities/compose/repositoryadapter [Imports]`, `modules/facilities/compose/repositoryadapter [TestImports]`.
 
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -299,9 +324,11 @@ package "modules/facilities/internal/domain/facilities" is outside models/ and m
 
 - `root-composition` (foreign owner; public-contract prerequisite): `api [Imports]`.
 
+
 **`services/facilities`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `facilities` (same owner): `modules/facilities/compose [Imports]`, `modules/facilities/compose/httpadapter [Imports]`, `modules/facilities/compose/legacy [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -335,11 +362,13 @@ FAIL
 
 - `group-live-view` (same owner): `modules/grouplive/compose [Imports]`.
 
+
 ### observability
 
 **`database/repositories/pwausage`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `observability` (same owner): `database/repositories/pwausage [XTestImports]`, `observability/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -354,6 +383,7 @@ exit status 1
 **`database/repositories/users`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `people-directory` (same owner): `modules/peopledirectory/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -424,6 +454,11 @@ FAIL
 
 - `timetable-activities` (foreign owner; public-contract prerequisite): `modules/timetable/compose [Imports]`, `modules/timetable/compose/httpadapter [Imports]`.
 
+
+
+
+
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -435,6 +470,7 @@ package "modules/peopledirectory/internal/domain/users" is outside models/ and m
 **`services/scheduler`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `scheduler-runtime` (same owner): `modules/schedulerruntime/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -457,6 +493,7 @@ exit status 1
 
 - `school-calendar` (same owner): `modules/schoolcalendar/portal/compose [XTestImports]`.
 
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -471,9 +508,12 @@ package "modules/schoolcalendar/internal/domain/calendar" is outside models/ and
 
 - `settings-platform` (same owner): `modules/settings/compose [Imports]`, `services/config [TestImports]`.
 
+
+
 **`services/config`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `settings-platform` (same owner): `modules/settings [Imports]`, `modules/settings/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -510,6 +550,7 @@ exit status 1
 
 - `settings-platform` (same owner): `modules/settings/compose [Imports]`, `services/config [TestImports]`.
 
+
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
 ```text
@@ -545,9 +586,11 @@ exit status 1
 
 - `workforce` (foreign owner; public-contract prerequisite): `modules/workforce/internal/application/timetracking [XTestImports]`.
 
+
 **`services/config/sideeffects`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `settings-platform` (same owner): `modules/settings/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -565,6 +608,7 @@ exit status 1
 **`services/iot/staffclock`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `staff-clock` (same owner): `workflows/staffclock/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -603,6 +647,11 @@ FAIL
 
 - `timetable-activities` (same owner): `modules/timetable/compose [Imports]`, `modules/timetable/compose [TestImports]`, `modules/timetable/compose/httpadapter [Imports]`, `modules/timetable/compose/httpadapter [TestImports]`, `modules/timetable/compose/httpintegration [XTestImports]`, `modules/timetable/internal/application [Imports]`, `modules/timetable/internal/application [TestImports]`, `modules/timetable/ports [Imports]`.
 
+
+
+
+
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -621,6 +670,11 @@ package "modules/timetable/internal/domain/activities" is outside models/ and ma
 
 - `timetable-activities` (same owner): `modules/timetable/compose [Imports]`, `modules/timetable/compose [TestImports]`, `modules/timetable/compose/httpintegration [XTestImports]`, `modules/timetable/internal/adapters/postgres [Imports]`, `modules/timetable/internal/application [Imports]`, `modules/timetable/internal/application [TestImports]`, `modules/timetable/ports [Imports]`.
 
+
+
+
+
+
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
 ```text
@@ -635,19 +689,26 @@ package "modules/timetable/internal/domain/schedule" is outside models/ and may 
 
 - `timetable-activities` (same owner): `modules/timetable/compose/httpadapter [Imports]`, `modules/timetable/compose/httpintegration [XTestImports]`.
 
+
+
+
 ### transaction-runtime
 
 **`database/repositories/base`: blocked.** Foreign consumers cannot import the target Go `internal` package. Migrate the consumers listed below to the owner public contract first.
 
 - `delivery-platform` (foreign owner; public-contract prerequisite): `modules/delivery/internal/adapters/deliverypostgres [Imports]`.
 
+
 **`models/base`: blocked.** ADR 0057 pins this role to `models/`; ADR 0020 forbids changing it. Foreign consumers, if any, must use the public contract first.
 
-- `delivery-platform` (foreign owner; public-contract prerequisite): `modules/delivery/internal/adapters/deliverypostgres [Imports]`, `models/delivery [Imports]`.
+- `delivery-platform` (foreign owner; public-contract prerequisite): `models/delivery [Imports]`, `modules/delivery/internal/adapters/deliverypostgres [Imports]`.
 
 - `legacy-composition` (foreign owner; public-contract prerequisite): `models [TestImports]`.
 
 - `transaction-runtime` (same owner): `database [Imports]`, `database/repositories/base [Imports]`, `database/repositories/base [TestImports]`, `modules/transactionruntime/internal/adapters/postgres [Imports]`.
+
+
+
 
 Same-role relocation is rejected by `validateLegacyModelPackages` (`internal/architecture/target_rule.go`); the diagnostic for this destination is:
 
@@ -658,6 +719,7 @@ package "modules/transactionruntime/internal/domain/base" is outside models/ and
 **`services/database`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `transaction-runtime` (same owner): `modules/transactionruntime [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
@@ -686,9 +748,11 @@ exit status 1
 
 - `workforce` (same owner): `modules/workforce/compose [Imports]`.
 
+
 **`modules/workforce/legacy`: blocked.** Rejected by the existing checker or quality ratchet. Exact output below.
 
 - `workforce` (same owner): `modules/workforce/compose [Imports]`.
+
 
 Rejected attempt (reverted; output is from the unchanged check or ratchet):
 
