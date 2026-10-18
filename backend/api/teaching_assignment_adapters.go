@@ -2,10 +2,7 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sort"
-	"strings"
 
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
@@ -21,7 +18,7 @@ func (r *classTeacherRepository) Create(ctx context.Context, assignment *schoolm
 	if assignment == nil {
 		return nilEntity("ClassTeacher")
 	}
-	if err := validateClassAssignment(assignment); err != nil {
+	if err := schoolmembership.ValidateClassAssignment(assignment.StaffID, assignment.SchoolClass); err != nil {
 		return err
 	}
 	created, err := r.membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass})
@@ -51,7 +48,7 @@ func (r *classTeacherRepository) Update(ctx context.Context, assignment *schoolm
 	if assignment == nil {
 		return nilEntity("ClassTeacher")
 	}
-	if err := validateClassAssignment(assignment); err != nil {
+	if err := schoolmembership.ValidateClassAssignment(assignment.StaffID, assignment.SchoolClass); err != nil {
 		return err
 	}
 	updated, err := r.membership.UpdateClassAssignment(ctx, schoolmembership.UpdateClassAssignment{ID: assignment.ID, StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass})
@@ -113,7 +110,7 @@ func (r *groupTeacherRepository) Create(ctx context.Context, assignment *schoolm
 	if assignment == nil {
 		return nilEntity("GroupTeacher")
 	}
-	if err := validateGroupAssignment(assignment); err != nil {
+	if err := schoolmembership.ValidateGroupAssignment(assignment.GroupID, assignment.TeacherID); err != nil {
 		return err
 	}
 	created, err := r.membership.CreateGroupAssignment(ctx, schoolmembership.CreateGroupAssignment{GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})
@@ -143,7 +140,7 @@ func (r *groupTeacherRepository) Update(ctx context.Context, assignment *schoolm
 	if assignment == nil {
 		return nilEntity("GroupTeacher")
 	}
-	if err := validateGroupAssignment(assignment); err != nil {
+	if err := schoolmembership.ValidateGroupAssignment(assignment.GroupID, assignment.TeacherID); err != nil {
 		return err
 	}
 	updated, err := r.membership.UpdateGroupAssignment(ctx, schoolmembership.UpdateGroupAssignment{ID: assignment.ID, GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})
@@ -198,51 +195,33 @@ func (r *groupTeacherRepository) list(ctx context.Context, filter schoolmembersh
 }
 
 func (r *groupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error) {
-	assigned, err := r.membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacherID}})
+	blockers, err := schoolmembership.GroupTeacherBlockers(ctx, r.membership, r.groupNames, teacherID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list group teacher blockers: %w", err)
 	}
-	assigned = groupAssignmentsForTenant(assigned, tenantID)
-	groupIDs := make([]int64, 0, len(assigned))
-	for _, assignment := range assigned {
-		groupIDs = append(groupIDs, assignment.GroupID)
-	}
-	all, err := r.membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs})
-	if err != nil {
-		return nil, fmt.Errorf("list group teacher blockers: %w", err)
-	}
-	all = groupAssignmentsForTenant(all, tenantID)
-	groups, err := r.groups.FindByIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list group teacher blockers: %w", err)
-	}
-	teachersByGroup := make(map[int64][]int64, len(groupIDs))
-	for _, assignment := range all {
-		teachersByGroup[assignment.GroupID] = append(teachersByGroup[assignment.GroupID], assignment.TeacherID)
-	}
-	result := make([]userModels.BlockerGroup, 0, len(assigned))
-	for _, assignment := range assigned {
-		name := "Unbekannte Gruppe"
-		if group := groups[assignment.GroupID]; group != nil {
-			name = group.Name
-		}
+	result := make([]userModels.BlockerGroup, 0, len(blockers))
+	for _, blocker := range blockers {
 		result = append(result, userModels.BlockerGroup{
-			ID: assignment.ID, GroupID: assignment.GroupID, GroupName: name,
-			TeacherID: assignment.TeacherID, TeacherIDs: teachersByGroup[assignment.GroupID],
+			ID: blocker.AssignmentID, GroupID: blocker.GroupID, GroupName: blocker.GroupName,
+			TeacherID: blocker.TeacherID, TeacherIDs: blocker.TeacherIDs,
 		})
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].GroupName < result[j].GroupName })
 	return result, nil
 }
 
-func groupAssignmentsForTenant(assignments []schoolmembership.GroupAssignment, tenantID int64) []schoolmembership.GroupAssignment {
-	result := make([]schoolmembership.GroupAssignment, 0, len(assignments))
-	for _, assignment := range assignments {
-		if assignment.TenantID == tenantID {
-			result = append(result, assignment)
+// groupNames names the School Structure groups the caller can see.
+func (r *groupTeacherRepository) groupNames(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
+	groups, err := r.groups.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(groups))
+	for id, group := range groups {
+		if group != nil {
+			names[id] = group.Name
 		}
 	}
-	return result
+	return names, nil
 }
 
 func classAssignmentModels(assignments []schoolmembership.ClassAssignment) []*schoolmembership.ClassAssignment {
@@ -279,28 +258,6 @@ func groupAssignmentModel(assignment schoolmembership.GroupAssignment) *schoolme
 
 func copyGroupAssignment(target *schoolmembership.GroupAssignment, source schoolmembership.GroupAssignment) {
 	*target = source
-}
-
-// validateClassAssignment requires the staff member and a non-blank class.
-func validateClassAssignment(assignment *schoolmembership.ClassAssignment) error {
-	if assignment.StaffID <= 0 {
-		return errors.New("staff ID is required")
-	}
-	if strings.TrimSpace(assignment.SchoolClass) == "" {
-		return errors.New("school class is required")
-	}
-	return nil
-}
-
-// validateGroupAssignment requires the group and the teacher.
-func validateGroupAssignment(assignment *schoolmembership.GroupAssignment) error {
-	if assignment.GroupID <= 0 {
-		return errors.New("group ID is required")
-	}
-	if assignment.TeacherID <= 0 {
-		return errors.New("teacher ID is required")
-	}
-	return nil
 }
 
 func teachingAssignmentID(id any) (int64, error) {

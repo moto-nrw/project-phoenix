@@ -8,6 +8,16 @@ import (
 // StatusPending is the status of a request no reviewer has decided yet.
 const StatusPending = "pending"
 
+// LedgerRequestType maps a request kind onto the request type of the parent
+// request ledger. The weekly plan and the one-day pickup change are separate
+// request types everywhere else too, so the history reads the same.
+func LedgerRequestType(requestKind string) string {
+	if requestKind == "pickup_change" {
+		return "pickup_change"
+	}
+	return "care_schedule"
+}
+
 type Request struct {
 	ID               int64
 	TenantID         int64

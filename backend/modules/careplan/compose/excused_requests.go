@@ -71,9 +71,8 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 	})
 }
 
-// TenantHooks binds the workflow's after-commit effects to the ambient
-// tenant transaction. The zero value is ready; the legacy composition's care
-// request service schedules its effects through it too (#2747).
+// TenantHooks binds the workflows' after-commit effects to the ambient
+// tenant transaction. The zero value is ready.
 type TenantHooks struct{}
 
 func (TenantHooks) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }

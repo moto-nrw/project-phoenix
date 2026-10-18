@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -96,9 +95,7 @@ func substitutionDate(value string) (*timezone.Date, error) {
 	}
 	date, err := timezone.ParseDate(value)
 	if err != nil {
-		return nil, &workforceModule.SubstitutionOperationError{
-			Target: workforceModule.ErrSubstitutionInvalidPeriod, Code: apiCommon.CodeSubstitutionsInvalidPeriod, Message: "Der Zeitraum ist ungültig.", Cause: err,
-		}
+		return nil, workforceModule.InvalidSubstitutionPeriod(err)
 	}
 	return &date, nil
 }
@@ -218,9 +215,7 @@ func wholeDaysToModule(wholeDays workforceModule.ScheduleWholeDayAssignment) (*e
 			return nil, err
 		}
 		if date == nil {
-			return nil, &workforceModule.SubstitutionOperationError{
-				Target: workforceModule.ErrSubstitutionInvalidPeriod, Code: apiCommon.CodeSubstitutionsInvalidPeriod, Message: "Der Zeitraum ist ungültig.",
-			}
+			return nil, workforceModule.InvalidSubstitutionPeriod(nil)
 		}
 		dates = append(dates, *date)
 	}

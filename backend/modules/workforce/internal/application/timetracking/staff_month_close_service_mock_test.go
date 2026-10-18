@@ -9,6 +9,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 type concurrentMonthCloseSnapshotRepo struct {
@@ -56,9 +58,9 @@ type recordingMonthCloseStaffLister struct {
 	events *[]string
 }
 
-func (l *recordingMonthCloseStaffLister) ListStaffIDs(context.Context) ([]int64, error) {
+func (l *recordingMonthCloseStaffLister) ListMonthCloseStaff(context.Context) ([]workforce.MonthCloseStaff, error) {
 	*l.events = append(*l.events, "staff")
-	return []int64{41}, nil
+	return []workforce.MonthCloseStaff{{ID: 41}}, nil
 }
 
 func TestStaffMonthCloseService_RechecksIdempotencyAfterLock(t *testing.T) {

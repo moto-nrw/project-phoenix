@@ -33,7 +33,7 @@ func TestNativeMarkDoneOnlyClosesPastPickupRequests(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Request", "Completion", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
 	boundary := &decisionBoundary{owner: owner, student: compose.ReviewStudent{ID: student.ID}}
-	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Plans: boundary,
+	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Guardians: boundary, Plans: boundary,
 		Effects: boundary, Today: func() calendar.Date { return "2026-09-20" }})
 	require.NoError(t, err)
 	create := func(kind, payload string) carerequests.Request {

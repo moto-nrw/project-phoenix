@@ -11,7 +11,9 @@ import (
 
 type PickupApprovalDirectory interface {
 	EnrolledUntil(context.Context, int64) (*calendar.Date, error)
-	ActingStaffID(context.Context) (int64, error)
+	// CurrentStaffID is the caller's staff profile; found is false when the
+	// caller has none.
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
 }
 
 type PickupApprovalPresence interface {

@@ -277,7 +277,7 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // single constructor every staff response goes through, so a new endpoint
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
-	isExternal := staff.IsGuest && person != nil && person.AccountID == nil
+	isExternal := schoolmembership.ExternalCaregiver(staff.IsGuest, person != nil, person != nil && person.AccountID != nil)
 	response := StaffResponse{
 		ID:               staff.ID,
 		PersonID:         staff.PersonID,
