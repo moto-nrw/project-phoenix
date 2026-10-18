@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var ErrNotFound = errors.New("group not found")
@@ -63,6 +65,28 @@ type GroupListQuery struct {
 type StaffGroupID struct {
 	StaffID int64
 	GroupID int64
+}
+
+// TeacherGroupID pairs a teacher profile with one education group they are
+// assigned to. The supervision rule resolves the teacher to a staff member.
+type TeacherGroupID struct {
+	TeacherID int64
+	GroupID   int64
+}
+
+// GroupMembershipPairs are the raw supervision references of a set of
+// education groups: the teacher assignments, unresolved, plus the groups and
+// day the substitutions must be read for. The supervision rule turns them
+// into (staff, group) pairs through School Membership and Workforce, dropping
+// references to offboarded teachers and staff (#2667, #2688).
+type GroupMembershipPairs struct {
+	// Assigned pairs a group with the teacher assigned to it.
+	Assigned []TeacherGroupID
+	// GroupIDs and On name the substitutions to add: whoever substitutes in
+	// one of these groups on that day. education.group_substitution belongs
+	// to Workforce, so School Structure does not read it.
+	GroupIDs []int64
+	On       calendar.Date
 }
 
 type OperationStats struct {
