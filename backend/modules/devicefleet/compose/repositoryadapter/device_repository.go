@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
@@ -30,7 +29,7 @@ func notFound(operation string, err error) error {
 	return fmt.Errorf("%s: %w: %w", operation, err, sql.ErrNoRows)
 }
 
-func (r *DeviceRepository) translate(operation string, device devicefleet.Device, err error) (*iotModels.Device, error) {
+func (r *DeviceRepository) translate(operation string, device devicefleet.Device, err error) (*devicefleet.Device, error) {
 	if err != nil {
 		if errors.Is(err, devicefleet.ErrDeviceNotFound) {
 			return nil, notFound(operation, err)
@@ -40,11 +39,11 @@ func (r *DeviceRepository) translate(operation string, device devicefleet.Device
 	return toModel(device), nil
 }
 
-func (r *DeviceRepository) translateList(devices []devicefleet.Device, err error) ([]*iotModels.Device, error) {
+func (r *DeviceRepository) translateList(devices []devicefleet.Device, err error) ([]*devicefleet.Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*iotModels.Device, 0, len(devices))
+	result := make([]*devicefleet.Device, 0, len(devices))
 	for _, device := range devices {
 		result = append(result, toModel(device))
 	}
@@ -52,7 +51,7 @@ func (r *DeviceRepository) translateList(devices []devicefleet.Device, err error
 }
 
 // Create registers the device and writes the stored row back into entity.
-func (r *DeviceRepository) Create(ctx context.Context, entity *iotModels.Device) error {
+func (r *DeviceRepository) Create(ctx context.Context, entity *devicefleet.Device) error {
 	if entity == nil {
 		return errors.New("device cannot be nil or zero value")
 	}
@@ -72,7 +71,7 @@ func (r *DeviceRepository) Create(ctx context.Context, entity *iotModels.Device)
 }
 
 // Update replaces every writable column of the device.
-func (r *DeviceRepository) Update(ctx context.Context, entity *iotModels.Device) error {
+func (r *DeviceRepository) Update(ctx context.Context, entity *devicefleet.Device) error {
 	if entity == nil {
 		return errors.New("device cannot be nil or zero value")
 	}
@@ -105,7 +104,7 @@ func (r *DeviceRepository) Delete(ctx context.Context, id any) error {
 }
 
 // FindByID reads one live device including its room name.
-func (r *DeviceRepository) FindByID(ctx context.Context, id any) (*iotModels.Device, error) {
+func (r *DeviceRepository) FindByID(ctx context.Context, id any) (*devicefleet.Device, error) {
 	key, err := int64ID(id)
 	if err != nil {
 		return nil, err
@@ -115,25 +114,37 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id any) (*iotModels.Dev
 }
 
 // FindByIDForUpdate reads and locks one live device.
-func (r *DeviceRepository) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+func (r *DeviceRepository) FindByIDForUpdate(ctx context.Context, id int64) (*devicefleet.Device, error) {
 	device, err := r.devices.FindDeviceForUpdate(ctx, id)
 	return r.translate("find by id for update", device, err)
 }
 
 // FindByDeviceID reads one live device by its tenant-unique device_id.
-func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iotModels.Device, error) {
+func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*devicefleet.Device, error) {
 	device, err := r.devices.FindDeviceByDeviceID(ctx, deviceID)
 	return r.translate("find by device ID", device, err)
 }
 
+// LookupSessionDevice preserves the retained lookup result and failure identity.
+func (r *DeviceRepository) LookupSessionDevice(ctx context.Context, code string) (int64, bool, error) {
+	device, err := r.FindByDeviceID(ctx, code)
+	if err != nil {
+		return 0, false, err
+	}
+	if device == nil {
+		return 0, false, nil
+	}
+	return device.ID, true, nil
+}
+
 // FindByAPIKey reads one live device by its API key.
-func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*iotModels.Device, error) {
+func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*devicefleet.Device, error) {
 	device, err := r.devices.FindDeviceByAPIKey(ctx, apiKey)
 	return r.translate("find by API key", device, err)
 }
 
 // List reads every live device matching the retired filter map.
-func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]*iotModels.Device, error) {
+func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]*devicefleet.Device, error) {
 	filter, err := toFilter(filters)
 	if err != nil {
 		return nil, err
@@ -164,13 +175,4 @@ func int64ID(id any) (int64, error) {
 	}
 }
 
-func toModel(device devicefleet.Device) *iotModels.Device {
-	return &iotModels.Device{
-		ID: device.ID, CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt,
-		TenantID: device.TenantID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
-		Name: device.Name, Status: iotModels.DeviceStatus(device.Status), APIKey: device.APIKey,
-		LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
-		ArchivedAt: device.ArchivedAt, TransferredToDeviceID: device.TransferredToDeviceID,
-		RoomName: device.RoomName,
-	}
-}
+func toModel(device devicefleet.Device) *devicefleet.Device { return &device }

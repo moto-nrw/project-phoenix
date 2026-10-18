@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -72,7 +71,7 @@ func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database)
 	return displaySettings{service: service}
 }
 
-func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetLegacy.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
+func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetCompose.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
 	t.Helper()
 	repos, _, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleet
 	require.NoError(t, err)
 	carePlan, err := NewCarePlan(database, MustNewPeopleDirectory(database), repos.InstanceStudent)
 	require.NoError(t, err)
-	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetLegacy.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
+	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetCompose.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
 }
 
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue
@@ -109,7 +108,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	dependencies := fleetInputs
 	dependencies.DB = db
 	dependencies.Presence = presence
-	dependencies.Dashboard = devicefleetLegacy.NewDashboardSources(dashboard)
+	dependencies.Dashboard = devicefleetCompose.NewDashboardSources(dashboard)
 	dependencies.Tenants = settings.TenantFacts(displaySchools{db: db})
 	dependencies.Now = firstClock(clocks)
 	dependencies.Observe = func(devicefleetCompose.Observation) {}

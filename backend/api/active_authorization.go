@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -25,7 +27,7 @@ func activeAuthorization() presenceAPI.Authorization {
 
 func activeRequestRuntime() presenceAPI.RequestRuntime {
 	return presenceAPI.RequestRuntime{
-		WithStaff:    devicescanCompose.WithAttendanceStaff,
+		WithStaff:    deviceauth.WithAttendanceStaff,
 		TenantID:     devicescanCompose.AttendanceTenantID,
 		MarkRollback: devicescanCompose.MarkAttendanceRollback,
 	}

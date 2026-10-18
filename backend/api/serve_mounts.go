@@ -45,7 +45,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
+	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/http"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
@@ -407,28 +407,32 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, studentDirectoryView.NewReader(), persons,
-		reviewScope, carePlanModule.Today, func(observation requestreviewcompose.CareObservation) {
+	masterDataReviews, err := NewRequestReviewMasterData(db,
+		studentDirectoryView.NewReader(),
+		persons,
+		reviewScope,
+		carePlanModule.Today,
+		func(observation carePlanCompose.Observation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, studentDirectoryView.NewReader(), requestreviewcompose.ScheduleReviewDependencies{
-		People: persons,
-		Scope:  reviewScope,
-		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+	careReviews, err := NewRequestReviewSchedules(db,
+		studentDirectoryView.NewReader(),
+		persons,
+		reviewScope,
+		func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today:  carePlanModule.Today,
-		Blocks: NewPickupReviewBlocks(db),
-		ObserveCare: func(observation requestreviewcompose.CareObservation) {
+		carePlanModule.Today,
+		func(observation carePlanCompose.Observation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
-		ObserveTimetable: func(observation requestreviewcompose.TimetableObservation) {
+		func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, timetableModule.ErrorCode(observation.Err), observation.Err)
 		},
-	})
+		NewPickupReviewBlocks(db))
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
@@ -436,17 +440,16 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
-	offeringReviews, err := requestreviewcompose.NewOfferingReviews(pool, requestreviewcompose.OfferingReviewDependencies{
-		People: persons,
-		Scope:  reviewScope,
-		Today:  carePlanModule.Today,
-		ObserveCare: func(observation requestreviewcompose.CareObservation) {
+	offeringReviews, err := NewRequestReviewOfferings(db,
+		persons,
+		reviewScope,
+		carePlanModule.Today,
+		func(observation carePlanCompose.Observation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
-		ObserveTimetable: func(observation requestreviewcompose.TimetableObservation) {
+		func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, timetableModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
+		})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
@@ -699,7 +702,7 @@ func newIoTResource(
 	if err != nil {
 		return nil, err
 	}
-	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
+	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
 		Fleet:      iot.Fleet(),
 		Presence:   presence,
 		Rooms:      facilities,
@@ -721,19 +724,19 @@ func newIoTResource(
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
 		StaffClock:       newStaffClockService(users, NewPeopleIdentityAccess(db, observability.ObserveIdentityAccessOperation), timeTracking.TimeClock),
-		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings}),
-		Rooms:            devicescanCompose.NewRoomAvailability(rooms.RoomService),
-		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(users), DeviceActivityCatalog(activities), logger),
-		TagAssignments:   devicescanCompose.NewTagAssignments(NewDeviceScanPeople(users), logger),
+		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings}, DeviceScanPrincipal),
+		Rooms:            devicescanCompose.NewRoomAvailability(rooms.RoomService, DeviceScanPrincipal),
+		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(users), DeviceActivityCatalog(activities), logger, DeviceScanPrincipal),
+		TagAssignments:   devicescanCompose.NewTagAssignments(NewDeviceScanPeople(users), logger, DeviceScanPrincipal),
 		FeedbackStudents: devicescanCompose.NewFeedbackStudents(NewDeviceScanPeople(users)),
 		FeedbackService:  feedback,
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolName:              devicescanCompose.NewSchoolName(schoolName(organizations)),
+		SchoolName:              devicescanCompose.NewSchoolName(schoolName(organizations), DeviceScanPrincipal),
 		ErrorReports:            NewIoTErrorReporter(errorReports),
 		SessionEnd:              bindIoTHostSessionEnd(BindIoTSessionEnd(sessionEnd)),
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(active, devicescanCompose.NewSupervisionQuery(presence), NewDeviceScanPeople(users), iot, NewKioskSessionMirror(timetableRepos, activities, KioskMirrorPublisher(hub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(active, devicescanCompose.NewSupervisionQuery(presence), NewDeviceScanPeople(users), iot, NewKioskSessionMirror(timetableRepos, activities, KioskMirrorPublisher(hub, logger), logger), logger, DeviceScanPrincipal),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),

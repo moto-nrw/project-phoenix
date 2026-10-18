@@ -146,7 +146,7 @@ func normalizeAndValidateRoom(name *string, capacity *int, color **string) error
 		normalized = string([]byte{'#', normalized[1], normalized[1], normalized[2], normalized[2], normalized[3], normalized[3]})
 	}
 	normalized = strings.ToUpper(normalized)
-	if _, reserved := reservedRoomColors[normalized]; reserved {
+	if IsReservedRoomColor(normalized) {
 		return ErrRoomColorReserved
 	}
 	*color = &normalized

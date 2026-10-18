@@ -81,9 +81,9 @@ type OfferingChangeEnrollment interface {
 // OfferingChangeStudents reads the People Directory students an offering
 // change authorizes against.
 type OfferingChangeStudents interface {
-	FindStudent(ctx context.Context, id int64) (*ReviewStudent, error)
+	FindStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// LockStudent takes the student row FOR UPDATE.
-	LockStudent(ctx context.Context, id int64) (*ReviewStudent, error)
+	LockStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// HasPendingWithdrawalCompletion reports an open complete-withdrawal
 	// follow-up of the student.
 	HasPendingWithdrawalCompletion(ctx context.Context, studentID int64) (bool, error)

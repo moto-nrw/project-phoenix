@@ -75,21 +75,21 @@ func ValidDeviceStatus(status DeviceStatus) bool {
 // through the Facilities owner and is empty when the device has no room or
 // the room belongs to another tenant.
 type Device struct {
-	ID                    int64
-	TenantID              int64
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DeviceID              string
-	DeviceType            string
-	Name                  *string
-	Status                DeviceStatus
-	APIKey                *string
-	LastSeen              *time.Time
-	RegisteredByID        *int64
-	RoomID                *int64
-	ArchivedAt            *time.Time
-	TransferredToDeviceID *int64
-	RoomName              *string
+	ID                    int64        `json:"id"`
+	TenantID              int64        `json:"tenant_id"`
+	CreatedAt             time.Time    `json:"created_at"`
+	UpdatedAt             time.Time    `json:"updated_at"`
+	DeviceID              string       `json:"device_id"`
+	DeviceType            string       `json:"device_type"`
+	Name                  *string      `json:"name,omitempty"`
+	Status                DeviceStatus `json:"status"`
+	APIKey                *string      `json:"-"`
+	LastSeen              *time.Time   `json:"last_seen,omitempty"`
+	RegisteredByID        *int64       `json:"registered_by_id,omitempty"`
+	RoomID                *int64       `json:"room_id,omitempty"`
+	ArchivedAt            *time.Time   `json:"-"`
+	TransferredToDeviceID *int64       `json:"-"`
+	RoomName              *string      `json:"room_name,omitempty"`
 }
 
 // IsActive reports whether the device is in the active state.

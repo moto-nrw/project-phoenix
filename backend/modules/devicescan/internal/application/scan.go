@@ -68,7 +68,7 @@ func (s *Service) Scan(ctx context.Context, command devicescan.ScanCommand) (*de
 
 // resolvePerson turns the card into a person, records unknown cards for
 // the operator review, and keeps the pinned wire errors of the scan.
-func (s *Service) resolvePerson(ctx context.Context, device *ports.Device, tag string) (*ports.Person, error) {
+func (s *Service) resolvePerson(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Person, error) {
 	s.logger.DebugContext(ctx, "looking up RFID tag", slog.String("rfid", tag))
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *Service) lookupStudent(ctx context.Context, personID int64) *ports.Stud
 }
 
 // scanStaff joins a staff card to the device session as supervisor.
-func (s *Service) scanStaff(ctx context.Context, device *ports.Device, person *ports.Person) (*devicescan.ScanResult, error) {
+func (s *Service) scanStaff(ctx context.Context, device *devicescan.PrincipalDevice, person *ports.Person) (*devicescan.ScanResult, error) {
 	s.logger.DebugContext(ctx, "person is not a student, checking if staff",
 		slog.Int64("person_id", person.ID),
 	)
@@ -159,7 +159,7 @@ func (s *Service) scanStaff(ctx context.Context, device *ports.Device, person *p
 
 // addSupervisor adds the staff member to the device's running session
 // (idempotent) and returns the session context for the response.
-func (s *Service) addSupervisor(ctx context.Context, device *ports.Device, staffID int64) (*devicescan.Session, error) {
+func (s *Service) addSupervisor(ctx context.Context, device *devicescan.PrincipalDevice, staffID int64) (*devicescan.Session, error) {
 	session, err := s.sessions.Current(ctx, device.ID)
 	if err != nil || session == nil {
 		s.logger.InfoContext(ctx, "no active session for supervisor scan",
@@ -225,7 +225,7 @@ const deviceAttributed int64 = 0
 
 // scanBinary toggles today's attendance row for a binary-mode tenant. The
 // scan stays device-attributed.
-func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student *ports.Student, person *ports.Person) (*devicescan.ScanResult, error) {
+func (s *Service) scanBinary(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person) (*devicescan.ScanResult, error) {
 	// skipAuthCheck: the device and device-PIN layer already authorized this
 	// scan; the default path would also require a session supervisor, which
 	// binary mode never has.
@@ -278,7 +278,7 @@ func binaryModeGreeting(action, firstName string) string {
 
 // scanVisit runs the detailed presence transition: close the current room
 // stay, open the requested one, and render the kiosk projection.
-func (s *Service) scanVisit(ctx context.Context, device *ports.Device, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
+func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
 	now := s.now()
 
 	checkout, err := s.checkoutCurrentVisit(ctx, student, person)

@@ -2,60 +2,16 @@ package compose
 
 import (
 	"context"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carecompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 type ScheduleReviewPeople interface {
 	ReviewPeople
 	peopledirectory.StudentDepartureQuery
-}
-
-type TimetableObservation = timetablecompose.Observation
-
-// PickupReviewImpact and PickupReviewBlock are the Care Plan shapes behind the
-// Blocks dependency, re-exported so the root and the tests bind it without
-// naming the Care Plan composition.
-type (
-	PickupReviewImpact = carecompose.PickupReviewImpact
-	PickupReviewBlock  = carecompose.PickupReviewBlock
-)
-
-type ScheduleReviewDependencies struct {
-	People                ScheduleReviewPeople
-	Scope                 carecompose.ReviewScopeResolver
-	BookingsAuthoritative func(context.Context) (bool, error)
-	Today                 func() careplan.Date
-	ObserveCare           func(CareObservation)
-	ObserveTimetable      func(timetablecompose.Observation)
-	// Blocks previews the blocks a pickup change would excuse; the root
-	// binds it over the Timetable plan and the Student Presence execution.
-	Blocks carecompose.PickupReviewBlocks
-}
-
-// NewScheduleReviews binds native owner reads. No retained service is needed
-// to resolve a child's recurring schedule or preview a pickup change.
-func NewScheduleReviews(db *bun.DB, students carecompose.StudentDirectory, deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
-	if deps.People == nil || deps.Blocks == nil {
-		return nil, errors.New("care schedule reviews: people and pickup review blocks are required")
-	}
-	classes, err := timetablecompose.NewClassArrivalQueries(db, deps.ObserveTimetable)
-	if err != nil {
-		return nil, err
-	}
-	return carecompose.NewScheduleReviews(db, deps.ObserveCare, carecompose.ScheduleReviewDependencies{
-		People:   scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, departures: deps.People},
-		Bookings: scheduleReviewBookings{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Classes: classes,
-		Scope: deps.Scope, BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today,
-		Blocks: deps.Blocks, Fingerprint: pickupImpactFingerprint, StudentDirectory: students,
-	})
 }
 
 type scheduleReviewDirectory struct {
@@ -74,9 +30,9 @@ type scheduleReviewBookings struct {
 	bookings careplan.OfferingBookingQueries
 }
 
-func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []int64, from, to careplan.Date) ([]carecompose.ReviewBooking, error) {
+func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []int64, from, to careplan.Date) ([]careplan.ReviewBooking, error) {
 	if to.Before(from) {
-		return []carecompose.ReviewBooking{}, nil
+		return []careplan.ReviewBooking{}, nil
 	}
 	children, err := b.query.ApprovedOfferingChildrenForStudents(ctx, ids)
 	if err != nil {
@@ -92,12 +48,12 @@ func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []i
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carecompose.ReviewBooking, 0, len(rows))
+	result := make([]careplan.ReviewBooking, 0, len(rows))
 	for _, row := range rows {
 		if (row.ValidUntil != nil && !from.Before(*row.ValidUntil)) || (row.ValidFrom != nil && to.Before(*row.ValidFrom)) {
 			continue
 		}
-		booking := carecompose.ReviewBooking{StudentID: students[row.RequestChildID], OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays()}
+		booking := careplan.ReviewBooking{StudentID: students[row.RequestChildID], OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays()}
 		if row.ValidFrom != nil {
 			booking.ValidFrom = *row.ValidFrom
 		}
@@ -107,4 +63,13 @@ func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []i
 		result = append(result, booking)
 	}
 	return result, nil
+}
+
+func NewScheduleReviewDirectory(people ScheduleReviewPeople) careplan.ScheduleReviewDirectory {
+	return scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: people}, departures: people}
+}
+func NewScheduleReviewBookings(query interface {
+	ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
+}, bookings careplan.OfferingBookingQueries) careplan.ReviewBookings {
+	return scheduleReviewBookings{query: query, bookings: bookings}
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
@@ -63,10 +62,6 @@ func assignStatus(filter *devicefleet.DeviceFilter, value any) error {
 	case devicefleet.DeviceStatus:
 		filter.Status = &typed
 		return nil
-	case iotModels.DeviceStatus:
-		status := devicefleet.DeviceStatus(typed)
-		filter.Status = &status
-		return nil
 	case string:
 		status := devicefleet.DeviceStatus(typed)
 		filter.Status = &status
@@ -81,9 +76,6 @@ func assignString(target **string, field string, value any) error {
 	case string:
 		*target = &typed
 	case devicefleet.DeviceStatus:
-		text := string(typed)
-		*target = &text
-	case iotModels.DeviceStatus:
 		text := string(typed)
 		*target = &text
 	default:

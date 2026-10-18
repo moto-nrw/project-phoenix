@@ -100,7 +100,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances, rows.InstanceStaff, rows.Participants
 	deps.Templates, deps.Students = templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
-	operations, err := compose.NewOperations(deps)
+	operations, err := compose.NewOperations(deps, api.TimetableOperationCaller{RequestSession: deps.Session})
 	require.NoError(t, err)
 	return operations
 }

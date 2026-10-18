@@ -2,47 +2,20 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carecompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 type OfferingReviewPeople interface {
 	ReviewPeople
 	SearchPersons(context.Context, peopledirectory.PersonFilter) ([]peopledirectory.Person, error)
 	ListStudentsByPersonID(context.Context, []int64) ([]peopledirectory.Student, error)
-}
-
-type OfferingReviewDependencies struct {
-	People           OfferingReviewPeople
-	Scope            carecompose.ReviewScopeResolver
-	Today            func() careplan.Date
-	ObserveCare      func(CareObservation)
-	ObserveTimetable func(TimetableObservation)
-}
-
-func NewOfferingReviews(db *bun.DB, deps OfferingReviewDependencies) (careplan.OfferingReviewQuery, error) {
-	if deps.People == nil {
-		return nil, errors.New("offering reviews: people are required")
-	}
-	courses, err := timetablecompose.NewCourseGroupQueries(db, deps.ObserveTimetable)
-	if err != nil {
-		return nil, err
-	}
-	return carecompose.NewOfferingReviews(db, deps.ObserveCare, carecompose.OfferingReviewDependencies{
-		People:     offeringReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, search: deps.People},
-		Enrollment: offeringReviewEnrollment{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Courses: offeringReviewCourses{query: courses},
-		Scope: deps.Scope, Today: deps.Today,
-	})
 }
 
 type offeringReviewDirectory struct {
@@ -89,15 +62,15 @@ type offeringReviewEnrollment struct {
 	bookings careplan.OfferingBookingQueries
 }
 
-func (e offeringReviewEnrollment) Children(ctx context.Context, ids []int64) ([]carecompose.OfferingReviewChild, error) {
+func (e offeringReviewEnrollment) Children(ctx context.Context, ids []int64) ([]careplan.OfferingReviewChild, error) {
 	rows, err := e.query.ChildrenByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carecompose.OfferingReviewChild, 0, len(rows))
+	result := make([]careplan.OfferingReviewChild, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			child := carecompose.OfferingReviewChild{ID: row.ID, RequestID: row.RequestID, Grade: row.TargetGradeLevel}
+			child := careplan.OfferingReviewChild{ID: row.ID, RequestID: row.RequestID, Grade: row.TargetGradeLevel}
 			if row.TargetSchoolClass != nil {
 				child.SchoolClass = *row.TargetSchoolClass
 			}
@@ -106,47 +79,47 @@ func (e offeringReviewEnrollment) Children(ctx context.Context, ids []int64) ([]
 	}
 	return result, nil
 }
-func (e offeringReviewEnrollment) Requests(ctx context.Context, ids []int64) ([]carecompose.OfferingReviewRequest, error) {
+func (e offeringReviewEnrollment) Requests(ctx context.Context, ids []int64) ([]careplan.OfferingReviewRequest, error) {
 	rows, err := e.query.RequestsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carecompose.OfferingReviewRequest, 0, len(rows))
+	result := make([]careplan.OfferingReviewRequest, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			result = append(result, carecompose.OfferingReviewRequest{ID: row.ID, PhaseID: row.PhaseID})
+			result = append(result, careplan.OfferingReviewRequest{ID: row.ID, PhaseID: row.PhaseID})
 		}
 	}
 	return result, nil
 }
-func (e offeringReviewEnrollment) Phases(ctx context.Context, ids []int64) ([]carecompose.OfferingReviewPhase, error) {
+func (e offeringReviewEnrollment) Phases(ctx context.Context, ids []int64) ([]careplan.OfferingReviewPhase, error) {
 	rows, err := e.query.PhasesByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carecompose.OfferingReviewPhase, 0, len(rows))
+	result := make([]careplan.OfferingReviewPhase, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			result = append(result, carecompose.OfferingReviewPhase{ID: row.ID, Start: careplan.Date(row.ServiceStartDate), End: careplan.Date(row.ServiceEndDate), SelectionMode: row.CareOfferingSelectionMode})
+			result = append(result, careplan.OfferingReviewPhase{ID: row.ID, Start: careplan.Date(row.ServiceStartDate), End: careplan.Date(row.ServiceEndDate), SelectionMode: row.CareOfferingSelectionMode})
 		}
 	}
 	return result, nil
 }
-func (e offeringReviewEnrollment) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]carecompose.OfferingReviewBooking, error) {
+func (e offeringReviewEnrollment) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]careplan.OfferingReviewBooking, error) {
 	rows, err := e.bookings.CareOfferingBookingsAtDates(ctx, dates)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carecompose.OfferingReviewBooking, 0, len(rows))
+	result := make([]careplan.OfferingReviewBooking, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, carecompose.OfferingReviewBooking{ChildID: row.RequestChildID, OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays(), ManualDays: row.ManualSelectedDays, AutomaticDays: row.AutomaticSelectedDays})
+		result = append(result, careplan.OfferingReviewBooking{ChildID: row.RequestChildID, OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays(), ManualDays: row.ManualSelectedDays, AutomaticDays: row.AutomaticSelectedDays})
 	}
 	return result, nil
 }
 
 type offeringReviewCourses struct{ query timetable.CourseGroupQuery }
 
-func (c offeringReviewCourses) CourseGroups(ctx context.Context, refs []carecompose.OfferingReviewCourseRef, day careplan.Date) (map[int64][]carecompose.OfferingReviewCourse, error) {
+func (c offeringReviewCourses) CourseGroups(ctx context.Context, refs []careplan.OfferingReviewCourseRef, day careplan.Date) (map[int64][]careplan.OfferingReviewCourse, error) {
 	filter := timetable.CourseGroupFilter{EffectiveOn: day.String()}
 	legacy := map[int64][]int64{}
 	for _, ref := range refs {
@@ -160,12 +133,22 @@ func (c offeringReviewCourses) CourseGroups(ctx context.Context, refs []carecomp
 	if err != nil {
 		return nil, err
 	}
-	result := map[int64][]carecompose.OfferingReviewCourse{}
+	result := map[int64][]careplan.OfferingReviewCourse{}
 	for _, group := range groups {
 		ids := append(slices.Clone(legacy[group.ID]), group.SourceCareOfferingIDs...)
 		for _, id := range ids {
-			result[id] = append(result[id], carecompose.OfferingReviewCourse{Active: group.Active, Grades: group.SourceGradeLevels, SchoolClasses: group.SourceSchoolClasses})
+			result[id] = append(result[id], careplan.OfferingReviewCourse{Active: group.Active, Grades: group.SourceGradeLevels, SchoolClasses: group.SourceSchoolClasses})
 		}
 	}
 	return result, nil
+}
+
+func NewOfferingReviewDirectory(people OfferingReviewPeople) careplan.OfferingReviewDirectory {
+	return offeringReviewDirectory{reviewDirectory: reviewDirectory{people: people}, search: people}
+}
+func NewOfferingReviewEnrollment(query *enrollment.Module, bookings careplan.OfferingBookingQueries) careplan.OfferingReviewEnrollment {
+	return offeringReviewEnrollment{query: query, bookings: bookings}
+}
+func NewOfferingReviewCourses(query timetable.CourseGroupQuery) careplan.OfferingReviewCourses {
+	return offeringReviewCourses{query: query}
 }

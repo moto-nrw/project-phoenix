@@ -19,7 +19,7 @@ type MasterDataRequestRows interface {
 // MasterDataStudent is the People Directory row a Stammdaten decision gates
 // on and writes: the review projection plus the departure plan.
 type MasterDataStudent struct {
-	ReviewStudent
+	careplan.ReviewStudent
 	DepartureModes domain.DepartureModes
 }
 

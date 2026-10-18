@@ -1,6 +1,10 @@
 # 4086 relocation inventory
 
-Snapshot: round 3, based on development `41f264ba26dba4581c74571870217c6924d335dc`.
+Current final-cluster outcome: **5 of 13 remaining carriers removed; 8 retained**. See the current update below and [the final-cluster report](final-legacy-cluster.md). The older figures are preserved as historical evidence.
+
+## Historical relocation snapshot
+
+Snapshot: earlier relocation round, based on development `41f264ba26dba4581c74571870217c6924d335dc`.
 
 Integration: importer lists are refreshed from the round-3 candidate; the final integration base is recorded in the PR.
 
@@ -12,6 +16,14 @@ Method: the pinned Go toolchain produced `go list -e -tags=testhooks -json ./...
 
 A moved package keeps its owner, production role and both test roles. Its existing exact debt follows its path through an ADR 0020 declaration. No filename-only move is presented as dissolving an implementation package that still sits outside `internal/`.
 
+
+## Final-cluster round 3 update (18 October 2026)
+
+Current base: `d8708d82c7c8e18774acc3ee800014649560d666`. The sections below are historical snapshots, not the current package count.
+
+This slice removes 5 of the remaining 13 production carriers: database/repositories/pwausage, models/facilities, models/iot, and both Device Fleet/Facilities compose/legacy trees. Existing Observability composition stays at its native observability/ module root; its repository moves to observability/internal/adapters/pwausage without adding a compose budget entry. The PWA repository move preserves owner/role under ADR 0020. The base repository/Delivery cutover is reverted after the dead-code gate exposes preserved generic-suite retirement as a prerequisite. The models are deleted only after consumers use actual existing native public values, not reclassified legacy models or aliases.
+
+Eight carriers remain: database/repositories/base, models/{activities,base,delivery,enrollment,schedule}, services/{parentmessaging,scheduler}. All legacy/ production trees are gone; legacy_*.go files remain. Exact current foreign importers, selected symbols, rule precedents, ratchets and blockers are in [the final-cluster report](final-legacy-cluster.md).
 
 ## Timetable contract follow-up
 

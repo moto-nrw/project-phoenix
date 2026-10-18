@@ -140,7 +140,8 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, startScope: blockStartScopeOwn, completeScope: blockCompleteScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
 		announcer:     &fakeOpsAnnouncer{},
 	}
-	service, err := compose.NewOperations(deps.dependencies())
+	dependencies := deps.dependencies()
+	service, err := compose.NewOperations(dependencies, api.TimetableOperationCaller{RequestSession: dependencies.Session})
 	if err != nil {
 		panic(err)
 	}

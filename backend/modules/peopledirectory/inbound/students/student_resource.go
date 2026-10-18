@@ -7,8 +7,8 @@ import (
 	render "github.com/go-chi/render"
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	collation "github.com/moto-nrw/project-phoenix/internal/collation"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	collation "github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 type ResourceConfig struct {

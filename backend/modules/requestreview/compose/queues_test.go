@@ -394,7 +394,7 @@ type ReviewComposition struct {
 // ComposeReviewSources composes the root's student graph over the package's
 // test database. The root imports this package, so these internal tests
 // cannot import it; root_composition_test.go binds it.
-var ComposeReviewSources func(t *testing.T) (*bun.DB, ReviewComposition)
+var ComposeReviewSources func(t *testing.T, proof ReviewProof)
 
 // ReviewDecorations are the student directory and the correction log over the
 // School Structure groups and the Audit Platform's correction query the root
@@ -424,100 +424,72 @@ func composeCorrectionLog(t *testing.T, db *bun.DB, people ReviewPeople, allowed
 // school, across all four request tables, under the least-privilege role.
 func TestRequestReviewEnforcesRLS(t *testing.T) {
 	t.Parallel()
-	db, svc := ComposeReviewSources(t)
-	reviewStudents, err := composeStudentDirectory(t, db, svc.PeopleDirectory)
-	require.NoError(t, err)
-	masterData, err := NewMasterDataReviews(db, testpkg.StudentDirectory{}, svc.PeopleDirectory,
-		func(context.Context) (ReviewScope, error) {
-			return ReviewScope{SchoolWide: true}, nil
-		},
-		func() ReviewDate { return ReviewDate(reviewToday()) },
-		func(CareObservation) {})
-	require.NoError(t, err)
-	careReviews, err := NewScheduleReviews(db, testpkg.StudentDirectory{}, ScheduleReviewDependencies{
-		People: svc.PeopleDirectory,
-		Scope: func(context.Context) (ReviewScope, error) {
-			return ReviewScope{SchoolWide: true}, nil
-		},
-		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
-			return svc.Settings.ResolveBool(ctx, "enrollment.bookings_authoritative")
-		},
-		Today:       func() ReviewDate { return ReviewDate(reviewToday()) },
-		Blocks:      noPickupReviewBlocks{},
-		ObserveCare: func(CareObservation) {}, ObserveTimetable: func(TimetableObservation) {},
-	})
-	require.NoError(t, err)
-	offeringReviews, err := NewOfferingReviews(db, OfferingReviewDependencies{
-		People: svc.PeopleDirectory,
-		Scope: func(context.Context) (ReviewScope, error) {
-			return ReviewScope{SchoolWide: true}, nil
-		},
-		Today:       func() ReviewDate { return ReviewDate(reviewToday()) },
-		ObserveCare: func(CareObservation) {}, ObserveTimetable: func(TimetableObservation) {},
-	})
-	require.NoError(t, err)
-	corrections, err := composeCorrectionLog(t, db, svc.PeopleDirectory, func(context.Context) bool { return true })
-	require.NoError(t, err)
-	query, err := requestreview.NewChecked(requestreview.Dependencies{
-		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
-			CareSchedule: nativeCareQueue(careReviews, reviewToday), Offering: nativeOfferingQueue(offeringReviews, reviewToday), Excused: nativeExcusedQueue(svc.ExcusedRequests, reviewToday)},
-		Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: svc.FamilyProtection,
-	})
-	require.NoError(t, err)
-
-	var schools []testpkg.RequestReviewSchool
-	for _, side := range []string{"own", "foreign"} {
-		t.Run(side, func(t *testing.T) {
-			testpkg.OwnTenant(t)
-			school := testpkg.CreateTestRequestReviewSchool(t, db, side)
-			school.Context = context.WithValue(school.Context, queueWriteKey{}, true)
-			schools = append(schools, school)
+	ComposeReviewSources(t, ReviewProof(func(db *bun.DB, svc ReviewComposition, masterData careplan.MasterDataReviewQuery, careReviews careplan.CareScheduleReviewQuery, offeringReviews careplan.OfferingReviewQuery) {
+		reviewStudents, err := composeStudentDirectory(t, db, svc.PeopleDirectory)
+		require.NoError(t, err)
+		corrections, err := composeCorrectionLog(t, db, svc.PeopleDirectory, func(context.Context) bool { return true })
+		require.NoError(t, err)
+		query, err := requestreview.NewChecked(requestreview.Dependencies{
+			Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
+				CareSchedule: nativeCareQueue(careReviews, reviewToday), Offering: nativeOfferingQueue(offeringReviews, reviewToday), Excused: nativeExcusedQueue(svc.ExcusedRequests, reviewToday)},
+			Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: svc.FamilyProtection,
 		})
-	}
-	require.Len(t, schools, 2)
+		require.NoError(t, err)
 
-	for table, ownID := range schools[0].Rows {
-		t.Run(table, func(t *testing.T) {
-			for _, side := range schools {
-				require.NoError(t, testpkg.WithTenantTx(t, side.Context, db, side.TenantID, func(txCtx context.Context, tx bun.Tx) error {
-					var bypass bool
-					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
-					require.False(t, bypass, "the tenant transaction must run under the least-privilege role")
-					var ids []int64
-					require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", ownID, schools[1].Rows[table]).Scan(txCtx, &ids))
-					require.Equal(t, []int64{side.Rows[table]}, ids, "%s leaks across the tenant boundary", table)
-					return nil
-				}))
-			}
-		})
-	}
+		var schools []testpkg.RequestReviewSchool
+		for _, side := range []string{"own", "foreign"} {
+			t.Run(side, func(t *testing.T) {
+				testpkg.OwnTenant(t)
+				school := testpkg.CreateTestRequestReviewSchool(t, db, side)
+				school.Context = context.WithValue(school.Context, queueWriteKey{}, true)
+				schools = append(schools, school)
+			})
+		}
+		require.Len(t, schools, 2)
 
-	for _, side := range schools {
-		counter := testpkg.CaptureQueriesForContext(t, db)
-		require.NoError(t, testpkg.WithTenantTx(t, counter.Context(side.Context), db, side.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-			page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS"})
-			require.NoError(t, err)
-			testpkg.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
-			require.Len(t, page.Items, 4, "each school lists exactly its own four requests")
-			types := make([]string, 0, 4)
-			for _, item := range page.Items {
-				types = append(types, item.RequestType)
-				assert.Equal(t, fmt.Sprint(side.StudentID), item.StudentID)
-				assert.Equal(t, side.GroupName, item.GroupName)
-			}
-			assert.ElementsMatch(t, []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused}, types)
-			assert.Empty(t, page.ReviewAccess, "no review policy is wired in this fixture")
+		for table, ownID := range schools[0].Rows {
+			t.Run(table, func(t *testing.T) {
+				for _, side := range schools {
+					require.NoError(t, testpkg.WithTenantTx(t, side.Context, db, side.TenantID, func(txCtx context.Context, tx bun.Tx) error {
+						var bypass bool
+						require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
+						require.False(t, bypass, "the tenant transaction must run under the least-privilege role")
+						var ids []int64
+						require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", ownID, schools[1].Rows[table]).Scan(txCtx, &ids))
+						require.Equal(t, []int64{side.Rows[table]}, ids, "%s leaks across the tenant boundary", table)
+						return nil
+					}))
+				}
+			})
+		}
 
-			count, err := query.PendingCount(txCtx)
-			require.NoError(t, err)
-			assert.Equal(t, 4, count)
+		for _, side := range schools {
+			counter := testpkg.CaptureQueriesForContext(t, db)
+			require.NoError(t, testpkg.WithTenantTx(t, counter.Context(side.Context), db, side.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+				page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS"})
+				require.NoError(t, err)
+				testpkg.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
+				require.Len(t, page.Items, 4, "each school lists exactly its own four requests")
+				types := make([]string, 0, 4)
+				for _, item := range page.Items {
+					types = append(types, item.RequestType)
+					assert.Equal(t, fmt.Sprint(side.StudentID), item.StudentID)
+					assert.Equal(t, side.GroupName, item.GroupName)
+				}
+				assert.ElementsMatch(t, []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused}, types)
+				assert.Empty(t, page.ReviewAccess, "no review policy is wired in this fixture")
 
-			history, err := query.ListRequests(txCtx, requestreview.ListQuery{History: true, Search: "ReviewRLS"})
-			require.NoError(t, err)
-			assert.Empty(t, history.Items)
-			return nil
-		}))
-	}
+				count, err := query.PendingCount(txCtx)
+				require.NoError(t, err)
+				assert.Equal(t, 4, count)
+
+				history, err := query.ListRequests(txCtx, requestreview.ListQuery{History: true, Search: "ReviewRLS"})
+				require.NoError(t, err)
+				assert.Empty(t, history.Items)
+				return nil
+			}))
+		}
+	}))
 }
 
 // insertPendingOfferingRequest stores a parent's offering switch the way the
@@ -562,10 +534,17 @@ func reviewToday() careplan.Date {
 	return careplan.Date(time.Now().In(location).Format(careplan.DateLayout))
 }
 
-// noPickupReviewBlocks answers the pickup preview with no blocks; the RLS
-// test never opens a pickup change.
-type noPickupReviewBlocks struct{}
+// ReviewProof receives the same native reads from the existing root construction hook.
+// Its methods are the fixture's scope, clock and empty pickup preview ports.
+type ReviewProof func(*bun.DB, ReviewComposition, careplan.MasterDataReviewQuery, careplan.CareScheduleReviewQuery, careplan.OfferingReviewQuery)
 
-func (noPickupReviewBlocks) PreviewPickupBlocks(context.Context, PickupReviewImpact) ([]PickupReviewBlock, error) {
+func (proof ReviewProof) Run(db *bun.DB, source ReviewComposition, master careplan.MasterDataReviewQuery, schedule careplan.CareScheduleReviewQuery, offering careplan.OfferingReviewQuery) {
+	proof(db, source, master, schedule, offering)
+}
+func (ReviewProof) Scope(context.Context) (careplan.ReviewScope, error) {
+	return careplan.ReviewScope{SchoolWide: true}, nil
+}
+func (ReviewProof) Today() careplan.Date { return careplan.Date(reviewToday()) }
+func (ReviewProof) PreviewPickupBlocks(context.Context, careplan.PickupReviewImpact) ([]careplan.PickupReviewBlock, error) {
 	return nil, nil
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
 type ScheduleReviewSchedules interface {
@@ -23,14 +22,14 @@ type ScheduleReviewSchedules interface {
 type ScheduleReviewDependencies struct {
 	Requests              careplan.CareScheduleRequestQuery
 	Schedules             ScheduleReviewSchedules
-	People                ports.ScheduleReviewDirectory
-	Bookings              ports.ReviewBookings
-	Classes               ports.ReviewClassTimes
-	Scope                 ports.ReviewScopeResolver
+	People                careplan.ScheduleReviewDirectory
+	Bookings              careplan.ReviewBookings
+	Classes               careplan.ReviewClassTimes
+	Scope                 careplan.ReviewScopeResolver
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() careplan.Date
 	Fingerprint           func([]byte) string
-	Blocks                ports.PickupReviewBlocks
+	Blocks                careplan.PickupReviewBlocks
 	Logger                *slog.Logger
 }
 
@@ -114,7 +113,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 	return items, next, nil
 }
 
-func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareScheduleChangeRequest, operation string) (map[int64]ports.ReviewStudent, map[int64]ports.PersonName, error) {
+func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareScheduleChangeRequest, operation string) (map[int64]careplan.ReviewStudent, map[int64]careplan.PersonName, error) {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)
@@ -178,7 +177,7 @@ func (s *ScheduleReviews) ListHistory(ctx context.Context, filter careplan.Reque
 	return items, next, nil
 }
 
-func (s *ScheduleReviews) plan(ctx context.Context, student ports.ReviewStudent, date careplan.Date, weekly bool) (reviewPlanFacts, error) {
+func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStudent, date careplan.Date, weekly bool) (reviewPlanFacts, error) {
 	facts := reviewPlanFacts{}
 	filter := careplan.StudentScheduleFilter{StudentIDs: []int64{student.ID}}
 	var err error
