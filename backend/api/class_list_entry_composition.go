@@ -2,45 +2,34 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	auditClassList "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
 // The audited class-list administration (#2382, #3355) lives with School
 // Membership, but two of its collaborators come from other owners: the People
 // Directory student lookup behind the duplicate guard and the "Zuordnen"
-// hint, and the fail-closed Audit command behind the change trail, which the
-// service graph builds. The root adapts them to the owner's ports and binds
-// them once the Audit command exists.
+// hint, and the fail-closed Audit command behind the change trail. The root
+// adapts them to the owner's ports and composes the administration over them.
 
-// classListEntryAdministrationBinder is what the School Membership module
-// exposes for that late binding.
-type classListEntryAdministrationBinder interface {
-	BindClassListEntryAdministration(schoolmembership.ClassListEntryStudents, schoolmembership.ClassListEntryTrail)
-}
-
-// BindClassListEntryAdministration installs both ports. A capability without
-// the binder cannot serve the Klassenliste screen at all, so the composition
-// refuses to continue silently.
-func BindClassListEntryAdministration(
-	membership schoolmembership.Capability,
-	persons peopledirectory.Capability,
-	audit auditModels.Command,
-) error {
-	binder, ok := membership.(classListEntryAdministrationBinder)
-	if !ok {
-		return fmt.Errorf("class list entry administration: school membership %T cannot bind it", membership)
-	}
+// composeClassListEntries composes the observed School Membership owner with
+// its audited class-list administration. The Klassenliste routes mount it.
+func composeClassListEntries(db transactionruntime.Database, persons peopledirectory.Capability, audit auditModels.Command) (*schoolmembership.Module, error) {
 	if persons == nil || audit == nil {
-		return fmt.Errorf("class list entry administration: people directory and audit command are required")
+		return nil, errors.New("class list entry administration: people directory and audit command are required")
 	}
-	binder.BindClassListEntryAdministration(classListEntryStudents{persons: persons}, classListEntryAuditTrail{audit: audit})
-	return nil
+	dependencies, err := schoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.NewClassListEntries(dependencies, classListEntryStudents{persons: persons}, classListEntryAuditTrail{audit: audit})
 }
 
 // classListEntryStudents answers "is this name already a child of that class"

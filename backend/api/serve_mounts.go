@@ -864,8 +864,8 @@ func mountSchoolRoutes(
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities timetableCompose.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
 	planning TimetablePlanning, careOfferings carePlanModule.CareOfferingCapability, settingsWrites SettingsWrites,
-	membership schoolMembershipModule.Capability, databaseStats DatabaseStatsReader, dataImports imports, persons peopledirectory.Capability,
-	gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
+	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
+	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 ) {
 	pool := db.Pool()
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(facilities, roomsHTTPAdapter.Dependencies{
@@ -894,7 +894,7 @@ func mountSchoolRoutes(
 	homeLayouts := requireHomeLayoutOperations(settings)
 	tenant.Mount("/settings", newSettingsResource(settingsWrites.Tenant, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
 	// Class-list-only entries (#2382).
-	tenant.Mount("/class-list-entries", newClassListEntriesResource(membership, logger.With("handler", "class-list-entries")).Router())
+	tenant.Mount("/class-list-entries", newClassListEntriesResource(classListEntries, logger.With("handler", "class-list-entries")).Router())
 	tenant.Mount("/database", newDatabaseStatsRouter(databaseStats, logger.With("handler", "database")))
 	// CSV/Excel import endpoints.
 	tenant.Mount("/import", importAPI.NewResource(importAPI.Dependencies{

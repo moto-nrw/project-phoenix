@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports"
@@ -83,41 +82,20 @@ func (s *Service) DeleteClassListEntry(ctx context.Context, id int64) error {
 // and the audit trail. It is a wiring error, not a request outcome.
 var ErrClassListEntryAdministrationUnbound = errors.New("school membership: class list entry administration is not bound")
 
-// classListAdministration is the slot the two late-bound collaborators live
-// in. A slot rather than two plain fields: the composition ratchet counts a
-// dependency-typed field written from a setter as composition surface, which
-// is shrink-only, and the pointer publishes both collaborators in one step so
-// no request can observe half a binding.
-type classListAdministration struct {
-	value atomic.Pointer[classListCollaborators]
+// ClassListAdministration are the two collaborators the audited flows need:
+// the student directory behind the duplicate guard and the match hint, and
+// the audit trail every change appends to. A service composed without them
+// refuses the audited flows with ErrClassListEntryAdministrationUnbound.
+type ClassListAdministration struct {
+	Students ports.StudentDirectory
+	Trail    ports.AuditTrail
 }
 
-type classListCollaborators struct {
-	students ports.StudentDirectory
-	trail    ports.AuditTrail
-}
-
-func (s *classListAdministration) store(collaborators classListCollaborators) {
-	s.value.Store(&collaborators)
-}
-
-func (s *classListAdministration) load() (classListCollaborators, error) {
-	collaborators := s.value.Load()
-	if collaborators == nil {
-		return classListCollaborators{}, ErrClassListEntryAdministrationUnbound
+func (s *Service) classListAdministration() (ClassListAdministration, error) {
+	if s.classList == nil {
+		return ClassListAdministration{}, ErrClassListEntryAdministrationUnbound
 	}
-	return *collaborators, nil
-}
-
-// BindClassListEntryAdministration installs the two capabilities the audited
-// flows need and that only exist once the composition root has built them.
-// It is called once at composition time; a second call replaces both so test
-// graphs can rebuild them.
-func (s *Service) BindClassListEntryAdministration(students ports.StudentDirectory, trail ports.AuditTrail) {
-	if students == nil || trail == nil {
-		panic("school membership application: class list entry administration needs a student directory and an audit trail")
-	}
-	s.classListAdmin.store(classListCollaborators{students: students, trail: trail})
+	return *s.classList, nil
 }
 
 // ListClassListEntriesInDisplayOrder lists the entries the way a class list
@@ -138,12 +116,12 @@ func (s *Service) ListClassListEntriesInDisplayOrder(ctx context.Context, filter
 // automatic merge (#2382: gleichnamige Kinder dürfen nicht verwechselt
 // werden).
 func (s *Service) MatchingStudentIDs(ctx context.Context, fields domain.ClassListEntryFields) (result []int64, err error) {
-	collaborators, err := s.classListAdmin.load()
+	collaborators, err := s.classListAdministration()
 	if err != nil {
 		return nil, err
 	}
 	err = s.runRead(ctx, "match_class_list_entry_students", func(txCtx context.Context, _ *domain.OperationStats) error {
-		result, err = collaborators.students.ListStudentIDsByNameAndClass(txCtx, fields.FirstName, fields.LastName, fields.SchoolClass)
+		result, err = collaborators.Students.ListStudentIDsByNameAndClass(txCtx, fields.FirstName, fields.LastName, fields.SchoolClass)
 		return err
 	})
 	if err != nil {
@@ -161,7 +139,7 @@ func (s *Service) MatchingStudentIDs(ctx context.Context, fields domain.ClassLis
 // no constraint behind it at all: a student created concurrently surfaces as
 // a match hint in the listing instead.
 func (s *Service) AddClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, changedBy int64) (result domain.ClassListEntry, err error) {
-	collaborators, err := s.classListAdmin.load()
+	collaborators, err := s.classListAdministration()
 	if err != nil {
 		return domain.ClassListEntry{}, err
 	}
@@ -180,7 +158,7 @@ func (s *Service) AddClassListEntry(ctx context.Context, fields domain.ClassList
 			return err
 		}
 		result = created
-		return collaborators.trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
+		return collaborators.Trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
 			EntryID: created.ID, Action: domain.ClassListEntryActionCreated,
 			NewValue: domain.ClassListEntryDisplayValue(created.Fields()), ChangedBy: changedBy,
 		})
@@ -195,7 +173,7 @@ func (s *Service) AddClassListEntry(ctx context.Context, fields domain.ClassList
 // revision that changes nothing is a no-op: it writes no row and leaves no
 // audit trace, exactly like the screen's "save" on an untouched form.
 func (s *Service) ReviseClassListEntry(ctx context.Context, id int64, fields domain.ClassListEntryFields, changedBy int64) (result domain.ClassListEntry, err error) {
-	collaborators, err := s.classListAdmin.load()
+	collaborators, err := s.classListAdministration()
 	if err != nil {
 		return domain.ClassListEntry{}, err
 	}
@@ -220,7 +198,7 @@ func (s *Service) ReviseClassListEntry(ctx context.Context, id int64, fields dom
 			return err
 		}
 		result = updated
-		return collaborators.trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
+		return collaborators.Trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
 			EntryID: id, Action: domain.ClassListEntryActionUpdated,
 			OldValue: oldValue, NewValue: domain.ClassListEntryDisplayValue(updated.Fields()), ChangedBy: changedBy,
 		})
@@ -233,7 +211,7 @@ func (s *Service) ReviseClassListEntry(ctx context.Context, id int64, fields dom
 
 // RemoveClassListEntry deletes an entry and records what was removed.
 func (s *Service) RemoveClassListEntry(ctx context.Context, id int64, changedBy int64) error {
-	collaborators, err := s.classListAdmin.load()
+	collaborators, err := s.classListAdministration()
 	if err != nil {
 		return err
 	}
@@ -247,7 +225,7 @@ func (s *Service) RemoveClassListEntry(ctx context.Context, id int64, changedBy 
 		if err != nil {
 			return err
 		}
-		return collaborators.trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
+		return collaborators.Trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
 			EntryID: id, Action: domain.ClassListEntryActionDeleted,
 			OldValue: domain.ClassListEntryDisplayValue(current.Fields()), ChangedBy: changedBy,
 		})
@@ -261,7 +239,7 @@ func (s *Service) RemoveClassListEntry(ctx context.Context, id int64, changedBy 
 // matched like the "Mögliche Dublette" hint. Anything else would resolve the
 // entry into an unrelated child and silently drop the named child.
 func (s *Service) ResolveClassListEntry(ctx context.Context, id, studentID, changedBy int64) error {
-	collaborators, err := s.classListAdmin.load()
+	collaborators, err := s.classListAdministration()
 	if err != nil {
 		return err
 	}
@@ -270,14 +248,14 @@ func (s *Service) ResolveClassListEntry(ctx context.Context, id, studentID, chan
 		if err != nil {
 			return err
 		}
-		enrolled, err := collaborators.students.IsEnrolledStudent(txCtx, studentID)
+		enrolled, err := collaborators.Students.IsEnrolledStudent(txCtx, studentID)
 		if err != nil {
 			return err
 		}
 		if !enrolled {
 			return domain.ErrClassListEntryStudentNotFound
 		}
-		matches, err := collaborators.students.ListStudentIDsByNameAndClass(txCtx,
+		matches, err := collaborators.Students.ListStudentIDsByNameAndClass(txCtx,
 			current.FirstName, current.LastName, current.SchoolClass)
 		if err != nil {
 			return err
@@ -291,7 +269,7 @@ func (s *Service) ResolveClassListEntry(ctx context.Context, id, studentID, chan
 			return err
 		}
 		matched := studentID
-		return collaborators.trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
+		return collaborators.Trail.AppendClassListEntryChange(txCtx, domain.ClassListEntryChange{
 			EntryID: id, Action: domain.ClassListEntryActionAssigned,
 			OldValue:         domain.ClassListEntryDisplayValue(current.Fields()),
 			MatchedStudentID: &matched, ChangedBy: changedBy,
@@ -314,7 +292,7 @@ func (s *Service) lockClassListEntry(ctx context.Context, id int64, stats *domai
 // requireClassListEntryNameFree rejects the name and class when another
 // entry or any still-enrolled student already carries it. ignoreEntryID
 // skips the entry being revised.
-func (s *Service) requireClassListEntryNameFree(ctx context.Context, collaborators classListCollaborators, fields domain.ClassListEntryFields, ignoreEntryID int64, stats *domain.OperationStats) error {
+func (s *Service) requireClassListEntryNameFree(ctx context.Context, collaborators ClassListAdministration, fields domain.ClassListEntryFields, ignoreEntryID int64, stats *domain.OperationStats) error {
 	existing, listStats, err := s.store.ListClassListEntries(ctx, domain.ClassListEntryFilter{
 		FirstName: fields.FirstName, LastName: fields.LastName, SchoolClass: fields.SchoolClass,
 	})
@@ -327,7 +305,7 @@ func (s *Service) requireClassListEntryNameFree(ctx context.Context, collaborato
 			return domain.ErrClassListEntryDuplicate
 		}
 	}
-	students, err := collaborators.students.ListStudentIDsByNameAndClass(ctx, fields.FirstName, fields.LastName, fields.SchoolClass)
+	students, err := collaborators.Students.ListStudentIDsByNameAndClass(ctx, fields.FirstName, fields.LastName, fields.SchoolClass)
 	if err != nil {
 		return err
 	}

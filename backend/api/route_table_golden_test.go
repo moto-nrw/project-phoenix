@@ -340,6 +340,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
 			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
+			t.Run("class list entry administration", func(t *testing.T) { checkClassListEntryAdministration(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
 			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })

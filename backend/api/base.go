@@ -105,14 +105,25 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 // staff member is School Membership's membership row plus Workforce's
 // employment profile (#2753); the membership owner composes the two.
 func composeSchoolMembership(db transactionruntime.Database) (*schoolMembershipModule.Module, error) {
+	dependencies, err := schoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.New(dependencies)
+}
+
+// schoolMembershipDependencies are the observed School Membership owner's
+// dependencies, shared by the owner and its audited class-list
+// administration.
+func schoolMembershipDependencies(db transactionruntime.Database) (schoolMembershipCompose.Dependencies, error) {
 	pool := db.Pool()
 	staffEmployment, err := workforceCompose.NewStaffEmployment(pool, func(observation workforceCompose.Observation) {
 		observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
-		return nil, err
+		return schoolMembershipCompose.Dependencies{}, err
 	}
-	return schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
+	return schoolMembershipCompose.Dependencies{
 		DB: pool,
 		Observe: func(observation schoolMembershipCompose.Observation) {
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
@@ -121,7 +132,7 @@ func composeSchoolMembership(db transactionruntime.Database) (*schoolMembershipM
 		// Every counting membership write is checked against the school's
 		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
 		ChildQuota: organizationCompose.NewChildQuotaLimits(),
-	})
+	}, nil
 }
 
 // composeFeedback composes the observed Feedback owner over its settings.

@@ -42,7 +42,21 @@ type ChildQuota interface {
 // one for the tenant in context, so row-level security decides visibility
 // exactly as it did for the legacy repositories.
 func New(dependencies Dependencies) (*schoolmembership.Module, error) {
-	service, err := newApplication(dependencies)
+	return newModule(dependencies, nil)
+}
+
+// NewClassListEntries composes the module with its audited class-list
+// administration (#2382) over the People Directory students and the Audit
+// trail; the root builds it after both owners.
+func NewClassListEntries(dependencies Dependencies, students schoolmembership.ClassListEntryStudents, trail schoolmembership.ClassListEntryTrail) (*schoolmembership.Module, error) {
+	if students == nil || trail == nil {
+		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
+	}
+	return newModule(dependencies, application.NewClassListAdministration(students, trail))
+}
+
+func newModule(dependencies Dependencies, classList *application.ClassListAdministration) (*schoolmembership.Module, error) {
+	service, err := newApplication(dependencies, classList)
 	if err != nil {
 		return nil, err
 	}
@@ -50,24 +64,7 @@ func New(dependencies Dependencies) (*schoolmembership.Module, error) {
 	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
 }
 
-// NewClassListEntries composes the audited class-list administration
-// (#2382) over the People Directory students and the Audit trail it needs
-// from the start. It is a value of its own because the People Directory is
-// composed over School Membership: the root builds it after both owners,
-// instead of binding the two ports into the module afterwards.
-func NewClassListEntries(dependencies Dependencies, students schoolmembership.ClassListEntryStudents, trail schoolmembership.ClassListEntryTrail) (schoolmembership.ClassListEntries, error) {
-	if students == nil || trail == nil {
-		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
-	}
-	module, err := New(dependencies)
-	if err != nil {
-		return nil, err
-	}
-	module.BindClassListEntryAdministration(students, trail)
-	return module, nil
-}
-
-func newApplication(dependencies Dependencies) (*application.Service, error) {
+func newApplication(dependencies Dependencies, classList *application.ClassListAdministration) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school membership compose: all dependencies are required")
 	}
@@ -96,7 +93,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, transaction{}, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
-	})
+	}, classList)
 	return service, nil
 }
 

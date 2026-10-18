@@ -9,7 +9,7 @@ import (
 )
 
 // ClassListTestModule is the School Membership owner with its class-list
-// administration bound the same way production binds it: the People Directory
+// administration composed the same way production composes it: the People Directory
 // behind the duplicate guard and the match hint, the fail-closed Audit
 // command behind the change trail.
 type ClassListTestModule struct {
@@ -17,10 +17,6 @@ type ClassListTestModule struct {
 }
 
 func NewClassListTestModule(db transactionruntime.Database) (ClassListTestModule, error) {
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return ClassListTestModule{}, err
-	}
 	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ClassListTestModule{}, err
@@ -29,7 +25,8 @@ func NewClassListTestModule(db transactionruntime.Database) (ClassListTestModule
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	if err := BindClassListEntryAdministration(membership, persons, command); err != nil {
+	membership, err := composeClassListEntries(db, persons, command)
+	if err != nil {
 		return ClassListTestModule{}, err
 	}
 	return ClassListTestModule{Membership: membership}, nil
