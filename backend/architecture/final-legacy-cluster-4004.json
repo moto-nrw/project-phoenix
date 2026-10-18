@@ -46,10 +46,10 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose|github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose|github.com/moto-nrw/project-phoenix/modules/workforce/compose"
   ],
-  "atomic_cutover": "Retire 5 keys for carrier 4004 against development a4b10d5cdf06c707909c14f386807d6a56295f3c. The merged base has 40 keys and this candidate has 33. There are no new keys, aliases, exceptions, grants, hook allowances, checker edits or budget increases. Native contract/port rules preserve existing reaches. The Data Import authorization consumer is retained after its native-policy probe was rejected. Composition is zero. The broader final-cluster exits remain pending.",
+  "atomic_cutover": "Retire 5 keys for carrier 4004 against development 2dc7af533610495387765d0f78c8d84af75d866b. The merged base has 40 keys and this candidate has 33. There are no new keys, aliases, exceptions, grants, hook allowances, checker edits or budget increases. Native contract/port rules preserve existing reaches. The Data Import authorization consumer is retained after its native-policy probe was rejected. Composition is zero. The broader final-cluster exits remain pending.",
   "tests": [
-    "scripts/backend-architecture.sh check --base-ref a4b10d5cdf06c707909c14f386807d6a56295f3c",
-    "scripts/backend-architecture.sh validate-ticket --all --base-ref a4b10d5cdf06c707909c14f386807d6a56295f3c",
+    "scripts/backend-architecture.sh check --base-ref 2dc7af533610495387765d0f78c8d84af75d866b",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref 2dc7af533610495387765d0f78c8d84af75d866b",
     "Owner behavior suites for Data Import and its database-backed importtest package, Settings application/defaults/HTTP, Scheduler, Document Rendering and Staff Clock; original assertions retained.",
     "Source ratchets for function length, complexity, pass-throughs, facade width, file size, composition LOC and aliases.",
     "Full scripts/test-changed.sh origin/development without --fast, lint and hooks are required before push; actual final outcomes are recorded in docs/architecture/final-legacy-cluster.md."
@@ -70,7 +70,7 @@
       "backend/modules/documentrendering/records/types.go",
       "backend/workflows/staffclock/contracts.go"
     ],
-    "workload": "Code-only migration against a4b10d5cdf06c707909c14f386807d6a56295f3c. Focused owner suites passed using the main checkout test DB configuration and /tmp/gocache-final. Full affected tests, lint and hooks must pass before publication.",
+    "workload": "Code-only migration against 2dc7af533610495387765d0f78c8d84af75d866b. Focused owner suites passed using the main checkout test DB configuration and /tmp/gocache-final. Full affected tests, lint and hooks must pass before publication.",
     "thresholds": "40 to 33 legacy keys: five 4004 keys and two 2751 keys. Composition surface remains 0. Foreign composition aliases decrease from 124 to 37. No new exact debt, grant, alias, exception, checker edit or higher budget.",
     "errors": {
       "state": "measured",

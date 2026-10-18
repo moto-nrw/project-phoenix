@@ -1,6 +1,6 @@
 # Final legacy cluster
 
-Integrated development base: `a4b10d5cdf06c707909c14f386807d6a56295f3c` (PR #4330). Original inventory base: `a51ece49deb11a42951491853e85a7968a2d39ff`. Branch: `final-legacy-cluster`.
+Integrated development base: `2dc7af533610495387765d0f78c8d84af75d866b` (PRs #4330 and #4332). Original inventory base: `a51ece49deb11a42951491853e85a7968a2d39ff`. Branch: `final-legacy-cluster`.
 
 ## Candidate result
 
@@ -403,4 +403,4 @@ These still need an owner-native split; renaming alone is not counted as a disso
 
 Focused Data Import application/integration, Settings application/defaults/HTTP, Scheduler, Document Rendering and Staff Clock suites passed with unchanged assertions. Source ratchets and the fixed-build architecture check passed. `TestFullProductionRouterGolden` and all golden fixtures are unchanged. Historical evidence source paths moved here are pinned to the immutable development commit, rather than left as missing local files.
 
-Full affected tests passed (219 packages, no `--fast`, `GOCACHE=/tmp/gocache-final`). Retirement evidence validates all seven removals against the immutable development SHA. Lint passed with zero issues. Full hooks run on the committed head before the single authorized push; the PR records their outcome. PR #4330 is integrated; there is no remaining hold. After push, run offline quorum with `--no-resolve-conflicts` and merge only after the required green checks.
+Full affected tests passed before the latest clean development merge (219 packages, no `--fast`, `GOCACHE=/tmp/gocache-final`); the merged head is rechecked before push. Retirement evidence validates all seven removals against the immutable development SHA. Lint passed with zero issues. Full hooks run on the committed head before the single authorized push; the PR records their outcome. PR #4330 is integrated; there is no remaining hold. After push, run offline quorum with `--no-resolve-conflicts` and merge only after the required green checks.
