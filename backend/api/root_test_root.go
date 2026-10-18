@@ -119,7 +119,10 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		staffGroups      schoolstructure.StaffGroupQuery
 	)
 	err = runRootSteps(
-		func() (err error) { tokens, err = newLegacyTokenAdapter(); return },
+		func() (err error) {
+			tokens, err = tokenAdapterFor(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+			return
+		},
 		func() (err error) {
 			objects, err = nativeUploads.PrivateUploadsBackend()
 			return stepError("resolve uploads backend", err)

@@ -72,7 +72,7 @@ func buildCommunicationMessaging(
 	messaging := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(users), UserContext: caller,
-		Settings: settingsValues.NewParentMessagingValues(settings), Broadcaster: transport.Hub, DB: db.Pool(),
+		Session: CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(settings), Broadcaster: transport.Hub, DB: db.Pool(),
 		Logger: logger.With("service", "messaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
@@ -82,7 +82,7 @@ func buildCommunicationMessaging(
 	staffMessaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(db.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: BindStaffSenderNames(users), Settings: settingsValues.NewStaffMessagingValues(settings), Broadcaster: transport.Hub,
+		Persons: BindStaffSenderNames(users), Session: CommunicationSession{}, Settings: settingsValues.NewStaffMessagingValues(settings), Broadcaster: transport.Hub,
 		Logger: logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
