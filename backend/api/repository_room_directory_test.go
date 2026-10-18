@@ -37,7 +37,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	devices, err := NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

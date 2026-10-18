@@ -39,7 +39,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
-		f.reposAbsences.StaffAbsence, f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.repos.Membership),
+		f.reposAbsences.StaffAbsence, f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership),
 		api.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,

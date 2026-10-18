@@ -60,7 +60,8 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if len(publishers) > 0 {
 		publisher = publishers[0]
 	}
-	groups := education.NewGroupManagement(members.Group, members.GroupTeacher, members.ClassTeacher,
+	structure := NewSchoolStructureSuiteRepositories(db)
+	groups := education.NewGroupManagement(structure.Group, structure.GroupTeacher, structure.ClassTeacher,
 		NewEducationRooms(ttRooms.Facilities), NewEducationTeachers(members.Teacher), NewEducationStaff(members.Staff),
 		members.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(publisher, nil)})
 
@@ -80,7 +81,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
 		StaffNames:      NewAttendanceStaffNames(members.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(ttRooms.Room),
-		EducationGroupRepo: NewAttendanceEducationGroups(members.Group, members.Student),
+		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student),
 		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
 		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
 	})

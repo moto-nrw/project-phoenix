@@ -33,7 +33,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 	today := calendar.TodayDate()
 

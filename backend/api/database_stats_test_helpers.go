@@ -45,7 +45,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {
-			rows, err := members.Group.List(ctx, nil)
+			rows, err := NewSchoolStructureSuiteRepositories(db).Group.List(ctx, nil)
 			return len(rows), err
 		},
 		Roles: func(ctx context.Context) (int, error) {

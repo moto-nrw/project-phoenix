@@ -57,7 +57,8 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 	if err != nil {
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
-	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
+	structure := NewSchoolStructureSuiteRepositories(db)
+	service := education.NewService(structure.Group, structure.GroupTeacher, structure.ClassTeacher,
 		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
 		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(broadcaster, nil), Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
@@ -80,7 +81,7 @@ func NewTestGroupHandovers(db transactionruntime.Database) shiftplansync.GroupHa
 // repositories the way the service graph binds them.
 func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transactionruntime.Database, deps education.SubstitutionDependencies) education.SubstitutionModule {
 	if deps.Groups == nil {
-		deps.Groups = repos.Group
+		deps.Groups = NewSchoolStructureSuiteRepositories(db).Group
 	}
 	if deps.Substitutions == nil {
 		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution, NewTestGroupHandovers(db))

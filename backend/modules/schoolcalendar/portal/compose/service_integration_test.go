@@ -48,7 +48,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 
 	cfg := api.NewCalendarFacts(repos.Staff, repos.Student,
 		api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		repos.StudentGuardian, repos.ParentChildLinks(), repos.Group)
+		repos.StudentGuardian, repos.ParentChildLinks(), api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
 	cfg = api.BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
 	cfg = api.BindCalendarCaller(cfg, userContext)
 	cfg.Appointments = repos.Appointments()

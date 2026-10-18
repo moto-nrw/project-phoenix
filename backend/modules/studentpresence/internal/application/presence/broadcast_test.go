@@ -44,6 +44,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 	t.Helper()
 
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -63,7 +64,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
@@ -221,6 +222,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -237,7 +239,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),

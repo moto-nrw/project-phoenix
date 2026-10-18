@@ -119,7 +119,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
 		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
+		EducationGroupRepo: api.NewAttendanceEducationGroups(api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
 		RoomRepo: api.NewAttendanceRooms(repos.Room), ActivityGroupRepo: api.NewSessionActivities(repos.GroupReads()),
 		DB: db, Broadcaster: api.NewPresenceEvents(broadcaster, nil),
 	})

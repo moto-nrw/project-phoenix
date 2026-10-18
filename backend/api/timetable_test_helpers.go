@@ -120,7 +120,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, members.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
-		EducationGroupRepo: NewAttendanceEducationGroups(members.Group, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff),
+		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff),
 		DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,

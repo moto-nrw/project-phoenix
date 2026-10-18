@@ -63,7 +63,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	logger := slog.Default()
 	cfg := CurrentServiceConfig()
 	calendarConfig := NewCalendarFacts(repos.Staff, repos.Student, NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
-		repos.StudentGuardian, parents.ParentChildLinks(), repos.Group)
+		repos.StudentGuardian, parents.ParentChildLinks(), NewSchoolStructureSuiteRepositories(db).Group)
 	calendarConfig = BindCalendarScheduleFacts(calendarConfig, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
 	calendarConfig = BindCalendarFeedFacts(calendarConfig, repos.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
 	calendarConfig = BindCalendarCaller(calendarConfig, identity.UserContext.Caller())

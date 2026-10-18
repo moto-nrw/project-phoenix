@@ -72,6 +72,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	t.Helper()
 	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	staff, err := api.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
@@ -91,7 +92,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
-		EducationGroups: api.TimetableEducationGroupNames(repos.Group),
+		EducationGroups: api.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           api.NewTimetableRoomNames(rooms),
 	}
 	templates, err := rows.OperationTemplates()

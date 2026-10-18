@@ -64,12 +64,6 @@ type PeopleRepositorySuiteFactory struct {
 	StudentDataChangeRequest peoplePorts.StudentDataChangeRequestRepository
 }
 
-// SchoolMembership is the School Membership owner the staff adapters read
-// through.
-func (f *PeopleRepositorySuiteFactory) SchoolMembership() schoolmembership.Capability {
-	return f.Membership
-}
-
 // NewPeopleRepositorySuiteFactory composes the People Directory suite
 // repositories over the unobserved timetable dependencies.
 func NewPeopleRepositorySuiteFactory(db transactionruntime.Database) *PeopleRepositorySuiteFactory {
@@ -84,8 +78,8 @@ func newPeopleRepositorySuiteFactory(
 	if capability == nil || students == nil || groups == nil || rooms == nil || calendarOwner == nil || membership == nil || workTime == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
-	identity := NewPeopleIdentityAccess(db, nil)
-	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, membership, rooms, workTime)
+	identity, persons := NewPeopleIdentityAccess(db, nil), NewPersonRepository(db)
+	members := NewMembershipRepositories(db, persons, identity, membership, rooms, workTime)
 	members.People = students
 	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
@@ -100,7 +94,7 @@ func newPeopleRepositorySuiteFactory(
 		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		ParentRequestShare:         peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
 		ParentRequestEvent:         peopleCompose.NewParentRequestEventRepository(db.Pool()),
-		GroupSubstitution:          NewGroupSubstitutionRepository(members.Group, membership, workTime),
+		GroupSubstitution:          NewGroupSubstitutionRepository(NewSchoolStructureRepositories(db, persons, identity, membership, rooms, workTime).Group, membership, workTime),
 		CaregiverBindingLock:       NewCaregiverBindingLocker(membership, workTime, NewStudentPresenceForTests(db), capability),
 		CareWithdrawal:             NewCareWithdrawalCompletionRepository(carePlan),
 		StudentDataChangeRequest:   NewStudentDataChangeRequestRepository(carePlan),

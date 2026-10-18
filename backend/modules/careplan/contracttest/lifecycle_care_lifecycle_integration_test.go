@@ -39,6 +39,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
@@ -60,7 +61,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: api.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,

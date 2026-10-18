@@ -658,12 +658,13 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")
 	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
 	groups := &ownershipRevokingGroups{
-		GroupStore: repos.Group, links: repos.GroupTeacher, teacherID: owner.ID,
+		GroupStore: reposStructure.Group, links: reposStructure.GroupTeacher, teacherID: owner.ID,
 	}
 	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Groups: groups, Now: func() time.Time { return fixedNow },
@@ -679,7 +680,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	rows, err := repos.GroupSubstitution.FindByGroup(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Empty(t, rows)
-	relations, err := repos.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
+	relations, err := reposStructure.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Len(t, relations, 1, "the simulated concurrent removal must roll back with the rejected assignment")
 }

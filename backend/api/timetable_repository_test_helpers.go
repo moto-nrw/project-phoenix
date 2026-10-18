@@ -97,6 +97,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		return TimetableTestRepositories{}, err
 	}
 	usage := timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), bookings)
+	structure := NewSchoolStructureSuiteRepositories(db)
 	result := TimetableTestRepositories{
 		Repositories: adapters,
 		CalendarRows: timetableCompose.CalendarRows{
@@ -106,8 +107,8 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		},
 		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
 		calendarPeriodUsage:      usage,
-		rosterStudents:           members.Student, educationGroups: members.Group,
-		educationGroupNames: TimetableEducationGroupNames(members.Group),
+		rosterStudents:           members.Student, educationGroups: structure.Group,
+		educationGroupNames: TimetableEducationGroupNames(structure.Group),
 		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room),
 	}
 	result.deviationEvents, result.deviations = TimetableDeviationPorts(nil)

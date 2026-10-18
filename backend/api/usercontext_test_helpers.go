@@ -54,7 +54,7 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 		Settings:             settings,
 		Tokens:               requestTokenReads,
 	}, CallerRowSources{
-		Groups: members.Group, Staff: members.Staff, Teachers: members.Teacher, Students: members.Student,
+		Groups: NewSchoolStructureSuiteRepositories(db).Group, Staff: members.Staff, Teachers: members.Teacher, Students: members.Student,
 		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: presence.ActiveGroup,
 	})
 }

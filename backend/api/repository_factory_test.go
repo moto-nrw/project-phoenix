@@ -15,6 +15,7 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	factoryPeople := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryPeopleStructure := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryAccounts := NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	factorySchedules := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
@@ -43,8 +44,8 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	// Verify education repositories are initialized
 	t.Run("education repositories", func(t *testing.T) {
-		assert.NotNil(t, factoryPeople.Group)
-		assert.NotNil(t, factoryPeople.GroupTeacher)
+		assert.NotNil(t, factoryPeopleStructure.Group)
+		assert.NotNil(t, factoryPeopleStructure.GroupTeacher)
 		assert.NotNil(t, factoryPeople.GroupSubstitution)
 	})
 

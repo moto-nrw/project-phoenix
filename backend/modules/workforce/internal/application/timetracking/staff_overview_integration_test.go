@@ -31,17 +31,18 @@ func (r *recordingAbsenceRepository) GetAbsenceMapForDate(
 // overviewFixture arranges a tenant with N staff members, each with a contract
 // on every weekday, a worked session today, and (optionally) a planned shift.
 type overviewFixture struct {
-	tenantID      int64
-	db            *testpkg.DB
-	repos         *api.PeopleRepositorySuiteFactory
-	reposAbsences *api.StaffAbsenceSuiteRepositories
-	reposPresence *api.PresenceSuiteRepositories
-	workforce     workforce.Capability
-	ctx           context.Context
-	staff         []int64
-	svc           timetracking.StaffOverviewService
-	monthSvc      timetracking.WorkTimeMonthService
-	today         calendar.Date
+	tenantID        int64
+	db              *testpkg.DB
+	repos           *api.PeopleRepositorySuiteFactory
+	reposMembership *api.SchoolMembershipSuiteRepositories
+	reposAbsences   *api.StaffAbsenceSuiteRepositories
+	reposPresence   *api.PresenceSuiteRepositories
+	workforce       workforce.Capability
+	ctx             context.Context
+	staff           []int64
+	svc             timetracking.StaffOverviewService
+	monthSvc        timetracking.WorkTimeMonthService
+	today           calendar.Date
 }
 
 // newOverviewFixture builds `count` staff members. The account start is the
@@ -57,11 +58,12 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := calendar.TodayDate()
 
 	f := &overviewFixture{
-		tenantID: tenantID, db: db, repos: reposPeople,
+		tenantID: tenantID, db: db, repos: reposPeople, reposMembership: reposPeopleMembership,
 		reposAbsences: reposAbsences,
 		reposPresence: reposPresence, workforce: workTime, ctx: ctx, today: today,
 	}

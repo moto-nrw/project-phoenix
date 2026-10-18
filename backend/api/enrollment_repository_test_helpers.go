@@ -48,5 +48,5 @@ func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, me
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
 		School:          organizations,
 		StudentGuardian: members.StudentGuardian, GuardianProfile: members.GuardianProfile, GuardianPhoneNumber: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		Membership: members.Membership}, nil
+		Membership: MustNewSchoolMembership(db)}, nil
 }

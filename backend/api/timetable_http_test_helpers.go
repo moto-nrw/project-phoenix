@@ -123,7 +123,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		InstanceStaff:        r.InstanceStaff,
 		Participants:         r.InstanceStudent,
 		Timeframes:           r.Timeframe,
-		EducationGroups:      members.Group,
+		EducationGroups:      NewSchoolStructureSuiteRepositories(db).Group,
 		Materialization:      materialization,
 		Deviations:           timetableHTTPTestSeriesDeviations(options.Instances),
 		CareOfferings:        timetableHTTPTestCareOfferingChecks(options),

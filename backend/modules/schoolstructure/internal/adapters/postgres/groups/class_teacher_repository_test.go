@@ -15,7 +15,7 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).ClassTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates class assignment", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).ClassTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTFind", "Staff")
@@ -73,7 +73,7 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
+	factory := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	repo := factory.ClassTeacher
 	ctx := testpkg.Ctx(t)
 
