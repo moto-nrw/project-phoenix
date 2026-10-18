@@ -338,10 +338,7 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 			return createErr
 		}
 		change = created
-		if err := p.changes.DispatchOperatorEmailChangeVerification(txCtx, change); err != nil {
-			return err
-		}
-		return p.changes.DispatchOperatorEmailChangeRequested(txCtx, operator, maskedNewEmail)
+		return p.enqueueEmailChangeNotices(txCtx, change, operator, maskedNewEmail)
 	}); err != nil {
 		return err
 	}
@@ -467,4 +464,11 @@ func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx co
 
 func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) error {
 	return d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
+}
+
+func (p *OperatorProvisioning) enqueueEmailChangeNotices(ctx context.Context, change domain.OperatorEmailChange, operator domain.Operator, maskedNewEmail string) error {
+	if err := p.changes.DispatchOperatorEmailChangeVerification(ctx, change); err != nil {
+		return err
+	}
+	return p.changes.DispatchOperatorEmailChangeRequested(ctx, operator, maskedNewEmail)
 }

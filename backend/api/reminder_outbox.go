@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -83,7 +85,7 @@ func (p reminderPushProvider) SendPush(ctx context.Context, intent delivery.Clai
 
 func reminderDeliveryDependencies(db transactionruntime.Database, runtime *deliveryCompose.Runtime, source CalendarReminderSource) reminderPorts.DeliveryDependencies {
 	deps := CalendarReminderDelivery(source)
-	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(db.Pool(), deps)}
+	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(reminderCommandRuntime(db), deps)}
 	deps.Outbox = reminderPushOutbox{module: runtime.Module, dispatcher: deliveryCompose.NewPushDispatcher(runtime, provider)}
 	return deps
 }
@@ -92,9 +94,20 @@ func reminderRecovery(db transactionruntime.Database, source CalendarReminderSou
 	if source == nil {
 		return nil
 	}
-	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(db.Pool(), CalendarReminderDelivery(source))}
+	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(reminderCommandRuntime(db), CalendarReminderDelivery(source))}
 	return func(ctx context.Context, intent delivery.ClaimedIntent) error {
 		_, err := provider.SendPush(ctx, intent)
 		return err
+	}
+}
+
+func reminderCommandRuntime(db transactionruntime.Database) reminderPorts.CommandRuntime {
+	transactions := deliveryCompose.NewTenantTransactions(db.Pool())
+	return reminderPorts.CommandRuntime{
+		TenantID: tenant.FromContext,
+		Detached: func(ctx context.Context) context.Context {
+			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+		},
+		WithinTenant: transactions.WithinTenant,
 	}
 }

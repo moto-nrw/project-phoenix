@@ -193,7 +193,7 @@ func buildReminders(
 			BulkSupervision:   ReminderBulkSupervisionReader{Source: supervisions},
 			BulkInstanceStaff: ReminderTimetableReader{Source: timetableOwner},
 		}),
-		Command:                   reminderCompose.NewCommand(db.Pool(), reminderDeliveryDependencies(db, delivery.Runtime, calendarApp)),
+		Command:                   reminderCompose.NewCommand(reminderCommandRuntime(db), reminderDeliveryDependencies(db, delivery.Runtime, calendarApp)),
 		ParentAnnouncementCommand: announcements,
 	}
 }

@@ -28,7 +28,7 @@ func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarR
 	if err != nil {
 		panic(err)
 	}
-	return reminderCompose.NewCommand(db.Pool(), reminderDeliveryDependencies(db, runtime, source))
+	return reminderCompose.NewCommand(reminderCommandRuntime(db), reminderDeliveryDependencies(db, runtime, source))
 }
 
 // NewFacilities composes the unobserved room owner for the test and CLI
@@ -64,10 +64,10 @@ func NewCalendarReminderOutboxFixture(db transactionruntime.Database, source Cal
 		panic(err)
 	}
 	deps := reminderDeliveryDependencies(db, runtime, source)
-	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(db.Pool(), deps)}
+	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(reminderCommandRuntime(db), deps)}
 	worker, err := deliveryCompose.NewWorker(runtime, provider)
 	if err != nil {
 		panic(err)
 	}
-	return reminderCompose.NewPreparation(db.Pool(), deps).PrepareAppointmentReminders, func(ctx context.Context) error { _, err := worker.RunOnce(ctx, 2, 6); return err }
+	return reminderCompose.NewPreparation(reminderCommandRuntime(db), deps).PrepareAppointmentReminders, func(ctx context.Context) error { _, err := worker.RunOnce(ctx, 2, 6); return err }
 }

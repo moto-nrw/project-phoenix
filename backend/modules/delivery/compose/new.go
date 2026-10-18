@@ -45,7 +45,7 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	store := postgres.New(
-		tenantDatabase,
+		postgres.RequireTenantDatabase,
 		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
 			return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, tx bun.Tx) error {
 				return callback(txCtx, tx)
@@ -131,7 +131,13 @@ func (e moduleEngine) EnqueueDeferredPush(ctx context.Context, input delivery.De
 // NewPushDispatcher builds a targeted caller over the existing outbox store.
 func NewPushDispatcher(runtime *Runtime, provider Provider) *delivery.PushDispatcher {
 	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
-	return delivery.NewPushDispatcher(pushDispatchAdapter{worker: worker})
+	return delivery.NewPushDispatcher(func(ctx context.Context, tenantID, id int64) error {
+		err := worker.DispatchPush(ctx, tenantID, id)
+		if errors.Is(err, domain.ErrCancelled) {
+			return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
+		}
+		return err
+	})
 }
 
 func (e moduleEngine) EnqueuePush(ctx context.Context, input delivery.PushIntent) (delivery.Enqueued, error) {
@@ -288,41 +294,4 @@ func providerResult(value delivery.ProviderResult, err error) (domain.ProviderRe
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
 	return domain.ProviderResult(value), err
-}
-
-// tenantDatabase is the transaction of the school in context; it refuses a
-// call for another school.
-func tenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
-	transaction, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, errors.New("delivery postgres: transaction is required")
-	}
-	tx, ok := transaction.(bun.Tx)
-	if !ok {
-		return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", transaction)
-	}
-	if expectedTenantID == 0 {
-		if !tenant.IsAdminTx(ctx) {
-			return nil, errors.New("delivery postgres: system email requires an admin transaction")
-		}
-		return tx, nil
-	}
-	actualTenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("delivery postgres: tenant is required: %w", err)
-	}
-	if actualTenantID.Int64() != expectedTenantID {
-		return nil, fmt.Errorf("delivery postgres: intent tenant %d does not match transaction tenant %d", expectedTenantID, actualTenantID.Int64())
-	}
-	return tx, nil
-}
-
-type pushDispatchAdapter struct{ worker *application.Worker }
-
-func (a pushDispatchAdapter) DispatchPush(ctx context.Context, tenantID, id int64) error {
-	err := a.worker.DispatchPush(ctx, tenantID, id)
-	if errors.Is(err, domain.ErrCancelled) {
-		return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
-	}
-	return err
 }

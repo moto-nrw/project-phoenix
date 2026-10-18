@@ -167,72 +167,18 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err != nil {
 		return delivery.ProviderResult{}, err
 	}
-	var message *email.Message
-	err = p.Tenants.WithinTenant(ctx, intent.TenantID, func(tenantCtx context.Context) error {
-		var renderErr error
-		message, renderErr = renderer.Render(tenantCtx, row)
-		if renderErr == nil {
-			p.applyReplyTo(tenantCtx, intent, message)
-		}
-		return renderErr
-	})
+	transport := emailoutbox.Transport{Mailer: p.Mailer, MailIdentity: p.MailIdentity, Tenants: p.Tenants, Logger: p.Logger}
+	err = transport.Send(ctx, row, renderer, email.NewEmail(intent.EmailRecipient.Name, intent.EmailRecipient.Address))
+	if errors.Is(err, emailoutbox.ErrRenderCancelled) {
+		return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrCancelled, err)
+	}
+	if errors.Is(err, emailoutbox.ErrRenderDeferred) {
+		return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrDeferred, err)
+	}
 	if err != nil {
-		if errors.Is(err, emailoutbox.ErrRenderCancelled) {
-			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrCancelled, err)
-		}
-		if errors.Is(err, emailoutbox.ErrRenderDeferred) {
-			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrDeferred, err)
-		}
 		return delivery.ProviderResult{}, err
 	}
-	sendErr := sendRenderedEmail(ctx, p.Mailer, intent.EmailRecipient, message)
-	if reporter, ok := renderer.(interface {
-		RecordDelivery(context.Context, *emailoutbox.Intent, error) error
-	}); ok {
-		if err := p.Tenants.WithinTenant(ctx, intent.TenantID, func(recordCtx context.Context) error {
-			return reporter.RecordDelivery(recordCtx, row, sendErr)
-		}); err != nil {
-			p.Logger.Error("record email delivery failed",
-				slog.Int64("intent_id", intent.ID),
-				slog.String("error", err.Error()))
-		}
-	}
-	if sendErr != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send email: %w", sendErr)
-	}
 	return delivery.ProviderResult{StatusCode: delivery.ProviderAcceptedStatusCode}, nil
-}
-
-func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient delivery.EmailRecipient, message *email.Message) error {
-	if message == nil {
-		return errors.New("renderer returned no email message")
-	}
-	message.To = email.NewEmail(recipient.Name, recipient.Address)
-	contextMailer, ok := mailer.(email.ContextMailer)
-	if ok {
-		return contextMailer.SendContext(ctx, *message)
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return mailer.Send(*message)
-}
-
-func (p *MailPushProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
-	if intent.TenantID == 0 || p.MailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
-		return
-	}
-	identity, err := p.MailIdentity.ResolveReplyTo(ctx, intent.TenantID)
-	if err != nil {
-		p.Logger.Warn("delivery: reply-to lookup failed",
-			slog.Int64("intent_id", intent.ID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	if !identity.IsZero() {
-		message.ReplyTo = email.NewEmail(identity.Name, identity.Address)
-	}
 }
 
 // SendPush sends the claimed push when its subscription is still authorized.

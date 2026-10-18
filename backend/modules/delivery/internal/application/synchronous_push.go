@@ -85,6 +85,10 @@ func (w *Worker) deliverPushOnce(ctx context.Context, intent domain.Intent) erro
 		}
 		return errors.Join(sendErr, err)
 	}
+	return w.finalizeSynchronousPush(finalizeCtx, intent, token, result)
+}
+
+func (w *Worker) finalizeSynchronousPush(finalizeCtx context.Context, intent domain.Intent, token string, result domain.ProviderResult) error {
 	encoded, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("delivery: encode synchronous push result: %w", err)

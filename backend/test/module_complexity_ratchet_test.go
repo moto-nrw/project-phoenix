@@ -306,11 +306,10 @@ var moduleComplexityAllowlist = map[string]int{
 	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":     28,
 	"workflows/parentportal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":         24,
 
-	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":                  20,
-	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig":               20,
-	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).dispatchReminderPushes": 57,
-	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":                     29,
-	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":                 18,
+	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":    20,
+	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig": 20,
+	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":       29,
+	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":   18,
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 

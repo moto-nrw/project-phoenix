@@ -122,7 +122,7 @@ func (d operatorLinkDelivery) DispatchOperatorEmailChangeRequested(ctx context.C
 	}
 	return enqueueDurableMail(ctx, d.durable, DurableMail{
 		Message: *identityMessage(d.from, email.NewEmail(operator.DisplayName, operator.Email), identityaccess.OperatorEmailChangeRequestedMail(operator, maskedNewEmail, d.frontendURL)),
-		Type:    "operator_email_change_requested", ReferenceID: operator.ID,
+		Type:    "operator_email_change_requested", ReferenceID: operator.ID, Backoff: d.backoff,
 	})
 }
 
@@ -132,7 +132,7 @@ func (d operatorLinkDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.C
 	}
 	return enqueueDurableMail(ctx, d.durable, DurableMail{
 		Message: *identityMessage(d.from, email.NewEmail(displayName, oldEmail), identityaccess.OperatorEmailChangeConfirmedMail(displayName, d.frontendURL)),
-		Type:    "operator_email_change_confirmed",
+		Type:    "operator_email_change_confirmed", Backoff: d.backoff,
 	})
 }
 

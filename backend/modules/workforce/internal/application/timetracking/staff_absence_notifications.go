@@ -116,7 +116,7 @@ func formatAbsenceDateRange(a *StaffAbsence) string {
 
 // notifyAbsenceRequested emails every staff member with vacation:approve that
 // a new request arrived (#1419 4d). Called after the request row is created;
-// failures only log — email must never block the workflow.
+// addressing failures only log; an enqueue failure rolls the write back.
 func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absence *StaffAbsence) error {
 	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*StaffAbsence{absence}, s.getLogger())
 	if !s.absenceEmailsEnabled(ctx) {
@@ -149,6 +149,10 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		)
 		return nil
 	}
+	return s.enqueueAbsenceRequested(ctx, absence, requester, approvers, linkURL)
+}
+
+func (s *staffAbsenceService) enqueueAbsenceRequested(ctx context.Context, absence *StaffAbsence, requester *AbsenceEmailContact, approvers []*AbsenceEmailContact, linkURL string) error {
 	requesterName := requester.FirstName + " " + requester.LastName
 	previousQuestion := strings.TrimSpace(absence.DecisionNote)
 	subject := "Neuer Abwesenheitsantrag von " + requesterName

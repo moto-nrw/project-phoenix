@@ -14,7 +14,7 @@ import (
 // (#3955). It runs on the tenant transaction of the school in context and
 // needs neither a provider nor the people directory.
 func NewRetention() delivery.Retention {
-	store := postgres.New(tenantDatabase, func(context.Context, func(context.Context, bun.IDB) error) error {
+	store := postgres.New(postgres.RequireTenantDatabase, func(context.Context, func(context.Context, bun.IDB) error) error {
 		return errors.New("delivery retention: no administrative transaction")
 	})
 	return application.NewRetention(store)
