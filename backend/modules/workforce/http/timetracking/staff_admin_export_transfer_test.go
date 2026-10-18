@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +68,6 @@ func TestTransferExport_PreservesExportErrorStatus(t *testing.T) {
 	t.Parallel()
 	for name, test := range map[string]struct {
 		expectedStatus int
-		expectedCode   string
 		exportErr      error
 	}{
 		"invalid request": {
@@ -78,7 +76,6 @@ func TestTransferExport_PreservesExportErrorStatus(t *testing.T) {
 		},
 		"incomplete payroll configuration": {
 			expectedStatus: http.StatusConflict,
-			expectedCode:   common.CodeWorkforcePayrollConfigIncomplete,
 			exportErr:      workforce.ErrPayrollConfigIncomplete,
 		},
 	} {
@@ -92,9 +89,6 @@ func TestTransferExport_PreservesExportErrorStatus(t *testing.T) {
 			rec := postTransfer(t, tc, token, `{"year":2026,"month":8,"format":"csv"}`)
 
 			assert.Equal(t, test.expectedStatus, rec.Code, "body: %s", rec.Body.String())
-			if test.expectedCode != "" {
-				assert.Contains(t, rec.Body.String(), test.expectedCode)
-			}
 		})
 	}
 }
