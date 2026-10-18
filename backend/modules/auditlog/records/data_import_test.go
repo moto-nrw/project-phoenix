@@ -37,8 +37,9 @@ func TestDataImport_WithValues(t *testing.T) {
 	now := time.Now()
 	completed := now.Add(5 * time.Second)
 
+	const importID int64 = 1
 	di := DataImport{
-		ID:           1,
+		ID:           importID,
 		EntityType:   "student",
 		Filename:     "students_2026.csv",
 		TotalRows:    100,
@@ -54,7 +55,7 @@ func TestDataImport_WithValues(t *testing.T) {
 		Metadata:     JSONBMap{"errors": "details"},
 	}
 
-	assert.Equal(t, int64(1), di.ID)
+	assert.Equal(t, importID, di.ID)
 	assert.Equal(t, "student", di.EntityType)
 	assert.Equal(t, "students_2026.csv", di.Filename)
 	assert.Equal(t, 100, di.TotalRows)
