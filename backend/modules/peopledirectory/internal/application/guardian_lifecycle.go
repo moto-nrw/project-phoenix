@@ -64,30 +64,41 @@ func (s *GuardianLifecycle) DeleteChildlessGuardiansBefore(ctx context.Context, 
 		return 0, domain.ErrTenantRequired
 	}
 	err = observeRun(ctx, g.observe, "delete_childless_guardians", g.tx.RunSavepoint, func(txCtx context.Context, stats *domain.OperationStats) error {
-		ids, readStats, err := g.store.LockChildlessGuardiansBefore(txCtx, cutoff)
-		stats.Add(readStats)
-		if err != nil || len(ids) == 0 {
-			return err
-		}
-		invited, err := openInvitations(txCtx, ids)
-		if err != nil {
-			return fmt.Errorf("people directory: check open guardian invitations: %w", err)
-		}
-		due := make([]int64, 0, len(ids))
-		for _, id := range ids {
-			if !invited[id] {
-				due = append(due, id)
-			}
-		}
-		count, writeStats, err := g.store.DeleteChildlessGuardians(txCtx, due, cutoff)
-		stats.Add(writeStats)
-		deleted = count
+		deleted, err = s.deleteChildlessGuardians(txCtx, cutoff, openInvitations, stats)
 		return err
 	})
 	if err != nil {
 		return 0, err
 	}
 	return deleted, nil
+}
+
+// deleteChildlessGuardians marks, locks and deletes inside the savepoint.
+func (s *GuardianLifecycle) deleteChildlessGuardians(ctx context.Context, cutoff time.Time, openInvitations peopledirectory.OpenGuardianInvitations, stats *domain.OperationStats) (int, error) {
+	store := s.guardians.store
+	markStats, err := store.MarkChildlessGuardians(ctx)
+	stats.Add(markStats)
+	if err != nil {
+		return 0, err
+	}
+	ids, readStats, err := store.LockChildlessGuardiansBefore(ctx, cutoff)
+	stats.Add(readStats)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	invited, err := openInvitations(ctx, ids)
+	if err != nil {
+		return 0, fmt.Errorf("people directory: check open guardian invitations: %w", err)
+	}
+	due := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if !invited[id] {
+			due = append(due, id)
+		}
+	}
+	deleted, writeStats, err := store.DeleteChildlessGuardians(ctx, due, cutoff)
+	stats.Add(writeStats)
+	return deleted, err
 }
 
 // LinkGuardianProfileToAccount binds the account under the account's advisory

@@ -32,27 +32,31 @@ const guardianRetentionKind = "guardian_retention"
 //
 // Parent contacts without a child (users.guardian_profiles):
 //   - childless_since records since when a contact has no relationship to a
-//     child. A new contact starts childless at its creation; the first
-//     relationship clears the column, the removal of the last one sets it
-//     again. Triggers on users.student_guardian_relationships keep it in
-//     step on every path, a deleted child's cascade included. Contacts that
-//     are childless today count from this migration, because nobody recorded
-//     when they lost their last child.
+//     child. A new contact starts childless at its creation. The nightly run
+//     of the school keeps the column in step before it deletes: it clears
+//     the mark of a contact with a relationship and marks a contact without
+//     one, so a contact counts from the first run that sees it without a
+//     child. No trigger does this: the relationship table keeps its
+//     no-trigger contract of 1.15.387. Contacts that are childless today
+//     count from this migration, because nobody recorded when they lost
+//     their last child.
 //   - The nightly run of the school deletes a contact once childless_since
 //     lies further back than gdpr.guardian_retention_days; it logs the data
 //     kind guardian_retention.
 //
 // Accounts no school needs any more (auth.accounts):
 //   - auth.erase_unused_accounts() tombstones every account that no school
-//     uses: no pending school access, no active school access with a role
-//     other than guardian, no person, no parent contact, no enrollment
+//     uses: no pending school access, no active school access unless its
+//     only roles are guardian, no person, no parent contact, no enrollment
 //     request names it, no open invitation for its e-mail address and no
-//     demo access. The account's own data goes (sessions, credentials,
-//     roles, school mappings, profile, preferences, push subscriptions);
-//     the row stays with a placeholder address and personal_data_erased_at,
-//     because messages, protocols and other people's records keep pointing at
-//     it (ADR 0065). It returns the avatar files of the erased accounts, so
-//     the caller removes them.
+//     demo access. An active access without any role counts as used. The
+//     rows that would go with the account through ON DELETE CASCADE go
+//     (sessions, credentials, roles, school mappings, profile, preferences,
+//     push subscriptions, read markers, its import protocol); the row stays
+//     with a placeholder address and personal_data_erased_at, because
+//     messages, protocols and other people's records keep pointing at it
+//     (ADR 0065). It returns the avatar files of the erased accounts, so the
+//     caller removes them.
 //   - The hourly token cleanup calls it as phoenix_admin. The function runs
 //     as its owner with a fixed search path; only phoenix_admin may call it.
 const accountGuardianRetentionUpSQL = `
@@ -66,45 +70,28 @@ const accountGuardianRetentionUpSQL = `
 			ON users.guardian_profiles (tenant_id, childless_since)
 			WHERE childless_since IS NOT NULL;
 
-		CREATE OR REPLACE FUNCTION users.track_guardian_childless_since()
-		RETURNS TRIGGER
-		LANGUAGE plpgsql
-		AS $$
-		BEGIN
-			IF TG_OP IN ('INSERT', 'UPDATE') THEN
-				UPDATE users.guardian_profiles SET childless_since = NULL
-				WHERE id = NEW.guardian_profile_id AND childless_since IS NOT NULL;
-			END IF;
-			IF TG_OP IN ('DELETE', 'UPDATE') THEN
-				UPDATE users.guardian_profiles AS guardian SET childless_since = clock_timestamp()
-				WHERE guardian.id = OLD.guardian_profile_id
-					AND guardian.childless_since IS NULL
-					AND NOT EXISTS (
-						SELECT 1 FROM users.student_guardian_relationships AS link
-						WHERE link.guardian_profile_id = guardian.id
-					);
-			END IF;
-			RETURN NULL;
-		END;
-		$$;
-		DROP TRIGGER IF EXISTS track_guardian_childless_since ON users.student_guardian_relationships;
-		CREATE TRIGGER track_guardian_childless_since
-			AFTER INSERT OR DELETE OR UPDATE OF guardian_profile_id ON users.student_guardian_relationships
-			FOR EACH ROW EXECUTE FUNCTION users.track_guardian_childless_since();
-
 		ALTER TABLE auth.accounts ADD COLUMN IF NOT EXISTS personal_data_erased_at TIMESTAMPTZ;
 
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
 		RETURNS BOOLEAN
 		LANGUAGE sql
 		STABLE
-		SET search_path = pg_catalog
 		AS $$
 			SELECT NOT EXISTS (
 				SELECT 1 FROM auth.account_tenants AS membership
 				WHERE membership.account_id = target_id
 					AND (
 						membership.status = 'pending'
+						OR (
+							membership.status = 'active'
+							AND NOT EXISTS (
+								SELECT 1 FROM auth.account_roles AS grant_row
+								JOIN auth.roles AS granted ON granted.id = grant_row.role_id
+								WHERE grant_row.account_id = membership.account_id
+									AND grant_row.tenant_id = membership.tenant_id
+									AND LOWER(granted.name) = 'guardian'
+							)
+						)
 						OR (
 							membership.status = 'active'
 							AND EXISTS (
@@ -206,6 +193,12 @@ const accountGuardianRetentionUpSQL = `
 			DELETE FROM config.school_setup_dismissals AS target WHERE target.account_id = ANY (erased_ids);
 			DELETE FROM config.staff_onboardings AS target WHERE target.account_id = ANY (erased_ids);
 			DELETE FROM documents.folder_accounts AS target WHERE target.account_id = ANY (erased_ids);
+			DELETE FROM enrollment.request_reads AS target WHERE target.account_id = ANY (erased_ids);
+			DELETE FROM platform.announcement_views AS target WHERE target.user_id = ANY (erased_ids);
+			DELETE FROM schedule.timetable_conflict_acks AS target WHERE target.account_id = ANY (erased_ids);
+			DELETE FROM users.parent_announcement_reads AS target WHERE target.account_id = ANY (erased_ids);
+			DELETE FROM users.staff_notice_acks AS target WHERE target.account_id = ANY (erased_ids);
+			DELETE FROM audit.data_imports AS target WHERE target.imported_by = ANY (erased_ids);
 			UPDATE auth.accounts AS account SET
 				email = 'geloescht-' || account.id || '@example.invalid',
 				username = NULL, active = FALSE, password_hash = NULL, is_password_otp = FALSE,
@@ -263,7 +256,7 @@ const accountGuardianRetentionUpSQL = `
 `
 
 // accountGuardianRetentionDownSQL restores the subject check of 1.15.460 and
-// removes the functions, the trigger and both columns. Erased accounts keep
+// removes the functions and both columns. Erased accounts keep
 // their placeholder address.
 const accountGuardianRetentionDownSQL = `
 		ALTER TABLE audit.data_deletions
@@ -310,8 +303,6 @@ const accountGuardianRetentionDownSQL = `
 		DROP FUNCTION IF EXISTS auth.account_is_unused(BIGINT, TEXT);
 		ALTER TABLE auth.accounts DROP COLUMN IF EXISTS personal_data_erased_at;
 
-		DROP TRIGGER IF EXISTS track_guardian_childless_since ON users.student_guardian_relationships;
-		DROP FUNCTION IF EXISTS users.track_guardian_childless_since();
 		DROP INDEX IF EXISTS users.idx_guardian_profiles_childless_since;
 		ALTER TABLE users.guardian_profiles DROP COLUMN IF EXISTS childless_since;
 `

@@ -92,6 +92,10 @@ type GuardianLifecycleWrites interface {
 	// binding when accountID is nil.
 	SetGuardianAccount(ctx context.Context, guardianID int64, accountID *int64) (bool, domain.OperationStats, error)
 	DeleteGuardian(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error)
+	// MarkChildlessGuardians keeps users.guardian_profiles.childless_since
+	// in step for the tenant (#4043): it clears the mark of profiles with a
+	// relationship and marks the profiles without one.
+	MarkChildlessGuardians(ctx context.Context) (domain.OperationStats, error)
 	// LockChildlessGuardiansBefore locks the tenant's profiles that have
 	// been without a child since before cutoff (#4043), skipping rows a
 	// concurrent transaction holds, and returns their IDs in order.

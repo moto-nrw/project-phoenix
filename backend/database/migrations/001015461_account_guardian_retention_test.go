@@ -14,32 +14,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func TestGuardianChildlessSinceFollowsTheRelationships(t *testing.T) {
+func TestNewGuardianStartsWithoutAChild(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
-	childlessSince := func(guardianID int64) *time.Time {
-		var since *time.Time
-		require.NoError(t, db.NewRaw(`SELECT childless_since FROM users.guardian_profiles WHERE id = ?`, guardianID).Scan(ctx, &since))
-		return since
-	}
-
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "childless-since")
-	require.NotNil(t, childlessSince(guardian.ID), "a new contact has no child yet")
-
-	first := testpkg.CreateTestStudent(t, db, "Erstes", "Kind", "1a")
-	second := testpkg.CreateTestStudent(t, db, "Zweites", "Kind", "1a")
-	firstLink := testpkg.CreateTestStudentGuardianLink(t, db, first.ID, guardian.ID, "primary_guardian")
-	secondLink := testpkg.CreateTestStudentGuardianLink(t, db, second.ID, guardian.ID, "primary_guardian")
-	assert.Nil(t, childlessSince(guardian.ID), "the first relationship clears the mark")
-
-	_, err := db.ExecContext(ctx, `DELETE FROM users.student_guardian_relationships WHERE id = ?`, firstLink.ID)
-	require.NoError(t, err)
-	assert.Nil(t, childlessSince(guardian.ID), "a contact with a remaining child is not childless")
-
-	_, err = db.ExecContext(ctx, `DELETE FROM users.student_guardian_relationships WHERE id = ?`, secondLink.ID)
-	require.NoError(t, err)
-	assert.NotNil(t, childlessSince(guardian.ID), "removing the last relationship marks the contact")
+	var since *time.Time
+	require.NoError(t, db.NewRaw(`SELECT childless_since FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Scan(context.Background(), &since))
+	assert.NotNil(t, since, "a new contact counts from its creation until the nightly run sees a child")
 }
 
 func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
@@ -66,6 +47,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	testpkg.UnclaimTestAccount(t, db, orphan.ID)
 
 	// Kept: the school still needs these accounts.
+	roleless := testpkg.CreateTestAccount(t, db, "roleless")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staff := testpkg.CreateTestPersonWithAccount(t, db, "Konto", "Person")
 	pending := testpkg.CreateTestAccount(t, db, "pending")
@@ -90,7 +72,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	assert.Equal(t, map[int64][]string{
 		formerParent.ID: {"/uploads/avatars/former-profile.png", "/uploads/avatars/former.png"},
 		orphan.ID:       nil,
-	}, pick(erased, formerParent.ID, orphan.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID),
+	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID),
 		"only accounts no school needs are erased; their avatar files come back for removal")
 
 	var tombstone struct {
@@ -119,6 +101,22 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 
 	again := eraseUnusedAccountsAsAdmin(t, db)
 	assert.Empty(t, pick(again, formerParent.ID, orphan.ID), "an erased account is not erased twice")
+}
+
+// Every table the guard classifies as going with its account
+// (parent("auth.accounts")) goes with the tombstone too: the account row is
+// never deleted, so its cascade never fires.
+func TestEraseUnusedAccountsDeletesEveryTableThatGoesWithTheAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var definition string
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('auth.erase_unused_accounts()'::regprocedure)`).
+		Scan(context.Background(), &definition))
+	for table, retention := range tableRetentions {
+		if retention == parent("auth.accounts") {
+			assert.Contains(t, definition, "DELETE FROM "+table+" ", "%s goes with the account", table)
+		}
+	}
 }
 
 func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {
@@ -163,7 +161,7 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 		VALUES (?, 'attendance_retention', 1, 'system')`, school)
 	require.NoError(t, err, "the rollback keeps the data kinds of 1.15.460")
 	var functions int
-	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM pg_proc WHERE proname IN ('erase_unused_accounts', 'track_guardian_childless_since')`).Scan(ctx, &functions))
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM pg_proc WHERE proname IN ('erase_unused_accounts', 'account_is_unused')`).Scan(ctx, &functions))
 	assert.Zero(t, functions, "the rollback removes the functions")
 
 	require.NoError(t, accountGuardianRetentionUp(ctx, db))

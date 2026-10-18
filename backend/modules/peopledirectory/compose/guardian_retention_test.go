@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,10 @@ func TestDeleteExpiredChildlessGuardiansKeepsLinkedRecentAndInvitedContacts(t *t
 	linked := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Mit", "Kind", "retention-linked")
 	student := testpkg.CreateTestStudentForTenant(t, db, school, "Bleibt", "Kind", "1a")
 	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, school, student.ID, linked.ID, "primary_guardian")
+	childlessFor(linked.ID, 120) // a stale mark: the contact has a child again
+	unmarked := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Noch", "Ohne", "retention-unmarked")
+	_, err := db.ExecContext(context.Background(), `UPDATE users.guardian_profiles SET childless_since = NULL WHERE id = ?`, unmarked.ID)
+	require.NoError(t, err)
 	otherSchool, _ := testpkg.CreateTestTenant(t, db)
 	elsewhere := testpkg.CreateTestGuardianProfileForTenant(t, db, otherSchool, "Andere", "Schule", "retention-elsewhere")
 	childlessFor(elsewhere.ID, 120)
@@ -49,7 +54,7 @@ func TestDeleteExpiredChildlessGuardiansKeepsLinkedRecentAndInvitedContacts(t *t
 		return map[int64]bool{invited.ID: true}, nil
 	}
 
-	_, err := module.DeleteExpiredChildlessGuardians(ctx, 90, openInvitations)
+	_, err = module.DeleteExpiredChildlessGuardians(ctx, 90, openInvitations)
 	require.ErrorContains(t, err, "transaction is required", "outside the cleanup transaction nothing is deleted")
 	_, err = module.DeleteExpiredChildlessGuardians(ctx, 0, openInvitations)
 	require.ErrorIs(t, err, peopledirectory.ErrGuardianRetentionWindow)
@@ -63,6 +68,16 @@ func TestDeleteExpiredChildlessGuardiansKeepsLinkedRecentAndInvitedContacts(t *t
 	assert.ElementsMatch(t, []int64{expired.ID, invited.ID}, asked, "only the school's expired contacts are checked for invitations")
 	assert.ElementsMatch(t, []int64{invited.ID, recent.ID, linked.ID, elsewhere.ID},
 		existingGuardians(t, db, expired.ID, invited.ID, recent.ID, linked.ID, elsewhere.ID))
+	assert.Nil(t, childlessSince(t, db, linked.ID), "the run clears the mark of a contact with a child")
+	assert.NotNil(t, childlessSince(t, db, unmarked.ID), "the run marks a contact without a child and counts from now")
+	assert.ElementsMatch(t, []int64{unmarked.ID}, existingGuardians(t, db, unmarked.ID))
+}
+
+func childlessSince(t *testing.T, db *bun.DB, guardianID int64) *time.Time {
+	t.Helper()
+	var since *time.Time
+	require.NoError(t, db.NewRaw(`SELECT childless_since FROM users.guardian_profiles WHERE id = ?`, guardianID).Scan(context.Background(), &since))
+	return since
 }
 
 func existingGuardians(t *testing.T, db *bun.DB, ids ...int64) []int64 {

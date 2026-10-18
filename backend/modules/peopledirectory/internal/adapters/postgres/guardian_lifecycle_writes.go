@@ -135,6 +135,38 @@ func (s *GuardianStore) DeleteLink(ctx context.Context, linkID int64) (domain.Op
 	return stats, err
 }
 
+// guardianHasNoLink is true for a profile without a relationship to a child.
+const guardianHasNoLink = `NOT EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
+	WHERE link.tenant_id = guardian.tenant_id AND link.guardian_profile_id = guardian.id)`
+
+// MarkChildlessGuardians clears the mark of the tenant's profiles that have
+// a relationship and marks those without one from now (#4043). The nightly
+// run calls it before it deletes, so a profile counts from the first run that
+// sees it without a child.
+func (s *GuardianStore) MarkChildlessGuardians(ctx context.Context) (domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDB(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	_, cleared, err := exec(ctx, "clear childless guardian marks", db.NewUpdate().
+		TableExpr("users.guardian_profiles AS guardian").
+		Set("childless_since = NULL").
+		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.childless_since IS NOT NULL").
+		Where("NOT ("+guardianHasNoLink+")").Exec)
+	if err != nil {
+		return cleared, err
+	}
+	_, marked, err := exec(ctx, "mark childless guardians", db.NewUpdate().
+		TableExpr("users.guardian_profiles AS guardian").
+		Set("childless_since = NOW()").
+		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.childless_since IS NULL").
+		Where(guardianHasNoLink).Exec)
+	cleared.Add(marked)
+	return cleared, err
+}
+
 // LockChildlessGuardiansBefore locks the tenant's profiles childless since
 // before cutoff (#4043). SKIP LOCKED leaves a profile a concurrent write
 // holds, a relationship insert among them, to the next nightly run.
@@ -150,8 +182,7 @@ func (s *GuardianStore) LockChildlessGuardiansBefore(ctx context.Context, cutoff
 		ColumnExpr("guardian.id").
 		Where("guardian.tenant_id = ?", tenantID).
 		Where("guardian.childless_since < ?", cutoff).
-		Where(`NOT EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
-			WHERE link.tenant_id = guardian.tenant_id AND link.guardian_profile_id = guardian.id)`).
+		Where(guardianHasNoLink).
 		OrderExpr("guardian.id").
 		For("UPDATE SKIP LOCKED").
 		Scan(ctx, &ids)
@@ -180,7 +211,6 @@ func (s *GuardianStore) DeleteChildlessGuardians(ctx context.Context, guardianID
 		Where("guardian.tenant_id = ?", tenantID).
 		Where("guardian.id IN (?)", bun.List(guardianIDs)).
 		Where("guardian.childless_since < ?", cutoff).
-		Where(`NOT EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
-			WHERE link.tenant_id = guardian.tenant_id AND link.guardian_profile_id = guardian.id)`).Exec)
+		Where(guardianHasNoLink).Exec)
 	return int(affected), stats, err
 }

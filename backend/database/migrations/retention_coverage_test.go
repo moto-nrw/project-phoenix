@@ -130,7 +130,7 @@ var tableRetentions = map[string]tableRetention{
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),
 	"auth.accounts":                                         own("anonymized, not deleted, so messages, protocols and records of other people keep their reference: hourly token-cleanup, EraseUnusedAccounts -> SQL auth.erase_unused_accounts once no school needs the account (#4043)"),
-	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path"),
+	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path; removal of table and legacy API in #4329"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
 	"auth.guardian_invitations":                             own("hourly token-cleanup, DeleteExpiredGuardianInvitations (30 days after accepted_at, else expires_at)"),
 	"auth.guardian_student_access":                          parent("users.student_guardian_relationships"),
