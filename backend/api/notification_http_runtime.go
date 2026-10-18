@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,7 +47,7 @@ func notificationProblems() notificationsHTTP.Runtime {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		},
 		Disabled: func(w http.ResponseWriter, r *http.Request) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("notifications are disabled for this tenant"), common.CodeCommunicationNotificationsDisabled))
+			common.RenderError(w, r, common.ErrorConflictWithCode(devices.ErrNotificationsDisabled, common.CodeCommunicationNotificationsDisabled))
 		},
 		Conflict: func(w http.ResponseWriter, r *http.Request, err error) {
 			common.RenderError(w, r, common.ErrorConflict(err))
