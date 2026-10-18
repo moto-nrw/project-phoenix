@@ -172,6 +172,18 @@
     "action": "update"
   },
   {
+    "resource": "meals",
+    "action": "manage"
+  },
+  {
+    "resource": "meals",
+    "action": "orders"
+  },
+  {
+    "resource": "meals",
+    "action": "read"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },

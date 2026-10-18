@@ -23,6 +23,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useMealPlanEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
@@ -683,10 +684,9 @@ function SidebarContent({
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
-  // admins. The meal-plan GET route is guarded by config:read, so a non-admin
-  // config reader (custom config-manager) must also see the feature flags;
-  // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
-  // Admins stay in (their other flag, timetable.enabled, depends on this too).
+  // admins: a non-admin config reader (custom config-manager) must also see
+  // the feature flags. Admins stay in (their other flag, timetable.enabled,
+  // depends on this too). The Essensplan switch comes from the tenant resolve.
   // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
   // via the wildcard, so they are already covered here.
   const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
@@ -699,8 +699,9 @@ function SidebarContent({
   const parentNewsEnabled =
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
 
-  const mealPlanEnabled =
-    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
+  // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
+  // config:read und liest das Settings-Schema nicht.
+  const mealPlanEnabled = useMealPlanEnabled();
 
   // Planung-Akkordeon (#1946): nur verstecken, wenn timetable.enabled explizit
   // false liefert — `!== false` statt `=== true`, damit der Bereich beim
@@ -787,8 +788,8 @@ function SidebarContent({
             return hasPermission(session, "guardians:financial");
           case "mealPlan":
             return (
-              mealPlanEnabled === true &&
-              (userIsAdmin || hasPermission(session, "config:read"))
+              mealPlanEnabled &&
+              (userIsAdmin || hasPermission(session, "meals:read"))
             );
         }
       }),

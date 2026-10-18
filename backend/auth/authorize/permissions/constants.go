@@ -35,6 +35,7 @@ const (
 	ResourceSchedules     = "schedules"
 	ResourceCalendar      = "calendar"
 	ResourceDisplay       = "display"
+	ResourceMeals         = "meals"
 )
 
 // Admin permissions
@@ -128,6 +129,15 @@ const (
 	ConfigRead   = ResourceConfig + ":" + ActionRead
 	ConfigUpdate = ResourceConfig + ":" + ActionUpdate
 	ConfigManage = ResourceConfig + ":" + ActionManage
+)
+
+// Meal permissions (#3873): the meal plan and its numbers, its upkeep and
+// the caterer, and the lists with children's names plus changes after the
+// deadline.
+const (
+	MealsRead   = ResourceMeals + ":" + ActionRead
+	MealsManage = ResourceMeals + ":" + ActionManage
+	MealsOrders = ResourceMeals + ":orders"
 )
 
 // IOT permissions

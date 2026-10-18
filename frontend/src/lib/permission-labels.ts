@@ -37,6 +37,7 @@ export const resourceLabels: Record<string, string> = {
   supervision: "Aufsichten",
   display: "Info-Point",
   vacation: "Urlaub",
+  meals: "Mittagessen",
   "*": "Alle Bereiche",
 };
 
@@ -61,6 +62,7 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  orders: "Essenslisten",
   "*": "Alle",
 };
 
@@ -183,6 +185,12 @@ const permissionDescriptions: Record<string, string> = {
   "config:read": "Konfiguration ansehen",
   "config:update": "Konfiguration bearbeiten",
   "config:manage": "Konfigurationsverwaltung (Vollzugriff)",
+
+  // Mittagessen (#3873)
+  "meals:read": "Essensplan und Essenszahlen ansehen",
+  "meals:manage": "Essensplan pflegen und den Caterer verwalten",
+  "meals:orders":
+    "Essenslisten mit Namen sehen und Anmeldungen nach der Frist ändern",
 
   // IoT
   "iot:read": "IoT-Geräte ansehen",

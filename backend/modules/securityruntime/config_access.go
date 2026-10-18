@@ -6,6 +6,9 @@ const (
 	permissionConfigRead   = "config:read"
 	permissionConfigUpdate = "config:update"
 	permissionUsersRead    = "users:read"
+	permissionMealsRead    = "meals:read"
+	permissionMealsManage  = "meals:manage"
+	permissionMealsOrders  = "meals:orders"
 )
 
 // AccessRule is the permission check of a route: any one of Permissions
@@ -70,23 +73,23 @@ const (
 	MealPlanAccessParticipants
 )
 
-// MealPlanAccessPermissions names the permissions of a meal plan access
-// level: reading takes config:read, the kitchen list both config:read and
-// users:read (it combines the meal settings with student directory data),
-// and writing (the default) config:update.
+// MealPlanAccessPermissions names the permission of a meal plan access level
+// (#3873): reading takes meals:read, the lists with children's names
+// meals:orders, and writing (the default) meals:manage. A kitchen role no
+// longer needs the configuration or every child's data.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
 	case MealPlanAccessParticipants:
-		return AccessRule{Permissions: MealParticipantsPermissions(), RequireAll: true}
+		return AccessRule{Permissions: MealParticipantsPermissions()}
 	case MealPlanAccessRead:
-		return AccessRule{Permissions: []string{permissionConfigRead}}
+		return AccessRule{Permissions: []string{permissionMealsRead}}
 	default:
-		return AccessRule{Permissions: []string{permissionConfigUpdate}}
+		return AccessRule{Permissions: []string{permissionMealsManage}}
 	}
 }
 
-// MealParticipantsPermissions are the permissions the kitchen list needs,
-// all of them.
+// MealParticipantsPermissions are the permissions the lists with children's
+// names need.
 func MealParticipantsPermissions() []string {
-	return []string{permissionConfigRead, permissionUsersRead}
+	return []string{permissionMealsOrders}
 }

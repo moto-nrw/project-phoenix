@@ -44,8 +44,7 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
+import { useMealRegistrationEnabled } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 
@@ -139,28 +138,18 @@ export default function MealPlanPage() {
     },
   });
 
-  // The page is reachable with config:read (admin / config-managers), but
-  // writing a day requires config:update (the backend PUT/DELETE routes 403
-  // otherwise). Read-only config users get a view-only plan: no edit, copy,
-  // paste, clear, add/remove, "Vorwoche übernehmen", or save controls — so they
-  // never hit a guaranteed 403. Mirror the nav's admin-OR-permission gate.
-  const canEdit = isAdmin(session) || hasPermission(session, "config:update");
-  const canReadConfig =
-    isAdmin(session) || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSettingsSchema(
-    status === "authenticated" && canReadConfig,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
-    },
-  );
-  const mealRegistrationEnabled =
-    getSettingValue(settingsSchema, "operations.meal_registration_enabled") ===
-    true;
+  // The page is reachable with meals:read, but writing a day requires
+  // meals:manage (the backend PUT/DELETE routes 403 otherwise). Readers get a
+  // view-only plan: no edit, copy, paste, clear, add/remove, "Vorwoche
+  // übernehmen", or save controls — so they never hit a guaranteed 403. The
+  // lists with names need meals:orders (#3873). Mirror the nav's
+  // admin-OR-permission gate.
+  const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
+  const mealRegistrationEnabled = useMealRegistrationEnabled();
   const canReadParticipants =
+    status === "authenticated" &&
     mealRegistrationEnabled &&
-    (isAdmin(session) || hasPermission(session, "users:read"));
+    (isAdmin(session) || hasPermission(session, "meals:orders"));
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).

@@ -42,10 +42,6 @@ vi.mock("~/lib/hooks/use-navigation-guard", () => ({
   }),
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: () => ({ data: undefined }),
-}));
-
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-10-06",
 }));

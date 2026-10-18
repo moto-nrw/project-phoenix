@@ -26,11 +26,12 @@ func TestConfigAccessPermissionsKeepTheComposedGuards(t *testing.T) {
 	assert.Equal(t, write, securityruntime.ConfigAccessPermissions(securityruntime.ConfigAccessWrite))
 	assert.Equal(t, write, securityruntime.ConfigAccessPermissions(securityruntime.ConfigAccess(200)), "an unknown level is a write")
 
-	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigRead, permissions.UsersRead}, RequireAll: true}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessParticipants))
-	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigRead}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessRead))
-	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigUpdate}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessWrite))
-	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigUpdate}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccess(200)), "an unknown level is a write")
-	assert.Equal(t, []string{permissions.ConfigRead, permissions.UsersRead}, securityruntime.MealParticipantsPermissions())
+	// #3873: the meal plan has permissions of its own.
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsOrders}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessParticipants))
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsRead}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessRead))
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsManage}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessWrite))
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsManage}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccess(200)), "an unknown level is a write")
+	assert.Equal(t, []string{permissions.MealsOrders}, securityruntime.MealParticipantsPermissions())
 }
 
 func TestCanEditConfigNeedsUpdateOrManage(t *testing.T) {

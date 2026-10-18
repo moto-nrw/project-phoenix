@@ -125,6 +125,8 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		ParentRequestReasonPolicy: resolved.reasonPolicy,
 		ShowTimetableCounts:       resolved.showTimetableCounts,
 		TimetableEnabled:          resolved.timetableEnabled,
+		MealPlanEnabled:           resolved.mealPlanEnabled,
+		MealRegistrationEnabled:   resolved.mealRegistrationEnabled,
 		WaitlistEnabled:           resolved.waitlistEnabled,
 		AnalyticsFreigabe:         resolved.analyticsFreigabe,
 		// Without the Freigabe the sample has no effect; the client never sees
@@ -175,6 +177,8 @@ func tenantShellSettingKeys() []string {
 		settings.KeyAttendanceLogEnabled,
 		settings.KeyTimetableShowExpectedChildrenCount,
 		settings.KeyTimetableEnabled,
+		settings.KeyMealPlanEnabled,
+		settings.KeyMealRegistrationEnabled,
 		settings.KeyEnrollmentWaitlistEnabled,
 		settings.KeyGroupMode,
 		settings.KeyOperationalOverviewScope,
@@ -235,6 +239,8 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableEnabled, true, slog.LevelWarn)
+	resolved.mealPlanEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyMealPlanEnabled, false, slog.LevelWarn)
+	resolved.mealRegistrationEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyMealRegistrationEnabled, false, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.weekendFollowsFriday = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyWeekendFollowsFriday, false, slog.LevelError)
 	resolved.childSearchOnlyNavigation = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
@@ -306,6 +312,7 @@ func resolveTenantShellSnapshot(
 	resolved.attendanceLogEnabled = resolveBool(settings.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = resolveBool(settings.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.timetableEnabled = resolveBool(settings.KeyTimetableEnabled, true, slog.LevelWarn)
+	resolved.mealPlanEnabled, resolved.mealRegistrationEnabled = resolveTenantMealSnapshot(ctx, tenantID, snapshot)
 	resolved.waitlistEnabled = resolveBool(settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.weekendFollowsFriday = resolveBool(settings.KeyWeekendFollowsFriday, false, slog.LevelError)
 	resolved.childSearchOnlyNavigation = resolveBool(settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
@@ -371,6 +378,23 @@ func resolveTenantEarlyCheckoutNoteSnapshot(ctx context.Context, tenantID int64,
 		return false, 0
 	}
 	return enabled, tolerance
+}
+
+// resolveTenantMealSnapshot reads the meal switches (#3873). Both fail
+// closed: without them the meal pages stay hidden.
+func resolveTenantMealSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (plan, registration bool) {
+	for _, value := range []struct {
+		key    string
+		target *bool
+	}{{settings.KeyMealPlanEnabled, &plan}, {settings.KeyMealRegistrationEnabled, &registration}} {
+		enabled, err := snapshot.Bool(value.key)
+		if err != nil {
+			logTenantResolveSettingFailure(ctx, tenantID, value.key, err, slog.LevelWarn)
+			continue
+		}
+		*value.target = enabled
+	}
+	return plan, registration
 }
 
 // normalizeOverviewScope keeps an unknown wire value from reaching the client
