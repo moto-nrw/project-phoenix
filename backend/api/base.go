@@ -78,7 +78,6 @@ import (
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
@@ -1815,7 +1814,7 @@ func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
 	// Public parent calendar subscription feed (no auth — the token in the URL
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
 	// the parent's Termine in sync.
-	root.Get("/public/calendar/{token}", publicCalendarFeed(in.modules))
+	root.Get("/public/calendar/{token}", calendarAPI.PublicFeed(in.modules.services.Calendar))
 
 	// Read-only staff CalDAV. Authentication happens inside the protocol
 	// handler with the tenant-bound calendar app password, before a tenant is
@@ -2170,38 +2169,6 @@ func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read DatabaseSta
 		return
 	}
 	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
-}
-
-// publicCalendarFeed serves parent and staff iCalendar subscription feeds.
-// There is no auth — the token in the URL is the capability.
-func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
-	svc := modules.services
-	return func(w http.ResponseWriter, r *http.Request) {
-		if svc.Calendar == nil {
-			apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
-			return
-		}
-		token := chi.URLParam(r, "token")
-		filename, content, err := svc.Calendar.ParentCalendarFeedByToken(r.Context(), token)
-		if errors.Is(err, calendarService.ErrNotFound) {
-			filename, content, err = svc.Calendar.StaffCalendarFeedByToken(r.Context(), token)
-		}
-		if err != nil {
-			if errors.Is(err, calendarService.ErrNotFound) {
-				apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
-				return
-			}
-			slog.Error("calendar feed failed",
-				"error", err.Error(),
-			)
-			apiCommon.RenderStatus(w, r, http.StatusInternalServerError, "")
-			return
-		}
-		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
-		w.Header().Set("Cache-Control", "private, max-age=3600")
-		_, _ = w.Write([]byte(content))
-	}
 }
 
 // newMealPlanExportRenderer keeps the export adapter construction in the API
