@@ -31,11 +31,10 @@ func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.schoolRepo = dbTenantDirectory{db: db}
-		unit.logger = slog.Default()
-		unit.tenantRuntime = dbTenantRuntime(t, db)
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		schoolRepo:    dbTenantDirectory{db: db},
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var invocations int
 	err := s.forEachTenant(context.Background(), "wired-iter", func(_ context.Context) error {
@@ -51,11 +50,10 @@ func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.schoolRepo = dbTenantDirectory{db: db}
-		unit.logger = slog.Default()
-		unit.tenantRuntime = dbTenantRuntime(t, db)
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		schoolRepo:    dbTenantDirectory{db: db},
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var gotTenantID int64
 	var invocations int
@@ -75,14 +73,13 @@ func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
 
 	// The real directory provides the embedded type plus transaction-context wiring; the
 	// lister error comes from our override.
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.schoolRepo = &erroringSchoolRepo{
+	s := unitScheduler(&unitSchedulerDependencies{
+		schoolRepo: &erroringSchoolRepo{
 			TenantDirectory: dbTenantDirectory{db: db},
 			err:             errors.New("listing exploded"),
-		}
-		unit.logger = slog.Default()
-		unit.tenantRuntime = dbTenantRuntime(t, db)
-	})
+		},
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var invoked bool
 	s.forEachTenantSettings(context.Background(), "wired-err", func(_ context.Context, _ int64) error {

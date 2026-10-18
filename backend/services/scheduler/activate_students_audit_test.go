@@ -40,10 +40,9 @@ func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 	const studentID int64 = 701
 	repo := &fakeStudentLifecycleRepo{pendingDue: []int64{studentID}}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.studentLifecycleRepo = repo
-		unit.studentLifecycleAudit = auditor
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentLifecycleRepo:  repo,
+		studentLifecycleAudit: auditor})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 
@@ -60,12 +59,11 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 	const studentID int64 = 702
 	repo := &fakeStudentLifecycleRepo{activeDue: []int64{studentID}}
 	auditErr := errors.New("audit unavailable")
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.studentLifecycleRepo = repo
-		unit.studentLifecycleAudit = &fakeStudentLifecycleAuditor{
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentLifecycleRepo: repo,
+		studentLifecycleAudit: &fakeStudentLifecycleAuditor{
 			err: auditErr,
-		}
-	})
+		}})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 
@@ -83,10 +81,9 @@ func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T)
 		},
 	}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.studentLifecycleRepo = repo
-		unit.studentLifecycleAudit = auditor
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentLifecycleRepo:  repo,
+		studentLifecycleAudit: auditor})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 

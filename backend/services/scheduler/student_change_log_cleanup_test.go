@@ -24,12 +24,12 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 
 	deleteErr := errors.New("delete failed")
 	var results []string
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.studentChangeLogCleanup = func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
 			return ports.StudentChangeLogCleanupResult{}, deleteErr
-		}
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+		},
+		cleanupClock: func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -39,14 +39,13 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 			intValues: map[string]int{
 				settingDataCleanupTimeoutMinutes: 30,
 			},
-		}
-		unit.unitOfWorkObserver = func(_, kind, result string, _ time.Duration, _ int) {
+		},
+		unitOfWorkObserver: func(_, kind, result string, _ time.Duration, _ int) {
 			if kind == unitOfWorkTransaction {
 				results = append(results, result)
 			}
-		}
-		unit.logger = slog.Default()
-	})
+		},
+		logger: slog.Default()})
 
 	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
@@ -61,19 +60,18 @@ func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 	scheduleNow := berlin(14, 2, 0)
 
 	calls := 0
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.studentChangeLogCleanup = func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
 			calls++
 			return ports.StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil
-		}
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+		},
+		cleanupClock: func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: scheduleNow.Format("15:04")},
 			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
-		}
-		unit.logger = slog.Default()
-	})
+		},
+		logger: slog.Default()})
 
 	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 

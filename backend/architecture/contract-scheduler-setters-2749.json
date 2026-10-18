@@ -13,7 +13,7 @@
     "#2746",
     "#2748"
   ],
-  "owner_and_capability": "Legacy composition — bounded contract step for #2749: the Worker application in services/scheduler (scheduler-runtime/application) is built in one literal from its complete typed WorkerDependencies, and the typed root (root-composition: api) builds those dependencies in one literal. No dependency of the Worker is wired after construction; api/testutil keeps only owner-agnostic HTTP helpers and test holds no broad graph helper.",
+  "owner_and_capability": "Legacy composition \u2014 bounded contract step for #2749: the Worker application in services/scheduler (scheduler-runtime/application) is built in one literal from its complete typed WorkerDependencies, and the typed root (root-composition: api) builds those dependencies in one literal. No dependency of the Worker is wired after construction; api/testutil keeps only owner-agnostic HTTP helpers and test holds no broad graph helper.",
   "affected_packages": [
     "api",
     "services/scheduler"
@@ -34,7 +34,7 @@
   "runtime_evidence": {
     "source": "Local pinned-toolchain runs on the #2749 worktree (work/2749-contract-scheduler-setters-and-broad-test-compos) on 2026-10-15 against base d90bf3b4a751326245588e15bd967985043358b9.",
     "sources": [
-      "backend/services/scheduler/scheduler.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/scheduler.go",
       "backend/api/server.go",
       "backend/architecture/callers/scheduler-setters-2749.json",
       "backend/architecture/composition.json"

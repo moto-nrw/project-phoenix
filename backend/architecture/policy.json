@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 77,
+  "policy_epoch": 79,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1017,7 +1017,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/config",
+      "path": "modules/settings/internal/adapters/configpostgres",
       "owner": "settings-platform",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1073,7 +1073,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "database/repositories/parent",
+      "path": "modules/careplan/internal/adapters/parentpostgres",
       "owner": "care-plan",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1297,13 +1297,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/calendar",
-      "owner": "school-calendar",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/delivery",
       "owner": "delivery-platform",
       "role": "legacy-model",
@@ -1360,7 +1353,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/compose/retained",
+      "path": "modules/dataimport/compose/imports",
       "owner": "data-import",
       "role": "compose",
       "internal_test_role": "adapter-test",
@@ -1416,9 +1409,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/parent",
+      "path": "modules/careplan/internal/rows",
       "owner": "care-plan",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1430,9 +1423,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/users",
+      "path": "modules/peopledirectory/internal/rows",
       "owner": "people-directory",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1507,42 +1500,42 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/audit",
+      "path": "modules/auditlog/internal/application",
       "owner": "audit-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config",
+      "path": "modules/settings/internal/application",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/settingstest",
+      "path": "modules/settings/settingstest",
       "owner": "settings-platform",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/defaults",
+      "path": "modules/settings/internal/defaults",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/sideeffects",
+      "path": "modules/settings/internal/application/sideeffects",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/database",
+      "path": "modules/transactionruntime/internal/application/stats",
       "owner": "transaction-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1689,13 +1682,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/compose/realtime",
-      "owner": "delivery-platform",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/internal/application",
       "owner": "delivery-platform",
       "role": "application",
@@ -1703,21 +1689,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/import",
+      "path": "modules/dataimport/internal/application/importservice",
       "owner": "data-import",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/import/ports",
+      "path": "modules/dataimport/ports",
       "owner": "data-import",
       "role": "port",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/import/integration",
+      "path": "modules/dataimport/importtest",
       "owner": "data-import",
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
@@ -1731,7 +1717,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/iot/staffclock",
+      "path": "workflows/staffclock/internal/application",
       "owner": "staff-clock",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
@@ -1745,7 +1731,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/listexport",
+      "path": "modules/documentrendering/internal/application/listrenderer",
       "owner": "document-rendering",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -3458,6 +3444,27 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/stats",
+      "owner": "transaction-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/documentrendering/records",
+      "owner": "document-rendering",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "workflows/staffclock",
+      "owner": "staff-clock",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
     }
   ],
   "data_objects": [
@@ -7998,17 +8005,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-clock.to.workforce",
-      "description": "staff-clock coordinates the public workforce capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-clock",
-      "source_role": "application",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "staff-clock.to.process-device-scan",
       "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
       "scopes": [
@@ -9385,17 +9381,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-calendar.domain.appointments-public",
-      "description": "Legacy calendar transport types reuse Appointments values and validation. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "legacy-model",
-      "target_owner": "appointments",
-      "target_role": "public"
-    },
-    {
       "id": "school-calendar.port-domain",
       "description": "School Calendar ports express persistence operations using their own domain values.",
       "scopes": [
@@ -9537,17 +9522,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-plan.domain.public.legacy-model",
-      "description": "Legacy Care Plan domain contracts use the owner calendar-day value. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "legacy-model",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.testsupport.people-public",
       "description": "Care Plan test support supplies the required student lock through People Directory.",
       "scopes": [
@@ -9601,17 +9575,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "domain"
-    },
-    {
-      "id": "care-plan.integration-test.legacy-model",
-      "description": "Care Plan compatibility tests assert legacy owner-domain views. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "legacy-model"
     },
     {
       "id": "workforce.adapter.public",
@@ -10527,17 +10490,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.domain.contact.legacy-model",
-      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "legacy-model",
-      "target_owner": "people-directory",
-      "target_role": "contract"
-    },
-    {
       "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
@@ -10633,17 +10585,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "legacy-model"
     },
     {
       "id": "calendar-portal.external_test.school-calendar.e2e-test.appointments.public",
@@ -10864,17 +10805,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "document-rendering.decision-test.application",
-      "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "workflow-decision-test",
-      "target_owner": "document-rendering",
-      "target_role": "application"
     },
     {
       "id": "timetable-activities.http.document-rendering",
@@ -11735,17 +11665,6 @@
       "source_role": "e2e-test",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "people-directory.contracttest.people-directory.legacy-model",
-      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "legacy-model"
     },
     {
       "id": "people-directory.contracttest.tenant-runtime.public",
@@ -15191,6 +15110,105 @@
       "source_role": "public",
       "target_owner": "settings-platform",
       "target_role": "port"
+    },
+    {
+      "id": "transaction-runtime.public.stats-port",
+      "description": "Native statistics types replace public application aliases; narrower successor of platform.public-application for the same owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "port"
+    },
+    {
+      "id": "data-import.port.audit-consents",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.port.native-public",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.contract.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "contract",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "document-rendering.public.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "public",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "facilities.compose.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "staff-clock.application.public",
+      "description": "The stamp application consumes the native workflow command, ports and classified error contract instead of retained service declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "staff-clock",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.process-device-scan.native-contract",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.workforce.native-contract",
+      "description": "staff-clock coordinates the public workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
     }
   ],
   "relocations": [
@@ -15265,6 +15283,11 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "database/repositories/config",
+      "to": "modules/settings/internal/adapters/configpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/delivery",
       "to": "modules/delivery/internal/adapters/deliverypostgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15275,6 +15298,11 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
+      "from": "database/repositories/parent",
+      "to": "modules/careplan/internal/adapters/parentpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/workforce",
       "to": "modules/workforce/internal/adapters/workforcepostgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15283,6 +15311,11 @@
       "from": "modules/careplan/inbound/parent",
       "to": "workflows/parentportal/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "modules/dataimport/compose/retained",
+      "to": "modules/dataimport/compose/imports",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
       "from": "modules/dataimport/inbound",
@@ -15317,6 +15350,16 @@
     {
       "from": "modules/workforce/legacy",
       "to": "modules/workforce/internal/adapters/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/config/settingstest",
+      "to": "modules/settings/settingstest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/config/sideeffects",
+      "to": "modules/settings/internal/application/sideeffects",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {

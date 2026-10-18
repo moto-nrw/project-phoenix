@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolsetuphttp "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,7 +28,7 @@ func newHarness(t *testing.T) *harness {
 	db := testpkg.SetupTestDB(t)
 	settings := api.NewSettingsTestService(testpkg.SettingsRuntime(t, db))
 	h := &harness{db: db}
-	service, err := compose.New(compose.Dependencies{Settings: api.SchoolSetupSettings{Settings: settings}})
+	service, err := api.NewSchoolSetupTestService(api.SchoolSetupSettings{Settings: settings})
 	require.NoError(t, err)
 	h.router = schoolsetuphttp.NewResource(service, harnessRuntime(db)).Router()
 	return h

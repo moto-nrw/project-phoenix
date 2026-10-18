@@ -3,7 +3,7 @@ package auditlog
 import (
 	"context"
 
-	auditapp "github.com/moto-nrw/project-phoenix/services/audit"
+	auditapp "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
 )
 
 // The Audit handoff: the Audit adapters read the tenant and transaction of

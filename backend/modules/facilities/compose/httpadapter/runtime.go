@@ -10,12 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
 	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -30,7 +30,7 @@ type Dependencies struct {
 	Active              studentpresence.Presence
 	Users               Students
 	Education           SchoolGroups
-	ListExport          *listexport.RendererService
+	ListExport          listexport.Renderer
 }
 
 func NewResource(

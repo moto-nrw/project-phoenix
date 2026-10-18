@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	databasestats "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
 )
 
 func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsReader, error) {
@@ -30,7 +31,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 	if err != nil {
 		return nil, err
 	}
-	databaseService := databasestats.NewDatabaseStats(databasestats.DatabaseStatsDependencies{
+	databaseService := databasestats.NewDatabaseStats(stats.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
 			rows, err := members.Student.List(ctx, nil)
 			return len(rows), err
@@ -62,7 +63,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 		},
 	}, slog.Default())
 
-	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) databasestats.DatabaseStatsCapabilities {
+	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) stats.StatsCapabilities {
 		return securityruntime.DatabaseStatsCapabilities(requestTokenReads.Permissions(ctx))
 	}), nil
 }

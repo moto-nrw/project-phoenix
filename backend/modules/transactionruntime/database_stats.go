@@ -1,17 +1,13 @@
 package transactionruntime
 
-import "github.com/moto-nrw/project-phoenix/services/database"
+import (
+	"log/slog"
 
-// The dashboard's database statistics (#2747): the counts it reads through
-// the owners' capabilities and the permission flags the caller holds. The
-// legacy composition binds the counters through these names instead of the
-// application package.
-type (
-	DatabaseStats             = database.DatabaseService
-	DatabaseStatsDependencies = database.StatsDependencies
-	DatabaseStatsCapabilities = database.StatsCapabilities
-	DatabaseStatsResponse     = database.StatsResponse
+	statsApplication "github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/application/stats"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
 )
 
 // NewDatabaseStats builds the statistics service over its counters.
-var NewDatabaseStats = database.NewService
+func NewDatabaseStats(deps stats.StatsDependencies, logger *slog.Logger) stats.Service {
+	return statsApplication.NewService(deps, logger)
+}

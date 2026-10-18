@@ -49,11 +49,10 @@ func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*
 func TestScheduleTimetableCleanupTask_NilService(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.done = make(chan struct{})
-		unit.logger = slog.Default()
-		unit.tasks = make(map[string]*ScheduledTask)
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask)})
 
 	s.scheduleTimetableCleanupTask()
 	assert.Empty(t, s.tasks, "nil service → no task registered")
@@ -62,12 +61,11 @@ func TestScheduleTimetableCleanupTask_NilService(t *testing.T) {
 func TestScheduleTimetableCleanupTask_RegistersTask(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.done = make(chan struct{})
-		unit.logger = slog.Default()
-		unit.tasks = make(map[string]*ScheduledTask)
-		unit.timetableCleanup = &fakeTimetableCleanup{}
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		done:             make(chan struct{}),
+		logger:           slog.Default(),
+		tasks:            make(map[string]*ScheduledTask),
+		timetableCleanup: &fakeTimetableCleanup{}})
 
 	// Pre-close done so the spawned goroutine exits promptly after the startup
 	// check and waitUntilNextMinute returns false.
@@ -93,12 +91,11 @@ func TestRunTimetableCleanupTaskPolling_ExitsOnDone(t *testing.T) {
 	// Pre-close done so waitUntilNextMinute returns false right after the
 	// startup check completes.
 	svc := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.done = make(chan struct{})
-		unit.logger = slog.Default()
-		unit.tasks = make(map[string]*ScheduledTask)
-		unit.timetableCleanup = svc
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		done:             make(chan struct{}),
+		logger:           slog.Default(),
+		tasks:            make(map[string]*ScheduledTask),
+		timetableCleanup: svc})
 
 	close(s.done)
 	task := &ScheduledTask{Name: "timetable-cleanup"}
@@ -122,12 +119,11 @@ func TestRunTimetableCleanupTaskPolling_TickerFires(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		svc := &fakeTimetableCleanup{}
-		s := unitScheduler(func(unit *Scheduler) {
-			unit.done = make(chan struct{})
-			unit.logger = slog.Default()
-			unit.tasks = make(map[string]*ScheduledTask)
-			unit.timetableCleanup = svc
-		})
+		s := unitScheduler(&unitSchedulerDependencies{
+			done:             make(chan struct{}),
+			logger:           slog.Default(),
+			tasks:            make(map[string]*ScheduledTask),
+			timetableCleanup: svc})
 
 		task := &ScheduledTask{Name: "timetable-cleanup"}
 
@@ -156,10 +152,9 @@ func TestCheckAndRunTimetableCleanup_AlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc})
 
 	task := &ScheduledTask{Name: "timetable-cleanup", Running: true}
 
@@ -175,15 +170,14 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 	// skip. With no settings resolver and no env vars, resolveBoolSetting
 	// returns the defaultVal (true) — so flip it explicitly via the resolver.
 	svc := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: false,
 			},
-		}
-	})
+		}})
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
@@ -204,19 +198,18 @@ func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 	future := scheduleNow.Add(time.Hour).Format("15:04")
 
 	svc := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
 				settingDataCleanupTime: future,
 			},
-		}
-	})
+		}})
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
@@ -232,19 +225,18 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
 				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
-		}
-	})
+		}})
 
 	// Unit scheduler composition supplies one validated tenant.
 	s.lastTimetableCleanup.Store(schedulerUnitTenantID, scheduleNow)
@@ -268,11 +260,11 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 			DurationMS:        42,
 		},
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -282,8 +274,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 			intValues: map[string]int{
 				settingDataCleanupTimeoutMinutes: 30,
 			},
-		}
-	})
+		}})
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
@@ -302,19 +293,18 @@ func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T)
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{err: errors.New("cleanup blew up")}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
 				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
-		}
-	})
+		}})
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
@@ -342,19 +332,18 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 			ExceptionsDeleted: 0,
 		},
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = svc
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
 				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
-		}
-	})
+		}})
 
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 

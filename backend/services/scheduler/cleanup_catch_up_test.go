@@ -79,15 +79,15 @@ func (c *cleanupClock) Set(now time.Time) {
 // catchUpScheduler is one Worker process whose timetable cleanup runs at
 // 02:00 and whose last successful runs live in runs.
 func catchUpScheduler(runs ports.CleanupRunLedger, clock *cleanupClock, cleanup *fakeTimetableCleanup) *Scheduler {
-	return unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = cleanup
-		unit.cleanupRuns = runs
-		unit.cleanupClock = clock.Now
-		unit.settings = &fakeSettingsResolver{
+	return unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupRuns:      runs,
+		cleanupClock:     clock.Now,
+		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
-		}
+		},
 	})
 }
 
@@ -207,11 +207,11 @@ func TestNightlyCleanupUsesRegistryDefaultInsteadOfLegacyEnvironmentFallback(t *
 
 	clock := &cleanupClock{now: berlin(14, 2, 0)}
 	cleanup := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = cleanup
-		unit.cleanupClock = clock.Now
-		unit.settings = &stubSettingsResolver{boolVal: true}
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupClock:     clock.Now,
+		settings:         &stubSettingsResolver{boolVal: true},
 	})
 	s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "false")
 
@@ -224,9 +224,9 @@ func TestDataCleanupEnabledReturnsResolutionError(t *testing.T) {
 	t.Parallel()
 
 	resolutionErr := errors.New("settings unavailable")
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.settings = &stubSettingsResolver{boolErr: resolutionErr}
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:   slog.Default(),
+		settings: &stubSettingsResolver{boolErr: resolutionErr},
 	})
 
 	enabled, err := s.dataCleanupEnabled(context.Background())
@@ -242,11 +242,11 @@ func TestNightlyCleanupRetriesAfterCleanupSettingReadFailure(t *testing.T) {
 	clock := &cleanupClock{now: berlin(14, 2, 0)}
 	cleanup := &fakeTimetableCleanup{}
 	settings := &stubSettingsResolver{boolErr: resolutionErr}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = cleanup
-		unit.cleanupClock = clock.Now
-		unit.settings = settings
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupClock:     clock.Now,
+		settings:         settings,
 	})
 
 	runTimetableTick(s)
@@ -330,17 +330,17 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 
 	var logged []recordedRetention
 	runs := newFakeCleanupRuns()
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.cleanupService = &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}}
-		unit.cleanupRuns = runs
-		unit.cleanupClock = func() time.Time { return berlin(14, 2, 0) }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:         slog.Default(),
+		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
+		cleanupRuns:    runs,
+		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
+		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
-		}
-		unit.retention = mustRetentionRun(t, []ports.RetentionStep{
+		},
+		retention: mustRetentionRun(t, []ports.RetentionStep{
 			{Kind: "first_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
 				return ports.RetentionOutcome{Deleted: 3, RetentionDays: 90}, nil
 			}},
@@ -350,7 +350,7 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 		}, func(_ context.Context, kind string, outcome ports.RetentionOutcome) error {
 			logged = append(logged, recordedRetention{kind: kind, outcome: outcome})
 			return nil
-		})
+		}),
 	})
 
 	s.checkAndRunCleanup(context.Background(), &ScheduledTask{Name: "visit-cleanup"})
@@ -366,17 +366,17 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 
 	runs := newFakeCleanupRuns()
 	laterStepRan := false
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.cleanupService = &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}}
-		unit.cleanupRuns = runs
-		unit.cleanupClock = func() time.Time { return berlin(14, 2, 0) }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:         slog.Default(),
+		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
+		cleanupRuns:    runs,
+		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
+		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
-		}
-		unit.retention = mustRetentionRun(t, []ports.RetentionStep{
+		},
+		retention: mustRetentionRun(t, []ports.RetentionStep{
 			{Kind: "failing_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
 				return ports.RetentionOutcome{}, errors.New("delete failed")
 			}},
@@ -384,7 +384,7 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 				laterStepRan = true
 				return ports.RetentionOutcome{}, nil
 			}},
-		}, func(context.Context, string, ports.RetentionOutcome) error { return nil })
+		}, func(context.Context, string, ports.RetentionOutcome) error { return nil }),
 	})
 
 	s.checkAndRunCleanup(context.Background(), &ScheduledTask{Name: "visit-cleanup"})
@@ -430,15 +430,15 @@ func TestNightlyCleanupFollowsATimeMovedLaterInTheDay(t *testing.T) {
 	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
 	clock := &cleanupClock{now: berlin(13, 22, 0)}
 	cleanup := &fakeTimetableCleanup{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.timetableCleanup = cleanup
-		unit.cleanupRuns = runs
-		unit.cleanupClock = clock.Now
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupRuns:      runs,
+		cleanupClock:     clock.Now,
+		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "22:00"},
-		}
+		},
 	})
 
 	runTimetableTick(s)

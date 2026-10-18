@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -100,8 +102,8 @@ func roomsByID(ctx context.Context, directory ports.RoomDirectory, ids []int64) 
 
 // sessionRoom rebuilds the full room row the former batch load scanned, so
 // group consumers (location snapshot colours included) see the same shape.
-func sessionRoom(room ports.DirectoryRoom) *ports.SessionRoom {
-	return &ports.SessionRoom{
+func sessionRoom(room ports.DirectoryRoom) *studentpresence.SessionRoom {
+	return &studentpresence.SessionRoom{
 		ID:         room.ID,
 		TenantID:   room.TenantID,
 		CreatedAt:  room.CreatedAt,

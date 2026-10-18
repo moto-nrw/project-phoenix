@@ -3,11 +3,11 @@ package compose
 import (
 	"context"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
 	careplanPostgres "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/uptrace/bun"
 )
 

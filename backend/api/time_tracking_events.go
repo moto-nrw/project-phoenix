@@ -5,8 +5,8 @@ import (
 	"log/slog"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // staffTimeTrackingNotifier returns the post-commit notification that

@@ -8,7 +8,7 @@ import (
 
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 

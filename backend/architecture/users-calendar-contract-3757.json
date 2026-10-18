@@ -42,7 +42,7 @@
     "sources": [
       "https://github.com/moto-nrw/project-phoenix/blob/939b88b25f125ce40d3efb8bf80d6834b6523450/backend/internal/timezone/date.go",
       "backend/sharedkernel/calendar/date.go",
-      "backend/models/users/student_directory_filter.go",
+      "backend/modules/peopledirectory/internal/rows/student_directory_filter.go",
       "backend/test/calendar_date_alias_test.go",
       "backend/test/calendar_date_verification_test.go",
       "https://github.com/moto-nrw/project-phoenix/actions/runs/37750881794/job/113223893638",

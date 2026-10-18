@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

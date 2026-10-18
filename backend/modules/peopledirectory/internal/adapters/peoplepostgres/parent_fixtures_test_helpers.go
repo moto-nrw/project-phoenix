@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // The fixture facets delegate to the same concrete store, including its

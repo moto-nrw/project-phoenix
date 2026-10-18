@@ -1,8 +1,8 @@
 package users
 
 import (
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func NativeStudentState(value *models.Student) *directory.StudentState {

@@ -208,10 +208,10 @@ func TestRunJobCheckRecordsDurationByStableID(t *testing.T) {
 func TestFormerCustomPollingJobsRecordStableIDs(t *testing.T) {
 	t.Parallel()
 
-	scheduler := unitScheduler(func(unit *Scheduler) {
-		unit.activeService = &mockActiveService{}
-		unit.breakAutoEnder = &countingBreakAutoEnder{}
-		unit.logger = slog.New(slog.DiscardHandler)
+	scheduler := unitScheduler(&unitSchedulerDependencies{
+		activeService:  &mockActiveService{},
+		breakAutoEnder: &countingBreakAutoEnder{},
+		logger:         slog.New(slog.DiscardHandler),
 	})
 	var got []ports.JobID
 	scheduler.workerTracer.Run = func(jobID ports.JobID, _ string, _ time.Duration) {

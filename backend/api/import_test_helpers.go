@@ -5,9 +5,10 @@ package api
 import (
 	"time"
 
+	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -18,13 +19,13 @@ import (
 // ImportTestModule is the Data Import a suite drives; the owners it imports
 // into come from NewImportTestModuleWithOwners.
 type ImportTestModule struct {
-	Import               *importService.ImportService[importModels.StudentImportRow]
-	StaffImport          *importService.ImportService[importModels.StaffImportRow]
-	ClassListImport      *importService.ImportService[importModels.ClassListEntryImportRow]
-	OpeningBalanceImport importService.OpeningBalanceImportFactory
+	Import               importModels.RowImporter[importModels.StudentImportRow]
+	StaffImport          importModels.RowImporter[importModels.StaffImportRow]
+	ClassListImport      importModels.RowImporter[importModels.ClassListEntryImportRow]
+	OpeningBalanceImport importModels.OpeningBalanceImportFactory
 	// Observations collects the per-run counters the production observer
 	// receives, so tests can assert the runtime evidence contract.
-	Observations *[]importService.ImportObservation
+	Observations *[]importModels.ImportObservation
 }
 
 // ImportTestOptions decorate the owner ports of the composed import.
@@ -32,7 +33,7 @@ type ImportTestModule struct {
 // per-row savepoint and the batch rollback are observable without a
 // contrived data shape.
 type ImportTestOptions struct {
-	WrapGuardians importService.GuardianPortDecorator
+	WrapGuardians importPorts.GuardianPortDecorator
 	Clock         func() time.Time
 }
 
@@ -88,7 +89,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 		return ImportTestModule{}, nil, nil, err
 	}
 
-	observations := &[]importService.ImportObservation{}
+	observations := &[]importModels.ImportObservation{}
 	persons := guardians.PeopleDirectory
 	groups, err := NewSchoolStructure(db)
 	if err != nil {
@@ -106,13 +107,13 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	runtime := newImportRuntime(command, func(observation importService.ImportObservation) {
+	runtime := newImportRuntime(command, func(observation importModels.ImportObservation) {
 		*observations = append(*observations, observation)
 	})
 	// The composer binds one People Directory to three ports; only the
 	// guardian one is decorated, so the person and student paths keep
 	// talking to the real owner.
-	var studentGuardians importService.GuardianPort = persons
+	var studentGuardians importPorts.GuardianDirectory = persons
 	if options.WrapGuardians != nil {
 		if wrapped := options.WrapGuardians(persons); wrapped != nil {
 			studentGuardians = wrapped
@@ -125,7 +126,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons),
-		OpeningBalance: newOpeningBalanceImport(runtime, importService.OpeningBalanceImportDeps{
+		OpeningBalance: newOpeningBalanceImport(runtime, importPorts.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
 		}, membership, persons, workTime),

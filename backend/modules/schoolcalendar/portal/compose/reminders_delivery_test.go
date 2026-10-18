@@ -8,8 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -78,10 +78,10 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -134,10 +134,10 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)

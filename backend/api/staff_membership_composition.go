@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
@@ -212,7 +212,7 @@ func newStaffOffboardingWorkflow(hub *realtime.Hub, identity *identityaccess.Mod
 		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
 		return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
 	}
-	workflow, err := offboardingcompose.New(offboarding)
+	workflow, err := NewStaffOffboardingWorkflow(offboarding)
 	if err != nil {
 		panic(err)
 	}

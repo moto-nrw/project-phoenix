@@ -4,10 +4,10 @@ import (
 	"log/slog"
 
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/observability"

@@ -5,19 +5,19 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SettingsWrites are the settings side effects the API dispatches on a
 // value change and the tenant settings operations.
 type SettingsWrites struct {
-	SideEffects *settingsCompose.SideEffectRegistry
-	Tenant      *settingsCompose.TenantOperations
+	SideEffects configModels.SideEffectDispatcher
+	Tenant      configModels.TenantOperationsService
 }
 
 // buildSettingsWrites binds the side effects of Facilities (the Schulhof and

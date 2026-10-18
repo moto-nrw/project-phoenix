@@ -3,7 +3,6 @@ package compose_test
 import (
 	"context"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 )
 
@@ -11,7 +10,7 @@ func (failingCandidateLock) FindReminderCandidatesForUpdate(context.Context, []i
 	return nil, errReminderStore
 }
 
-func (failingRecurrenceReload) FindByAppointmentIDs(context.Context, []int64) ([]*calModels.RecurrenceRule, error) {
+func (failingRecurrenceReload) FindByAppointmentIDs(context.Context, []int64) ([]*appointments.RecurrenceRule, error) {
 	return nil, errReminderStore
 }
 

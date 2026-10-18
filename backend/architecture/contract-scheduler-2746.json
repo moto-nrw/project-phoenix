@@ -12,7 +12,7 @@
     "#2711",
     "#2726"
   ],
-  "owner_and_capability": "Scheduler Runtime — the Worker application in services/scheduler (scheduler-runtime/application), contract step for #2746: the scheduler opens its transactions through a consumer-owned TenantRuntime port bound by modules/schedulerruntime/jobruntime, reads its settings keys as its own constants behind a registry guard of the root, publishes the overdue events through Delivery's realtimeevents, and reaches the retained repositories and services only through ports the root binds",
+  "owner_and_capability": "Scheduler Runtime \u2014 the Worker application in services/scheduler (scheduler-runtime/application), contract step for #2746: the scheduler opens its transactions through a consumer-owned TenantRuntime port bound by modules/schedulerruntime/jobruntime, reads its settings keys as its own constants behind a registry guard of the root, publishes the overdue events through Delivery's realtimeevents, and reaches the retained repositories and services only through ports the root binds",
   "affected_packages": [
     "api",
     "database/repositories",
@@ -80,8 +80,8 @@
       "backend/realtime/events.go",
       "backend/modules/schedulerruntime/jobruntime/runtime.go",
       "backend/modules/settings/compose/tenant_snapshots.go",
-      "backend/services/scheduler/setting_keys.go",
-      "backend/services/scheduler/tenant_runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/setting_keys.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/tenant_runtime.go",
       "backend/api/settings_tenant_snapshots_test.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",

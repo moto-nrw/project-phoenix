@@ -80,7 +80,7 @@ func (f masterDataFixture) decisionInputs() (api.MasterDataDecisionTestOptions, 
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
 	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, testpkg.StudentDirectory{}, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
-		careplanCompose.Today, func(requestreviewcompose.CareObservation) {})
+		careplan.Today, func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	return queue
 }
