@@ -73,7 +73,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals": 71,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                    73,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                     154,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                67,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                74,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":        92,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":      100,
