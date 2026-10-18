@@ -49,7 +49,7 @@ func (q offeringQueue) History(ctx context.Context, filter requestreview.QueueFi
 	for _, item := range items {
 		row := item.Request
 		rows = append(rows, requestreview.Row{Type: requestreview.TypeOffering, SortTime: row.UpdatedAt, ID: row.ID, StudentID: row.StudentID, StudentName: item.StudentName, Status: row.Status,
-			Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt), Data: ToOfferingRequestHistoryResponse(item),
+			Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: requestreview.HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt), Data: ToOfferingRequestHistoryResponse(item),
 		})
 	}
 	return rows, careQueueCursor(cursor), nil

@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
 // CareRequestDetailResponse is one care-schedule request of any status, read
@@ -53,7 +53,7 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 	req := item.Request
 	var diff []CareRequestDiffResponse
 	if len(item.Diff) > 0 {
-		diff = requestreviewcompose.ToCareRequestDiffResponses(item.Diff)
+		diff = requestreview.ToCareRequestDiffResponses(item.Diff)
 	}
 	var pickupChange *CareRequestPickupChangeResponse
 	if terms := item.PickupChange; terms != nil {
@@ -67,7 +67,7 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 	}
 	var decidedAt *time.Time
 	if req.Status != carerequests.StatusPending {
-		at := requestreviewcompose.HistoryDecidedAt(req.ReviewedAt, req.UpdatedAt)
+		at := requestreview.HistoryDecidedAt(req.ReviewedAt, req.UpdatedAt)
 		decidedAt = &at
 	}
 	return CareRequestDetailResponse{
@@ -77,7 +77,7 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 		LastName:       item.LastName,
 		Status:         req.Status,
 		RequestKind:    req.RequestKind,
-		Requested:      requestreviewcompose.ToCareRequestDiffResponses(item.Requested),
+		Requested:      requestreview.ToCareRequestDiffResponses(item.Requested),
 		Diff:           diff,
 		RequestReason:  item.RequestReason,
 		DecisionReason: req.DecisionReason,
