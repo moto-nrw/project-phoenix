@@ -8,7 +8,6 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -505,14 +504,7 @@ func (p pushSubscriptionCleanup) DeleteUnboundByAccount(ctx context.Context, acc
 	if p.subscriptions == nil {
 		return nil
 	}
-	switch portal {
-	case deliveryCompose.PushPortalParent:
-		return p.subscriptions.DeleteParentUnboundByAccount(ctx, accountID, tenantID)
-	case deliveryCompose.PushPortalSchool:
-		return p.subscriptions.DeleteSchoolUnboundByAccount(ctx, accountID, tenantID)
-	default:
-		return p.subscriptions.DeleteStaffUnboundByAccount(ctx, accountID, tenantID)
-	}
+	return p.subscriptions.DeleteUnboundByAccountForPortal(ctx, accountID, tenantID, portal)
 }
 
 func (p pushSubscriptionCleanup) DeleteOrphaned(ctx context.Context) error {
