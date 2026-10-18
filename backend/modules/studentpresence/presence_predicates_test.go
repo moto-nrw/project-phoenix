@@ -46,3 +46,33 @@ func TestOnlyChildrenOfAnotherSchoolAreVisitors(t *testing.T) {
 	assert.True(t, studentpresence.VisitsFromAnotherSchool(21, 31))
 	assert.False(t, studentpresence.VisitsFromAnotherSchool(31, 31))
 }
+
+func TestSupervisionStaffLookupIncludesRemovedStaff(t *testing.T) {
+	t.Parallel()
+	assert.True(t, studentpresence.SupervisionStaffIncludesRemoved, "supervision history keeps naming removed staff")
+}
+
+func TestBinarySnapshotReadsNoRooms(t *testing.T) {
+	t.Parallel()
+	assert.False(t, studentpresence.NewStudentLocationSnapshot(studentpresence.PresenceModeBinary).ReadsRooms())
+	assert.True(t, studentpresence.NewStudentLocationSnapshot(studentpresence.PresenceModeDetailed).ReadsRooms())
+	assert.True(t, studentpresence.NewStudentLocationSnapshot("").ReadsRooms(), "an empty mode is the detailed default")
+}
+
+func TestKeepCurrentVisitsKeepsEachStudentsFirstListedVisit(t *testing.T) {
+	t.Parallel()
+	student, other := int64(41), int64(43)
+	newest, older, otherVisit := int64(71), int64(73), int64(79)
+	filter := studentpresence.CurrentVisitsFilter([]int64{student, other})
+	assert.Equal(t, studentpresence.VisitFilter{StudentIDs: []int64{student, other}, OpenOnly: true, StudentOrder: true, NewestFirst: true}, filter)
+
+	snapshot := studentpresence.NewStudentLocationSnapshot(studentpresence.PresenceModeDetailed)
+	snapshot.KeepCurrentVisits([]studentpresence.Visit{
+		{ID: newest, StudentID: student}, {ID: older, StudentID: student}, {ID: otherVisit, StudentID: other},
+	})
+	assert.Equal(t, newest, snapshot.Visits[student].ID)
+	assert.Equal(t, otherVisit, snapshot.Visits[other].ID)
+
+	snapshot.KeepCurrentVisits([]studentpresence.Visit{{ID: older, StudentID: student}})
+	assert.Equal(t, newest, snapshot.Visits[student].ID, "a recorded visit stays")
+}

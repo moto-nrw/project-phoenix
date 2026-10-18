@@ -62,6 +62,12 @@ func (m *Module) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) ([]i
 	return m.engine.OccupiedActivityGroupIDs(ctx, ids)
 }
 
+// SupervisionStaffIncludesRemoved states that a supervision row keeps
+// naming its staff member after the staff record was removed: the
+// supervision history outlives the colleague, so the staff lookup behind
+// supervision rows includes soft-deleted staff.
+const SupervisionStaffIncludesRemoved = true
+
 type GroupSupervision struct {
 	ID, TenantID, GroupID, StaffID int64
 	CreatedAt, UpdatedAt           time.Time

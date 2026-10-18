@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -260,7 +259,7 @@ func (p groupLivePresence) Snapshot(ctx context.Context, studentIDs []int64, dat
 			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
 		}
 	}
-	if mode == studentpresence.PresenceModeBinary {
+	if !snapshot.ReadsRooms() {
 		snapshot.YardRoomColor = studentpresence.ResolveYardRoomColor(ctx, p.active)
 		return groupLiveLocations{snapshot: snapshot}, nil
 	}
@@ -271,26 +270,16 @@ func (p groupLivePresence) Snapshot(ctx context.Context, studentIDs []int64, dat
 }
 
 func (p groupLivePresence) loadVisits(ctx context.Context, snapshot *studentpresence.StudentLocationSnapshot, studentIDs []int64) error {
-	visits, err := p.presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true})
+	visits, err := p.presence.ListVisits(ctx, studentpresence.CurrentVisitsFilter(studentIDs))
 	if err != nil {
 		return err
 	}
-	for _, visit := range visits {
-		if _, found := snapshot.Visits[visit.StudentID]; found {
-			continue
-		}
-		snapshot.Visits[visit.StudentID] = &visit
-	}
-	groupSet := make(map[int64]struct{})
-	for _, visit := range snapshot.Visits {
-		if visit != nil && visit.ActiveGroupID > 0 {
-			groupSet[visit.ActiveGroupID] = struct{}{}
-		}
-	}
-	if len(groupSet) == 0 {
+	snapshot.KeepCurrentVisits(visits)
+	groupIDs := snapshot.ActiveGroupIDs()
+	if len(groupIDs) == 0 {
 		return nil
 	}
-	groups, err := p.active.GetActiveGroupsByIDs(ctx, slices.Collect(maps.Keys(groupSet)))
+	groups, err := p.active.GetActiveGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		return err
 	}

@@ -195,6 +195,31 @@ func NewStudentLocationSnapshot(mode string) *StudentLocationSnapshot {
 	}
 }
 
+// ReadsRooms reports whether the snapshot resolves locations from the open
+// visits and their sessions. A binary-mode snapshot reads the attendance row
+// alone and needs only the Schulhof room color.
+func (s *StudentLocationSnapshot) ReadsRooms() bool {
+	return s.Mode != PresenceModeBinary
+}
+
+// CurrentVisitsFilter lists the students' open visits, each student's newest
+// visit first: the order KeepCurrentVisits relies on.
+func CurrentVisitsFilter(studentIDs []int64) VisitFilter {
+	return VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true}
+}
+
+// KeepCurrentVisits records each student's current visit from open visits
+// listed newest first (CurrentVisitsFilter): the first visit listed for a
+// student wins, and a visit already recorded stays.
+func (s *StudentLocationSnapshot) KeepCurrentVisits(visits []Visit) {
+	for _, visit := range visits {
+		if _, found := s.Visits[visit.StudentID]; found {
+			continue
+		}
+		s.Visits[visit.StudentID] = &visit
+	}
+}
+
 // ActiveGroupIDs returns the distinct positive group IDs referenced by visits.
 func (s *StudentLocationSnapshot) ActiveGroupIDs() []int64 {
 	groupIDs := make(map[int64]struct{})
