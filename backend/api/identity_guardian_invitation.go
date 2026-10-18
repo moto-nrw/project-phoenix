@@ -12,10 +12,9 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -40,7 +39,7 @@ type GuardianInvitationCapability interface {
 type GuardianInvitationWiring struct {
 	Settings    settingsCompose.SettingsService
 	Schools     organizationtenancy.Query
-	Outbox      func() platformModels.OutboxResultEnqueuer
+	Outbox      func() MailResultOutbox
 	Enrollments GuardianEnrollmentClaims
 	// ParentsURL is the origin of the accept and login links; a guardian
 	// signs in on the parents portal, never on the staff frontend.
@@ -77,7 +76,7 @@ func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityP
 type unsentGuardianMail struct{}
 
 func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
-	return GuardianTokenExpiryFallback
+	return identityaccess.GuardianInvitationExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
 func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityPorts.GuardianProfile, string) (int64, bool) {
@@ -100,17 +99,11 @@ func (d guardianInvitationDelivery) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// InvitationExpiry follows the tenant override, then the registry default,
-// and falls back to the invitation lifetime the deployment configured.
+// InvitationExpiry reads the school's token lifetime (tenant override, then
+// registry default) and lets the owner fall back to the deployment's.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
 	hours := settingsCompose.ResolveIntOrDefault(ctx, d.wiring.Settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
-	if hours > 0 {
-		return time.Duration(hours) * time.Hour
-	}
-	if d.wiring.FallbackExpiry > 0 {
-		return d.wiring.FallbackExpiry
-	}
-	return GuardianTokenExpiryFallback
+	return identityaccess.GuardianInvitationExpiry(hours, d.wiring.FallbackExpiry)
 }
 
 // SchoolName resolves the school for the mail subject. Best-effort: an

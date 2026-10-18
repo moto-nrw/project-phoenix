@@ -9,12 +9,8 @@ package compose
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
@@ -43,14 +39,11 @@ type PickupBaselineReader interface {
 	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 }
 
-// SettingsReader is the slice of the settings service the lists read.
-type SettingsReader interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-	// LockSlotListCutoffPairShared acquires the SHARED advisory lock guarding
-	// the Ganztag pickup-cutoff pair so both cutoffs come from one consistent
-	// snapshot (#1565 review pass 12).
-	LockSlotListCutoffPairShared(ctx context.Context) error
+// SlotListSettings resolves the timetable flag and the Ganztag pickup
+// cutoffs the lists read; the root binds it to the Settings Platform.
+type SlotListSettings interface {
+	TimetableEnabled(ctx context.Context) (bool, error)
+	PickupCutoffs(ctx context.Context) (short, long string, err error)
 }
 
 // SlotListDependencies wires the slot lists. The owner facades are the
@@ -67,11 +60,12 @@ type SlotListDependencies struct {
 	PickupTimes     PickupTimeReader
 	ArrivalTimes    ArrivalTimeReader
 	PickupBaselines PickupBaselineReader
-	Settings        SettingsReader
+	Settings        SlotListSettings
 	// Access decides whether the caller reads children by name; the root
 	// binds the admin permission and the caller's staff record.
 	Access     ports.ReadAccess
 	ListExport application.ListRenderer
+	EnrolledOn func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -83,7 +77,7 @@ type SlotListDependencies struct {
 func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 	var settings ports.Settings
 	if deps.Settings != nil {
-		settings = settingsBinding{settings: deps.Settings}
+		settings = deps.Settings
 	}
 	var careDays ports.CareDays
 	if deps.CareDays != nil {
@@ -108,7 +102,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		CareDays:        careDays,
 		EffectiveTimes:  effectiveTimes,
 		PickupBaselines: baselines,
-		Rules:           Rules{},
+		Rules:           Rules(deps.EnrolledOn),
 		Settings:        settings,
 		Access:          deps.Access,
 		ListExport:      deps.ListExport,
@@ -179,45 +173,19 @@ func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentID
 	return out, nil
 }
 
-type settingsBinding struct{ settings SettingsReader }
-
-func (b settingsBinding) TimetableEnabled(ctx context.Context) (bool, error) {
-	return b.settings.ResolveBool(ctx, configModel.KeyTimetableEnabled)
-}
-
-// PickupCutoffs resolves both Ganztag cutoffs under the SHARED variant of the
-// advisory lock the settings writer takes exclusively. Without it the two
-// reads run as separate statements under READ COMMITTED, and an administrator
-// lowering BOTH boundaries through two individually valid writes could commit
-// between them and hand the reader an inverted pair (#1565 review pass 12).
-func (b settingsBinding) PickupCutoffs(ctx context.Context) (string, string, error) {
-	if err := b.settings.LockSlotListCutoffPairShared(ctx); err != nil {
-		return "", "", err
-	}
-	short, err := b.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve short-day pickup cutoff: %w", err)
-	}
-	long, err := b.settings.ResolveString(ctx, configModel.KeySlotListLongDayCutoff)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve long-day pickup cutoff: %w", err)
-	}
-	return short, long, nil
-}
+const SlotAttendanceExpected = "expected" // Timetable's stored status, pinned in list_kind_pin_test.go.
 
 // Rules forwards the pure care-plan rules to their owners so every reader of
 // the roster shares one derivation (#1565, #2606).
-type Rules struct{}
+type Rules func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 
 func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdict ports.CareDay) ports.CareDay {
-	model := &careplan.CareDayAttendance{Expected: row.Status == scheduleModel.AttendanceStatusExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
+	model := &careplan.CareDayAttendance{Expected: row.Status == SlotAttendanceExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
 	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
 }
 
-func (Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
-	return userModel.EnrolledOn(&userModel.Student{
-		Status: userModel.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
-	}, date, today)
+func (r Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
+	return r(student.Status, student.EnrolledFrom, student.EnrolledUntil, date, today)
 }
 
 // SlotBlock is one block of the day as the slot lists read it: the Timetable

@@ -228,7 +228,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.False(t, master[0].Past, "Stammdaten have no effective scope")
 	assert.Equal(t, &changed, master[0].CurrentValueChanged)
 	assert.Equal(t, []string{"md:person:first_name"}, master[0].ConflictKeys)
-	assert.Equal(t, ToMasterDataChangeRequestResponse(f.master.pending[0]), master[0].Data)
+	assert.Equal(t, requestreview.ToMasterDataChangeRequestResponse(f.master.pending[0]), master[0].Data)
 
 	care, _, err := queues.CareSchedule.Open(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.False(t, pickup.UrgentToday)
 	assert.True(t, pickup.Past, "yesterday's pickup change is past")
 	assert.Equal(t, []string{"pickup:" + today.AddDays(-1).String()}, pickup.ConflictKeys)
-	assert.Equal(t, ToCareRequestResponse(f.care.pending[1]), pickup.Data)
+	assert.Equal(t, requestreview.ToCareRequestResponse(f.care.pending[1]), pickup.Data)
 
 	offering, _, err := queues.Offering.Open(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
@@ -265,7 +265,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.True(t, excused[0].BulkEligible)
 	assert.Equal(t, map[string]string{today.String(): "present"}, excused[0].CurrentStatusByDate)
 	assert.Equal(t, []string{"absence:" + today.AddDays(-2).String(), "absence:" + today.String()}, excused[0].ConflictKeys)
-	assert.Equal(t, ToStaffExcusedRequestResponse(f.excused.pending[0]), excused[0].Data)
+	assert.Equal(t, requestreview.ToStaffExcusedRequestResponse(f.excused.pending[0]), excused[0].Data)
 }
 
 func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
@@ -299,7 +299,7 @@ func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
 	assert.True(t, master[0].CanCorrect)
 	assert.Equal(t, updated, master[1].DecidedAt, "auto-applied rows fall back to updated_at")
 	assert.False(t, master[1].CanCorrect)
-	assert.Equal(t, ToMasterDataHistoryResponse(f.master.history[0]), master[0].Data)
+	assert.Equal(t, requestreview.ToMasterDataHistoryResponse(f.master.history[0]), master[0].Data)
 
 	care, _, err := queues.CareSchedule.History(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
@@ -396,13 +396,36 @@ type ReviewComposition struct {
 // cannot import it; root_composition_test.go binds it.
 var ComposeReviewSources func(t *testing.T) (*bun.DB, ReviewComposition)
 
+// ReviewDecorations are the student directory and the correction log over the
+// School Structure groups and the Audit Platform's correction query the root
+// builds; root_composition_test.go sets ComposeReviewDecorations like
+// ComposeReviewSources.
+type ReviewDecorations struct {
+	Students    requestreview.StudentDirectory
+	Corrections requestreview.CorrectionLog
+}
+
+var ComposeReviewDecorations func(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (ReviewDecorations, error)
+
+func composeStudentDirectory(t *testing.T, db *bun.DB, people ReviewPeople) (requestreview.StudentDirectory, error) {
+	t.Helper()
+	decorations, err := ComposeReviewDecorations(t, db, people, func(context.Context) bool { return true })
+	return decorations.Students, err
+}
+
+func composeCorrectionLog(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
+	t.Helper()
+	decorations, err := ComposeReviewDecorations(t, db, people, allowed)
+	return decorations.Corrections, err
+}
+
 // The two-tenant proof runs the projection over the real retained queues:
 // each school's reviewer lists and counts exactly the requests of that
 // school, across all four request tables, under the least-privilege role.
 func TestRequestReviewEnforcesRLS(t *testing.T) {
 	t.Parallel()
 	db, svc := ComposeReviewSources(t)
-	reviewStudents, err := NewStudentDirectory(db, svc.PeopleDirectory, func(DirectoryObservation) {})
+	reviewStudents, err := composeStudentDirectory(t, db, svc.PeopleDirectory)
 	require.NoError(t, err)
 	masterData, err := NewMasterDataReviews(db, testpkg.StudentDirectory{}, svc.PeopleDirectory,
 		func(context.Context) (ReviewScope, error) {
@@ -433,7 +456,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 		ObserveCare: func(CareObservation) {}, ObserveTimetable: func(TimetableObservation) {},
 	})
 	require.NoError(t, err)
-	corrections, err := NewCorrectionLog(db, svc.PeopleDirectory, func(context.Context) bool { return true }, func(AuditObservation) {})
+	corrections, err := composeCorrectionLog(t, db, svc.PeopleDirectory, func(context.Context) bool { return true })
 	require.NoError(t, err)
 	query, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),

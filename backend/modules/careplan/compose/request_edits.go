@@ -16,9 +16,7 @@ type RequestEditRecords interface {
 	UpdatePendingCareScheduleRequest(context.Context, int64, json.RawMessage) error
 }
 
-type RequestEditEvents = ports.RequestEditEvents
-
-func NewRequestEdits(records RequestEditRecords, pickup RequestSubmissionPickup, events RequestEditEvents, today func() calendar.Date) (carerequests.Edits, error) {
+func NewRequestEdits(records RequestEditRecords, pickup ports.RequestSubmissionPickup, events ports.RequestEditEvents, today func() calendar.Date) (carerequests.Edits, error) {
 	if records == nil || events == nil || today == nil {
 		return nil, errors.New("care request edits: records, events, and clock are required")
 	}

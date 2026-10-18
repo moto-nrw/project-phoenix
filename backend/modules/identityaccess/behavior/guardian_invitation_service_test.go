@@ -41,7 +41,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *api.Guar
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 
 	cfg := api.GuardianInvitationTestConfig{
-		Outbox: testpkg.NewCapturingOutbox(),
+		Outbox: api.NewCapturingOutbox(),
 		Expiry: 48 * time.Hour,
 		Logger: slog.Default(),
 	}
@@ -586,7 +586,7 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	// Wire the outbox path (what production uses since PR 5). The legacy
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})

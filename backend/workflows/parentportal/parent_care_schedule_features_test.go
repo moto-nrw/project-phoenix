@@ -47,6 +47,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:        api.ParentGuardianChanges(),
 		DeparturePolicy:        api.ParentDeparturePolicy(),
 		GuardianPolicy:         api.NewParentGuardianPolicy(),
 		Fingerprints:           api.SecurityFingerprints{},
@@ -69,12 +70,12 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
 		CareRequests:           sf.CareRequests,
 		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      repos.ParentMessageThread,
-		MessageRepo:            communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:        repos.ParentMessageRead,
+		MessageThreadRepo:      api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:            api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:        api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:          api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {

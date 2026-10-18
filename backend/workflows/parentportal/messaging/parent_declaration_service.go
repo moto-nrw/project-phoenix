@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -59,7 +58,7 @@ type declarationTarget struct {
 // the same action was already the guardian's latest one for this child and
 // version: a double click or a retried request yields the same proof, not a
 // second row.
-func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in DeclarationInput, confirm PasswordConfirmer) (*usersModels.DeclarationSubmission, bool, error) {
+func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in DeclarationInput, confirm PasswordConfirmer) (*DeclarationSubmission, bool, error) {
 	if accountID <= 0 || announcementID <= 0 || in.StudentID <= 0 || in.VersionID <= 0 {
 		return nil, false, fmt.Errorf("parent: account_id, announcement_id, student_id and version_id must be positive")
 	}
@@ -79,7 +78,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if err != nil {
 		return nil, false, err
 	}
-	var result *usersModels.DeclarationSubmission
+	var result *DeclarationSubmission
 	created := false
 	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		result, created, err = s.writeDeclaration(adminCtx, accountID, announcementID, target, in, passwordConfirmed)
@@ -142,7 +141,7 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 // after expiry, but never revives a withdrawn, inactive or not-yet-published
 // announcement. New agreements and refusals still require the normal live
 // announcement window.
-func declarationActionAnnouncementIsLive(a *usersModels.ParentAnnouncement, action string) bool {
+func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) bool {
 	if action != DeclarationActionRevoked {
 		return a != nil && a.IsDeclaration() && announcementIsLive(a)
 	}
@@ -193,7 +192,7 @@ func confirmDeclarationPassword(ctx context.Context, required bool, password str
 // against the committed history and a share lock on the authorizing
 // relationship, so neither a concurrent declaration nor a concurrent
 // revocation of the permission can slip between check and write.
-func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementID int64, target *declarationTarget, in DeclarationInput, passwordConfirmed bool) (*usersModels.DeclarationSubmission, bool, error) {
+func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementID int64, target *declarationTarget, in DeclarationInput, passwordConfirmed bool) (*DeclarationSubmission, bool, error) {
 	repo := s.AnnouncementRepo
 	if err := repo.LockDeclarationChild(ctx, announcementID, in.StudentID); err != nil {
 		return nil, false, err
@@ -227,7 +226,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err := checkDeclarationAction(s.Declarations, rules, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
-	submission := newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now, s.Fingerprints.Content)
+	submission := s.newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now)
 	if err := repo.InsertDeclarationSubmission(ctx, submission); err != nil {
 		return nil, false, fmt.Errorf("parent: record declaration: %w", err)
 	}
@@ -238,7 +237,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 // lockedDeclarationVersion re-reads the announcement under the child lock and
 // requires that the guardian declares on the current version. A new
 // declaration for a child whose care ended is refused; a revocation is not.
-func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *usersModels.DeclarationVersion, error) {
+func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *DeclarationVersion, error) {
 	a, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
 		return declarationRules{}, nil, fmt.Errorf("parent: reload declaration: %w", err)
@@ -263,7 +262,7 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 
 // checkDeclarationAction maps a refused action to the error the portal can
 // explain: the deadline for a late answer, otherwise "not possible".
-func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mine *usersModels.DeclarationSubmission, action string, now time.Time) error {
+func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mine *DeclarationSubmission, action string, now time.Time) error {
 	myLatest := ""
 	if mine != nil {
 		myLatest = mine.Action
@@ -291,7 +290,7 @@ func (s *Service) requireCareRunning(ctx context.Context, tenantID, studentID in
 	return nil
 }
 
-func (s *Service) latestOwnDeclaration(ctx context.Context, accountID, announcementID, studentID, versionID int64) (*usersModels.DeclarationSubmission, error) {
+func (s *Service) latestOwnDeclaration(ctx context.Context, accountID, announcementID, studentID, versionID int64) (*DeclarationSubmission, error) {
 	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
 	if err != nil {
 		return nil, fmt.Errorf("parent: load declaration history: %w", err)
@@ -304,32 +303,32 @@ func (s *Service) latestOwnDeclaration(ctx context.Context, accountID, announcem
 	return nil, nil
 }
 
-func newDeclarationSubmission(tenantID, announcementID, accountID int64, version *usersModels.DeclarationVersion, signer *usersModels.DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, now time.Time, fingerprint func([]byte) string) *usersModels.DeclarationSubmission {
+func (s *Service) newDeclarationSubmission(tenantID, announcementID, accountID int64, version *DeclarationVersion, signer *DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, now time.Time) *DeclarationSubmission {
 	account, profile := accountID, signer.GuardianProfileID
-	submission := &usersModels.DeclarationSubmission{
+	submission := &DeclarationSubmission{
 		TenantID: tenantID, AnnouncementID: announcementID, VersionID: version.ID, StudentID: in.StudentID,
 		AccountID: &account, GuardianProfileID: &profile,
 		SignerName:   strings.TrimSpace(signer.FirstName + " " + signer.LastName),
-		GuardianRole: signer.GuardianRole, Action: in.Action, Method: usersModels.DeclarationMethodSimpleElectronic,
+		GuardianRole: signer.GuardianRole, Action: in.Action, Method: DeclarationMethodSimpleElectronic,
 		PasswordConfirmed: passwordConfirmed, ContentHash: version.ContentHash,
 		// PostgreSQL keeps microseconds; hashing the stored precision keeps
 		// the record hash verifiable after a round trip.
 		SubmittedAt: time.UnixMicro(now.UnixMicro()).UTC(),
 	}
-	submission.RecordHash = DeclarationRecordHash(submission, fingerprint)
+	submission.RecordHash = s.declarationRecordHash(submission)
 	return submission
 }
 
 // DeclarationRecordHash is the SHA-256 over a submission's canonical record:
 // what makes a later change to the stored row detectable.
-func DeclarationRecordHash(submission *usersModels.DeclarationSubmission, fingerprint func([]byte) string) string {
-	return fingerprint(submission.CanonicalRecord())
+func (s *Service) declarationRecordHash(submission *DeclarationSubmission) string {
+	return s.Fingerprints.Content(s.Declarations.CanonicalRecord(*submission))
 }
 
 // DeclarationContentHash is the SHA-256 over a version's canonical content,
 // the same digest the staff side stores when it freezes the version.
-func DeclarationContentHash(version *usersModels.DeclarationVersion, fingerprint func([]byte) string) string {
-	return fingerprint(version.CanonicalContent())
+func (s *Service) declarationContentHash(version *DeclarationVersion) string {
+	return s.Fingerprints.Content(s.Declarations.CanonicalContent(*version))
 }
 
 func knownDeclarationAction(action string) bool {
@@ -342,7 +341,7 @@ func knownDeclarationAction(action string) bool {
 	}
 }
 
-func containsDeclarationChild(children []*usersModels.DeclarationChild, studentID int64) bool {
+func containsDeclarationChild(children []*DeclarationChild, studentID int64) bool {
 	for _, c := range children {
 		if c.StudentID == studentID {
 			return true
@@ -351,7 +350,7 @@ func containsDeclarationChild(children []*usersModels.DeclarationChild, studentI
 	return false
 }
 
-func feedDeclarationRules(settings usersModels.AnnouncementDeclarationSettings, deadline *time.Time) declarationRules {
+func feedDeclarationRules(settings AnnouncementDeclarationSettings, deadline *time.Time) declarationRules {
 	return declarationRules{
 		Signers: settings.Signers, Revocable: settings.Revocable, Deadline: deadline,
 	}

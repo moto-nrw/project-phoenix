@@ -47,7 +47,7 @@ func (rs *Resource) uploadLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	filePath, err := common.SavePDF(uploaded.File, capability.EnrollmentFormLegalDocumentDir, fmt.Sprintf("%d", tenantID))
+	filePath, err := common.SavePDF(uploaded.File, capability.EnrollmentFormLegalDocumentDir, fmt.Sprintf("%d", tenantID), rs.uploads)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -103,21 +103,21 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	path, err := legalDocumentPath(storedURL)
+	path, err := legalDocumentPath(storedURL, rs.uploads)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	common.RemoveImage(path)
+	rs.uploads.RemoveUpload(path)
 	common.RespondNoContent(w, r)
 }
 
 // legalDocumentPath resolves the stored upload URL of a legal document to
 // its file under the public directory, where the upload saved it.
-func legalDocumentPath(storedURL string) (string, error) {
-	return common.ResolveStoredPath("public", storedURL, capability.EnrollmentFormLegalDocumentUploadPrefix)
+func legalDocumentPath(storedURL string, uploads common.UploadStorage) (string, error) {
+	return uploads.StoredPath("public", storedURL, capability.EnrollmentFormLegalDocumentUploadPrefix)
 }
 
 // PublicLegalDocumentURL maps the stored upload path of a tenant AGB document

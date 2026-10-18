@@ -28,7 +28,6 @@ package notifications
 import (
 	"context"
 	"errors"
-
 	"fmt"
 	"log/slog"
 	"maps"
@@ -36,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -126,11 +126,11 @@ type Event struct {
 // ErrDisabled is returned by Notify when notifications.dispatch_enabled is
 // off for the event's tenant. Callers that fire notifications as a side
 // effect should treat it as a silent no-op; the test endpoint surfaces it.
-var ErrDisabled = errors.New("notifications are disabled for this tenant")
+var ErrDisabled = devices.ErrNotificationsDisabled
 
 // ErrOutsideActiveWindow is returned when a tenant's delivery window has
 // closed for the day. Producers treat it like ErrDisabled: a silent no-op.
-var ErrOutsideActiveWindow = errors.New("outside the tenant's notification window")
+var ErrOutsideActiveWindow = devices.ErrOutsideNotificationWindow
 
 // Channel delivers an event over one transport. Implementations must be
 // fire-and-forget-safe: a returned error is logged by the router and never
@@ -174,16 +174,6 @@ type BatchChannel interface {
 // have no business growing a batch method.
 type BatchNotifier interface {
 	NotifyBatch(ctx context.Context, events []Event) error
-}
-
-// Notifier is the full surface the concrete service provides. It is assignable
-// to Service, so consumers that only notify one audience keep their narrower
-// type.
-type Notifier interface {
-	Service
-	BatchNotifier
-	SynchronousService
-	DurableReceiptService
 }
 
 // SynchronousService is for durable producers such as appointment reminders.

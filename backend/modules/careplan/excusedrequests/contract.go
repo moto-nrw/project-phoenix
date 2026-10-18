@@ -44,6 +44,9 @@ const (
 
 	StudentStatusSourceManual = "manual"
 	StudentStatusSourceParent = "parent"
+	// StudentStatusSourceEndOfDay marks a live flag the end-of-day run
+	// archived as a status day.
+	StudentStatusSourceEndOfDay = "end_of_day"
 )
 
 // Request statuses. Only pending rows accept a staff decision or a guardian

@@ -34,7 +34,7 @@ func (d *decisionBoundary) CanReview(context.Context, compose.ReviewStudent) (bo
 	d.calls = append(d.calls, "authorize")
 	return true, nil
 }
-func (d *decisionBoundary) GuardianHasAccess(context.Context, int64, int64) (bool, error) {
+func (d *decisionBoundary) GuardianHasChildAccess(context.Context, int64, int64) (bool, error) {
 	d.calls = append(d.calls, "guardian")
 	return d.guardianAccess, nil
 }
@@ -78,7 +78,7 @@ func TestNativeRequestDecisionRollsBackAppliedPlanAndSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	boundary := &decisionBoundary{owner: owner, student: compose.ReviewStudent{ID: student.ID}, staffID: staff.ID,
 		guardianAccess: true, ledgerErr: errors.New("decision ledger unavailable")}
-	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Plans: boundary,
+	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Guardians: boundary, Plans: boundary,
 		Effects: boundary, Today: func() calendar.Date { return "2026-09-20" }})
 	require.NoError(t, err)
 	input := carerequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: reviewer.ID, ExpectedVersion: careplan.ParentRequestVersion(row.UpdatedAt)}

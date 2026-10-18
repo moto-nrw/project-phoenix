@@ -47,15 +47,19 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	f.membership = owners.Membership
 	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
+	structure, presence, err := api.NewGradeTransitionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
-		DB: db, Directory: f.people, Membership: f.membership,
+		DB: db, Structure: structure, Presence: presence, Directory: f.people, Membership: f.membership,
 		Rosters:              owners.Rosters,
 		LockRecurrenceWrites: owners.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(_ context.Context, effectiveFrom calendar.Date) error {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
 			return nil
 		},
-		Clock: clock,
+		Audit:                api.MustNewWorkflowAuditCommand(testpkg.NewDatabase(t, db), "grade transition audit append failed"),
+		ClassListEntryRecord: api.GradeTransitionClassListRecord,
+		Clock:                clock,
 	})
 	require.NoError(t, err)
 	deps.Authorize = func(context.Context, string) (gradetransition.Actor, error) {

@@ -7,194 +7,25 @@ package announcement
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/localization"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
-
-// OutboxEnqueuer is the slice of the email outbox service this package needs:
-// queue e-mail rows inside the current tenant transaction, and cancel not-yet-
-// sent rows when an announcement is retracted before the worker drains them.
-type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
-	// CancelPendingByRelatedEntity cancels the still-pending outbox rows queued
-	// for an announcement when it is unpublished or deleted, so a retracted or
-	// corrected announcement can never deliver its stale title + portal link.
-	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
-}
-
-// PushOutboxCanceller is the narrow durable-push operation needed when an
-// announcement is retracted. Pending reminder intents otherwise carry a link
-// to an announcement that staff has already made unavailable.
-type PushOutboxCanceller interface {
-	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
-}
-
-// DeliveryRecorder is the slice of the delivery repository this package needs:
-// write the per-recipient rows behind the staff matrix, and drop them when an
-// announcement is retracted. Declared here (rather than importing the repository
-// interface wholesale) for the same reason OutboxEnqueuer is — the service
-// depends on the operations it uses, not on a data-access surface.
-type DeliveryRecorder interface {
-	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []EmailDelivery) error
-	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
-	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]EmailDeliveryStatus, error)
-	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
-	ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error)
-}
-
-const (
-	maxTitleLen   = 200
-	maxBodyLen    = 4000
-	maxLinkURLLen = 2000
-
-	// Poll (Umfrage) option bounds. Two options is the minimum that asks
-	// anything ("Ja"/"Nein"); 60 fits an Elternsprechtag-Terminabstimmung
-	// (#3861). Mirrored in frontend MAX_POLL_OPTIONS.
-	minPollOptions  = 2
-	maxPollOptions  = 60
-	maxPollLabelLen = 120
-
-	// relatedEntityTypeAnnouncement links an outbox row back to its announcement.
-	// Shared by the enqueue and cancel paths so they never drift apart.
-	relatedEntityTypeAnnouncement = "parent_announcement"
-
-	parentAnnouncementNotificationType = "parent_announcement"
-)
-
-// Sentinel errors mapped to HTTP status by the handler.
-var (
-	ErrNotFound                    = errors.New("announcement: not found")
-	ErrValidation                  = errors.New("announcement: invalid input")
-	ErrNewsDisabled                = errors.New("announcement: parent news is disabled for this school")
-	ErrSystemAnnouncementImmutable = errors.New("announcement: system announcements cannot be changed")
-	// ErrPublishedImmutable: a published announcement is frozen — parents may
-	// already have read (or been e-mailed) the exact wording, so silent edits
-	// are forbidden. Correcting means unpublish (retract) → edit → republish,
-	// which is visible to parents and re-triggers the opted-in e-mail.
-	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
-	// ErrNotPublished: reminders and resends need a live announcement.
-	ErrNotPublished = errors.New("announcement: announcement is not published")
-	// ErrNothingOutstanding: the announcement never asked for anything, so there
-	// is nobody to remind.
-	ErrNothingOutstanding = errors.New("announcement: nothing is outstanding for this announcement")
-)
-
-// TargetInput is one audience selector supplied by the staff author.
-type TargetInput struct {
-	TargetType string  `json:"target_type"`
-	RefID      *int64  `json:"ref_id,omitempty"`
-	RefText    *string `json:"ref_text,omitempty"`
-}
-
-// Input is the create/update payload. ExpiresAt is optional (nil = never).
-// SendEmail opts the announcement into an additional e-mail to the targeted
-// guardians when it is published. LinkURL is an optional http(s) link shown
-// with the announcement in the parent portal.
-type Input struct {
-	Title                   string        `json:"title"`
-	Body                    string        `json:"body"`
-	Priority                string        `json:"priority"`
-	LinkURL                 *string       `json:"link_url,omitempty"`
-	RequiresAcknowledgement bool          `json:"requires_acknowledgement"`
-	SendEmail               bool          `json:"send_email"`
-	ExpiresAt               *time.Time    `json:"expires_at,omitempty"`
-	Targets                 []TargetInput `json:"targets"`
-
-	// ResponseType turns the announcement into a poll (Umfrage): "" / "none" is a
-	// plain Mitteilung, single_choice/multi_choice require Options. Options are
-	// the answer labels in display order; ResponseDeadline is the optional answer
-	// cut-off (independent of ExpiresAt, which controls visibility).
-	ResponseType     string     `json:"response_type"`
-	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
-	Options          []string   `json:"options,omitempty"`
-
-	// DeliveryMode "letter" makes this an Elternbrief (#2384): e-mail and
-	// acknowledgement become mandatory and the mail carries the full body.
-	// EmailAudience decides who receives that mail — "portal_only" (default) is
-	// the portal audience, "all_contacts" additionally reaches guardians with an
-	// address but no portal access. Both default when empty.
-	DeliveryMode  string `json:"delivery_mode,omitempty"`
-	EmailAudience string `json:"email_audience,omitempty"`
-
-	// Scheduled reminder (#3162): the instant the announcement goes out a second
-	// time to its whole audience, and the optional short wording of that second
-	// delivery. Both nil = no reminder.
-	ReminderAt   *time.Time `json:"reminder_at,omitempty"`
-	ReminderText *string    `json:"reminder_text,omitempty"`
-	// Declaration configures an Erklärung (#3430); zero for other modes.
-	Declaration usersModels.AnnouncementDeclarationSettings `json:"-"`
-}
-
-// Service is the staff-facing parent-announcement contract.
-type Service interface {
-	List(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error)
-	Get(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
-	Create(ctx context.Context, createdBy int64, in Input) (*usersModels.ParentAnnouncement, error)
-	Update(ctx context.Context, id int64, in Input) (*usersModels.ParentAnnouncement, error)
-	Delete(ctx context.Context, id int64) error
-	Publish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
-	Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
-	Stats(ctx context.Context, id int64) (*usersModels.AnnouncementStats, error)
-	Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error)
-
-	// --- poll (Umfrage) ---
-	// PollResults returns the per-option tally plus reached/answered child counts.
-	PollResults(ctx context.Context, id int64) (*usersModels.AnnouncementPollResults, error)
-	// PollChildren returns every reached child with the answer given for them.
-	PollChildren(ctx context.Context, id int64) ([]*usersModels.AnnouncementPollChildStatus, error)
-	// RemindUnanswered notifies the guardians of children that have not answered
-	// yet and reports how many were reached.
-	RemindUnanswered(ctx context.Context, id int64) (int, error)
-
-	// --- Elternbrief (#2384) ---
-	// LetterStatus returns the recipient matrix (e-mail and moto status per
-	// person) plus the per-child fulfilment behind it.
-	LetterStatus(ctx context.Context, id int64) (*LetterStatus, error)
-	// RemindOutstanding nudges whoever still owes a response — an unanswered
-	// poll or an unconfirmed Elternbrief — and reports how many were reached.
-	RemindOutstanding(ctx context.Context, id int64) (int, error)
-	// ResendFailedEmails re-queues only the mails that ended up failed.
-	ResendFailedEmails(ctx context.Context, id int64) (int, error)
-
-	// --- scheduled reminder (#3162) ---
-	// UpdateReminder moves, rewords or removes the scheduled reminder of a live
-	// announcement as long as it has not been sent.
-	UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*usersModels.ParentAnnouncement, error)
-	// SendDueReminders delivers every reminder of the current tenant that fell
-	// due in (notBefore, dueBefore] and reports how many announcements were
-	// reminded. retryFrom is set when a temporary delivery suppression needs
-	// the scheduler to retain part of its scan window. Runs inside the
-	// scheduler's tenant transaction.
-	SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
-
-	// --- cancellation notice (#2601) ---
-	CareCancellationPublisher
-
-	// AttachmentSupport is the announcement side of the attachments (#2890).
-	AttachmentSupport
-	DeclarationSupport
-}
 
 type service struct {
-	repo             usersModels.ParentAnnouncementRepository
+	deliveryPolicy   deliveryPorts.ParentDeliveryPolicy
+	runtime          Runtime
+	repo             ParentAnnouncementRepository
 	settings         Settings
 	outbox           OutboxEnqueuer
 	pushOutbox       PushOutboxCanceller
-	notifier         notifications.Service
-	reminderNotifier notifications.DurableReceiptService
-	preferences      notifications.PreferenceService
+	notifier         deliveryPorts.NotificationSender
+	reminderNotifier deliveryPorts.DurableNotificationSender
+	preferences      deliveryPorts.NotificationPreferences
 	deliveries       DeliveryRecorder
 	fingerprints     Fingerprints
 	parentsURL       string
@@ -204,37 +35,16 @@ type service struct {
 	logger      *slog.Logger
 }
 
-// NewService wires the staff announcement service.
-func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return &service{
-		repo:             cfg.Repo,
-		settings:         cfg.Settings,
-		outbox:           cfg.Outbox,
-		pushOutbox:       cfg.PushOutbox,
-		notifier:         cfg.Notifier,
-		reminderNotifier: cfg.ReminderNotifier,
-		preferences:      cfg.Preferences,
-		deliveries:       cfg.Deliveries,
-		fingerprints:     cfg.Fingerprints,
-		parentsURL:       cfg.ParentsURL,
-		logger:           logger,
-	}
-}
-
 // newsEnabled reports whether the parent-news feature is on for the current
 // tenant. Runs inside the request tenant tx, so ResolveBool is correct.
 func (s *service) newsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	return s.settings.ResolveBool(ctx, configModel.KeyParentNewsEnabled)
+	return s.settings.ParentNewsEnabled(ctx)
 }
 
-func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
+func (s *service) List(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error) {
 	rows, err := s.repo.ListForTenant(ctx, includeInactive)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: list: %w", err)
@@ -242,14 +52,14 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModel
 	// Attach poll options in one batched query so the staff list can render an
 	// Umfrage row (its options) without an N+1 fetch per announcement.
 	ids := make([]int64, 0, len(rows))
-	byID := make(map[int64]*usersModels.ParentAnnouncement, len(rows))
+	byID := make(map[int64]*ParentAnnouncement, len(rows))
 	for _, a := range rows {
 		if !a.IsPoll() {
 			continue
 		}
 		ids = append(ids, a.ID)
 		byID[a.ID] = a
-		a.Options = []*usersModels.ParentAnnouncementOption{}
+		a.Options = []*ParentAnnouncementOption{}
 	}
 	if len(ids) == 0 {
 		return rows, nil
@@ -266,7 +76,7 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModel
 	return rows, nil
 }
 
-func (s *service) Get(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (s *service) Get(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: get: %w", err)
@@ -289,7 +99,7 @@ func (s *service) Get(ctx context.Context, id int64) (*usersModels.ParentAnnounc
 	return a, nil
 }
 
-func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*usersModels.ParentAnnouncement, error) {
+func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*ParentAnnouncement, error) {
 	enabled, err := s.newsEnabled(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: resolve news flag: %w", err)
@@ -309,7 +119,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		return nil, err
 	}
 
-	a := &usersModels.ParentAnnouncement{
+	a := &ParentAnnouncement{
 		Title:                   in.Title,
 		Body:                    in.Body,
 		Priority:                in.Priority,
@@ -350,7 +160,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	return a, nil
 }
 
-func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.ParentAnnouncement, error) {
+func (s *service) Update(ctx context.Context, id int64, in Input) (*ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for update: %w", err)
@@ -369,24 +179,11 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 		return nil, err
 	}
 
-	a.Title = in.Title
-	a.Body = in.Body
-	a.Priority = in.Priority
-	a.LinkURL = in.LinkURL
-	a.RequiresAcknowledgement = in.RequiresAcknowledgement
-	a.SendEmail = in.SendEmail
-	a.ExpiresAt = in.ExpiresAt
-	a.ResponseType = in.ResponseType
-	a.ResponseDeadline = in.ResponseDeadline
-	a.DeliveryMode = in.DeliveryMode
-	a.EmailAudience = in.EmailAudience
-	a.ReminderAt = in.ReminderAt
-	a.ReminderText = in.ReminderText
-	a.Declaration = in.Declaration
+	applyAnnouncementInput(a, in)
 	if err := s.repo.Update(ctx, a); err != nil {
 		// The write is guarded by published_at IS NULL: a publish between the
 		// load and here matches no row and surfaces the same conflict.
-		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+		if s.repo.IsPublishedConflict(err) {
 			return nil, ErrPublishedImmutable
 		}
 		return nil, fmt.Errorf("announcement: update: %w", err)
@@ -396,7 +193,7 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 		// draft was published between the guarded content Update above and here,
 		// it refuses the swap so e-mails and the live audience can't diverge.
 		// Surface the same immutability conflict the load-time check would have.
-		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+		if s.repo.IsPublishedConflict(err) {
 			return nil, ErrPublishedImmutable
 		}
 		return nil, fmt.Errorf("announcement: update targets: %w", err)
@@ -404,7 +201,7 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if err := s.repo.ReplaceOptions(ctx, a.GetTenantID(), a.ID, options); err != nil {
 		// Same draft guard as ReplaceTargets: a publish that slipped in between
 		// makes the option swap refuse rather than re-label answers.
-		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+		if s.repo.IsPublishedConflict(err) {
 			return nil, ErrPublishedImmutable
 		}
 		return nil, fmt.Errorf("announcement: update options: %w", err)
@@ -461,7 +258,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (s *service) Publish(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for publish: %w", err)
@@ -480,19 +277,7 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	}
 	if !a.IsPublished() {
 		now := time.Now()
-		// Refuse an already-expired draft: parents could never open it, and a
-		// published announcement cannot be corrected in place.
-		if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
-			return nil, fmt.Errorf("%w: expires_at is already in the past", ErrValidation)
-		}
-		if a.ResponseDeadline != nil && !a.ResponseDeadline.After(now) {
-			return nil, fmt.Errorf("%w: response_deadline is already in the past", ErrValidation)
-		}
-		// A reminder that already lies in the past would never fire (the due
-		// scan only looks back a bounded window), so the draft would go live
-		// with a reminder that silently never happens. Refuse it; staff moves
-		// or removes the reminder and publishes again.
-		if err := validateReminder(a.ReminderAt, a.ExpiresAt, now); err != nil {
+		if err := validateAnnouncementPublication(a, now); err != nil {
 			return nil, err
 		}
 		// Atomic publish: PublishIfDraft's UPDATE is guarded by
@@ -504,44 +289,8 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			return nil, fmt.Errorf("announcement: publish: %w", err)
 		}
 		if published {
-			// The `a` loaded above may be stale: PublishIfDraft blocks on the row
-			// lock behind a concurrent Update, then flips the POST-edit row. So an
-			// edit that changed the title, toggled send_email off, or moved
-			// expires_at into the past can commit in that window. Re-read the
-			// committed row (READ COMMITTED tenant tx → sees the concurrent commit)
-			// and decide from it, not from the pre-publish snapshot.
-			fresh, err := s.repo.FindByID(ctx, id)
-			if err != nil {
-				return nil, fmt.Errorf("announcement: reload after publish: %w", err)
-			}
-			if fresh == nil {
-				return nil, fmt.Errorf("announcement: reload after publish: row not found")
-			}
-			if err := s.settlePublication(ctx, fresh); err != nil {
+			if err := s.finishAnnouncementPublication(ctx, id); err != nil {
 				return nil, err
-			}
-			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
-			if err := s.notifyAnnouncementGuardians(ctx, fresh); err != nil {
-				return nil, fmt.Errorf("announcement: publish push notifications: %w", err)
-			}
-			// E-mail is deliberately independent of the push decision. The
-			// dispatch switch and the active window exist so a phone does not
-			// ring at night; an e-mail does not ring, and a school that opted
-			// into e-mail for an announcement expects it to leave. The e-mail
-			// path applies its own consent rule (see enqueueAnnouncementEmails).
-			if fresh.SendEmail {
-				// An Elternbrief (and any announcement mailing beyond the portal
-				// audience) takes the tracked path: it records one delivery row per
-				// addressed person, including the ones that get nothing, because the
-				// recipient matrix is the deliverable. Everything else keeps the
-				// original untracked path unchanged.
-				enqueue := s.enqueueAnnouncementEmails
-				if needsDeliveryTracking(fresh) {
-					enqueue = s.enqueueTrackedEmails
-				}
-				if err := enqueue(ctx, fresh); err != nil {
-					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
-				}
 			}
 		}
 	}
@@ -560,7 +309,7 @@ type pushShape struct {
 	relatedType      string
 }
 
-func publishPushShape(a *usersModels.ParentAnnouncement) pushShape {
+func publishPushShape(a *ParentAnnouncement) pushShape {
 	notificationType, copyKind, deepLink := pushShapeFor(a)
 	return pushShape{
 		notificationType: notificationType,
@@ -571,7 +320,7 @@ func publishPushShape(a *usersModels.ParentAnnouncement) pushShape {
 	}
 }
 
-func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *ParentAnnouncement) error {
 	_, err := s.notifyAnnouncementGuardiansAs(ctx, a, publishPushShape(a))
 	return err
 }
@@ -579,14 +328,12 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 // notifyAnnouncementGuardiansAs pushes to the announcement's current audience.
 // The publication and the scheduled reminder share this resolution, so the
 // reminder can never reach anyone the announcement itself would not.
-func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) (int, error) {
+func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *ParentAnnouncement, shape pushShape) (int, error) {
 	if s.notifier == nil {
 		return 0, nil
 	}
-	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, func(ctx context.Context, event notifications.Event) (int, error) {
-		return 1, s.notifier.Notify(ctx, event)
-	})
-	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, deliveryPorts.NewSingleReceiptSender(s.notifier))
+	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 		return accepted, nil
 	}
 	return accepted, err
@@ -595,66 +342,29 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 // notifyReminderGuardians uses the durable receipt path. The reminder claim
 // must roll back when neither Web Push nor the selected e-mail channel queued
 // a delivery; a successful router call alone is not evidence of that.
-func (s *service) notifyReminderGuardians(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape) (int, error) {
+func (s *service) notifyReminderGuardians(ctx context.Context, a *ParentAnnouncement, shape pushShape) (int, error) {
 	if s.reminderNotifier == nil {
 		return 0, nil
 	}
-	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier.NotifyDurably)
+	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier)
 }
 
-type guardianNotificationSender func(context.Context, notifications.Event) (int, error)
-
-func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape, notify guardianNotificationSender) (int, error) {
-	var err error
-	priority := notifications.PriorityNormal
-	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
-		priority = notifications.PriorityHigh
+func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *ParentAnnouncement, shape pushShape, notify deliveryPorts.DurableNotificationSender) (int, error) {
+	priority := deliveryPorts.PriorityNormal
+	if a.Priority == ParentAnnouncementPriorityImportant {
+		priority = deliveryPorts.PriorityHigh
 	}
-	var accountIDs []int64
-	seen := make(map[int64]struct{})
-	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
+	accountIDs, localeByAccount, err := s.resolveAnnouncementPushAudience(ctx, a)
 	if err != nil {
-		return 0, fmt.Errorf("resolve guardian recipients: %w", err)
-	}
-	accountIDs = make([]int64, 0, len(recipients))
-	localeByAccount := make(map[int64]string, len(recipients))
-	for _, recipient := range recipients {
-		if recipient.AccountID <= 0 {
-			continue
-		}
-		if _, exists := seen[recipient.AccountID]; exists {
-			continue
-		}
-		seen[recipient.AccountID] = struct{}{}
-		accountIDs = append(accountIDs, recipient.AccountID)
-		localeByAccount[recipient.AccountID] = localization.NormalizeLocale(recipient.PortalLocale)
+		return 0, err
 	}
 	if len(accountIDs) == 0 {
 		return 0, nil
 	}
-	candidateCount := len(accountIDs)
-
-	// Consent narrows the audience the announcement itself defined. A nil
-	// preference service means the dependency was never wired, which the
-	// factory always does — the pre-consent behaviour is kept for that case so
-	// a partially constructed service does not silently stop notifying. When a
-	// service IS present, its answer is final: no consent, no push.
 	notificationType, copyKind, deepLink := shape.notificationType, shape.copyKind, shape.deepLink
-	if s.preferences != nil {
-		accountIDs, err = s.preferences.FilterOptedIn(ctx, notificationType, accountIDs)
-		if err != nil {
-			return 0, fmt.Errorf("filter opted-in guardians: %w", err)
-		}
-		if len(accountIDs) < candidateCount {
-			s.logger.Info("parent announcement push narrowed by consent",
-				slog.Int64("announcement_id", a.ID),
-				slog.Int("candidate_count", candidateCount),
-				slog.Int("recipient_count", len(accountIDs)),
-			)
-		}
-		if len(accountIDs) == 0 {
-			return 0, nil
-		}
+	accountIDs, err = s.filterAnnouncementPushAudience(ctx, a.ID, notificationType, accountIDs)
+	if err != nil || len(accountIDs) == 0 {
+		return 0, err
 	}
 
 	groups := make(map[string][]int64)
@@ -663,8 +373,8 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 	}
 	accepted := 0
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
-		count, err := notify(ctx, notifications.Event{
+		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, copyKind)
+		count, err := notify.NotifyDurably(ctx, deliveryPorts.NotificationEvent{
 			Type: notificationType,
 			// The push outbox deduplicates by tenant and key. Each locale is a
 			// distinct payload and audience, so it needs its own replay-safe key.
@@ -674,13 +384,13 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 			Body:     body,
 			DeepLink: deepLink,
 			Priority: priority,
-			Audience: notifications.Audience{
+			Audience: deliveryPorts.NotificationAudience{
 				TenantID:           a.GetTenantID(),
-				Scope:              notifications.ScopeGuardian,
+				Scope:              deliveryPorts.ScopeGuardian,
 				GuardianAccountIDs: group,
 			},
-		})
-		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		}.Public())
+		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 			s.logger.Info("parent announcement push suppressed by tenant notification gate",
 				slog.Int64("announcement_id", a.ID),
 				slog.Int("recipient_count", len(accountIDs)),
@@ -707,7 +417,7 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 // and no signal. The outbox worker still handles the actual async send + retries
 // (that part remains fire-and-forget). A missing outbox binding or an empty
 // audience are not DB errors and stay non-fatal.
-func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *ParentAnnouncement) error {
 	_, err := s.enqueueAnnouncementEmailsAs(ctx, a, publishMailSpec(a))
 	return err
 }
@@ -729,7 +439,7 @@ type mailSpec struct {
 	idempotencyKey func(address string) string
 }
 
-func publishMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
+func publishMailSpec(a *ParentAnnouncement) mailSpec {
 	spec := mailSpec{
 		title:       a.Title,
 		kicker:      defaultEmailKicker,
@@ -750,14 +460,14 @@ func publishMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 	return declarationMailSpec(a, spec)
 }
 
-func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, spec mailSpec) (int, error) {
+func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *ParentAnnouncement, spec mailSpec) (int, error) {
 	if s.outbox == nil {
 		s.logger.Warn("parent announcement opted into e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
 		return 0, nil
 	}
 	tenantID := a.GetTenantID()
-	var recipients []*usersModels.AnnouncementRecipient
+	var recipients []*AnnouncementRecipient
 	var err error
 	recipients, err = s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
 	if err != nil {
@@ -766,66 +476,11 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 	if len(recipients) == 0 {
 		return 0, nil
 	}
-	if s.preferences != nil {
-		accountIDs := make([]int64, 0, len(recipients))
-		seen := make(map[int64]struct{}, len(recipients))
-		for _, recipient := range recipients {
-			if recipient.AccountID <= 0 {
-				continue
-			}
-			if _, exists := seen[recipient.AccountID]; exists {
-				continue
-			}
-			seen[recipient.AccountID] = struct{}{}
-			accountIDs = append(accountIDs, recipient.AccountID)
-		}
-		// E-mail honours an explicit "no" but not a missing decision: guardians
-		// received announcement e-mails before the consent switches existed, and
-		// most families have no row at all. Requiring an opt-in here would stop
-		// the e-mails for practically everybody.
-		notificationType, _, _ := pushShapeFor(a)
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, notificationType, accountIDs)
-		if err != nil {
-			return 0, fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
-		}
-		allowed := make(map[int64]struct{}, len(remaining))
-		for _, accountID := range remaining {
-			allowed[accountID] = struct{}{}
-		}
-		filtered := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
-		for _, recipient := range recipients {
-			if _, ok := allowed[recipient.AccountID]; ok {
-				filtered = append(filtered, recipient)
-			}
-		}
-		if len(filtered) < len(recipients) {
-			s.logger.Info("parent announcement e-mails narrowed by opt-outs",
-				slog.Int64("announcement_id", a.ID),
-				slog.Int("candidate_count", len(recipients)),
-				slog.Int("recipient_count", len(filtered)),
-			)
-		}
-		recipients = filtered
-		if len(recipients) == 0 {
-			return 0, nil
-		}
+	recipients, err = s.filterAnnouncementEmailRecipients(ctx, a, recipients)
+	if err != nil || len(recipients) == 0 {
+		return 0, err
 	}
-	uniqueRecipients := make([]*usersModels.AnnouncementRecipient, 0, len(recipients))
-	seenEmails := make(map[string]struct{}, len(recipients))
-	for _, recipient := range recipients {
-		normalizedEmail := strings.ToLower(strings.TrimSpace(recipient.Email))
-		if normalizedEmail == "" {
-			continue
-		}
-		if _, exists := seenEmails[normalizedEmail]; exists {
-			continue
-		}
-		seenEmails[normalizedEmail] = struct{}{}
-		normalizedRecipient := *recipient
-		normalizedRecipient.Email = normalizedEmail
-		uniqueRecipients = append(uniqueRecipients, &normalizedRecipient)
-	}
-	recipients = uniqueRecipients
+	recipients = uniqueAnnouncementEmails(recipients)
 	if len(recipients) == 0 {
 		return 0, nil
 	}
@@ -833,53 +488,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 	if err != nil {
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
-	// Header/footer branding, resolved once for the whole batch. The same logo
-	// URLs the enrollment mails use, so the announcement mail renders the school
-	// logo (header) and the moto logo (footer) instead of the plain fallbacks.
-	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
-	kicker := spec.kicker
-	intro := spec.intro(schoolName)
-	// Every recipient of this path has portal access by construction
-	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
-	// always points somewhere the reader can go.
-	hasAttachment := s.hasAttachments(ctx, a.ID)
-	queued := 0
-	for _, rcpt := range recipients {
-		// Deliberately NO announcement body here: e-mail is the least trusted
-		// channel, so the mail carries only the title plus a link into the
-		// parent portal, where reading also counts for the read stats.
-		request := emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:     rcpt.Email,
-				emailPayloadFirstName:     rcpt.FirstName,
-				emailPayloadLastName:      rcpt.LastName,
-				emailPayloadTitle:         spec.title,
-				emailPayloadSchoolName:    schoolName,
-				emailPayloadPortalURL:     s.parentsURL,
-				emailPayloadLogoURL:       logoURL,
-				emailPayloadMotoLogoURL:   motoLogoURL,
-				emailPayloadKicker:        kicker,
-				emailPayloadIntro:         intro,
-				emailPayloadHasAttachment: hasAttachment,
-			},
-			RelatedEntityType: spec.relatedType,
-			RelatedEntityID:   a.ID,
-		}
-		if spec.idempotencyKey != nil {
-			request.IdempotencyKey = spec.idempotencyKey(rcpt.Email)
-		}
-		if _, err := s.outbox.Enqueue(ctx, request); err != nil {
-			return queued, fmt.Errorf("announcement: enqueue e-mail: %w", err)
-		}
-		queued++
-	}
-	s.logger.Info("parent announcement e-mails queued",
-		slog.Int64("announcement_id", a.ID),
-		slog.Int("queued", queued),
-	)
-	return queued, nil
+	return s.enqueueAnnouncementEmailBatch(ctx, a, spec, recipients, schoolName)
 }
 
 // resolveSchoolLogoURL returns the absolute school-logo URL for the e-mail
@@ -898,7 +507,7 @@ func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) stri
 		)
 		return ""
 	}
-	return emailbranding.SchoolLogoURL(s.parentsURL, raw)
+	return s.deliveryPolicy.SchoolLogoURL(s.parentsURL, raw)
 }
 
 // cancelPendingEmails cancels announcement and poll-reminder e-mails that have
@@ -971,7 +580,7 @@ func (s *service) dropDeliveryRows(ctx context.Context, tenantID, id int64) erro
 	return nil
 }
 
-func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (s *service) Unpublish(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for unpublish: %w", err)
@@ -1004,7 +613,7 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 	return s.Get(ctx, id)
 }
 
-func (s *service) Stats(ctx context.Context, id int64) (*usersModels.AnnouncementStats, error) {
+func (s *service) Stats(ctx context.Context, id int64) (*AnnouncementStats, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for stats: %w", err)
@@ -1022,7 +631,7 @@ func (s *service) Stats(ctx context.Context, id int64) (*usersModels.Announcemen
 // Recipients returns the announcement's live audience as named guardian
 // accounts with their read/ack state — the per-person view behind Stats, so
 // staff can see who still has to acknowledge.
-func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+func (s *service) Recipients(ctx context.Context, id int64) ([]*AnnouncementRecipientStatus, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for recipients: %w", err)
@@ -1050,27 +659,27 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.Anno
 // intended and is refused.
 func normalizeDelivery(in *Input) error {
 	if in.DeliveryMode == "" {
-		in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
+		in.DeliveryMode = ParentAnnouncementDeliveryStandard
 	}
-	if !usersModels.ValidAnnouncementDeliveryMode(in.DeliveryMode) {
+	if !ValidAnnouncementDeliveryMode(in.DeliveryMode) {
 		return fmt.Errorf("%w: delivery_mode %q", ErrValidation, in.DeliveryMode)
 	}
 	if in.EmailAudience == "" {
-		in.EmailAudience = usersModels.EmailAudiencePortalOnly
+		in.EmailAudience = EmailAudiencePortalOnly
 	}
-	if !usersModels.ValidAnnouncementEmailAudience(in.EmailAudience) {
+	if !ValidAnnouncementEmailAudience(in.EmailAudience) {
 		return fmt.Errorf("%w: email_audience %q", ErrValidation, in.EmailAudience)
 	}
-	if in.EmailAudience == usersModels.EmailAudienceAllContacts && in.DeliveryMode != usersModels.ParentAnnouncementDeliveryLetter {
+	if in.EmailAudience == EmailAudienceAllContacts && in.DeliveryMode != ParentAnnouncementDeliveryLetter {
 		return fmt.Errorf("%w: email_audience %q requires an Elternbrief", ErrValidation, in.EmailAudience)
 	}
 
-	if in.DeliveryMode == usersModels.ParentAnnouncementDeliveryLetter {
+	if in.DeliveryMode == ParentAnnouncementDeliveryLetter {
 		// A poll asks a question per child; a letter demands one acknowledgement
 		// per child. Combining them would need a single row to carry two different
 		// per-child completion semantics, so v1 keeps the axes separate (the
 		// chk_parent_announcements_letter_not_poll constraint mirrors this).
-		if in.ResponseType != "" && in.ResponseType != usersModels.ParentAnnouncementResponseNone {
+		if in.ResponseType != "" && in.ResponseType != ParentAnnouncementResponseNone {
 			return fmt.Errorf("%w: an Elternbrief cannot also be a poll", ErrValidation)
 		}
 		// Targeting people with an open enrollment reaches guardians that have no
@@ -1079,7 +688,7 @@ func normalizeDelivery(in *Input) error {
 		// permanently outstanding. Refused rather than silently dropped so the
 		// author notices while composing.
 		for _, t := range in.Targets {
-			if t.TargetType == usersModels.AnnouncementTargetPendingEnrollment {
+			if t.TargetType == AnnouncementTargetPendingEnrollment {
 				return fmt.Errorf("%w: an Elternbrief cannot target pending enrollments", ErrValidation)
 			}
 		}
@@ -1090,14 +699,14 @@ func normalizeDelivery(in *Input) error {
 	// Widening the e-mail audience without sending e-mail at all is a
 	// contradiction that almost certainly means the client lost a flag. Refuse it
 	// instead of persisting a setting that does nothing.
-	if in.EmailAudience == usersModels.EmailAudienceAllContacts && !in.SendEmail {
+	if in.EmailAudience == EmailAudienceAllContacts && !in.SendEmail {
 		return fmt.Errorf("%w: email_audience %q requires send_email", ErrValidation, in.EmailAudience)
 	}
 	return normalizeDeclaration(in)
 }
 
 // normalizeInput validates and trims the payload and returns the deduplicated target rows.
-func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) {
+func normalizeInput(in *Input) ([]*ParentAnnouncementTarget, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Body = strings.TrimSpace(in.Body)
 	if in.Title == "" || len([]rune(in.Title)) > maxTitleLen {
@@ -1112,9 +721,9 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	}
 	in.LinkURL = link
 	if in.Priority == "" {
-		in.Priority = usersModels.ParentAnnouncementPriorityInfo
+		in.Priority = ParentAnnouncementPriorityInfo
 	}
-	if !usersModels.ValidAnnouncementPriority(in.Priority) {
+	if !ValidAnnouncementPriority(in.Priority) {
 		return nil, fmt.Errorf("%w: priority", ErrValidation)
 	}
 	// A past expiry must fail as a 4xx here, not as a 500 later: the DB
@@ -1133,47 +742,7 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 		return nil, err
 	}
 
-	seen := make(map[string]bool, len(in.Targets))
-	out := make([]*usersModels.ParentAnnouncementTarget, 0, len(in.Targets))
-	for _, t := range in.Targets {
-		if !usersModels.ValidAnnouncementTargetType(t.TargetType) {
-			return nil, fmt.Errorf("%w: target_type %q", ErrValidation, t.TargetType)
-		}
-		target := &usersModels.ParentAnnouncementTarget{TargetType: t.TargetType}
-		switch t.TargetType {
-		case usersModels.AnnouncementTargetClass:
-			if t.RefText == nil || strings.TrimSpace(*t.RefText) == "" {
-				return nil, fmt.Errorf("%w: class target needs ref_text", ErrValidation)
-			}
-			text := strings.TrimSpace(*t.RefText)
-			target.TargetRefText = &text
-		case usersModels.AnnouncementTargetGroup,
-			usersModels.AnnouncementTargetActivityGroup,
-			usersModels.AnnouncementTargetStudent:
-			if t.RefID == nil || *t.RefID <= 0 {
-				return nil, fmt.Errorf("%w: %s target needs ref_id", ErrValidation, t.TargetType)
-			}
-			target.TargetRefID = t.RefID
-		case usersModels.AnnouncementTargetSchoolAll:
-			// no ref
-		case usersModels.AnnouncementTargetPendingEnrollment:
-			// A poll is answered per CHILD, and an open application has no
-			// enrolled child yet — the applicant would see a question with no
-			// answer row. The staff form hides the option for polls; refuse it
-			// here too so the API cannot create that dead end.
-			if in.ResponseType == usersModels.ParentAnnouncementResponseSingleChoice ||
-				in.ResponseType == usersModels.ParentAnnouncementResponseMultiChoice {
-				return nil, fmt.Errorf("%w: pending_enrollment cannot be targeted by a poll", ErrValidation)
-			}
-		}
-		key := dedupeKey(target)
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, target)
-	}
-	return out, nil
+	return normalizeAnnouncementTargets(in)
 }
 
 // normalizeLinkURL trims the optional announcement link and requires an
@@ -1197,7 +766,7 @@ func normalizeLinkURL(raw *string) (*string, error) {
 	return &trimmed, nil
 }
 
-func dedupeKey(t *usersModels.ParentAnnouncementTarget) string {
+func dedupeKey(t *ParentAnnouncementTarget) string {
 	switch {
 	case t.TargetRefID != nil:
 		return fmt.Sprintf("%s:id:%d", t.TargetType, *t.TargetRefID)

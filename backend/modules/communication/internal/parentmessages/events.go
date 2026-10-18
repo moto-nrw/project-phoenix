@@ -4,12 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // EventEmitter is Communication's side of the parent-event emitter: it owns
@@ -17,11 +13,10 @@ import (
 // the realtime fan-out. Consumers reach it through the services/parentmessaging
 // shell, which adds the pure audience and decision rules on top.
 type EventEmitter struct {
-	db          *bun.DB
-	runtime     tenant.UnitOfWork
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
-	settings    parentmessaging.TenantSettingsResolver
+	runtime     EventRuntime
+	threadRepo  ParentMessageThreadRepository
+	messageRepo ParentMessageRepository
+	settings    EventSettings
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
 }
@@ -32,16 +27,15 @@ type EventEmitter struct {
 // Any nil dependency (except broadcaster/logger) turns EmitChildEvent into a
 // no-op for the same reason.
 func NewEventEmitter(
-	db *bun.DB,
-	runtime tenant.UnitOfWork,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
-	settings parentmessaging.TenantSettingsResolver,
+	runtime EventRuntime,
+	threadRepo ParentMessageThreadRepository,
+	messageRepo ParentMessageRepository,
+	settings EventSettings,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) *EventEmitter {
 	return &EventEmitter{
-		db: db, runtime: runtime, threadRepo: threadRepo, messageRepo: messageRepo,
+		runtime: runtime, threadRepo: threadRepo, messageRepo: messageRepo,
 		settings: settings, broadcaster: broadcaster, logger: logger,
 	}
 }
@@ -51,13 +45,15 @@ func NewEventEmitter(
 // inherit its cancellation, but it does carry the unit of work those paths
 // open their own tenant transaction through.
 func (e *EventEmitter) backgroundContext() context.Context {
-	return tenant.WithUnitOfWork(context.Background(), e.runtime)
+	return e.runtime.BackgroundContext()
 }
 
 // InTransaction reports whether ctx carries an active tenant transaction.
 func (e *EventEmitter) InTransaction(ctx context.Context) bool {
-	_, active := tenant.TransactionFromContext(ctx)
-	return active
+	if e == nil || e.runtime == nil {
+		return false
+	}
+	return e.runtime.InTransaction(ctx)
 }
 
 // PortalGuardians lists the child's guardians with parent_portal.access on
@@ -107,7 +103,7 @@ func (e *EventEmitter) MessagingEnabledForTenant(ctx context.Context, tenantID i
 // thread without ever creating one (and, when the submitting guardian has since
 // lost access, without waking that guardian).
 func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev parentmessaging.ChildEvent) {
-	if e == nil || e.db == nil || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
+	if e == nil || e.runtime == nil || !e.runtime.Configured() || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
 		return
 	}
 	if tenantID <= 0 || studentID <= 0 || guardianAccountID <= 0 {
@@ -116,7 +112,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	// Detached background context: the pill outlives the (already committed)
 	// request transaction and must not inherit its cancellation.
 	bgCtx := e.backgroundContext()
-	enabled, err := e.settings.ResolveBoolForTenant(bgCtx, tenantID, configModels.KeyParentNotesEnabled)
+	enabled, err := e.settings.ParentNotesEnabledForTenant(bgCtx, tenantID)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
 	// accumulates threads via GetOrCreate. The ONE exception is a TERMINAL
@@ -140,7 +136,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	var threadID int64
 	var suppressReason string
 	skipGuardianBroadcast := false
-	err = tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = e.runtime.WithinTenant(bgCtx, tenantID, func(txCtx context.Context) error {
 		// Staff-triggered pills (every staff decision, and any close we reconcile
 		// onto an existing thread) must never resurrect a thread for — or wake — a
 		// guardian whose child link (or parent_portal.access) was revoked after the
@@ -149,7 +145,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// parent APIs now hide. Guardian-triggered pills (submit / withdraw) are the
 		// guardian acting live under their own permission, so they are not gated.
 		revoked := false
-		if ev.ActorKind == usersModels.ParentMessageSenderStaff {
+		if ev.ActorKind == ParentMessageSenderStaff {
 			hasAccess, herr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
 			if herr != nil {
 				return herr
@@ -164,7 +160,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// won't be woken for it (skipGuardianBroadcast below).
 		reconcileOnly := messagingOff || revoked
 
-		var thread *usersModels.ParentMessageThread
+		var thread *ParentMessageThread
 		if reconcileOnly {
 			if !isTerminal {
 				// Non-terminal pills (request_created, self-service mirrors) carry no
@@ -185,7 +181,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 				suppressReason = "no existing thread to reconcile"
 				return nil
 			}
-			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, usersModels.ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
+			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
 			if cerr != nil {
 				return cerr
 			}
@@ -206,14 +202,14 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			thread = created
 		}
 		threadID = thread.ID
-		msg := &usersModels.ParentMessage{
+		msg := &ParentMessage{
 			ThreadID:        thread.ID,
 			StudentID:       thread.StudentID,
 			SenderAccountID: ev.ActorAccountID,
-			SenderKind:      usersModels.ParentMessageSenderSystem,
+			SenderKind:      ParentMessageSenderSystem,
 			SenderName:      "System",
 			Body:            ev.Body,
-			Kind:            usersModels.ParentMessageKindEvent,
+			Kind:            ParentMessageKindEvent,
 			EventType:       ev.EventType,
 			EventActorKind:  ev.ActorKind,
 			RequestType:     ev.RequestType,
@@ -241,7 +237,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// whose only pill is request_created keeps NULL last_message_at and renders the
 		// empty-preview fallback (never a broken row). Every OTHER pill (decision,
 		// withdrawal, self-service mirror) advances the preview as before.
-		if ev.EventType == usersModels.ParentMessageEventRequestCreated {
+		if ev.EventType == ParentMessageEventRequestCreated {
 			return nil
 		}
 		// Touch the thread with the row's own DB-stamped created_at (one clock —
@@ -294,7 +290,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 // the originating transaction commits (from a RegisterAfterCommit callback) so a
 // woken client never reads the pre-commit snapshot. A nil dependency is a no-op.
 func (e *EventEmitter) WakeChildGuardians(tenantID, studentID int64) {
-	if e == nil || e.broadcaster == nil || e.threadRepo == nil || e.db == nil {
+	if e == nil || e.broadcaster == nil || e.threadRepo == nil || e.runtime == nil || !e.runtime.Configured() {
 		return
 	}
 	if tenantID <= 0 || studentID <= 0 {
@@ -304,8 +300,8 @@ func (e *EventEmitter) WakeChildGuardians(tenantID, studentID int64) {
 	// originating transaction. Reading the guardian list is RLS-scoped, so it runs
 	// inside its own tenant transaction like EmitChildEvent's work.
 	bgCtx := e.backgroundContext()
-	var guardians []*usersModels.MessageableGuardian
-	if err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	var guardians []*MessageableGuardian
+	if err := e.runtime.WithinTenant(bgCtx, tenantID, func(txCtx context.Context) error {
 		gs, gerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
 		if gerr != nil {
 			return gerr

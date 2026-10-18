@@ -4,18 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Identity & Access owns the account and operator second factor and both
@@ -181,9 +180,7 @@ func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) 
 // --- the two mails -----------------------------------------------------------
 
 // mfaMailer sends the code through synchronous delivery and the
-// device-added notice asynchronously. The code template carries no link or
-// button on purpose: the user pastes the code into the moto login, which
-// kills the "click here to confirm" phishing pattern.
+// device-added notice asynchronously.
 type mfaMailer struct {
 	dispatcher  *email.Dispatcher
 	from        email.Email
@@ -201,20 +198,8 @@ func (m mfaMailer) DeliverCode(ctx context.Context, message identityaccess.MFACo
 		deliveryType = "operator_mfa_email_code"
 	}
 	err := m.dispatcher.Deliver(ctx, email.DeliveryRequest{
-		Message: email.Message{
-			From:     m.from,
-			To:       email.NewEmail(message.RecipientName, message.Recipient),
-			Subject:  "Ihr moto-Anmeldecode",
-			Template: "mfa-email-code.html",
-			Content: map[string]any{
-				"LogoURL":              motoLogoURL(m.frontendURL),
-				"Code":                 message.Code,
-				"ExpiryMinutes":        message.ExpiryMinutes,
-				"RequestIP":            message.RequestIP,
-				"TrustedDeviceEnabled": message.TrustedDeviceEnabled,
-				"TrustedDeviceDays":    message.TrustedDeviceDays,
-			},
-		},
+		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
+			identityaccess.MFACodeMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
@@ -242,19 +227,8 @@ func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identit
 		deliveryType = "operator_mfa_trusted_device_added"
 	}
 	m.dispatcher.Dispatch(ctx, email.DeliveryRequest{
-		Message: email.Message{
-			From:     m.from,
-			To:       email.NewEmail(message.RecipientName, message.Recipient),
-			Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
-			Template: "trusted-device-added.html",
-			Content: map[string]any{
-				"LogoURL":     motoLogoURL(m.frontendURL),
-				"DeviceLabel": message.DeviceLabel,
-				"IPAddress":   message.RequestIP,
-				"AddedAt":     message.AddedAt,
-				"TrustedDays": message.TrustedDays,
-			},
-		},
+		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
+			identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
@@ -278,7 +252,7 @@ type operatorActionLog struct {
 // drive the seam without reaching past it into the owner's rows.
 type (
 	operatorAuditWriter = operatorAuditEntries
-	operatorAuditRow    = platformModels.OperatorAuditLog
+	operatorAuditRow    = auditModels.OperatorAuditEntry
 	operatorAuditEntry  = identityaccess.OperatorAuditEntry
 )
 
@@ -286,14 +260,14 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 	if l.ledger == nil {
 		return
 	}
-	row := &platformModels.OperatorAuditLog{
+	row := &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
 	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
 		// A marshal failure falls through with empty changes: losing the
 		// metadata beats losing the whole audit row.
-		if err := row.SetChanges(changes); err != nil {
+		if err := setOperatorAuditChanges(row, changes); err != nil {
 			l.logger.Warn("failed to encode operator mfa audit changes",
 				slog.String("action", entry.Action),
 				slog.String("error", err.Error()))
@@ -342,8 +316,4 @@ func operatorMFAChanges(evidence *identityaccess.OperatorMFAEvidence) map[string
 		return map[string]any{"locked_until": evidence.LockedUntil}
 	}
 	return nil
-}
-
-func motoLogoURL(frontendURL string) string {
-	return fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", strings.TrimRight(frontendURL, "/"))
 }

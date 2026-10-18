@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // This file binds the five surfaces the People Directory photo lifecycle needs
@@ -172,8 +172,7 @@ func (s studentPhotos) PurgeAllPhotos(ctx context.Context, tenantID int64) (func
 
 func (s studentPhotos) HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (func(), error) {
 	notify := s.deferTenantSettingsChanged(tenantID, configModel.KeyStudentPhotosEnabled)
-	enabled, ok := value.(bool)
-	if !ok || enabled {
+	if !peopleModule.StudentPhotosSwitchedOff(value) {
 		return func() {
 			s.runtime.BroadcastPhotoChange(tenantID, 0, photoSourceFeatureEnabled)
 			notify()

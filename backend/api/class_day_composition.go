@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -31,7 +31,7 @@ func NewClassDay(sources ClassDaySources) classday.ClassDay {
 		CareDays:               sources.CareDays,
 		Companions:             sources.Companions,
 		ClassArrivalExceptions: sources.ClassArrivalExceptions,
-		Settings:               sources.Settings,
+		WriteScope:             newClassDayWriteScope(sources.Settings),
 		BlockStarts:            sources.BlockStarts,
 		Announcer:              classDayArrivalAnnouncer{broadcaster: sources.Broadcaster, logger: sources.Logger},
 	}

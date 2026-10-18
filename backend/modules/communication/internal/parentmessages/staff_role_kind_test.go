@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -58,20 +57,20 @@ func TestRecipientRoleKinds(t *testing.T) {
 	for _, r := range recipients {
 		kinds[r.AccountID] = r.RoleKind
 	}
-	assert.Equal(t, usersModels.StaffRoleKindLehrkraft, kinds[teacher.ID])
-	assert.Equal(t, usersModels.StaffRoleKindAdmin, kinds[leader.ID])
-	assert.Equal(t, usersModels.StaffRoleKindStaff, kinds[colleague.ID])
-	assert.Equal(t, usersModels.StaffRoleKindAdmin, kinds[both.ID], "admin wins over lehrkraft for a dual-role account")
+	assert.Equal(t, "lehrkraft", kinds[teacher.ID])
+	assert.Equal(t, "admin", kinds[leader.ID])
+	assert.Equal(t, "staff", kinds[colleague.ID])
+	assert.Equal(t, "admin", kinds[both.ID], "admin wins over lehrkraft for a dual-role account")
 
 	// The same classification travels on the inbox row and the thread detail.
 	opened, err := svc.OpenThread(asAccount(t, viewer.ID), teacher.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StaffRoleKindLehrkraft, opened.CounterpartRoleKind)
+	assert.Equal(t, "lehrkraft", opened.CounterpartRoleKind)
 
 	_, err = svc.PostMessage(asAccount(t, teacher.ID), opened.ThreadID, "Hallo aus der Schule")
 	require.NoError(t, err)
 	inbox, err := svc.ListInbox(asAccount(t, viewer.ID), false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
-	assert.Equal(t, usersModels.StaffRoleKindLehrkraft, inbox[0].CounterpartRoleKind)
+	assert.Equal(t, "lehrkraft", inbox[0].CounterpartRoleKind)
 }

@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // SFTP target settings for the Export Transfer capability (#3050).

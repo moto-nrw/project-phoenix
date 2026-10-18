@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 func init() {
@@ -110,7 +110,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimeTrackingRetentionDays,
 		Label:           "Zeiterfassung aufbewahren",
-		Description:     "So lange speichert moto Stempelzeiten, Pausen, Korrekturen und Abwesenheiten. Danach löscht moto sie. Mindestens 2 Jahre.",
+		Description:     "So lange speichert moto Stempelzeiten, Pausen, Korrekturen und Abwesenheiten. Danach löscht moto sie. Bei ausgetretenem Personal löscht moto die Angaben nach derselben Frist ab dem Austritt. Mindestens 2 Jahre.",
 		Type:            config.FieldSelect,
 		Default:         730,
 		ReadPermission:  "config:read",
@@ -222,6 +222,27 @@ func init() {
 		Category:        "schülerdaten",
 		SortOrder:       32,
 		Validation:      config.Range(30, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
+	// Children whose care ended (#3962), counted from the last care day. A
+	// year covers questions after the departure (billing, a sibling's
+	// enrollment, a return). The frame of 30 days to 3 years is ADR 0048's.
+	// The deletion takes the child with every related record, the accepted
+	// enrollment included.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStudentRetentionDays,
+		Label:           "Kinder nach dem letzten Betreuungstag aufbewahren (Tage)",
+		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       33,
+		Validation:      config.Range(30, 1095),
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 

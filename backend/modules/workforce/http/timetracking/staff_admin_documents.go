@@ -38,9 +38,9 @@ const (
 // remove all derive it from the same ResolvePublicDir resolution so the
 // three operations can never disagree about where the bytes live (the
 // relative fallback only applies when no public dir exists at all).
-func staffDocumentsDir(tenantID int64) string {
+func staffDocumentsDir(tenantID int64, uploads common.UploadStorage) string {
 	base := staffDocumentsBaseDir
-	if pubDir, err := common.ResolvePublicDir(); err == nil {
+	if pubDir, err := uploads.PublicDir(); err == nil {
 		base = filepath.Join(pubDir, "uploads", "staff-documents")
 	}
 	return filepath.Join(base, strconv.FormatInt(tenantID, 10))
@@ -270,8 +270,8 @@ func (rs *StaffAdminResource) uploadStaffDocument(w http.ResponseWriter, r *http
 	uploadCtx, cancelUpload := context.WithTimeout(r.Context(), workforce.StaffDocumentUploadDeadline)
 	defer cancelUpload()
 
-	dir := staffDocumentsDir(tenant.FromContext(r.Context()))
-	filePath, err := common.SavePrivateNamedFile(uploaded.File, dir, storedName)
+	dir := staffDocumentsDir(tenant.FromContext(r.Context()), rs.uploads)
+	filePath, err := common.SavePrivateNamedFile(uploaded.File, dir, storedName, rs.uploads)
 	if err != nil {
 		if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
 			rs.logger.Warn("staff document cleanup intent completion failed after upload write error",
@@ -326,7 +326,7 @@ func (rs *StaffAdminResource) downloadStaffDocument(w http.ResponseWriter, r *ht
 		"filename": doc.FilenameDisplay,
 	}))
 	w.Header().Set("Content-Type", doc.ContentType)
-	common.ServeFile(w, r, staffDocumentsDir(tenant.FromContext(r.Context())), doc.FilenameStored, "private, no-store")
+	common.ServeFile(w, r, staffDocumentsDir(tenant.FromContext(r.Context()), rs.uploads), doc.FilenameStored, "private, no-store", rs.uploads)
 }
 
 // deleteStaffDocument serves DELETE /{id}/documents/{documentId}: audited
@@ -442,7 +442,7 @@ func (rs *StaffAdminResource) removeStoredDocumentForTenant(tenantID int64, stor
 	if common.ValidateFilename(storedName) != nil {
 		return errors.New("stored document filename failed validation on delete")
 	}
-	dir := staffDocumentsDir(tenantID)
+	dir := staffDocumentsDir(tenantID, rs.uploads)
 	if err := os.Remove(filepath.Join(dir, storedName)); err != nil && !os.IsNotExist(err) {
 		return errors.New("failed to remove stored document")
 	}

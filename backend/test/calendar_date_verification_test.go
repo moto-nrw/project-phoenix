@@ -223,19 +223,19 @@ func TestDateColumnTypes(t *testing.T) {
 					// Domain owners may keep the same ISO calendar-date value shape
 					// without importing the legacy shared timezone package.
 					if !strings.HasPrefix(f.file, "models/activities/") &&
-						!strings.HasPrefix(f.file, "models/audit/") &&
+						!strings.HasPrefix(f.file, "modules/auditlog/records/") &&
 						!strings.HasPrefix(f.file, "models/calendar/") &&
 						!strings.HasPrefix(f.file, "models/schedule/") {
 						violations = append(violations, formatViolation(f.file, f.line,
 							col+" uses Date outside an approved owner package — use calendar.Date"))
 					}
 				case "CalendarDate", "*CalendarDate":
-					// models/config is being detached from the legacy timezone
+					// modules/settings/records (formerly models/config) is being detached from the legacy timezone
 					// package by #2646. CalendarDate is an ISO string value, so
 					// BUN binds it without converting a time.Time instant to UTC.
-					if !strings.HasPrefix(f.file, "models/config/") {
+					if !strings.HasPrefix(f.file, "modules/settings/records/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses CalendarDate outside models/config — use calendar.Date"))
+							col+" uses CalendarDate outside modules/settings/records — use calendar.Date"))
 					}
 				case "time.Time", "*time.Time":
 					if _, ok := legacyTimeTimeDateColumns[col]; !ok {

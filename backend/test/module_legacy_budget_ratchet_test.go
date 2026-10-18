@@ -117,11 +117,11 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 1226
+const moduleLegacyBudgetTotal = 660
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3776
+const moduleLegacyFileBudgetTotal = 2953
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -135,34 +135,25 @@ const moduleLegacyFileBudgetTotal = 3776
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
 var moduleLegacyFileBudgets = map[string]int{
-	"api/legacy_builders_test_helpers.go":                                               23,
-	"api/legacy_token_adapter.go":                                                       64,
-	"database/repositories/users/legacy_composition_support.go":                         25,
-	"database/repositories/users/legacy_types.go":                                       14,
-	"modules/peopledirectory/compose/legacy_repository_runtime.go":                      98,
-	"modules/presenceprojection/legacy_rows.go":                                         353,
-	"modules/schoolstructure/compose/legacy_group_catalog.go":                           71,
-	"modules/schoolstructure/compose/legacy_group_contract.go":                          67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go":           167,
-	"modules/schoolstructure/compose/legacy_repository_runtime.go":                      53,
-	"modules/timetable/compose/legacy_activity_service.go":                              537,
-	"modules/timetable/compose/legacy_category_operations.go":                           138,
-	"modules/timetable/internal/application/legacy_composition_support.go":              63,
-	"modules/timetable/internal/application/legacy_composition_support_test_helpers.go": 69,
-	"modules/timetable/compose/legacy_enrollment_operations.go":                         570,
-	"modules/timetable/compose/legacy_errors.go":                                        121,
-	"modules/timetable/compose/legacy_group_update.go":                                  47,
-	"modules/timetable/compose/legacy_interface.go":                                     90,
-	"modules/timetable/internal/application/legacy_repository_options.go":               482,
-	"modules/timetable/ports/legacy_repository_options.go":                              36,
-	"modules/timetable/compose/legacy_schedule_operations.go":                           118,
-	"modules/timetable/compose/legacy_supervisor_operations.go":                         523,
-	"modules/workforce/internal/planning/legacy_helpers.go":                             47,
+	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
+	"modules/presenceprojection/legacy_rows.go":                               353,
+	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
+	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
+	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 167,
+	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
+	"modules/timetable/compose/legacy_activity_service.go":                    537,
+	"modules/timetable/compose/legacy_category_operations.go":                 138,
+	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
+	"modules/timetable/compose/legacy_errors.go":                              121,
+	"modules/timetable/compose/legacy_group_update.go":                        47,
+	"modules/timetable/compose/legacy_interface.go":                           90,
+	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
+	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 34615
+const moduleComposeBudgetTotal = 33079
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -172,35 +163,33 @@ const moduleComposeBudgetTotal = 34615
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                  528,
-	"modules/auditlog/compose":                      275,
-	"modules/auditlog/compose/vocabulary":           132,
-	"modules/careplan/compose":                      2572,
+	"modules/auditlog/compose":                      266,
+	"modules/careplan/compose":                      2556,
 	"modules/careplan/requestfeed/compose":          68,
-	"modules/classday/compose":                      506,
-	"modules/communication/composition":             1518,
+	"modules/classday/compose":                      461,
+	"modules/communication/composition":             1480,
 	"modules/dataimport/compose":                    253,
 	"modules/dataimport/compose/retained":           34,
 	"modules/delivery/compose":                      797,
 	"modules/delivery/compose/email":                36,
 	"modules/delivery/compose/realtime":             30,
-	"modules/devicefleet/compose":                   372,
+	"modules/devicefleet/compose":                   369,
 	"modules/devicefleet/compose/repositoryadapter": 298,
-	"modules/devicescan/compose":                    1513,
+	"modules/devicescan/compose":                    1441,
 	"modules/emergencysnapshot/compose":             13,
 	"modules/enrollment/compose":                    716,
 	"modules/exporttransfer/compose":                323,
-	"modules/facilities/compose":                    394,
-	"modules/facilities/compose/httpadapter":        486,
+	"modules/facilities/compose":                    273,
+	"modules/facilities/compose/httpadapter":        473,
 	"modules/facilities/compose/repositoryadapter":  242,
 	"modules/feedback/compose":                      219,
 	"modules/filestorage/compose":                   636,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
 	// Raised by ADR 0063: the operator status lifecycle (#4047).
-	"modules/identityaccess/compose":                 1801,
-	"modules/mealplan/compose":                       274,
-	"modules/organizationtenancy/compose":            479,
-	"modules/organizationtenancy/compose/vocabulary": 48,
+	"modules/identityaccess/compose":      1801,
+	"modules/mealplan/compose":            274,
+	"modules/organizationtenancy/compose": 479,
 	// #4076: the compositions of the parent request feed, student directory
 	// and enrollment provenance projections only build their readers for the
 	// root (ADR 0058). The total did not rise: the request feed composition,
@@ -209,17 +198,16 @@ var moduleComposeBudgets = map[string]int{
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
 	"modules/peopledirectory/compose":                 2752,
-	"modules/peopledirectory/compose/vocabulary":      110,
+	"modules/peopledirectory/compose/vocabulary":      106,
 	"modules/presenceprojection/compose":              7,
-	"modules/requestreview/compose":                   1264,
+	"modules/requestreview/compose":                   1069,
 	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                354,
-	"modules/schoolsetup/compose":                     107,
+	"modules/schoolsetup/compose":                     93,
 	"modules/schoolstructure/compose":                 904,
 	"modules/settings/compose":                        587,
-	"modules/settings/compose/vocabulary":             126,
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
@@ -229,18 +217,17 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,
-	"modules/transactionruntime/compose":              173,
-	"modules/workforce/compose":                       1485,
-	"modules/workforce/compose/repositoryadapter":     274,
-	"workflows/gradetransition/compose":               180,
+	"modules/transactionruntime/compose":              172,
+	"modules/workforce/compose":                       1170,
+	"workflows/gradetransition/compose":               145,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  465,
+	"workflows/parentportal/compose":                  463,
 	"workflows/reminderdelivery/compose":              71,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              221,
-	"workflows/studentdeletion/compose":               236,
+	"workflows/staffoffboarding/compose":              165,
+	"workflows/studentdeletion/compose":               219,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
@@ -249,26 +236,9 @@ var moduleComposeBudgets = map[string]int{
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
-	"modules/devicefleet/compose/legacy": 231,
-	// #4077 moved the adapters into the root; the German name order stays
-	// until #4086 settles internal/collation.
-	"modules/emergencysnapshot/legacy": 11,
+	"modules/devicefleet/compose/legacy": 143,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 517,
-	// #4077 moved the adapters into the root; the German name order stays
-	// until #4086 settles internal/collation.
-	"modules/grouplive/legacy": 11,
-	// No ticket today. #4077 moved the access, settings and yard adapters
-	// into the root.
-	"modules/supervisiondashboard/legacy": 11,
-	// No ticket today — and the largest tree of the twelve.
-	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
-	// moved the group substitution relations to the legacy root's binding,
-	// #3413 the time-tracking services and the work-session shim out, #3996
-	// the staff absence adapters, #4076 the test-only personnel record
-	// adapters.
-	"modules/workforce/legacy": 445,
-	// No ticket today.
 }
 
 func TestModuleLegacyBudgetRatchet(t *testing.T) {

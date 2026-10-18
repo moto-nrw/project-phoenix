@@ -5,16 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // The bindings below connect Enrollment's application services (#3562) to
@@ -61,7 +59,7 @@ type enrollmentNotificationSettings struct {
 // notifications over the Delivery outbox.
 func NewEnrollmentNotifications(modes enrollmentCompose.NotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
-}, outbox platformModels.OutboxEnqueuer, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
+}, outbox MailOutbox, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
 	return enrollmentCompose.NewNotifications(enrollmentCompose.NotificationDependencies{
 		Modes:       modes,
 		Settings:    enrollmentNotificationSettings{settings: settings},
@@ -171,14 +169,13 @@ func (p parentOfferingHistory) OfferingHistory(ctx context.Context, requestChild
 	return result, nil
 }
 
-// enrollmentMailOutbox puts Enrollment's decision mails on the platform
-// outbox the retained enrollment flows enqueue through.
+// enrollmentMailOutbox puts Enrollment's mails on Delivery's outbox.
 type enrollmentMailOutbox struct {
-	outbox platformModels.OutboxEnqueuer
+	outbox MailOutbox
 }
 
 func (o enrollmentMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentCompose.Mail) error {
-	return o.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
+	return o.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind: mail.Kind, Payload: mail.Payload, RelatedEntityType: mail.RelatedEntityType,
 		RelatedEntityID: mail.RelatedEntityID, IdempotencyKey: mail.IdempotencyKey,
 	})
@@ -209,19 +206,19 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		})
 	}
 	return map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindEnrollmentSubmitted:                render(renderers.Submitted),
-		platformModels.EmailKindEnrollmentAdminNotify:              render(renderers.AdminNotification),
-		platformModels.EmailKindEnrollmentApproved:                 render(renderers.Approved),
-		platformModels.EmailKindEnrollmentWaitlisted:               render(renderers.Waitlisted),
-		platformModels.EmailKindEnrollmentRejected:                 render(renderers.Rejected),
-		platformModels.EmailKindEnrollmentDecisionDigest:           render(renderers.DecisionDigest),
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   render(renderers.ChangeRequestSubmitted),
-		platformModels.EmailKindEnrollmentChangeRequestQuestion:    render(renderers.ChangeRequestQuestion),
-		platformModels.EmailKindEnrollmentChangeRequestParentReply: render(renderers.ChangeRequestParentReply),
-		platformModels.EmailKindEnrollmentChangeRequestApproved:    render(renderers.ChangeRequestApproved),
-		platformModels.EmailKindEnrollmentChangeRequestRejected:    render(renderers.ChangeRequestRejected),
-		platformModels.EmailKindEnrollmentRolloverOptIn:            render(renderers.RolloverOptIn),
-		platformModels.EmailKindEnrollmentRolloverOptOut:           render(renderers.RolloverOptOut),
+		enrollmentOwner.MailKindSubmitted:                render(renderers.Submitted),
+		enrollmentOwner.MailKindAdminNotification:        render(renderers.AdminNotification),
+		enrollmentOwner.MailKindApproved:                 render(renderers.Approved),
+		enrollmentOwner.MailKindWaitlisted:               render(renderers.Waitlisted),
+		enrollmentOwner.MailKindRejected:                 render(renderers.Rejected),
+		enrollmentOwner.MailKindDecisionDigest:           render(renderers.DecisionDigest),
+		enrollmentOwner.MailKindChangeRequestSubmitted:   render(renderers.ChangeRequestSubmitted),
+		enrollmentOwner.MailKindChangeRequestQuestion:    render(renderers.ChangeRequestQuestion),
+		enrollmentOwner.MailKindChangeRequestParentReply: render(renderers.ChangeRequestParentReply),
+		enrollmentOwner.MailKindChangeRequestApproved:    render(renderers.ChangeRequestApproved),
+		enrollmentOwner.MailKindChangeRequestRejected:    render(renderers.ChangeRequestRejected),
+		enrollmentOwner.MailKindRolloverOptIn:            render(renderers.RolloverOptIn),
+		enrollmentOwner.MailKindRolloverOptOut:           render(renderers.RolloverOptOut),
 	}
 }
 

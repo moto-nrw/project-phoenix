@@ -9,24 +9,21 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/uptrace/bun"
 )
 
-// Dependencies name the owner capabilities the composition does not build
-// itself: the bound People Directory and School Membership of the running
-// graph, the Timetable roster reconciliation, the recurrence gate and the
-// offering-roster resync, plus the runtime hooks. School Structure and
-// Student Presence are composed here over the shared database.
+// Dependencies name the owner capabilities the root binds: School Structure,
+// Student Presence, the bound People Directory and School Membership of the
+// running graph, the Timetable roster reconciliation, the recurrence gate and
+// the offering-roster resync, plus the runtime hooks. The composition builds
+// no other owner (#4004, ADR 0059 point 6).
 type Dependencies struct {
 	DB         *bun.DB
+	Structure  gradetransition.Structure
+	Presence   gradetransition.Presence
 	Directory  gradetransition.Directory
 	Membership gradetransition.Membership
 	Rosters    gradetransition.Rosters
@@ -37,10 +34,16 @@ type Dependencies struct {
 	// templates from the given calendar day after the class rewrite.
 	ResyncOfferingRosters func(context.Context, calendar.Date) error
 	Logger                *slog.Logger
-	// Audit records the class-list rewrites; nil binds the ambient-transaction
-	// audit command.
-	Audit auditModels.Command
-	Clock func() time.Time
+	// Audit appends the class-list rewrites in the caller's transaction, as
+	// the records ClassListEntryRecord builds; the root binds both.
+	Audit                AuditLog
+	ClassListEntryRecord func(gradetransition.Actor, gradetransition.ClassListEntryAudit) any
+	Clock                func() time.Time
+}
+
+// AuditLog is the Audit owner's append command.
+type AuditLog interface {
+	Append(context.Context, any) error
 }
 
 // operationPermissions maps every workflow operation onto the tenant
@@ -68,18 +71,6 @@ func Authorize(ctx context.Context, operation string) (gradetransition.Actor, er
 	return gradetransition.Actor{TenantID: principal.TenantID(), AccountID: principal.AccountID()}, nil
 }
 
-func ambientTransaction(ctx context.Context) (bun.IDB, int64) {
-	value, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, 0
-	}
-	tx, ok := value.(bun.Tx)
-	if !ok {
-		return nil, 0
-	}
-	return tx, tenant.FromContext(ctx)
-}
-
 // New constructs only the required owner capabilities. It does not build or
 // retain a service/repository factory.
 func New(deps Dependencies) (*gradetransition.Workflow, error) {
@@ -95,9 +86,11 @@ func New(deps Dependencies) (*gradetransition.Workflow, error) {
 // run every other owner for real.
 func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 	for name, missing := range map[string]bool{
-		"database": deps.DB == nil, "people directory": deps.Directory == nil, "school membership": deps.Membership == nil,
+		"database": deps.DB == nil, "school structure": deps.Structure == nil, "student presence": deps.Presence == nil,
+		"people directory": deps.Directory == nil, "school membership": deps.Membership == nil,
 		"roster reconciliation": deps.Rosters == nil, "recurrence lock": deps.LockRecurrenceWrites == nil,
-		"offering roster resync": deps.ResyncOfferingRosters == nil,
+		"offering roster resync": deps.ResyncOfferingRosters == nil, "audit": deps.Audit == nil,
+		"class list entry record": deps.ClassListEntryRecord == nil,
 	} {
 		if missing {
 			return gradetransition.Dependencies{}, fmt.Errorf("grade transition composition: %s is required", name)
@@ -110,29 +103,6 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 	clock := deps.Clock
 	if clock == nil {
 		clock = calendar.Now
-	}
-	audit := deps.Audit
-	if audit == nil {
-		command, err := auditSvc.NewCommand(auditpostgres.NewAppender(ambientTransaction), func(event auditSvc.AppendObservation) {
-			if event.Err != nil {
-				logger.Error("grade transition audit append failed",
-					"event_type", event.EventType,
-					"error", event.Err,
-				)
-			}
-		})
-		if err != nil {
-			return gradetransition.Dependencies{}, err
-		}
-		audit = command
-	}
-	structure, err := structurecompose.New(structurecompose.Dependencies{DB: deps.DB, Observe: func(structurecompose.Observation) {}})
-	if err != nil {
-		return gradetransition.Dependencies{}, err
-	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
-	if err != nil {
-		return gradetransition.Dependencies{}, err
 	}
 	runner := tenant.NewTransactionRunner()
 	return gradetransition.Dependencies{
@@ -151,7 +121,7 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 		Authorize: Authorize,
 		Today:     func() string { return calendar.DateFromTime(clock()).String() },
 		Now:       clock,
-		Structure: structure, Directory: deps.Directory, Membership: deps.Membership, Presence: presence, Rosters: deps.Rosters,
+		Structure: deps.Structure, Directory: deps.Directory, Membership: deps.Membership, Presence: deps.Presence, Rosters: deps.Rosters,
 		LockRecurrenceWrites: deps.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom string) error {
 			day, err := calendar.ParseDate(effectiveFrom)
@@ -161,12 +131,7 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 			return deps.ResyncOfferingRosters(ctx, day)
 		},
 		AppendClassListEntryAudit: func(ctx context.Context, actor gradetransition.Actor, change gradetransition.ClassListEntryAudit) error {
-			event := &auditModels.ClassListEntryChange{
-				EntryID: change.EntryID, Action: change.Action, OldValue: change.OldValue, NewValue: change.NewValue,
-				ChangedBy: actor.AccountID,
-			}
-			event.SetTenantID(actor.TenantID)
-			return audit.Append(ctx, event)
+			return deps.Audit.Append(ctx, deps.ClassListEntryRecord(actor, change))
 		},
 		Observe: func(event gradetransition.Observation) {
 			logger.Debug("grade transition operation",

@@ -3,7 +3,7 @@ package compose
 import (
 	"errors"
 
-	audit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -70,16 +70,7 @@ func NewPersistence(dependencies PersistenceDependencies) (*Persistence, error) 
 	}
 	repositories := audit.NewRepositories(reads, appends)
 	if dependencies.Enrollment != nil {
-		bookings := audit.NewBookingConsistencyRepository(reads, dependencies.Enrollment)
-		if binder, ok := bookings.(interface{ BindStudentDirectory(audit.StudentDirectory) }); ok && dependencies.Students != nil {
-			binder.BindStudentDirectory(dependencies.Students)
-		}
-		if binder, ok := bookings.(interface {
-			BindCarePlan(audit.CareOfferingDirectory)
-		}); ok && dependencies.CarePlan != nil {
-			binder.BindCarePlan(dependencies.CarePlan)
-		}
-		repositories.BookingConsistency = bookings
+		repositories.BookingConsistency = audit.NewBookingConsistencyRepository(reads, dependencies.Enrollment, dependencies.Students, dependencies.CarePlan)
 	}
 	return repositories, nil
 }

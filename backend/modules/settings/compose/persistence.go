@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/uptrace/bun"
 )
 

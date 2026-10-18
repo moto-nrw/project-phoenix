@@ -2,22 +2,15 @@ package compose
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -62,14 +55,28 @@ type Dependencies struct {
 	Access Access
 	// People is the People Directory the person is unlinked in.
 	People staffoffboarding.People
-	// Employment binds School Membership to Workforce's staff employment
-	// profile (#2753); the composition root supplies it.
-	Employment  membershipcompose.StaffEmployment
-	Authorize   func(context.Context) (staffoffboarding.Actor, error)
-	Cleanup     func(context.Context, int64) error
-	Broadcaster realtime.Broadcaster
-	Logger      *slog.Logger
-	Audit       auditModels.Command
+	// Membership, Retirement, Timetable and LockSupervision are the School
+	// Membership, Timetable and Student Presence owners the root builds; the
+	// composition builds no other owner's composition (#4004).
+	Membership      schoolmembership.Query
+	Retirement      staffoffboarding.Membership
+	Timetable       staffoffboarding.Timetable
+	LockSupervision func(context.Context, int64, string) ([]int64, error)
+	Authorize       func(context.Context) (staffoffboarding.Actor, error)
+	Cleanup         func(context.Context, int64) error
+	Broadcaster     realtime.Broadcaster
+	Logger          *slog.Logger
+	// Audit appends the offboarding's audit records in the caller's
+	// transaction, as AbsenceDeletionRecord and StaffDeletionRecord build
+	// them; the root binds all three.
+	Audit                 AuditLog
+	AbsenceDeletionRecord func(workforce.StaffAbsence, int64) (any, error)
+	StaffDeletionRecord   func(staffoffboarding.Actor, staffoffboarding.Result) any
+}
+
+// AuditLog is the Audit owner's append command.
+type AuditLog interface {
+	Append(context.Context, any) error
 }
 
 // Authorize applies the tenant-portal permission boundary before the workflow
@@ -90,55 +97,15 @@ func Authorize(ctx context.Context, resolveActor func(context.Context) (int64, e
 // New constructs only the required owner capabilities.
 // It does not build or retain a service/repository factory.
 func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
-	if deps.DB == nil || deps.Access == nil || deps.Employment == nil || deps.Authorize == nil || deps.Cleanup == nil {
+	if deps.DB == nil || deps.Access == nil || deps.Membership == nil || deps.Retirement == nil || deps.Timetable == nil || deps.LockSupervision == nil || deps.Authorize == nil || deps.Cleanup == nil ||
+		deps.Audit == nil || deps.AbsenceDeletionRecord == nil || deps.StaffDeletionRecord == nil {
 		return nil, errors.New("staff offboarding composition: required dependency is missing")
 	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	audit := deps.Audit
-	if audit == nil {
-		command, err := auditSvc.NewCommand(auditpostgres.NewAppender(func(ctx context.Context) (bun.IDB, int64) {
-			value, ok := tenant.TransactionFromContext(ctx)
-			if !ok {
-				return nil, 0
-			}
-			tx, ok := value.(bun.Tx)
-			if !ok {
-				return nil, 0
-			}
-			return tx, tenant.FromContext(ctx)
-		}), func(event auditSvc.AppendObservation) {
-			if event.Err != nil {
-				logger.Error("offboarding audit append failed",
-					"event_type", event.EventType,
-					"error", event.Err,
-				)
-			}
-		})
-		if err != nil {
-			return nil, err
-		}
-		audit = command
-	}
-	memberDeps := membershipcompose.Dependencies{DB: deps.DB, Observe: func(membershipcompose.Observation) {}, Employment: deps.Employment}
-	membership, err := membershipcompose.New(memberDeps)
-	if err != nil {
-		return nil, err
-	}
-	retirement, err := membershipcompose.NewOffboarding(memberDeps)
-	if err != nil {
-		return nil, err
-	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
-	if err != nil {
-		return nil, err
-	}
-	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
-	if err != nil {
-		return nil, err
-	}
+	membership := deps.Membership
 	work, err := workforcecompose.NewOffboarding(workforcecompose.Dependencies{
 		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
 			_, err := membership.FindStaffForMutation(ctx, staffID)
@@ -157,11 +124,11 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 			return ids, nil
 		},
 	}, func(ctx context.Context, absence workforce.StaffAbsence, actorID int64) error {
-		payload, err := json.Marshal(absence)
+		record, err := deps.AbsenceDeletionRecord(absence, actorID)
 		if err != nil {
 			return err
 		}
-		return audit.Append(ctx, &auditModels.TimeTrackingDeletion{StaffID: absence.StaffID, Source: auditModels.TimeTrackingDeletionSourceAbsence, SourceID: absence.ID, DeletedBy: actorID, Payload: payload, Note: "Personal-Offboarding"})
+		return deps.Audit.Append(ctx, record)
 	})
 	if err != nil {
 		return nil, err
@@ -169,8 +136,8 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	return staffoffboarding.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
 		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
-		Membership: retirement, Workforce: work, Timetable: timetable, People: deps.People,
-		LockSupervision: presence.LockStaffSupervision,
+		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
+		LockSupervision: deps.LockSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)
 			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Permissions: p.Permissions, Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
@@ -180,30 +147,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 			return staffoffboarding.AccessResult(r), err
 		},
 		AppendAudit: func(ctx context.Context, actor staffoffboarding.Actor, result staffoffboarding.Result) error {
-			counts := map[string]int64{
-				"group_teacher": result.Membership.GroupAssignments, "class_teachers": result.Membership.ClassAssignments,
-				"activity_supervisors": result.Timetable.PlannedSupervisors, "timetable_instance_staff": result.Timetable.InstanceAssignments,
-				"group_substitutions": result.Workforce.Substitutions, "staff_shifts": result.Workforce.Shifts,
-				"staff_shift_series": result.Workforce.Series, "staff_absences": result.Workforce.Absences,
-				"account_permissions": result.Access.PermissionsRevoked,
-			}
-			records := 1
-			for _, count := range counts {
-				records += int(count)
-			}
-			deletedBy := actor.Username
-			if deletedBy == "" {
-				// Preserve the legacy provider's audit value for authenticated
-				// sessions without a display name, including the API seeder.
-				deletedBy = "system"
-			}
-			event := auditModels.NewStaffDataDeletion(result.StaffID, auditModels.DeletionTypeManual, records, deletedBy)
-			event.DeletionReason = "staff offboarding"
-			event.SetTenantID(actor.TenantID)
-			for key, count := range counts {
-				event.Metadata[key] = count
-			}
-			return audit.Append(ctx, event)
+			return deps.Audit.Append(ctx, deps.StaffDeletionRecord(actor, result))
 		},
 		Cleanup: deps.Cleanup,
 		GroupAccessChanged: func(ctx context.Context) {

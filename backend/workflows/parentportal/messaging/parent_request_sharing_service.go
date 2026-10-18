@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -185,7 +184,7 @@ func (s *Service) ShareRequestInTx(
 }
 
 func (s *Service) createRequestShare(ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipients []int64) error {
-	event := &userModels.ParentRequestShareEvent{
+	event := &ParentRequestShareEvent{
 		StudentID: studentID, RequestType: requestType, RequestID: requestID,
 		AuthorAccountID: accountID, RecipientAccountIDs: recipients,
 	}
@@ -201,7 +200,7 @@ func (s *Service) createRequestShare(ctx context.Context, accountID, studentID i
 		StudentID:      studentID,
 		RequestType:    requestType,
 		RequestID:      requestID,
-		EventType:      userModels.ParentRequestEventShared,
+		EventType:      ParentRequestEventShared,
 		ActorAccountID: accountID,
 		Payload:        payload,
 	})
@@ -228,7 +227,7 @@ func (s *Service) requestSharingState(
 // and after protection is switched off the guardian must share again. Nothing
 // here revives a voided share.
 // Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
-func effectiveRecipientSet(event *userModels.ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
+func effectiveRecipientSet(event *ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
 	selected := map[int64]bool{}
 	if event == nil || protected || (!protectedAt.IsZero() && !event.CreatedAt.After(protectedAt)) {
 		return selected
@@ -239,15 +238,15 @@ func effectiveRecipientSet(event *userModels.ParentRequestShareEvent, protected 
 	return selected
 }
 
-func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*userModels.ParentRequestShareEvent, error) {
+func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*ParentRequestShareEvent, error) {
 	if s.ParentRequestShares == nil {
-		return map[requestShareKey]*userModels.ParentRequestShareEvent{}, nil
+		return map[requestShareKey]*ParentRequestShareEvent{}, nil
 	}
 	rows, err := s.ParentRequestShares.CurrentForStudent(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[requestShareKey]*userModels.ParentRequestShareEvent, len(rows))
+	result := make(map[requestShareKey]*ParentRequestShareEvent, len(rows))
 	for _, row := range rows {
 		result[requestShareKey{typ: row.RequestType, id: row.RequestID}] = row
 	}
@@ -481,7 +480,7 @@ func requestLookupError(err error) error {
 }
 
 type RequestShareVisibility struct {
-	current     map[requestShareKey]*userModels.ParentRequestShareEvent
+	current     map[requestShareKey]*ParentRequestShareEvent
 	protected   bool
 	protectedAt time.Time
 }

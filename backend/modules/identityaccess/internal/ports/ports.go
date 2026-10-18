@@ -493,7 +493,7 @@ type OperatorAudit interface {
 // e-mail change links. The composition binds it to the module's own link
 // operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
-	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
+	RevokeEmailChanges(ctx context.Context, operatorID int64) error
 }
 
 // PasswordHasher hashes a new password and applies the strength policy.

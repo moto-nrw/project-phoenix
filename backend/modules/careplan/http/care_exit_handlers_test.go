@@ -1,0 +1,233 @@
+package careplanhttp_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRouteWithCareLifecycle(t, false)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Gate", "1a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-gate@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	body := map[string]any{
+		"student_ids":   []string{fmt.Sprintf("%d", student.ID)},
+		"last_care_day": calendar.TodayDate().String(),
+		"reason":        careplan.CareExitReasonMovedAway,
+	}
+
+	// users:update is the permission the ordinary child edit needs. It is
+	// deliberately NOT enough to end a care relationship.
+	for _, path := range []string{"/care-end/preview", "/care-end", "/care-end/cancel", "/care-withdrawals/1/care-end/preview", "/care-withdrawals/1/care-end"} {
+		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body)
+		response := authExec(t, tc, request, claims, []string{"users:update"})
+		assert.Equal(t, http.StatusForbidden, response.Code,
+			"%s must be gated on users:delete. Body: %s", path, response.Body.String())
+	}
+	for method, path := range map[string]string{
+		http.MethodGet:    "/care-withdrawals/1/deletion-impact",
+		http.MethodDelete: "/care-withdrawals/1",
+	} {
+		request := testutil.NewAuthenticatedRequest(t, method, path, body)
+		response := authExec(t, tc, request, claims, []string{"users:update"})
+		assert.Equal(t, http.StatusForbidden, response.Code,
+			"%s must be gated on users:delete. Body: %s", path, response.Body.String())
+	}
+
+	archiveRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/ended-care", nil)
+	archiveResponse := authExec(t, tc, archiveRequest, claims, []string{"users:update"})
+	assert.Equal(t, http.StatusForbidden, archiveResponse.Code,
+		"the archive carries the exit reason and is gated with it")
+}
+
+func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRouteWithCareLifecycle(t, false)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-list@example.com")
+	testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(t, tc.db, student.ID, actor.ID, calendar.TodayDate(), actor.CreatedAt)
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	for _, path := range []string{"/care-withdrawals", fmt.Sprintf("/care-withdrawals?student_id=%d", student.ID)} {
+		forbidden := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), claims, []string{"users:update"})
+		assert.Equal(t, http.StatusForbidden, forbidden.Code)
+		allowed := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), claims, []string{"users:delete"})
+		require.Equal(t, http.StatusOK, allowed.Code, "Body: %s", allowed.Body.String())
+		assert.Contains(t, allowed.Body.String(), "overdue")
+	}
+	invalid := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, "/care-withdrawals?student_id=invalid", nil), claims, []string{"users:delete"})
+	assert.Equal(t, http.StatusBadRequest, invalid.Code)
+}
+
+func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRouteWithCareLifecycle(t, false)
+	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate().AddDays(1))
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	body := map[string]any{
+		"last_care_day": calendar.TodayDate().String(),
+		"reason":        careplan.CareExitReasonNoCareNeed,
+	}
+	previewRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/care-withdrawals/%d/care-end/preview", completion.ID), body,
+	)
+	previewResponse := authExec(t, tc, previewRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusOK, previewResponse.Code, "Body: %s", previewResponse.Body.String())
+	var preview struct {
+		Data struct {
+			Token  string `json:"token"`
+			Reason string `json:"reason"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(previewResponse.Body.Bytes(), &preview))
+	require.NotEmpty(t, preview.Data.Token)
+	assert.Equal(t, careplan.CareExitReasonNoCareNeed, preview.Data.Reason)
+	body["token"] = preview.Data.Token
+
+	confirmRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/care-withdrawals/%d/care-end", completion.ID), body,
+	)
+	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
+	pending, _, err := api.PendingStudentHTTPTestCareWithdrawals(testpkg.Ctx(t), repos.CareWithdrawal, student.ID)
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+	resolved, err := repos.CareWithdrawal.FindByID(testpkg.Ctx(t), completion.ID)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	assert.Equal(t, careplan.WithdrawalStateResolved, resolved.State)
+}
+
+func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Exit", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-happy@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	today := calendar.NewDate(2026, 8, 24)
+
+	body := map[string]any{
+		"student_ids":   []string{fmt.Sprintf("%d", student.ID)},
+		"last_care_day": today.String(),
+		"reason":        careplan.CareExitReasonOther,
+		"reason_note":   "Wechsel in den Hort",
+	}
+
+	previewRequest := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", body)
+	previewResponse := authExec(t, tc, previewRequest, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, previewResponse.Code, "Body: %s", previewResponse.Body.String())
+
+	var preview struct {
+		Data struct {
+			Token    string `json:"token"`
+			Blocked  bool   `json:"blocked"`
+			Students []struct {
+				StudentID string `json:"student_id"`
+				FirstName string `json:"first_name"`
+				Blocker   string `json:"blocker"`
+			} `json:"students"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(previewResponse.Body.Bytes(), &preview))
+	require.NotEmpty(t, preview.Data.Token)
+	require.Len(t, preview.Data.Students, 1)
+	assert.Equal(t, "Api", preview.Data.Students[0].FirstName,
+		"the preview names every child, it does not just count them")
+	assert.Empty(t, preview.Data.Students[0].Blocker)
+	assert.False(t, preview.Data.Blocked)
+
+	t.Run("a stale token is refused with a conflict", func(t *testing.T) {
+		stale := map[string]any{}
+		for key, value := range body {
+			stale[key] = value
+		}
+		// Same length and hex alphabet, different digest. Prefixing "00"
+		// is a no-op when the SHA-256 already starts with 00.
+		stale["token"] = flipCareExitTokenHex(t, preview.Data.Token)
+		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end", stale)
+		response := authExec(t, tc, request, claims, []string{"admin:*"})
+		assert.Equal(t, http.StatusConflict, response.Code, "Body: %s", response.Body.String())
+	})
+
+	confirmBody := map[string]any{}
+	for key, value := range body {
+		confirmBody[key] = value
+	}
+	confirmBody["token"] = preview.Data.Token
+	confirmRequest := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end", confirmBody)
+	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
+
+	stored, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.EnrolledUntil)
+	assert.Equal(t, today, *stored.EnrolledUntil)
+
+	t.Run("the planned end is cancellable while it is still ahead", func(t *testing.T) {
+		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/cancel", map[string]any{
+			"student_ids": []string{fmt.Sprintf("%d", student.ID)},
+		})
+		response := authExec(t, tc, request, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+
+		after, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, after.EnrolledUntil)
+	})
+}
+
+func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRouteWithCareLifecycle(t, false)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Validation", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-validation@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	missingDate := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
+		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "reason": careplan.CareExitReasonMovedAway,
+	})
+	missingDateResponse := authExec(t, tc, missingDate, claims, []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, missingDateResponse.Code)
+	assert.Contains(t, missingDateResponse.Body.String(), "Bitte geben Sie den letzten Betreuungstag an.")
+
+	longNote := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
+		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "last_care_day": calendar.TodayDate().String(),
+		"reason": careplan.CareExitReasonOther, "reason_note": strings.Repeat("x", careplan.MaxCareExitNoteLen+1),
+	})
+	longNoteResponse := authExec(t, tc, longNote, claims, []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, longNoteResponse.Code)
+	assert.Contains(t, longNoteResponse.Body.String(), "Die Begründung ist zu lang.")
+}
+
+func flipCareExitTokenHex(t *testing.T, token string) string {
+	t.Helper()
+	require.GreaterOrEqual(t, len(token), 2, "care-exit tokens are SHA-256 hex")
+	flipped := []byte(token)
+	if flipped[0] == '0' {
+		flipped[0] = '1'
+	} else {
+		flipped[0] = '0'
+	}
+	return string(flipped)
+}

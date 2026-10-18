@@ -1,11 +1,5 @@
 package messaging_test
 
-// E-Mail an den Sorgeberechtigten, wenn die OGS eine Nachricht schreibt
-// (#2307). Die E-Mail ist der Rueckfall, wenn Push nicht eingerichtet ist:
-// ohne sie bleibt eine Nachricht unbemerkt, genau der von einer Schule
-// gemeldete Fall. Getestet wird gegen die echte Datenbank und den echten
-// Dispatcher, nur der Mailer ist der geteilte test.CapturingMailer.
-
 import (
 	"context"
 	"errors"
@@ -14,16 +8,26 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// E-Mail an den Sorgeberechtigten, wenn die OGS eine Nachricht schreibt
+	// (#2307). Die E-Mail ist der Rueckfall, wenn Push nicht eingerichtet ist:
+	// ohne sie bleibt eine Nachricht unbemerkt, genau der von einer Schule
+	// gemeldete Fall. Getestet wird gegen die echte Datenbank und den echten
+	// Dispatcher, nur der Mailer ist der geteilte test.CapturingMailer.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +37,7 @@ const testParentsURL = "https://eltern.example"
 // e-mail channel asks: it drops the accounts that explicitly declined and keeps
 // everyone who never decided.
 type stubMessagePreferences struct {
-	notifications.PreferenceService
+	communication.NotificationPreferences
 	declined bool
 	gotType  string
 }
@@ -48,34 +52,34 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 
 type emailFixture struct {
 	svc    *messaging.Service
-	outbox *testpkg.CapturingOutbox
+	outbox *api.CapturingOutbox
 	chain  testpkg.ParentChain
 	staff  int64
 }
 
-func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
+func newEmailFixture(t *testing.T, preferences communication.NotificationPreferences) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		UserContext:      api.StaffStudentReads{},
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      parentStore.NewParentMessageRepository(db),
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      testpkg.NewRecordingBroadcaster(),
-		DB:               db,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
+		Persons:     newPersons(repos, db),
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+
 		Logger:           slog.Default(),
 		Preferences:      preferences,
-		Outbox:           outbox,
-		GuardianProfiles: repos.GuardianProfile,
+		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
+		GuardianProfiles: api.BindParentMessageGuardianProfiles(repos.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
@@ -95,8 +99,8 @@ type renderedMail struct {
 // worker does. The sender address is the worker's default and stays unset.
 func renderMessageRow(t *testing.T, kind string, payload map[string]any) renderedMail {
 	t.Helper()
-	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{})
-	msg, err := renderer(context.Background(), &emailoutbox.Intent{Kind: kind, Payload: payload})
+	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{}, deliveryPolicy.ParentDeliveryPolicy{})
+	msg, err := api.RenderCommunicationMailFixture(context.Background(), communication.MailRenderer(renderer), kind, payload)
 	require.NoError(t, err)
 	content, ok := msg.Content.(map[string]any)
 	require.True(t, ok, "Template-Daten sind eine Map")
@@ -202,7 +206,7 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, f.outbox.Requests(), "kein Versand nach Widerspruch")
-	assert.Equal(t, notifications.TypeParentMessage, preferences.gotType)
+	assert.Equal(t, communication.TypeParentMessage, preferences.gotType)
 }
 
 // schoolNames reads the sending school's name through the Organisation &

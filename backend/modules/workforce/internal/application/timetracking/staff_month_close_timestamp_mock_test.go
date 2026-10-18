@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 type timestampMonthCloseSnapshotRepo struct {
@@ -38,8 +40,8 @@ func (timestampMonthCloseMonthService) GetMonthSummaryAtMonthEnd(context.Context
 
 type timestampMonthCloseStaffLister struct{}
 
-func (timestampMonthCloseStaffLister) ListStaffIDs(context.Context) ([]int64, error) {
-	return []int64{42, 41}, nil
+func (timestampMonthCloseStaffLister) ListMonthCloseStaff(context.Context) ([]workforce.MonthCloseStaff, error) {
+	return []workforce.MonthCloseStaff{{ID: 42}, {ID: 41}}, nil
 }
 
 func TestStaffMonthCloseService_UsesOneTimestampForSchoolWideClose(t *testing.T) {
@@ -65,7 +67,7 @@ func TestStaffMonthCloseService_UsesOneTimestampForSchoolWideClose(t *testing.T)
 
 type failedMonthCloseStaffQuery struct{ err error }
 
-func (q failedMonthCloseStaffQuery) ListStaffIDs(context.Context) ([]int64, error) {
+func (q failedMonthCloseStaffQuery) ListMonthCloseStaff(context.Context) ([]workforce.MonthCloseStaff, error) {
 	return nil, q.err
 }
 

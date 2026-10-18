@@ -16,8 +16,12 @@ import (
 const maxDecisionReasonRunes = 2000
 
 type RequestDecisions struct {
-	Records     ports.RequestDecisionRecords
-	People      ports.RequestDecisionPeople
+	Records ports.RequestDecisionRecords
+	People  ports.RequestDecisionPeople
+	// Guardians answers whether the submitting guardian still holds the
+	// child. Nil skips the check: a graph without parent messaging has no
+	// portal guardians, as in the excused-absence twin.
+	Guardians   ports.GuardianAccess
 	Plans       ports.RequestDecisionPlans
 	Effects     ports.RequestDecisionEffects
 	Transaction ports.RequestDecisionTransaction
@@ -143,12 +147,8 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 	if !input.Approve {
 		return false, none, nil
 	}
-	allowed, err := s.People.GuardianHasAccess(ctx, request.StudentID, request.SubmittedBy)
-	if err != nil {
-		return false, none, fmt.Errorf("schedule: care request guardian link check: %w", err)
-	}
-	if !allowed {
-		return false, none, carerequests.ErrGuardianAccessRevoked
+	if err := s.guardianStillHoldsChild(ctx, request); err != nil {
+		return false, none, err
 	}
 	if request.RequestKind == "pickup_change" {
 		applied, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
@@ -156,4 +156,22 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
 	return changed, none, err
+}
+
+// guardianStillHoldsChild refuses to apply a request whose guardian lost the
+// child since filing: approving would write a plan and post a pill for a
+// recipient the parent APIs now hide. Staff wind such a request down by
+// rejecting it.
+func (s *RequestDecisions) guardianStillHoldsChild(ctx context.Context, request *carerequests.Request) error {
+	if s.Guardians == nil {
+		return nil
+	}
+	allowed, err := s.Guardians.GuardianHasChildAccess(ctx, request.StudentID, request.SubmittedBy)
+	if err != nil {
+		return fmt.Errorf("schedule: care request guardian link check: %w", err)
+	}
+	if !allowed {
+		return carerequests.ErrGuardianAccessRevoked
+	}
+	return nil
 }

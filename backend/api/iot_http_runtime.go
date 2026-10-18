@@ -14,6 +14,7 @@ import (
 	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
 	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -49,7 +50,7 @@ func renderIoTErrorReportFailure(w http.ResponseWriter, r *http.Request, status 
 }
 
 func iotDevicesRuntime() devicesAPI.Runtime {
-	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderIoTDataFailure, ConflictOnField: renderIoTConflictOnField, ConstraintViolation: common.IsConstraintViolation}
+	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderIoTDataFailure, ConflictOnField: renderIoTConflictOnField, ConstraintViolation: transactionFailures.IsConstraintViolation}
 }
 
 func iotSessionRuntime() sessionsAPI.Runtime {

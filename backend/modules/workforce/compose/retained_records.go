@@ -1,6 +1,6 @@
 package compose
 
-import workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
+import workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions"
 
 // Retained group-substitution records serve School Structure handovers through the typed root.
 // Composition names the adapters the root may not import (ADR 0053 point 2).

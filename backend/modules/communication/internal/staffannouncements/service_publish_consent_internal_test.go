@@ -7,14 +7,15 @@ import (
 	"slices"
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // fakePreferences is a stand-in for the consent service. optedIn is returned
 // verbatim, so a test can express "these people agreed" directly.
 type fakePreferences struct {
-	notifications.PreferenceService
+	communication.NotificationPreferences
 	optedIn []int64
 	err     error
 	// gotType records which notification type was asked about, so a test can
@@ -64,13 +65,13 @@ func consentTestService(repo *fakeAnnouncementRepo, notifier *fakeNotifier, pref
 		Preferences: prefs,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 }
 
 func consentTestRepo() *fakeAnnouncementRepo {
 	return &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
-		audience: []*usersModels.AnnouncementRecipientStatus{
+		audience: []*AnnouncementRecipientStatus{
 			{AccountID: 101},
 			{AccountID: 202},
 		},
@@ -98,7 +99,7 @@ func TestPublishNotifiesOnlyGuardiansWhoAgreed(t *testing.T) {
 		t.Fatalf("only the guardian who agreed may be addressed, got %v",
 			notifier.events[0].Audience.GuardianAccountIDs)
 	}
-	if prefs.gotType != notifications.TypeParentAnnouncement {
+	if prefs.gotType != communication.TypeParentAnnouncement {
 		t.Fatalf("the producer must filter on its own type, asked for %q", prefs.gotType)
 	}
 }
@@ -133,7 +134,7 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: "one@example.test"},
 		{AccountID: 202, Email: "two@example.test"},
 	}
@@ -149,7 +150,7 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -164,7 +165,7 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 	if !slices.Equal(prefs.askedOptOut, []int64{101, 202}) {
 		t.Fatalf("expected the full e-mail audience to be checked for opt-outs, got %v", prefs.askedOptOut)
 	}
-	if prefs.optOutGotType != notifications.TypeParentAnnouncement {
+	if prefs.optOutGotType != communication.TypeParentAnnouncement {
 		t.Fatalf("the e-mail path must filter on its own type, asked for %q", prefs.optOutGotType)
 	}
 }
@@ -177,7 +178,7 @@ func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: "one@example.test"},
 		{AccountID: 202, Email: "two@example.test"},
 	}
@@ -193,7 +194,7 @@ func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -214,7 +215,7 @@ func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 202, Email: "two@example.test"},
 	}
 	outbox := &fakeOutbox{}
@@ -227,7 +228,7 @@ func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
 		t.Fatal("a failed opt-out lookup must surface, not silently e-mail everyone")
@@ -242,7 +243,7 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: " Family@Example.Test "},
 		{AccountID: 202, Email: "family@example.test"},
 	}
@@ -257,7 +258,7 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -285,15 +286,15 @@ func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 		name        string
 		notifierErr error
 	}{
-		{name: "dispatch disabled", notifierErr: notifications.ErrDisabled},
-		{name: "outside notification window", notifierErr: notifications.ErrOutsideActiveWindow},
+		{name: "dispatch disabled", notifierErr: devices.ErrNotificationsDisabled},
+		{name: "outside notification window", notifierErr: devices.ErrOutsideNotificationWindow},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := consentTestRepo()
 			repo.announcement = draftAnnouncement(true)
-			repo.recipients = []*usersModels.AnnouncementRecipient{
+			repo.recipients = []*AnnouncementRecipient{
 				{AccountID: 202, Email: "two@example.test"},
 			}
 			notifier := &fakeNotifier{err: tt.notifierErr}
@@ -307,7 +308,7 @@ func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 				Outbox:      outbox,
 				ParentsURL:  "https://parents.example.test",
 				Logger:      slog.Default(),
-			})
+			}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 			published, err := svc.Publish(context.Background(), repo.announcement.ID)
 			if err != nil {

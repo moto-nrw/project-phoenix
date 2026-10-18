@@ -1,18 +1,14 @@
 package students
 
-// Unit tests for photoUnlinker.UnlinkStored. Empty / malformed URLs must
-// never propagate — the unlinker runs after the DB commit so a noisy error
-// path would corrupt the surrounding observability.
-
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +16,7 @@ import (
 func TestPhotoUnlinker_EmptyURLNoOp(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(slog.Default(), "public")
+	u := NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
 	require.NotPanics(t, func() { u.UnlinkStored("") })
 }
 
@@ -32,7 +28,7 @@ func TestPhotoUnlinker_InvalidPrefixLogged(t *testing.T) {
 	// student-photo prefix.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger, "public")
+	u := NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
 
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/whatever.jpg")
@@ -45,7 +41,7 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger, "public")
+	u := NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
 
 	// ResolveStoredPath must reject anything escaping the prefix dir.
 	require.NotPanics(t, func() {
@@ -57,7 +53,7 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 func TestPhotoUnlinker_NilLoggerSafe(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(nil, "public")
+	u := NewPhotoUnlinker(nil, "public", nativeUploads.UploadFiles{})
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/abc.jpg")
 	})
@@ -77,13 +73,9 @@ func TestPhotoUnlinker_RemovesExistingFile(t *testing.T) {
 	fullPath := filepath.Join(photoDir, filename)
 	require.NoError(t, os.WriteFile(fullPath, []byte("not-really-a-jpg"), 0o644))
 
-	u := NewPhotoUnlinker(slog.Default(), tmpDir)
+	u := NewPhotoUnlinker(slog.Default(), tmpDir, nativeUploads.UploadFiles{})
 	u.UnlinkStored(common.StudentPhotoStoredURLPrefix + filename)
 
 	_, statErr := os.Stat(fullPath)
 	assert.True(t, os.IsNotExist(statErr), "unlinker must delete the resolved file")
 }
-
-// Sanity: PhotoUnlinker concrete type implements the service interface.
-// Compile-time check, not a runtime assertion.
-var _ context.Context = context.Background()

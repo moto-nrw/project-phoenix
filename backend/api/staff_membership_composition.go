@@ -20,11 +20,6 @@ import (
 // needs from the legacy services is composed here, with plain types, so the
 // HTTP root can bind the adapter without importing any service package.
 
-// defaultStaffAccountPermission is granted to the login account of a newly
-// created staff member so the colleague sees the group list. Lehrkraft
-// accounts are excluded by the grant flow (#1772).
-const defaultStaffAccountPermission = securityruntime.PermissionGroupsRead
-
 // StaffDirectoryPerson is the People Directory entry behind a staff row.
 type StaffDirectoryPerson struct {
 	ID        int64
@@ -181,10 +176,10 @@ func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.
 		AccountRoles:    identity.GetAccountRoleNames,
 		AccountEmails:   identity.GetAccountEmails,
 		AccountAvatars:  identity.GetAccountAvatars,
-		AccountHasRole:  accountHoldsRole(identity),
+		AccountHasRole:  identity.AccountHoldsRole,
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
+			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, securityruntime.DefaultStaffAccountPermission)
 		},
 
 		TeacherGroups:    membershipTeacherGroups(f),
@@ -243,23 +238,6 @@ func staffDirectoryPersons(f *serviceGraph) (func(context.Context, int64) (Staff
 		return result, nil
 	}
 	return person, persons
-}
-
-// accountHoldsRole reports whether the account holds the role; a failed
-// lookup counts as not holding it.
-func accountHoldsRole(roles *identityaccess.Module) func(context.Context, int64, string) bool {
-	return func(ctx context.Context, accountID int64, roleName string) bool {
-		held, err := roles.GetAccountRoles(ctx, accountID)
-		if err != nil {
-			return false
-		}
-		for _, role := range held {
-			if role.Name == roleName {
-				return true
-			}
-		}
-		return false
-	}
 }
 
 // membershipTeacherGroups lists the groups a Betreuungskraft is assigned to.

@@ -91,8 +91,21 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 		return nil, fmt.Errorf("failed to get breaks: %w", err)
 	}
 
-	// Wrap each session in SessionResponse with calculated fields and breaks
-	now := s.now()
+	responses := sessionHistoryResponses(sessions, breaksBySession, editCounts, auditCounts, s.now())
+
+	targetsByWeek := s.withTargetOverrides(ctx, staffID, responses, s.getWeeklyTargetsForSummaries(ctx, staffID, responses))
+
+	// Build weekly summaries
+	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek, from, to)
+
+	return &HistoryResponse{
+		Sessions:        responses,
+		WeeklySummaries: weeklySummaries,
+	}, nil
+}
+
+// sessionHistoryResponses uses each block's effective end for both work and break figures.
+func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64][]*WorkSessionBreak, editCounts, auditCounts map[int64]int, now time.Time) []*SessionResponse {
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
 		breaks := breaksBySession[session.ID]
@@ -122,15 +135,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 		}
 	}
 
-	targetsByWeek := s.withTargetOverrides(ctx, staffID, responses, s.getWeeklyTargetsForSummaries(ctx, staffID, responses))
-
-	// Build weekly summaries
-	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek, from, to)
-
-	return &HistoryResponse{
-		Sessions:        responses,
-		WeeklySummaries: weeklySummaries,
-	}, nil
+	return responses
 }
 
 // buildWeeklySummaries aggregates session data by ISO week, restricted to the
@@ -190,6 +195,11 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		}
 	}
 
+	return weeklySummaryValues(weekMap, weekOrder)
+}
+
+// weeklySummaryValues keeps the encountered week order and derives the limit and target deltas.
+func weeklySummaryValues(weekMap map[summaryWeekKey]*WeeklySummary, weekOrder []summaryWeekKey) []WeeklySummary {
 	// Convert to sorted slice and compute derived fields
 	const maxWeeklyMinutes = 48 * 60 // §3 ArbZG
 	summaries := make([]WeeklySummary, 0, len(weekOrder))

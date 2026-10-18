@@ -325,11 +325,7 @@ func classificationLoosenings(base, candidate *Policy, createdPackages, candidat
 			continue
 		}
 		if current.Owner != previous.Owner {
-			if !inboundOwnerTransition(base, candidate, previous, current) {
-				problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
-			} else if len(candidate.Rules) > len(base.Rules) {
-				problems = append(problems, fmt.Sprintf("package %s inbound-owner transition increased rule count from %d to %d", path, len(base.Rules), len(candidate.Rules)))
-			}
+			problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
 		}
 		for _, roles := range []struct {
 			scope     string
@@ -357,97 +353,6 @@ func classificationLoosenings(base, candidate *Policy, createdPackages, candidat
 		}
 	}
 	return problems
-}
-
-// transition for #4078; delete when no inbound owners remain.
-// Only a deleted inbound owner may hand an existing package to its real HTTP
-// owner, or to the root that composes several owners. Test roles stay intact;
-// semantic checks, exact debt and budgets remain subject to the normal guards.
-func inboundOwnerTransition(base, candidate *Policy, previous, current Package) bool {
-	if previous.Path == "" || previous.Path != current.Path || previous.Owner == current.Owner ||
-		previous.InternalTestRole != current.InternalTestRole || previous.ExternalTestRole != current.ExternalTestRole {
-		return false
-	}
-	baseOwners, candidateOwners := ownersByID(base), ownersByID(candidate)
-	if baseOwners[previous.Owner].Kind != "inbound" {
-		return false
-	}
-	if _, retained := candidateOwners[previous.Owner]; retained {
-		return false
-	}
-	switch candidateOwners[current.Owner].Kind {
-	case "domain", "platform", "projection", "workflow":
-		return current.Role == "http"
-	case "composition":
-		return current.Owner == rootCompositionOwner && current.Role == "compose"
-	default:
-		return false
-	}
-}
-
-// inboundSuccessorRule admits only an exact selector replacement (or fewer
-// scopes) of a deleted rule at the same reclassified package. It does not
-// anchor arbitrary rules to an owner change. Target validation and the rule
-// count bound apply even when called outside the policy loader by tests.
-func inboundSuccessorRule(base, candidate *Policy, rule Rule) bool {
-	if len(candidate.Rules) > len(base.Rules) || len(rule.Scopes) == 0 ||
-		candidate.PolicyEpoch < targetOnlyRulesEpoch || validateTargetOnlyRule(rule, ownersByID(candidate)) != nil {
-		return false
-	}
-	basePackages := base.packageMap()
-	for _, deleted := range base.Rules {
-		retained := false
-		for _, current := range candidate.Rules {
-			if current.ID == deleted.ID {
-				retained = true
-				break
-			}
-		}
-		if retained || !scopesContain(deleted.Scopes, rule.Scopes) || deleted.SameOwner {
-			continue
-		}
-		covered := true
-		for _, rawScope := range rule.Scopes {
-			scope := Scope(rawScope)
-			replacement, changed := deleted, false
-			for path, current := range candidate.packageMap() {
-				previous, exists := basePackages[path]
-				if !exists || !inboundOwnerTransition(base, candidate, previous, current) {
-					continue
-				}
-				if deleted.SourceOwner == previous.Owner && deleted.SourceRole == previous.inScope(scope).Role &&
-					rule.SourceOwner == current.Owner && rule.SourceRole == current.inScope(scope).Role {
-					replacement.SourceOwner, replacement.SourceRole = rule.SourceOwner, rule.SourceRole
-					changed = true
-				}
-				if deleted.TargetOwner == previous.Owner && deleted.TargetRole == previous.Role &&
-					rule.TargetOwner == current.Owner && rule.TargetRole == current.Role {
-					replacement.TargetOwner, replacement.TargetRole = rule.TargetOwner, rule.TargetRole
-					changed = true
-				}
-			}
-			if !changed || !rulePermissionContains(replacement, rule) {
-				covered = false
-				break
-			}
-		}
-		if covered {
-			return true
-		}
-	}
-	return false
-}
-
-// inboundTransitionPermission lets a reclassified endpoint use a standing
-// base rule under its real owner, or its narrowly replaced rule. Unchanged
-// packages cannot use this exception to acquire a successor's reach.
-func inboundTransitionPermission(base, candidate *Policy, scope Scope, baseSource, source, baseTarget, target Package) bool {
-	if !inboundOwnerTransition(base, candidate, baseSource, source) && !inboundOwnerTransition(base, candidate, baseTarget, target) {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 &&
-		(candidateRuleCoveredDirectly(*decision.Allowed, base.Rules) || inboundSuccessorRule(base, candidate, *decision.Allowed))
 }
 
 func semanticRoleLoosens(base, candidate string) bool {
@@ -537,12 +442,12 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for _, rule := range candidate.Rules {
-		if candidateRuleCoveredDirectly(rule, base.Rules) || inboundSuccessorRule(base, candidate, rule) {
+		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule) || reviewedParentHTTPRule(rule) ||
-				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
+				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -871,8 +776,7 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) &&
-			!reclassifiedRolePermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -929,15 +833,13 @@ func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPer
 		}
 		for _, scope := range allScopes() {
 			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
-				!reclassifiedRolePermission(base, candidate, scope, baseSource, target) &&
-				!inboundTransitionPermission(base, candidate, scope, baseSource, source, baseTarget, target) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCompositionReach(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedHTTPHostRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedInternalReach(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedInternalReach(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedProjectionPublicRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedOwnerHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

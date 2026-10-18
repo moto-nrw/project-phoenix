@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
@@ -86,26 +86,14 @@ func (c schedulerPresenceCleanup) CleanupStaleAttendance(ctx context.Context) (*
 	}, err
 }
 
-// ArchiveEndOfDayStatusFlag archives the Worker's end-of-day status flag:
-// the sick flag as a sick day, the excused flag as an excused day, both with
-// the end-of-day source.
+// ArchiveEndOfDayStatusFlag archives the Worker's end-of-day status flag the
+// way Care Plan maps it to a status day.
 func (r StudentStatusDayRepository) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date absencerecords.Date, fallback time.Time) (int64, error) {
-	status, err := endOfDayStatusForFlag(flagColumn)
+	archive, err := careplan.EndOfDayStatusFlagArchive(flagColumn, sinceColumn, careplan.Date(date), fallback)
 	if err != nil {
 		return 0, err
 	}
-	return r.ArchiveAndClearStatusFlag(ctx, flagColumn, sinceColumn, status, date, fallback, absencerecords.StudentStatusSourceEndOfDay)
-}
-
-func endOfDayStatusForFlag(flagColumn string) (string, error) {
-	switch flagColumn {
-	case "sick":
-		return absencerecords.StudentStatusDaySick, nil
-	case "excused":
-		return absencerecords.StudentStatusDayExcused, nil
-	default:
-		return "", fmt.Errorf("unsupported status flag column %q", flagColumn)
-	}
+	return r.capability.ArchiveStudentStatusFlags(ctx, archive)
 }
 
 // pwaUsageCleanup hands the Delivery Platform's standalone usage sweep to the

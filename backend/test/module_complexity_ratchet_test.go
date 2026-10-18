@@ -59,8 +59,6 @@ const moduleComplexityThreshold = 15
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
 var moduleComplexityAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:matchesRule": 17,
-
 	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
@@ -69,7 +67,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals":    20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                   20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                   21,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":           28,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":         56,
@@ -83,22 +80,15 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/classday/internal/application/slotlist_slots.go:(*service).collectSlotContexts": 20,
-	"modules/classday/internal/application/slotlist_build.go:filterRows":                     16,
-
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                  43,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":               37,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":               22,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":              25,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                   19,
-	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":                          18,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":               29,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":                 16,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                         40,
-	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":     37,
-	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith": 22,
-	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":                          17,
-	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                             30,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     43,
+	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":  37,
+	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":  22,
+	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails": 25,
+	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":      19,
+	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":             18,
+	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":  29,
+	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":    16,
+	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":             17,
 
 	"modules/dataimport/compose/opening_references.go:NewOpeningReferences": 21,
 	"modules/dataimport/fileformat/helpers.go:MapStudentRow":                27,
@@ -273,7 +263,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/planning/staff_shift_cancellation.go:(*staffShiftService).ApplyCancellation":                                    49,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).DeleteShift":                                               16,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).updateShiftWithOptions":                                    45,
-	"modules/workforce/legacy/substitution_repository.go:(*groupSubstitutionRepository).List":                                                   18,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:EvaluateWorkSessionsLaborTime":                                    16,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:netMinutesByDate":                                                 29,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).RebookAbsences":                      21,
@@ -292,8 +281,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/staff_time_export_datev.go:buildDatevLines":                                            22,
 	"modules/workforce/internal/application/timetracking/staff_time_export_rows.go:(*staffOverviewService).GetMonthExportRows":                  20,
 	"modules/workforce/internal/application/timetracking/work_session_checkin.go:(*workSessionService).checkIn":                                 23,
-	"modules/workforce/internal/application/timetracking/work_session_export.go:(*workSessionService).ExportSessions":                           16,
-	"modules/workforce/internal/application/timetracking/work_session_history.go:(*workSessionService).buildWeeklySummaries":                    20,
+	"modules/workforce/internal/application/timetracking/work_session_history.go:(*workSessionService).buildWeeklySummaries":                    17,
 	"modules/workforce/internal/application/timetracking/work_session_maintenance.go:(*workSessionService).AutoCheckoutDueSessions":             53,
 	"modules/workforce/internal/application/timetracking/work_session_updates.go:(*workSessionService).UpdateSession":                           18,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).GetDailyProjection":                 17,
@@ -304,7 +292,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":    35,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).remapClassTeacherAssignments":  21,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).revertClassTeacherAssignments": 31,
-	"workflows/gradetransition/compose/new.go:Assemble":                                     17,
 	"workflows/gradetransition/preview.go:(*Workflow).Preview":                              17,
 	"workflows/gradetransition/revert.go:(*Workflow).Revert":                                16,
 	"workflows/gradetransition/revert.go:(*Workflow).restoreGraduateTags":                   19,
@@ -328,10 +315,9 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 
-	"workflows/staffoffboarding/compose/new.go:New":                  32,
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
 
-	"workflows/studentdeletion/compose/new.go:Assemble":                         27,
+	"workflows/studentdeletion/compose/new.go:Assemble":                         16,
 	"workflows/studentdeletion/deletion.go:(*Workflow).checkCompanionStranding": 19,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":              17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).lockCompanionGraph":      19,

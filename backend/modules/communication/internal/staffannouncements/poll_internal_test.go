@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Unit tests for normalizePollOptions — the validation that decides whether an
@@ -25,7 +23,7 @@ func TestNormalizePollOptions_PlainAnnouncementStaysPlain(t *testing.T) {
 	if len(options) != 0 {
 		t.Fatalf("expected no options, got %d", len(options))
 	}
-	if in.ResponseType != usersModels.ParentAnnouncementResponseNone {
+	if in.ResponseType != ParentAnnouncementResponseNone {
 		t.Fatalf("expected response type to normalize to none, got %q", in.ResponseType)
 	}
 }
@@ -56,7 +54,7 @@ func TestNormalizePollOptions_TrimsAndPositionsOptions(t *testing.T) {
 	t.Parallel()
 
 	in := Input{
-		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType: ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"  Ja  ", "Nein", "   "},
 	}
 	options, err := normalizePollOptions(&in)
@@ -78,7 +76,7 @@ func TestNormalizePollOptions_ClearsAcknowledgementForPoll(t *testing.T) {
 	t.Parallel()
 
 	in := Input{
-		ResponseType:            usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType:            ParentAnnouncementResponseSingleChoice,
 		Options:                 []string{"Ja", "Nein"},
 		RequiresAcknowledgement: true,
 	}
@@ -94,7 +92,7 @@ func TestNormalizePollOptions_RejectsDuplicateLabels(t *testing.T) {
 	t.Parallel()
 
 	in := Input{
-		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType: ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"Ja", "ja"},
 	}
 	if _, err := normalizePollOptions(&in); !errors.Is(err, ErrValidation) {
@@ -106,7 +104,7 @@ func TestNormalizePollOptions_RejectsTooFewOptions(t *testing.T) {
 	t.Parallel()
 
 	in := Input{
-		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType: ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"Ja"},
 	}
 	if _, err := normalizePollOptions(&in); !errors.Is(err, ErrValidation) {
@@ -118,7 +116,7 @@ func TestNormalizePollOptions_RejectsTooManyOptions(t *testing.T) {
 	t.Parallel()
 
 	in := Input{
-		ResponseType: usersModels.ParentAnnouncementResponseMultiChoice,
+		ResponseType: ParentAnnouncementResponseMultiChoice,
 		Options:      distinctPollLabels(maxPollOptions + 1),
 	}
 	_, err := normalizePollOptions(&in)
@@ -135,7 +133,7 @@ func TestNormalizePollOptions_AcceptsMaxOptions(t *testing.T) {
 		t.Fatalf("maxPollOptions = %d, a Terminabstimmung needs at least 50", maxPollOptions)
 	}
 	in := Input{
-		ResponseType: usersModels.ParentAnnouncementResponseMultiChoice,
+		ResponseType: ParentAnnouncementResponseMultiChoice,
 		Options:      distinctPollLabels(maxPollOptions),
 	}
 	out, err := normalizePollOptions(&in)
@@ -162,7 +160,7 @@ func TestNormalizePollOptions_RejectsPastDeadline(t *testing.T) {
 
 	past := time.Now().Add(-time.Hour)
 	in := Input{
-		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType:     ParentAnnouncementResponseSingleChoice,
 		Options:          []string{"Ja", "Nein"},
 		ResponseDeadline: &past,
 	}
@@ -179,7 +177,7 @@ func TestNormalizePollOptions_RejectsDeadlineAfterExpiry(t *testing.T) {
 	expires := time.Now().Add(24 * time.Hour)
 	deadline := expires.Add(time.Hour)
 	in := Input{
-		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType:     ParentAnnouncementResponseSingleChoice,
 		Options:          []string{"Ja", "Nein"},
 		ExpiresAt:        &expires,
 		ResponseDeadline: &deadline,
@@ -207,23 +205,23 @@ func TestAcceptsResponsesAt(t *testing.T) {
 	past := now.Add(-time.Minute)
 	future := now.Add(time.Minute)
 
-	plain := &usersModels.ParentAnnouncement{ResponseType: usersModels.ParentAnnouncementResponseNone}
+	plain := &ParentAnnouncement{ResponseType: ParentAnnouncementResponseNone}
 	if plain.AcceptsResponsesAt(now) {
 		t.Fatal("a plain announcement must not accept answers")
 	}
-	open := &usersModels.ParentAnnouncement{ResponseType: usersModels.ParentAnnouncementResponseSingleChoice}
+	open := &ParentAnnouncement{ResponseType: ParentAnnouncementResponseSingleChoice}
 	if !open.AcceptsResponsesAt(now) {
 		t.Fatal("a poll without a deadline must accept answers")
 	}
-	stillOpen := &usersModels.ParentAnnouncement{
-		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
+	stillOpen := &ParentAnnouncement{
+		ResponseType:     ParentAnnouncementResponseSingleChoice,
 		ResponseDeadline: &future,
 	}
 	if !stillOpen.AcceptsResponsesAt(now) {
 		t.Fatal("a poll before its deadline must accept answers")
 	}
-	closed := &usersModels.ParentAnnouncement{
-		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
+	closed := &ParentAnnouncement{
+		ResponseType:     ParentAnnouncementResponseSingleChoice,
 		ResponseDeadline: &past,
 	}
 	if closed.AcceptsResponsesAt(now) {
@@ -239,9 +237,9 @@ func TestNormalizeInput_RejectsPendingEnrollmentTargetForPoll(t *testing.T) {
 	in := Input{
 		Title:        "Kommt Ihr Kind?",
 		Body:         "Bitte um Rückmeldung.",
-		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
+		ResponseType: ParentAnnouncementResponseSingleChoice,
 		Targets: []TargetInput{
-			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+			{TargetType: AnnouncementTargetPendingEnrollment},
 		},
 	}
 	if _, err := normalizeInput(&in); !errors.Is(err, ErrValidation) {
@@ -257,7 +255,7 @@ func TestNormalizeInput_AllowsPendingEnrollmentTargetForAnnouncement(t *testing.
 		Title: "Anmeldung läuft",
 		Body:  "Die Anmeldephase endet am Freitag.",
 		Targets: []TargetInput{
-			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+			{TargetType: AnnouncementTargetPendingEnrollment},
 		},
 	}
 	targets, err := normalizeInput(&in)

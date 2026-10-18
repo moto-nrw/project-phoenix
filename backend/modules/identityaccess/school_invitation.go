@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+// Delivery outbox kind of the staff welcome mail an accepted school
+// invitation sends, and the entity it relates to.
+const (
+	MailKindStaffWelcome        = "staff_welcome"
+	MailRelatedSchoolInvitation = "school_invitation"
+)
+
 // School invitations (#2722): the one-time link that gives an invitee access
 // to a school with a role. A link is never stored already expired or spent,
 // is redeemable exactly once, and accepting it writes the account, its

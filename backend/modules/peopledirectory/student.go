@@ -25,6 +25,9 @@ const StudentStatusAlumnus = "alumnus"
 const (
 	StudentStatusPending = "pending"
 	StudentStatusActive  = "active"
+	// StudentStatusInactive is the status the activate-students job gives a
+	// child the day after its last care day.
+	StudentStatusInactive = "inactive"
 )
 
 // Student is the directory view of users.students that other owners may

@@ -14,7 +14,7 @@ import (
 // the link back into the demo for the prospect and the lead mail for the team.
 
 // demoContact receives the lead mail and the prospects' answers.
-var demoContact = email.NewEmail("moto", "kontakt@moto.nrw")
+var demoContact = email.NewEmail(identityaccess.DemoContactName, identityaccess.DemoContactAddress)
 
 // DemoAccessWiring configures the demo access; nil composes the module
 // without it, as every environment but APP_ENV=demo does.
@@ -56,7 +56,7 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 type demoAccessMail struct {
 	dispatcher *email.Dispatcher
 	from       email.Email
-	logoURL    string
+	origin     string
 	backoff    []time.Duration
 	logger     *slog.Logger
 }
@@ -72,44 +72,20 @@ func newDemoAccessMail(wiring *DemoAccessWiring) demoAccessMail {
 	}
 	return demoAccessMail{
 		dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, backoff: backoff, logger: logger,
-		logoURL: motoLogoURL(wiring.FrontendURL),
+		origin: wiring.FrontendURL,
 	}
 }
 
 func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identityaccess.DemoAccessMessage, entryURL string) {
-	m.dispatch(ctx, "demo_access", access.AccessID, email.Message{
-		From: m.from,
-		// Anyone can type a foreign address into the public form, so nothing
-		// the form carried reaches this mail: no name, no school.
-		To:       email.NewEmail("", access.Email),
-		ReplyTo:  demoContact,
-		Subject:  "Ihr Link zur moto-Demo",
-		Template: email.TemplateDemoAccess,
-		Content: map[string]any{
-			"EntryURL": entryURL,
-			"LogoURL":  m.logoURL,
-		},
-	})
+	message := *identityMessage(m.from, email.NewEmail("", access.Email), identityaccess.DemoAccessLinkMail(entryURL, m.origin))
+	message.ReplyTo = demoContact
+	m.dispatch(ctx, "demo_access", access.AccessID, message)
 }
 
 func (m demoAccessMail) SendDemoLead(ctx context.Context, access identityaccess.DemoAccessMessage) {
-	personName := access.FirstName + " " + access.LastName
-	m.dispatch(ctx, "demo_lead", access.AccessID, email.Message{
-		From:     m.from,
-		To:       demoContact,
-		ReplyTo:  email.NewEmail(personName, access.Email),
-		Subject:  "Neuer Demo-Zugang: " + access.SchoolName,
-		Template: email.TemplateDemoLead,
-		Content: map[string]any{
-			"PersonName":   personName,
-			"OGSName":      access.SchoolName,
-			"Email":        access.Email,
-			"Source":       access.Source,
-			"ContactOptIn": access.ContactOptIn,
-			"AccessID":     access.AccessID,
-			"LogoURL":      m.logoURL,
-		},
-	})
+	message := *identityMessage(m.from, demoContact, identityaccess.DemoLeadMail(access, m.origin))
+	message.ReplyTo = email.NewEmail(access.PersonName(), access.Email)
+	m.dispatch(ctx, "demo_lead", access.AccessID, message)
 }
 
 func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int64, message email.Message) {

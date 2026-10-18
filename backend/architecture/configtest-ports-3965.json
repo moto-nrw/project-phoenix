@@ -42,9 +42,9 @@
       "backend/services/config/settings_interface.go",
       "backend/services/config/settings_prefetch_test.go",
       "backend/modules/supervisiondashboard/ports.go",
-      "backend/modules/supervisiondashboard/legacy/legacy.go",
+      "backend/modules/supervisiondashboard/internal/adapters/nameorder/legacy.go",
       "backend/modules/grouplive/ports.go",
-      "backend/modules/grouplive/legacy/legacy.go",
+      "backend/modules/grouplive/internal/adapters/nameorder/legacy.go",
       "backend/api/group_live_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

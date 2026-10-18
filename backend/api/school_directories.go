@@ -6,11 +6,16 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -128,7 +133,7 @@ func (d authSchoolDirectory) ListActiveSchoolsByAccountID(ctx context.Context, a
 	}
 	active := make([]organizationModule.School, 0, len(schools))
 	for _, school := range schools {
-		if school.Active && !school.IsDeleted() {
+		if school.Operational() {
 			active = append(active, school)
 		}
 	}
@@ -200,12 +205,12 @@ type studentSchoolDirectory struct {
 	schools organizationModule.Query
 }
 
-func (d studentSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*studentsAPI.ExportSchool, error) {
+func (d studentSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*presenceprojectionOwnerHTTP.ExportSchool, error) {
 	school, err := findSchool(ctx, d.schools.FindSchool, id)
 	if err != nil || school == nil {
 		return nil, err
 	}
-	return &studentsAPI.ExportSchool{Name: school.Name}, nil
+	return &presenceprojectionOwnerHTTP.ExportSchool{Name: school.Name}, nil
 }
 
 // findSchool runs one school lookup and reports a missing school as nil.

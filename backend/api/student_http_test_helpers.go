@@ -5,7 +5,9 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -110,4 +112,8 @@ func MustNewStudentHTTPTestRows(db transactionruntime.Database) StudentHTTPTestR
 		panic(err)
 	}
 	return rows
+}
+
+func PendingStudentHTTPTestCareWithdrawals(ctx context.Context, rows userModels.CareWithdrawalCompletionRepository, studentID int64) ([]*userModels.CareWithdrawalCompletion, int, error) {
+	return rows.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
 }

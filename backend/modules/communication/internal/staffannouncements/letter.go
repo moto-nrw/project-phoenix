@@ -2,16 +2,13 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // letterIntro is the opening line of an Elternbrief mail. The body follows it,
@@ -56,13 +53,13 @@ type EmailDeliveryStatus struct {
 //
 // A plain Mitteilung to the portal audience keeps the original, untracked path
 // unchanged — no behaviour change for everything that shipped before #2384.
-func needsDeliveryTracking(a *usersModels.ParentAnnouncement) bool {
+func needsDeliveryTracking(a *ParentAnnouncement) bool {
 	return a.IsLetter() || a.ReachesContactsWithoutPortal()
 }
 
 // letterRecipient is one resolved person plus the decision taken about them.
 type letterRecipient struct {
-	src          *usersModels.AnnouncementDeliveryRecipient
+	src          *AnnouncementDeliveryRecipient
 	reachability string
 	// outboxID is set once a mail has been queued for this person's address.
 	outboxID *int64
@@ -76,7 +73,7 @@ type letterRecipient struct {
 //
 // Like enqueueAnnouncementEmails this runs inside the publish tenant tx, so the
 // rows and the outbox entries commit atomically with published_at.
-func (s *service) enqueueTrackedEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) enqueueTrackedEmails(ctx context.Context, a *ParentAnnouncement) error {
 	tenantID := a.GetTenantID()
 	resolved, err := s.repo.ResolveDeliveryRecipients(ctx, tenantID, a.ID)
 	if err != nil {
@@ -131,7 +128,7 @@ func (s *service) enqueueTrackedEmails(ctx context.Context, a *usersModels.Paren
 // withhold the mail when the announcement kept the narrow audience — with
 // all_contacts the school has decided this content may reach them, and the row
 // still records that they cannot acknowledge in moto.
-func classifyReachability(r *usersModels.AnnouncementDeliveryRecipient, a *usersModels.ParentAnnouncement) string {
+func classifyReachability(r *AnnouncementDeliveryRecipient, a *ParentAnnouncement) string {
 	if r.Email == "" {
 		return reachabilityNoEmail
 	}
@@ -141,7 +138,7 @@ func classifyReachability(r *usersModels.AnnouncementDeliveryRecipient, a *users
 	return reachabilityOK
 }
 
-func canQueueLetterMail(r *letterRecipient, a *usersModels.ParentAnnouncement) bool {
+func canQueueLetterMail(r *letterRecipient, a *ParentAnnouncement) bool {
 	return r.src.Email != "" && (r.src.HasPortalAccess || a.ReachesContactsWithoutPortal())
 }
 
@@ -153,7 +150,7 @@ func canQueueLetterMail(r *letterRecipient, a *usersModels.ParentAnnouncement) b
 //
 // A preference lookup failure is deliberately non-fatal: it must not roll back a
 // publish. Failing open matches the pre-#2384 behaviour of this channel.
-func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient) {
+func (s *service) applyEmailOptOuts(ctx context.Context, a *ParentAnnouncement, recipients []*letterRecipient) {
 	if s.preferences == nil {
 		return
 	}
@@ -166,7 +163,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 	if len(accountIDs) == 0 {
 		return
 	}
-	remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+	remaining, err := s.preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 	if err != nil {
 		s.logger.Warn("announcement: opt-out filter failed, mailing all addressed guardians",
 			slog.String("error", err.Error()))
@@ -198,7 +195,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 // mail, not two — but both belong in the matrix, and both are correctly reported
 // as "versendet", because that one mail informed both. Hence the address-keyed
 // dedupe with a shared outbox id rather than a per-person send.
-func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient) error {
+func (s *service) queueLetterMails(ctx context.Context, a *ParentAnnouncement, recipients []*letterRecipient) error {
 	_, err := s.queueLetterMailsAs(ctx, a, recipients, publishLetterMailSpec(a))
 	return err
 }
@@ -206,7 +203,7 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 // publishLetterMailSpec is the tracked publish mail: an Elternbrief carries
 // its body and the confirmation notice, a wide-audience Mitteilung stays title
 // plus link.
-func publishLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
+func publishLetterMailSpec(a *ParentAnnouncement) mailSpec {
 	spec := mailSpec{
 		title:          a.Title,
 		kicker:         defaultEmailKicker,
@@ -223,7 +220,7 @@ func publishLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 	return spec
 }
 
-func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient, spec mailSpec) (int, error) {
+func (s *service) queueLetterMailsAs(ctx context.Context, a *ParentAnnouncement, recipients []*letterRecipient, spec mailSpec) (int, error) {
 	if s.outbox == nil {
 		s.logger.Warn("announcement needs e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
@@ -235,7 +232,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := spec.kicker
 	intro := spec.intro(schoolName)
@@ -267,29 +264,29 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		if portalAccessByAddress[address] {
 			recipientPortalURL = portalURL
 		}
-		row, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:   address,
-				emailPayloadFirstName:   r.src.FirstName,
-				emailPayloadLastName:    r.src.LastName,
-				emailPayloadTitle:       spec.title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   recipientPortalURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
-				emailPayloadBody:        body,
-				emailPayloadAckRequired: spec.ackRequired && portalAccessByAddress[address],
+		row, err := s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:   deliveryPorts.JSONString(address),
+				emailPayloadFirstName:   deliveryPorts.JSONString(r.src.FirstName),
+				emailPayloadLastName:    deliveryPorts.JSONString(r.src.LastName),
+				emailPayloadTitle:       deliveryPorts.JSONString(spec.title),
+				emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:   deliveryPorts.JSONString(recipientPortalURL),
+				emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:       deliveryPorts.JSONString(intro),
+				emailPayloadBody:        deliveryPorts.JSONString(body),
+				emailPayloadAckRequired: deliveryPorts.JSONBool(spec.ackRequired && portalAccessByAddress[address]),
 				// Only for recipients who can actually reach the portal: a hint
 				// pointing somewhere the reader cannot go is worse than none.
-				emailPayloadHasAttachment: hasAttachment && portalAccessByAddress[address],
+				emailPayloadHasAttachment: deliveryPorts.JSONBool(hasAttachment && portalAccessByAddress[address]),
 			},
 			RelatedEntityType: spec.relatedType,
 			RelatedEntityID:   a.ID,
 			IdempotencyKey:    spec.idempotencyKey(address),
-		})
+		}.Public())
 		if err != nil {
 			return accepted, fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
@@ -328,7 +325,7 @@ func (s *service) letterPortalURL(announcementID int64) string {
 // one address. The published_at timestamp is part of it on purpose: retries and
 // concurrent publishes must not send twice, while the documented correction path
 // (unpublish → edit → republish) SHOULD send the corrected letter again.
-func letterIdempotencyKey(a *usersModels.ParentAnnouncement, address string) string {
+func letterIdempotencyKey(a *ParentAnnouncement, address string) string {
 	stamp := int64(0)
 	if a.PublishedAt != nil {
 		stamp = a.PublishedAt.UTC().UnixNano()
@@ -340,9 +337,9 @@ func letterIdempotencyKey(a *usersModels.ParentAnnouncement, address string) str
 // per addressed person with the two channels reported separately, one row per
 // child with the derived fulfilment, and the counts that drive the summary.
 type LetterStatus struct {
-	Recipients []EmailDeliveryStatus                        `json:"recipients"`
-	Children   []*usersModels.AnnouncementLetterChildStatus `json:"children"`
-	Summary    LetterSummary                                `json:"summary"`
+	Recipients []EmailDeliveryStatus            `json:"recipients"`
+	Children   []*AnnouncementLetterChildStatus `json:"children"`
+	Summary    LetterSummary                    `json:"summary"`
 }
 
 // LetterSummary counts what a school actually acts on, and keeps the two very
@@ -463,7 +460,7 @@ func (s *service) RemindOutstanding(ctx context.Context, id int64) (int, error) 
 // remindUnacknowledged reaches only the guardians of children NOBODY has
 // confirmed yet — the acceptance criterion "eine Erinnerung erreicht nur
 // Familien, für die noch niemand bestätigt hat".
-func (s *service) remindUnacknowledged(ctx context.Context, a *usersModels.ParentAnnouncement) (int, error) {
+func (s *service) remindUnacknowledged(ctx context.Context, a *ParentAnnouncement) (int, error) {
 	if !a.IsPublished() || !a.Active {
 		return 0, ErrNotPublished
 	}
@@ -540,7 +537,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := defaultEmailKicker
 	intro := ""
@@ -552,7 +549,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	}
 
 	resent := 0
-	byAddress := make(map[string]*emailoutbox.Enqueued)
+	byAddress := deliveryPorts.NewMailReceiptIndex()
 	portalAccessByAddress := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if row.RecipientEmail != nil && row.Reachability == reachabilityOK {
@@ -578,28 +575,28 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 			if portalAccessByAddress[address] {
 				recipientPortalURL = portalURL
 			}
-			outboxRow, err = s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-				Kind: platformModels.EmailKindParentAnnouncement,
-				Payload: map[string]any{
-					emailPayloadRecipient:   address,
-					emailPayloadFirstName:   row.FirstName,
-					emailPayloadLastName:    row.LastName,
-					emailPayloadTitle:       a.Title,
-					emailPayloadSchoolName:  schoolName,
-					emailPayloadPortalURL:   recipientPortalURL,
-					emailPayloadLogoURL:     logoURL,
-					emailPayloadMotoLogoURL: motoLogoURL,
-					emailPayloadKicker:      kicker,
-					emailPayloadIntro:       intro,
-					emailPayloadBody:        body,
-					emailPayloadAckRequired: a.RequiresAcknowledgement && portalAccessByAddress[address],
+			outboxRow, err = s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+				Kind: deliveryPorts.MailKindParentAnnouncement,
+				Payload: map[string]json.RawMessage{
+					emailPayloadRecipient:   deliveryPorts.JSONString(address),
+					emailPayloadFirstName:   deliveryPorts.JSONString(row.FirstName),
+					emailPayloadLastName:    deliveryPorts.JSONString(row.LastName),
+					emailPayloadTitle:       deliveryPorts.JSONString(a.Title),
+					emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+					emailPayloadPortalURL:   deliveryPorts.JSONString(recipientPortalURL),
+					emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+					emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+					emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+					emailPayloadIntro:       deliveryPorts.JSONString(intro),
+					emailPayloadBody:        deliveryPorts.JSONString(body),
+					emailPayloadAckRequired: deliveryPorts.JSONBool(a.RequiresAcknowledgement && portalAccessByAddress[address]),
 				},
 				RelatedEntityType: relatedEntityTypeAnnouncement,
 				RelatedEntityID:   a.ID,
 				// A retry needs a key of its own, otherwise the original publication's
 				// key would swallow it as a duplicate and nothing would be sent.
 				IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), time.Now().UTC().UnixNano()),
-			})
+			}.Public())
 			if err != nil {
 				return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
 			}

@@ -117,6 +117,7 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
@@ -162,6 +163,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
 		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.NewParentGuardianPolicy(),
 		Fingerprints:      api.SecurityFingerprints{},
@@ -178,9 +180,9 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(bc),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
 
@@ -453,6 +455,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},

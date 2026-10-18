@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
 
 // The People Directory, School Membership and Workforce glue of the root
@@ -203,7 +202,9 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
 func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
-	return bindStaffMembershipRuntime(f, offboardingcompose.Dependencies{
-		DB: db.Pool(), People: peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
-	}, identity, logger, hooks)
+	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())), logger)
+	if err != nil {
+		panic(err)
+	}
+	return bindStaffMembershipRuntime(f, offboarding, identity, logger, hooks)
 }

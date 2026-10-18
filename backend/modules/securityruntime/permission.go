@@ -1,6 +1,10 @@
 package securityruntime
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize"
+import (
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+)
 
 // HasPermission evaluates a required permission with the shared wildcard rules.
 func HasPermission(required string, permissions []string) bool {
@@ -38,3 +42,20 @@ const (
 	PermissionStaffManage = "staff:manage"
 	PermissionGroupsRead  = "groups:read"
 )
+
+// DefaultStaffAccountPermission is granted to the login account of a newly
+// created staff member so the colleague sees the group list. Lehrkraft
+// accounts are excluded by the grant flow (#1772).
+const DefaultStaffAccountPermission = PermissionGroupsRead
+
+// permissionConfigManage is the permission a school's own lead role carries
+// next to the admin scope. It restates the permission registry's name.
+const permissionConfigManage = "config:manage"
+
+// LeadsSchool reports whether a role makes its holder the school's lead,
+// as the staff frontend's leadsSchool reads it: the system admin role, or a
+// role the school created with config:manage.
+func LeadsSchool(roleName string, rolePermissions []string) bool {
+	return strings.EqualFold(strings.TrimSpace(roleName), "admin") ||
+		HasPermission(permissionConfigManage, rolePermissions)
+}

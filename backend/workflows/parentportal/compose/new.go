@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -18,6 +18,7 @@ import (
 // Dependencies are the collaborators of the guardian portal. Runtime is
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
+	GuardianChanges auditlog.GuardianChangeLog
 	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
@@ -100,7 +101,7 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows}))
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows})).MessagingFlows
 	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
@@ -123,7 +124,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     guardianChanges{log: auditcompose.NewGuardianChangeLog()},
+		GuardianChanges:     guardianChanges{log: deps.GuardianChanges},
 		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,

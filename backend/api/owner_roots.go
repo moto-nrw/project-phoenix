@@ -23,7 +23,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -51,7 +50,7 @@ func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy
 // NewOperatorAuditLog composes the operator ledger over the Audit handoff on
 // the context, with the root database as the fallback, for the roots that
 // record operator actions.
-func NewOperatorAuditLog(db transactionruntime.Database) platform.OperatorAuditLogRepository {
+func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).OperatorAuditLog)
 }
 
@@ -64,6 +63,21 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 	members := ParentStaffMembers{Membership: owners.Membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+		rows, err := persons.FindByIDs(ctx, ids)
+		if rows == nil {
+			return nil, err
+		}
+		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		for id, row := range rows {
+			if row == nil {
+				out[id] = nil
+				continue
+			}
+			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+		}
+		return out, err
+	}
 	groupNames := parentGroupNames{groups: owners.Groups}.list
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
@@ -75,11 +89,11 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
 			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), guardianLinkView.NewReader(), owners.Now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, guardianLinkView.NewReader(), identity.FindActiveSchoolMemberships)),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, persons), groupNames),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,
-				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
+				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
+				parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
 		},
 	}
 }
@@ -101,6 +115,7 @@ func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(contex
 		DB:           db.Pool(),
 		Rooms:        rooms,
 		OnlineWindow: onlineWindow,
+		APIKeys:      DeviceAPIKeys{},
 		Observe:      func(devicefleetCompose.Observation) {},
 	})
 }

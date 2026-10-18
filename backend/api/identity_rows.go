@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
@@ -18,9 +17,7 @@ import (
 // operations a seam calls.
 
 type personRows interface {
-	Create(ctx context.Context, person *userModels.Person) error
 	FindByID(ctx context.Context, id any) (*userModels.Person, error)
-	Update(ctx context.Context, person *userModels.Person) error
 	List(ctx context.Context, filters map[string]any) ([]*userModels.Person, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
@@ -70,7 +67,7 @@ type authEventLedger interface {
 }
 
 type operatorAuditEntries interface {
-	Create(ctx context.Context, entry *platformModels.OperatorAuditLog) error
+	Create(ctx context.Context, entry *auditModels.OperatorAuditEntry) error
 }
 
 type pushSubscriptionRows interface {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // The adapters below bind File Storage to the Settings Platform and the Audit

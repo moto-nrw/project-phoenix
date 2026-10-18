@@ -1,24 +1,28 @@
 package messaging_test
 
-// Integration tests for "Als ungelesen markieren" (#3654): a staff member marks
-// a parent conversation unread for the whole team. They run on the real
-// repositories so the inbox projection, the aggregate badge and the student
-// card are checked together with the write path.
-
 import (
 	"context"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	// Integration tests for "Als ungelesen markieren" (#3654): a staff member marks
+	// a parent conversation unread for the whole team. They run on the real
+	// repositories so the inbox projection, the aggregate badge and the student
+	// card are checked together with the write path.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -161,14 +165,14 @@ func TestMarkUnread_RepeatKeepsSameVisibleState(t *testing.T) {
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	first, err := repos.ParentMessageThread.FindByID(ctx, threadID)
+	first, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, first.StaffMarkedUnreadAt)
 	require.NotNil(t, first.StaffMarkedUnreadByAccountID)
 	assert.Equal(t, f.staffAccount, *first.StaffMarkedUnreadByAccountID)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	second, err := repos.ParentMessageThread.FindByID(ctx, threadID)
+	second, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, second.StaffMarkedUnreadAt)
 	assert.False(t, second.StaffMarkedUnreadAt.Before(*first.StaffMarkedUnreadAt), "a repeated mark never moves backward")
@@ -189,13 +193,13 @@ func TestMarkUnread_RepeatDuringOpenSurvives(t *testing.T) {
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	loadedByOpen, err := repos.ParentMessageThread.FindByID(ctx, threadID)
+	loadedByOpen, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, loadedByOpen.StaffMarkedUnreadAt)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
 
-	cleared, err := repos.ParentMessageRead.ClearStaffUnreadMark(ctx, loadedByOpen.TenantID, threadID, *loadedByOpen.StaffMarkedUnreadAt)
+	cleared, err := messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, loadedByOpen.TenantID, threadID, *loadedByOpen.StaffMarkedUnreadAt)
 	require.NoError(t, err)
 	assert.False(t, cleared, "the open only removes the mark it loaded")
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -213,17 +217,17 @@ func TestClearStaffUnreadMark_KeepsNewerMark(t *testing.T) {
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	marked, err := repos.ParentMessageThread.FindByID(ctx, threadID)
+	marked, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, marked.StaffMarkedUnreadAt)
 
 	loadedBeforeMark := marked.StaffMarkedUnreadAt.Add(-time.Millisecond)
-	cleared, err := repos.ParentMessageRead.ClearStaffUnreadMark(ctx, marked.TenantID, threadID, loadedBeforeMark)
+	cleared, err := messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, marked.TenantID, threadID, loadedBeforeMark)
 	require.NoError(t, err)
 	assert.False(t, cleared, "a mark newer than the loaded state must survive")
 	assertTeamUnread(t, f, f.staffAccount, 1)
 
-	cleared, err = repos.ParentMessageRead.ClearStaffUnreadMark(ctx, marked.TenantID, threadID, *marked.StaffMarkedUnreadAt)
+	cleared, err = messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, marked.TenantID, threadID, *marked.StaffMarkedUnreadAt)
 	require.NoError(t, err)
 	assert.True(t, cleared)
 	assertTeamUnread(t, f, f.staffAccount, 0)
@@ -244,23 +248,23 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	// Append the guardian question the way the parent side does, so the thread
 	// preview (last sender) carries it and the list receipt can apply.
 	question := createGuardianMessage(t, f.db, f.chain, threadID, "Frage")
-	require.NoError(t, repos.ParentMessageThread.TouchLastMessage(staffCtx, threadID, question.CreatedAt, question.ID, question.SenderKind, question.Body))
+	require.NoError(t, messaging.NewThreadRepository(repos.ParentMessageThread).TouchLastMessage(staffCtx, threadID, question.CreatedAt, question.ID, question.SenderKind, question.Body))
 	_, err = f.svc.GetThread(staffCtx, threadID)
 	require.NoError(t, err)
 
 	receipts := func() (bool, bool) {
 		t.Helper()
-		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
+		messages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
-		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
-		var guardianMessage *usersModels.ParentMessage
+		messaging.DecorateReadReceipts(guardianCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
+		var guardianMessage *messaging.ParentMessage
 		for _, message := range messages {
-			if message.SenderKind == usersModels.ParentMessageSenderGuardian {
+			if message.SenderKind == messaging.ParentMessageSenderGuardian {
 				guardianMessage = message
 			}
 		}
 		require.NotNil(t, guardianMessage)
-		threads, err := repos.ParentMessageRead.ListThreadsForGuardianStudent(guardianCtx, f.chain.AccountID, f.chain.StudentID)
+		threads, err := repos.ParentMessageRead.PortalListThreadsForGuardianStudent(guardianCtx, f.chain.AccountID, f.chain.StudentID)
 		require.NoError(t, err)
 		require.Len(t, threads, 1)
 		return guardianMessage.ReadByStaff, threads[0].LastMessageReadByStaff
@@ -294,7 +298,7 @@ func TestMarkUnread_Authorization(t *testing.T) {
 
 	_, err = f.db.ExecContext(context.Background(), `
 		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
-	`, usersModels.StudentStatusAlumnus, f.chain.StudentID)
+	`, "alumnus", f.chain.StudentID)
 	require.NoError(t, err)
 	err = f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden, "a former child is forbidden")
@@ -323,11 +327,11 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
-		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
+		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(repos.ParentMessageRead),
 		Persons:     newPersons(repos, f.db),
-		Settings:    stubSettings{messagingEnabled: false},
-		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
-	})
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
+		Broadcaster: f.bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	ctx := adminCtx(t, f.staffAccount)
 
 	count, err := disabled.UnreadMessageCount(ctx)

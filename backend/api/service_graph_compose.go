@@ -8,30 +8,25 @@ import (
 	"strings"
 	"time"
 
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -40,15 +35,17 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
@@ -478,7 +475,7 @@ func composeIdentity(b graphBuild) (graphBuild, error) {
 		Dispatcher: b.dispatcher, DefaultFrom: b.graph.DefaultFrom, MailIdentity: b.tenantMailIdentity,
 		FrontendURL: b.frontendURL, ParentsURL: b.parentsURL, SchoolURL: b.schoolURL,
 		InvitationExpiry: b.graph.InvitationTokenExpiry, PasswordResetExpiry: b.graph.PasswordResetTokenExpiry,
-		Outbox:      func() platformModels.OutboxResultEnqueuer { return b.outbox() },
+		Outbox:      func() MailResultOutbox { return b.outbox() },
 		EmailStatus: b.late.emailStatus,
 		PersonRows:  people.Persons, StaffRows: people.Staff, TeacherRows: people.Teachers, StudentRows: people.Students,
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
@@ -581,7 +578,11 @@ func composeTimeTracking(b graphBuild) (graphBuild, error) {
 		if err != nil {
 			return 0, 0, err
 		}
-		return len(members), countWithoutPersonnelNumber(members), nil
+		numbers := make([]*string, len(members))
+		for i, member := range members {
+			numbers[i] = member.PersonnelNumber
+		}
+		return len(members), workforceModule.MissingPersonnelNumbers(numbers), nil
 	})
 	// The #1843 sick cascade is the shift-plan-sync workflow, which needs the
 	// planning capability and the timetable services built long after the
@@ -599,16 +600,4 @@ func composeTimeTracking(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.WorkSession = timeTracking
 	return b, nil
-}
-
-// countWithoutPersonnelNumber counts the staff members without a payroll
-// number.
-func countWithoutPersonnelNumber(members []*userModels.Staff) int {
-	count := 0
-	for _, member := range members {
-		if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
-			count++
-		}
-	}
-	return count
 }

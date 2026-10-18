@@ -6,9 +6,10 @@ import (
 	"sort"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	valuesPolicy "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +38,7 @@ type PendingApplicantSource interface {
 //
 // SchoolName is not served here: the school's name belongs to Organisation
 // and Tenancy, and the composition root decorates it exactly as before.
-func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) ParentAnnouncementRepository {
 	if applicants == nil {
 		panic("communication parent store: pending applicant source is required")
 	}
@@ -81,7 +82,8 @@ type announcementRepository struct {
 	audience *parentaudience.Projection
 }
 
-func (r *announcementRepository) Create(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (r *announcementRepository) Create(ctx context.Context, a *communication.PortalParentAnnouncement) error {
+	defer stampAnnouncementKind(a)
 	value := announcementValue(a)
 	if err := r.store.Create(ctx, value); err != nil {
 		return err
@@ -92,11 +94,12 @@ func (r *announcementRepository) Create(ctx context.Context, a *usersModels.Pare
 	a.ResponseType = value.ResponseType
 	a.DeliveryMode = value.DeliveryMode
 	a.EmailAudience = value.EmailAudience
-	a.SetTenantID(value.TenantID)
+	a.TenantID = value.TenantID
 	return nil
 }
 
-func (r *announcementRepository) Update(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (r *announcementRepository) Update(ctx context.Context, a *communication.PortalParentAnnouncement) error {
+	defer stampAnnouncementKind(a)
 	value := announcementValue(a)
 	if err := r.store.UpdateDraft(ctx, value); err != nil {
 		return publishedError(err)
@@ -105,12 +108,12 @@ func (r *announcementRepository) Update(ctx context.Context, a *usersModels.Pare
 	return nil
 }
 
-func (r *announcementRepository) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (r *announcementRepository) FindByID(ctx context.Context, id int64) (*communication.PortalParentAnnouncement, error) {
 	value, err := r.store.FindByID(ctx, id)
 	return announcementModel(value), err
 }
 
-func (r *announcementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (r *announcementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*communication.PortalParentAnnouncement, error) {
 	value, err := r.store.FindByIDForUpdate(ctx, id)
 	return announcementModel(value), err
 }
@@ -119,12 +122,12 @@ func (r *announcementRepository) Delete(ctx context.Context, id int64) error {
 	return r.store.Delete(ctx, id)
 }
 
-func (r *announcementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
+func (r *announcementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*communication.PortalParentAnnouncement, error) {
 	values, err := r.store.ListForTenant(ctx, includeInactive)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.ParentAnnouncement, 0, len(values))
+	rows := make([]*communication.PortalParentAnnouncement, 0, len(values))
 	for _, value := range values {
 		rows = append(rows, announcementModel(value))
 	}
@@ -147,12 +150,12 @@ func (r *announcementRepository) SetReminder(ctx context.Context, id int64, remi
 	return r.store.SetReminder(ctx, id, reminderAt, reminderText)
 }
 
-func (r *announcementRepository) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*usersModels.ParentAnnouncement, error) {
+func (r *announcementRepository) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*communication.PortalParentAnnouncement, error) {
 	values, err := r.store.ListDueReminders(ctx, notBefore, dueBefore)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.ParentAnnouncement, 0, len(values))
+	rows := make([]*communication.PortalParentAnnouncement, 0, len(values))
 	for _, value := range values {
 		rows = append(rows, announcementModel(value))
 	}
@@ -167,11 +170,11 @@ func (r *announcementRepository) ReleaseReminderClaim(ctx context.Context, id in
 	return r.store.ReleaseReminderClaim(ctx, id, sentAt)
 }
 
-func (r *announcementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error {
+func (r *announcementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*communication.PortalParentAnnouncementTarget) error {
 	values := make([]*domain.ParentAnnouncementTarget, 0, len(targets))
 	for _, target := range targets {
 		values = append(values, &domain.ParentAnnouncementTarget{
-			ID: target.ID, TenantID: target.GetTenantID(), AnnouncementID: target.AnnouncementID,
+			ID: target.ID, TenantID: target.TenantID, AnnouncementID: target.AnnouncementID,
 			TargetType: target.TargetType, TargetRefID: target.TargetRefID, TargetRefText: target.TargetRefText,
 		})
 	}
@@ -182,28 +185,28 @@ func (r *announcementRepository) ReplaceTargets(ctx context.Context, tenantID, a
 		targets[i].ID = value.ID
 		targets[i].AnnouncementID = value.AnnouncementID
 		targets[i].CreatedAt = value.CreatedAt
-		targets[i].SetTenantID(value.TenantID)
+		targets[i].TenantID = value.TenantID
 	}
 	return nil
 }
 
-func (r *announcementRepository) ListTargets(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+func (r *announcementRepository) ListTargets(ctx context.Context, announcementID int64) ([]*communication.PortalParentAnnouncementTarget, error) {
 	values, err := r.store.ListTargets(ctx, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.ParentAnnouncementTarget, 0, len(values))
+	rows := make([]*communication.PortalParentAnnouncementTarget, 0, len(values))
 	for _, value := range values {
 		rows = append(rows, targetModel(value))
 	}
 	return rows, nil
 }
 
-func (r *announcementRepository) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error {
+func (r *announcementRepository) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*communication.PortalParentAnnouncementOption) error {
 	values := make([]*domain.ParentAnnouncementOption, 0, len(options))
 	for _, option := range options {
 		values = append(values, &domain.ParentAnnouncementOption{
-			ID: option.ID, TenantID: option.GetTenantID(), AnnouncementID: option.AnnouncementID,
+			ID: option.ID, TenantID: option.TenantID, AnnouncementID: option.AnnouncementID,
 			Label: option.Label, Position: option.Position,
 		})
 	}
@@ -215,29 +218,29 @@ func (r *announcementRepository) ReplaceOptions(ctx context.Context, tenantID, a
 		options[i].AnnouncementID = value.AnnouncementID
 		options[i].Position = value.Position
 		options[i].CreatedAt = value.CreatedAt
-		options[i].SetTenantID(value.TenantID)
+		options[i].TenantID = value.TenantID
 	}
 	return nil
 }
 
-func (r *announcementRepository) ListOptions(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (r *announcementRepository) ListOptions(ctx context.Context, announcementID int64) ([]*communication.PortalParentAnnouncementOption, error) {
 	values, err := r.store.ListOptions(ctx, announcementID)
 	return optionModels(values), err
 }
 
-func (r *announcementRepository) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (r *announcementRepository) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*communication.PortalParentAnnouncementOption, error) {
 	values, err := r.store.ListOptionsForAnnouncements(ctx, announcementIDs)
 	return optionModels(values), err
 }
 
-func (r *announcementRepository) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.AnnouncementPollChild, error) {
+func (r *announcementRepository) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*communication.PortalAnnouncementPollChild, error) {
 	values, err := r.audience.AnswerableChildren(ctx, accountID, announcementIDs)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementPollChild, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementPollChild, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementPollChild{
+		rows = append(rows, &communication.PortalAnnouncementPollChild{
 			AnnouncementID: value.AnnouncementID, StudentID: value.StudentID, FirstName: value.FirstName,
 			LastName: value.LastName, SelectedOptions: value.SelectedOptions,
 		})
@@ -273,31 +276,31 @@ func (r *announcementRepository) SetResponse(ctx context.Context, tenantID, anno
 	return r.store.InsertResponse(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 }
 
-func (r *announcementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementPollResults, error) {
+func (r *announcementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*communication.PortalAnnouncementPollResults, error) {
 	value, err := r.audience.PollResults(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	results := &usersModels.AnnouncementPollResults{
+	results := &communication.PortalAnnouncementPollResults{
 		ChildCount: value.ChildCount, TargetChildCount: value.TargetChildCount, AnsweredCount: value.AnsweredCount,
-		Options: make([]*usersModels.AnnouncementPollOptionResult, 0, len(value.Options)),
+		Options: make([]*communication.PortalAnnouncementPollOptionResult, 0, len(value.Options)),
 	}
 	for _, option := range value.Options {
-		results.Options = append(results.Options, &usersModels.AnnouncementPollOptionResult{
+		results.Options = append(results.Options, &communication.PortalAnnouncementPollOptionResult{
 			OptionID: option.OptionID, Label: option.Label, Position: option.Position, Count: option.Count,
 		})
 	}
 	return results, nil
 }
 
-func (r *announcementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollChildStatus, error) {
+func (r *announcementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementPollChildStatus, error) {
 	values, err := r.audience.PollChildren(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementPollChildStatus, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementPollChildStatus, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementPollChildStatus{
+		rows = append(rows, &communication.PortalAnnouncementPollChildStatus{
 			StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName,
 			SchoolClass: value.SchoolClass, AnswerLabels: value.AnswerLabels, RespondedAt: value.RespondedAt,
 			CanAnswer: value.CanAnswer,
@@ -306,12 +309,12 @@ func (r *announcementRepository) PollChildren(ctx context.Context, tenantID, ann
 	return rows, nil
 }
 
-func (r *announcementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (r *announcementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementPollReminderRecipient, error) {
 	values, err := r.audience.UnansweredReminderRecipients(ctx, tenantID, announcementID)
 	return reminderModels(values), err
 }
 
-func (r *announcementRepository) UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (r *announcementRepository) UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementPollReminderRecipient, error) {
 	values, err := r.audience.UnacknowledgedReminderRecipients(ctx, tenantID, announcementID)
 	return reminderModels(values), err
 }
@@ -332,28 +335,28 @@ func (r *announcementRepository) AccountMatchesAnnouncement(ctx context.Context,
 	return r.audience.HistoricalDeclarationAccess(ctx, tenantID, accountID, declarationHistoryLinksForAccount(submissions, accountID))
 }
 
-func (r *announcementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
+func (r *announcementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementRecipient, error) {
 	values, err := r.audience.ResolveAudienceEmails(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementRecipient, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementRecipient, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementRecipient{
+		rows = append(rows, &communication.PortalAnnouncementRecipient{
 			AccountID: value.AccountID, Email: value.Email, FirstName: value.FirstName, LastName: value.LastName,
 		})
 	}
 	return rows, nil
 }
 
-func (r *announcementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+func (r *announcementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementLetterChildStatus, error) {
 	values, err := r.audience.LetterChildStatuses(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementLetterChildStatus, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementLetterChildStatus, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementLetterChildStatus{
+		rows = append(rows, &communication.PortalAnnouncementLetterChildStatus{
 			StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName,
 			SchoolClass: value.SchoolClass, CanConfirm: value.CanConfirm, AcknowledgedAt: value.AcknowledgedAt,
 			AckFirstName: value.AckFirstName, AckLastName: value.AckLastName,
@@ -362,14 +365,14 @@ func (r *announcementRepository) LetterChildStatuses(ctx context.Context, tenant
 	return rows, nil
 }
 
-func (r *announcementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+func (r *announcementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementDeliveryRecipient, error) {
 	values, err := r.audience.ResolveDeliveryRecipients(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementDeliveryRecipient, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementDeliveryRecipient, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementDeliveryRecipient{
+		rows = append(rows, &communication.PortalAnnouncementDeliveryRecipient{
 			GuardianProfileID: value.GuardianProfileID, AccountID: value.AccountID, FirstName: value.FirstName,
 			LastName: value.LastName, Email: value.Email, HasPortalAccess: value.HasPortalAccess,
 			PortalLocale: value.PortalLocale,
@@ -384,14 +387,14 @@ func (r *announcementRepository) SchoolName(context.Context, int64) (string, err
 	return "", errors.New("resolve school name through organization tenancy capability")
 }
 
-func (r *announcementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+func (r *announcementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementRecipientStatus, error) {
 	values, err := r.audience.AudienceRecipients(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*usersModels.AnnouncementRecipientStatus, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementRecipientStatus, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementRecipientStatus{
+		rows = append(rows, &communication.PortalAnnouncementRecipientStatus{
 			AccountID: value.AccountID, FirstName: value.FirstName, LastName: value.LastName,
 			PortalLocale: value.PortalLocale, ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
 		})
@@ -399,7 +402,7 @@ func (r *announcementRepository) AudienceRecipients(ctx context.Context, tenantI
 	return rows, nil
 }
 
-func (r *announcementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
+func (r *announcementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope communication.PortalAnnouncementFeedScope) ([]*communication.PortalAnnouncementFeedItem, error) {
 	scopeValue := feedScope(scope)
 	values, err := r.audience.ListFeedForAccount(ctx, accountID, scopeValue)
 	if err != nil {
@@ -414,10 +417,11 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 		return nil, err
 	}
 	values = mergeFeedItems(values, history)
-	rows := make([]*usersModels.AnnouncementFeedItem, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementFeedItem, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementFeedItem{
+		rows = append(rows, &communication.PortalAnnouncementFeedItem{
 			ID: value.ID, TenantID: value.TenantID, Title: value.Title, Body: value.Body, Priority: value.Priority,
+			Poll:    valuesPolicy.AnnouncementResponseIsPoll(value.ResponseType),
 			LinkURL: value.LinkURL, RequiresAcknowledgement: value.RequiresAcknowledgement,
 			PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, ResponseType: value.ResponseType,
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
@@ -467,7 +471,7 @@ func feedItemTime(item *parentaudience.ParentAnnouncementFeedItem) time.Time {
 	return time.Time{}
 }
 
-func (r *announcementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) (int, error) {
+func (r *announcementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope communication.PortalAnnouncementFeedScope) (int, error) {
 	return r.audience.CountOutstandingForAccount(ctx, accountID, feedScope(scope))
 }
 
@@ -483,12 +487,12 @@ func (r *announcementRepository) MarkAcknowledged(ctx context.Context, tenantID,
 	return r.store.MarkAcknowledged(ctx, tenantID, announcementID, accountID, expectedPublishedAt)
 }
 
-func (r *announcementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementStats, error) {
+func (r *announcementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*communication.PortalAnnouncementStats, error) {
 	value, err := r.audience.Stats(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	return &usersModels.AnnouncementStats{
+	return &communication.PortalAnnouncementStats{
 		TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount,
 	}, nil
 }
@@ -497,12 +501,12 @@ func (r *announcementRepository) Stats(ctx context.Context, tenantID, announceme
 // its published-immutable conflict.
 func publishedError(err error) error {
 	if errors.Is(err, domain.ErrParentAnnouncementPublished) {
-		return usersModels.ErrAnnouncementPublished
+		return domain.ErrParentAnnouncementPublished
 	}
 	return err
 }
 
-func feedScope(scope usersModels.AnnouncementFeedScope) parentaudience.ParentAnnouncementFeedScope {
+func feedScope(scope communication.PortalAnnouncementFeedScope) parentaudience.ParentAnnouncementFeedScope {
 	return parentaudience.ParentAnnouncementFeedScope{TenantIDs: scope.TenantIDs, SystemOnlyTenantIDs: scope.SystemOnlyTenantIDs}
 }
 
@@ -512,12 +516,12 @@ func feedTenantIDs(scope parentaudience.ParentAnnouncementFeedScope) []int64 {
 	return append(ids, scope.SystemOnlyTenantIDs...)
 }
 
-func announcementValue(a *usersModels.ParentAnnouncement) *domain.ParentAnnouncement {
+func announcementValue(a *communication.PortalParentAnnouncement) *domain.ParentAnnouncement {
 	if a == nil {
 		return nil
 	}
 	return &domain.ParentAnnouncement{
-		ID: a.ID, TenantID: a.GetTenantID(), Title: a.Title, Body: a.Body, Priority: a.Priority,
+		ID: a.ID, TenantID: a.TenantID, Title: a.Title, Body: a.Body, Priority: a.Priority,
 		LinkURL: a.LinkURL, RequiresAcknowledgement: a.RequiresAcknowledgement, SendEmail: a.SendEmail,
 		PublishedAt: a.PublishedAt, ExpiresAt: a.ExpiresAt, Active: a.Active, CreatedBy: a.CreatedBy,
 		ResponseType: a.ResponseType, ResponseDeadline: a.ResponseDeadline,
@@ -527,25 +531,25 @@ func announcementValue(a *usersModels.ParentAnnouncement) *domain.ParentAnnounce
 	}
 }
 
-func announcementModel(value *domain.ParentAnnouncement) *usersModels.ParentAnnouncement {
+func announcementModel(value *domain.ParentAnnouncement) *communication.PortalParentAnnouncement {
 	if value == nil {
 		return nil
 	}
-	a := &usersModels.ParentAnnouncement{
+	a := &communication.PortalParentAnnouncement{
 		Title: value.Title, Body: value.Body, Priority: value.Priority, LinkURL: value.LinkURL,
 		RequiresAcknowledgement: value.RequiresAcknowledgement, SendEmail: value.SendEmail,
 		PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, Active: value.Active,
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
 		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
-		Declaration: usersModels.AnnouncementDeclarationSettings(value.Declaration),
+		Declaration: communication.PortalAnnouncementDeclarationSettings(value.Declaration),
 	}
 	a.ID = value.ID
 	a.CreatedAt = value.CreatedAt
 	a.UpdatedAt = value.UpdatedAt
-	a.SetTenantID(value.TenantID)
+	a.TenantID = value.TenantID
 	if value.Targets != nil {
-		a.Targets = make([]*usersModels.ParentAnnouncementTarget, 0, len(value.Targets))
+		a.Targets = make([]*communication.PortalParentAnnouncementTarget, 0, len(value.Targets))
 		for _, target := range value.Targets {
 			a.Targets = append(a.Targets, targetModel(target))
 		}
@@ -553,41 +557,42 @@ func announcementModel(value *domain.ParentAnnouncement) *usersModels.ParentAnno
 	if value.Options != nil {
 		a.Options = optionModels(value.Options)
 	}
+	stampAnnouncementKind(a)
 	return a
 }
 
-func targetModel(value *domain.ParentAnnouncementTarget) *usersModels.ParentAnnouncementTarget {
-	target := &usersModels.ParentAnnouncementTarget{
+func targetModel(value *domain.ParentAnnouncementTarget) *communication.PortalParentAnnouncementTarget {
+	target := &communication.PortalParentAnnouncementTarget{
 		ID: value.ID, AnnouncementID: value.AnnouncementID, TargetType: value.TargetType,
 		TargetRefID: value.TargetRefID, TargetRefText: value.TargetRefText, CreatedAt: value.CreatedAt,
 	}
-	target.SetTenantID(value.TenantID)
+	target.TenantID = value.TenantID
 	return target
 }
 
-func optionModels(values []*domain.ParentAnnouncementOption) []*usersModels.ParentAnnouncementOption {
+func optionModels(values []*domain.ParentAnnouncementOption) []*communication.PortalParentAnnouncementOption {
 	if values == nil {
 		return nil
 	}
-	options := make([]*usersModels.ParentAnnouncementOption, 0, len(values))
+	options := make([]*communication.PortalParentAnnouncementOption, 0, len(values))
 	for _, value := range values {
-		option := &usersModels.ParentAnnouncementOption{
+		option := &communication.PortalParentAnnouncementOption{
 			ID: value.ID, AnnouncementID: value.AnnouncementID, Label: value.Label,
 			Position: value.Position, CreatedAt: value.CreatedAt,
 		}
-		option.SetTenantID(value.TenantID)
+		option.TenantID = value.TenantID
 		options = append(options, option)
 	}
 	return options
 }
 
-func reminderModels(values []*parentaudience.ParentAnnouncementReminderRecipient) []*usersModels.AnnouncementPollReminderRecipient {
+func reminderModels(values []*parentaudience.ParentAnnouncementReminderRecipient) []*communication.PortalAnnouncementPollReminderRecipient {
 	if values == nil {
 		return nil
 	}
-	rows := make([]*usersModels.AnnouncementPollReminderRecipient, 0, len(values))
+	rows := make([]*communication.PortalAnnouncementPollReminderRecipient, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &usersModels.AnnouncementPollReminderRecipient{
+		rows = append(rows, &communication.PortalAnnouncementPollReminderRecipient{
 			AccountID: value.AccountID, Email: value.Email, FirstName: value.FirstName,
 			LastName: value.LastName, PortalLocale: value.PortalLocale,
 		})
@@ -595,4 +600,12 @@ func reminderModels(values []*parentaudience.ParentAnnouncementReminderRecipient
 	return rows
 }
 
-var _ usersModels.ParentAnnouncementRepository = (*announcementRepository)(nil)
+var _ ParentAnnouncementRepository = (*announcementRepository)(nil)
+
+func stampAnnouncementKind(a *communication.PortalParentAnnouncement) {
+	if a == nil {
+		return
+	}
+	a.Poll = valuesPolicy.AnnouncementIsPoll((*valuesPolicy.ParentAnnouncement)(a))
+	a.DeclarationMode = valuesPolicy.AnnouncementIsDeclaration((*valuesPolicy.ParentAnnouncement)(a))
+}

@@ -195,3 +195,13 @@ type BookingPickup interface {
 	WeekdayRows(ctx context.Context, studentID int64) ([]PickupWeekdayRow, error)
 	DeleteWeekdayRow(ctx context.Context, id int64) error
 }
+
+// PickupScheduleStaff wakes the staff views of a school's pickup schedule.
+type PickupScheduleStaff interface {
+	PickupScheduleChanged(tenantID int64) error
+}
+
+// PickupScheduleGuardians refreshes one child's card in the guardians' portal.
+type PickupScheduleGuardians interface {
+	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
+}

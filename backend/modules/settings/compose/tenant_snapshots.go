@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 

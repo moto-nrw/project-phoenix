@@ -40,7 +40,7 @@
       "backend/modules/transactionruntime/compose/tenant_runtime_test.go",
       "backend/modules/auditlog/handoff.go",
       "backend/test/tenant_runtime.go",
-      "backend/database/repositories/audit/integration/fixture_context_test.go"
+      "backend/modules/auditlog/internal/adapters/auditpostgres/integration/fixture_context_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, the seam test passes for both runtimes, and the architecture check reports no new violation and no stale baseline entry.",

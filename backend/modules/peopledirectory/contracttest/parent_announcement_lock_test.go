@@ -27,12 +27,12 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	draft := &userModels.ParentAnnouncement{
+	draft := api.ParentStoreAnnouncementValue(api.ParentStoreAnnouncementInput{
 		Title: "Entwurf mit Anhang", Body: "Testtext",
 		Priority: userModels.ParentAnnouncementPriorityInfo,
 		Active:   true, CreatedBy: chain.AccountID,
-	}
-	draft.SetTenantID(chain.TenantID)
+	})
+	draft.TenantID = chain.TenantID
 	require.NoError(t, repo.Create(ctx, draft))
 
 	runtimeCtx := testpkg.ContextForTenant(
@@ -83,12 +83,12 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	draft := &userModels.ParentAnnouncement{
+	draft := api.ParentStoreAnnouncementValue(api.ParentStoreAnnouncementInput{
 		Title: "Fremder Entwurf", Body: "Testtext",
 		Priority: userModels.ParentAnnouncementPriorityInfo,
 		Active:   true, CreatedBy: chain.AccountID,
-	}
-	draft.SetTenantID(chain.TenantID)
+	})
+	draft.TenantID = chain.TenantID
 	require.NoError(t, repo.Create(ctx, draft))
 
 	found, err := repo.FindByIDForUpdate(ctx, draft.ID)

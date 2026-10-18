@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // SchoolDirectory names the schools of the inbox rows and the announcement
@@ -19,19 +19,23 @@ type SchoolDirectory interface {
 }
 
 // WithInboxSchoolNames names the school of every inbox row through schools.
-func WithInboxSchoolNames(reads usersModels.ParentMessageReadRepository, schools SchoolDirectory) usersModels.ParentMessageReadRepository {
+func WithInboxSchoolNames(reads ParentMessageReadRepository, schools SchoolDirectory) ParentMessageReadRepository {
 	return schoolParentMessageReadRepository{ParentMessageReadRepository: reads, schools: schools}
 }
 
 // WithAnnouncementSchoolNames serves the announcement repository's school
 // names through schools.
-func WithAnnouncementSchoolNames(announcements usersModels.ParentAnnouncementRepository, schools SchoolDirectory) usersModels.ParentAnnouncementRepository {
+func WithAnnouncementSchoolNames(announcements ParentAnnouncementRepository, schools SchoolDirectory) ParentAnnouncementRepository {
 	return schoolParentAnnouncementRepository{ParentAnnouncementRepository: announcements, schools: schools}
 }
 
 type schoolParentAnnouncementRepository struct {
-	usersModels.ParentAnnouncementRepository
+	ParentAnnouncementRepository
 	schools SchoolDirectory
+}
+
+func (r schoolParentAnnouncementRepository) AnnouncementSchoolName(ctx context.Context, tenantID int64) (string, error) {
+	return r.SchoolName(ctx, tenantID)
 }
 
 func (r schoolParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
@@ -42,7 +46,7 @@ func (r schoolParentAnnouncementRepository) SchoolName(ctx context.Context, tena
 	return name, nil
 }
 
-func (r schoolParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
+func (r schoolParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope communication.PortalAnnouncementFeedScope) ([]*communication.PortalAnnouncementFeedItem, error) {
 	items, err := r.ParentAnnouncementRepository.ListFeedForAccount(ctx, accountID, scope)
 	if err != nil || len(items) == 0 {
 		return items, err
@@ -66,31 +70,31 @@ func (r schoolParentAnnouncementRepository) ListFeedForAccount(ctx context.Conte
 }
 
 type schoolParentMessageReadRepository struct {
-	usersModels.ParentMessageReadRepository
+	ParentMessageReadRepository
 	schools SchoolDirectory
 }
 
-func (r schoolParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (r schoolParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	return enrichInboxSchools(ctx, r.schools, rows, err)
 }
 
-func (r schoolParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r schoolParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)
 	return enrichInboxSchools(ctx, r.schools, rows, err)
 }
 
-func (r schoolParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r schoolParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianStudent(ctx, accountID, studentID)
 	return enrichInboxSchools(ctx, r.schools, rows, err)
 }
 
-func (r schoolParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.InboxThread, error) {
+func (r schoolParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs)
 	return enrichInboxSchools(ctx, r.schools, rows, err)
 }
 
-func enrichInboxSchools(ctx context.Context, schools SchoolDirectory, rows []*usersModels.InboxThread, queryErr error) ([]*usersModels.InboxThread, error) {
+func enrichInboxSchools(ctx context.Context, schools SchoolDirectory, rows []*communication.PortalInboxThread, queryErr error) ([]*communication.PortalInboxThread, error) {
 	if queryErr != nil || len(rows) == 0 {
 		return rows, queryErr
 	}
@@ -116,10 +120,10 @@ func enrichInboxSchools(ctx context.Context, schools SchoolDirectory, rows []*us
 // repositories a composition root hands to the retained services, next to
 // the staff-messaging read cursors.
 type MessagingRepositories struct {
-	ParentAnnouncement  usersModels.ParentAnnouncementRepository
-	ParentMessageThread usersModels.ParentMessageThreadRepository
-	ParentMessageRead   usersModels.ParentMessageReadRepository
-	StaffMessageRead    usersModels.StaffMessageReadRepository
+	ParentAnnouncement  ParentAnnouncementRepository
+	ParentMessageThread ParentMessageThreadRepository
+	ParentMessageRead   ParentMessageReadRepository
+	StaffMessageRead    communication.StaffReadRecords
 }
 
 // WithSchoolNames returns the repositories with the announcement and inbox

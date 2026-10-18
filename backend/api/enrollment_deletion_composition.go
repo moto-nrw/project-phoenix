@@ -3,12 +3,11 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	timetableProjection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
 )
 

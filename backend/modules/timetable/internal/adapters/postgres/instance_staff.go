@@ -230,6 +230,16 @@ func (s *Store) DeleteInstanceStaffByInstance(ctx context.Context, instanceID in
 		Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID), "delete instance staff by instance")
 }
 
+func (s *Store) DeleteInstanceStaffByStaff(ctx context.Context, staffID int64) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.instance_staff").
+		Where("tenant_id = ?", tenantID).Where("staff_id = ?", staffID), "delete instance staff by staff")
+	return stats.Rows, stats, err
+}
+
 func (s *Store) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string, excludedInstanceIDs []int64) (int64, domain.OperationStats, error) {
 	excluded := excludedInstanceIDs
 	if excluded == nil {

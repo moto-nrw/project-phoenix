@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
@@ -157,7 +158,7 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *appointmentc
 		if _, err := s.cfg.Outbox.Enqueue(ctx, ports.EnqueueRequest{
 			Kind:              kind,
 			Payload:           payload,
-			RelatedEntityType: ports.EmailRelatedTypeAppointment,
+			RelatedEntityType: portal.EmailRelatedTypeAppointment,
 			RelatedEntityID:   appointment.ID,
 		}); err != nil {
 			return fmt.Errorf("calendar: enqueue appointment e-mail: %w", err)
@@ -347,7 +348,7 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 		if current == nil || current.DeletedAt != nil {
 			return nil
 		}
-		if kind != ports.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
+		if kind != portal.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
 			return nil
 		}
 		recipients, err := s.reachableGuardianRecipients(txCtx, current.ID)
@@ -381,7 +382,7 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 		return false, nil
 	}
 	notificationType := "parent_appointment"
-	if kind == ports.EmailKindAppointmentReminder {
+	if kind == portal.EmailKindAppointmentReminder {
 		notificationType = "parent_appointment_reminder"
 	}
 
@@ -402,7 +403,7 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 
 	title, body := s.cfg.NotificationCopy(kind, locale)
 	priority := "normal"
-	if kind == ports.EmailKindAppointmentCancelled {
+	if kind == portal.EmailKindAppointmentCancelled {
 		priority = "high"
 	}
 
@@ -431,7 +432,7 @@ func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Co
 	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
-	title, body := s.cfg.NotificationCopy(ports.EmailKindAppointmentReminder, locale)
+	title, body := s.cfg.NotificationCopy(portal.EmailKindAppointmentReminder, locale)
 	if err := s.cfg.ReminderNotifier.NotifySynchronously(ctx, ports.Event{
 		Type: "parent_appointment_reminder", Title: title, Body: body,
 		DeepLink: parentCalendarDeepLink, Priority: "normal",
@@ -456,7 +457,7 @@ func (s *service) logger() *slog.Logger {
 // whose snapshot has become stale after an appointment lifecycle change.
 func (s *service) cancelPendingNotifications(ctx context.Context, appointmentID int64, reason string) error {
 	if s.cfg.Outbox != nil {
-		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, ports.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
+		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, portal.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
 			return err
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/uptrace/bun"
 )
 
@@ -22,9 +22,8 @@ type StaffMembers func(ctx context.Context, tenantIDs []int64) ([]StaffMember, e
 
 // StaffPersons resolves the persons of staff members by ID; an unknown ID is
 // absent. People Directory owns those rows; the composition root binds it.
-type StaffPersons interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Person, error)
-}
+type StaffPersonAccount struct{ AccountID *int64 }
+type StaffPersons func(ctx context.Context, ids []int64) (map[int64]*StaffPersonAccount, error)
 
 // GroupNames resolves group display names by ID; a group the caller cannot
 // see is absent. School Structure owns the groups; the composition root binds
@@ -34,12 +33,12 @@ type GroupNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 // NewStaffParentMessageReadRepository completes the read store's repository
 // contract: the staff-gated projections read the live staff accounts of each
 // school through members, their login accounts through persons.
-func NewStaffParentMessageReadRepository(db *bun.DB, links GuardianLinkRows, members StaffMembers, persons StaffPersons) usersModels.ParentMessageReadRepository {
+func NewStaffParentMessageReadRepository(db *bun.DB, links GuardianLinkRows, members StaffMembers, persons StaffPersons) ParentMessageReadRepository {
 	return parentMessageStaffRepository{ParentMessageReads: NewParentMessageReadRepository(db, links), members: members, persons: persons}
 }
 
 // WithInboxGroupNames names the group of every inbox row through groups.
-func WithInboxGroupNames(reads usersModels.ParentMessageReadRepository, groups GroupNames) usersModels.ParentMessageReadRepository {
+func WithInboxGroupNames(reads ParentMessageReadRepository, groups GroupNames) ParentMessageReadRepository {
 	return groupParentMessageReadRepository{ParentMessageReadRepository: reads, groups: groups}
 }
 
@@ -78,7 +77,7 @@ func staffAccountsByTenant(ctx context.Context, listMembers StaffMembers, person
 	for _, member := range members {
 		personIDs = append(personIDs, member.PersonID)
 	}
-	rows, err := persons.FindByIDs(ctx, personIDs)
+	rows, err := persons(ctx, personIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load staff persons for message projection: %w", err)
 	}
@@ -105,13 +104,13 @@ type parentMessageStaffRepository struct {
 	persons StaffPersons
 }
 
-var _ usersModels.ParentMessageReadRepository = parentMessageStaffRepository{}
+var _ ParentMessageReadRepository = parentMessageStaffRepository{}
 
 func (r parentMessageStaffRepository) staffAccounts(ctx context.Context) (map[int64][]int64, error) {
 	return staffAccountsByTenant(ctx, r.members, r.persons, nil)
 }
 
-func (r parentMessageStaffRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r parentMessageStaffRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	staffAccounts, err := r.staffAccounts(ctx)
 	if err != nil {
 		return nil, err
@@ -119,9 +118,9 @@ func (r parentMessageStaffRepository) ListThreadsForGuardianStudent(ctx context.
 	return r.ListThreadsForGuardianStudentWithStaff(ctx, accountID, studentID, staffAccounts)
 }
 
-func (r parentMessageStaffRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.InboxThread, error) {
+func (r parentMessageStaffRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error) {
 	if len(tenantIDs) == 0 {
-		return []*usersModels.InboxThread{}, nil
+		return []*communication.PortalInboxThread{}, nil
 	}
 	staffAccounts, err := staffAccountsByTenant(ctx, r.members, r.persons, tenantIDs)
 	if err != nil {
@@ -130,7 +129,7 @@ func (r parentMessageStaffRepository) ListThreadsForGuardianTenants(ctx context.
 	return r.ListThreadsForGuardianTenantsWithStaff(ctx, accountID, tenantIDs, staffAccounts)
 }
 
-func (r parentMessageStaffRepository) LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*usersModels.ReadCursor, error) {
+func (r parentMessageStaffRepository) LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*communication.ParentReadCursorRecord, error) {
 	staffAccounts, err := r.staffAccounts(ctx)
 	if err != nil {
 		return nil, err
@@ -139,26 +138,26 @@ func (r parentMessageStaffRepository) LatestReadCursorByOther(ctx context.Contex
 }
 
 type groupParentMessageReadRepository struct {
-	usersModels.ParentMessageReadRepository
+	ParentMessageReadRepository
 	groups GroupNames
 }
 
-func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
 
-func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
 
-func (r groupParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r groupParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianStudent(ctx, accountID, studentID)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
 
-func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.InboxThread, error) {
+func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
@@ -166,7 +165,7 @@ func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx cont
 // enrichInboxGroups fills each row's group name with one batched lookup. A
 // group the caller cannot see leaves the name empty, mirroring the former
 // LEFT JOIN; a lookup failure is returned, never swallowed.
-func enrichInboxGroups(ctx context.Context, groupNames GroupNames, rows []*usersModels.InboxThread, queryErr error) ([]*usersModels.InboxThread, error) {
+func enrichInboxGroups(ctx context.Context, groupNames GroupNames, rows []*communication.PortalInboxThread, queryErr error) ([]*communication.PortalInboxThread, error) {
 	if queryErr != nil {
 		return nil, queryErr
 	}
@@ -187,7 +186,7 @@ func enrichInboxGroups(ctx context.Context, groupNames GroupNames, rows []*users
 	return rows, nil
 }
 
-func inboxGroupID(row *usersModels.InboxThread) int64 {
+func inboxGroupID(row *communication.PortalInboxThread) int64 {
 	if row.GroupID == nil {
 		return 0
 	}

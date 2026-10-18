@@ -12,6 +12,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -80,7 +81,8 @@ func (m *mockPhaseService) DeleteImpact(_ context.Context, id int64) (*capabilit
 }
 
 func buildPhaseRouter(svc capability.PhaseAdministration) chi.Router {
-	rs := &Resource{PhaseService: svc}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, PhaseService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/phases", rs.listPhases)

@@ -1,24 +1,29 @@
 package messaging_test
 
-// Integration tests for the personal count scope (#3673): each staff member
-// chooses which parent conversations their own counter at "Nachrichten"
-// counts. The counts run on the real projection; only the preference store
-// and the caller's groups are stand-ins, because the store has its own test in
-// the composition package and the groups come from the caller context.
-
 import (
 	"context"
 	"log/slog"
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// Integration tests for the personal count scope (#3673): each staff member
+	// chooses which parent conversations their own counter at "Nachrichten"
+	// counts. The counts run on the real projection; only the preference store
+	// and the caller's groups are stand-ins, because the store has its own test in
+	// the composition package and the groups come from the caller context.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -58,18 +63,18 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
-		UserContext:      api.StaffStudentReads{},
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      parentStore.NewParentMessageRepository(db),
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      bc,
-		DB:               db,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
+		Persons:     newPersons(repos, db),
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
+		Broadcaster: bc,
+
 		Logger:           slog.Default(),
 		CountPreferences: &memoryCountPreferences{scopes: map[int64]string{}},
 		Groups:           groups,
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	return &fixture{db: db, svc: svc, bc: bc, chain: chain, staffAccount: staffAccount.ID}
@@ -240,6 +245,6 @@ func TestCountScope_DisabledSchoolCountsNothing(t *testing.T) {
 	startThreadWithQuestions(t, f, f.chain, "Frage")
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeAll)
 
-	f.svc.Settings = stubSettings{messagingEnabled: false}
+	f.svc.Settings = settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false})
 	assert.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 }

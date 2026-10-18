@@ -39,12 +39,8 @@ func (a pickupApprovalAdapter) EnrolledUntil(ctx context.Context, id int64) (*ti
 	date := timezone.Date(student.EnrolledUntil)
 	return &date, nil
 }
-func (a pickupApprovalAdapter) ActingStaffID(ctx context.Context) (int64, error) {
-	staffID, err := a.s.resolvePickupChangeStaff(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return staffID, nil
+func (a pickupApprovalAdapter) CurrentStaffID(ctx context.Context) (int64, bool, error) {
+	return a.s.userContext.CurrentStaffID(ctx)
 }
 func (a pickupApprovalAdapter) LockStudentAttendance(ctx context.Context, id int64) error {
 	return a.s.attendance.LockStudentAttendance(ctx, id)

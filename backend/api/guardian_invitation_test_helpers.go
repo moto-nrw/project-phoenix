@@ -8,11 +8,10 @@ import (
 	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -22,7 +21,7 @@ import (
 // the enrollment claims an acceptance runs and the token lifetime.
 type GuardianInvitationTestConfig struct {
 	Audit       auditModels.Command
-	Outbox      platformModels.OutboxResultEnqueuer
+	Outbox      MailResultOutbox
 	Enrollments GuardianEnrollmentClaims
 	Expiry      time.Duration
 	Logger      *slog.Logger
@@ -60,7 +59,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
-		expiry = GuardianTokenExpiryFallback
+		expiry = identityaccess.GuardianInvitationExpiryFallback
 	}
 	outbox := cfg.Outbox
 	if outbox == nil {
@@ -81,7 +80,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 			Audit: audit, Caregivers: caregivers,
 			GuardianMail: &GuardianInvitationWiring{
 				Schools:     organizations,
-				Outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
+				Outbox:      func() MailResultOutbox { return outbox },
 				Enrollments: claims,
 				ParentsURL:  "http://localhost:3000", FallbackExpiry: expiry, Logger: logger,
 			},
@@ -109,12 +108,12 @@ func (unclaimedEnrollments) BackfillGuardianAccountID(context.Context, int64, st
 // look at the queued mail.
 type discardingOutbox struct{}
 
-func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqueueRequest) error {
+func (discardingOutbox) EnqueueOutbox(context.Context, deliveryCompose.MailEnqueueRequest) error {
 	return nil
 }
 
-func (discardingOutbox) EnqueueOutboxWithResult(context.Context, platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
-	return platformModels.OutboxEnqueued{ID: 1}, nil
+func (discardingOutbox) EnqueueOutboxWithResult(context.Context, deliveryCompose.MailEnqueueRequest) (deliveryCompose.MailEnqueued, error) {
+	return deliveryCompose.MailEnqueued{ID: 1}, nil
 }
 
 // NewSchoolIdentityForTests returns the Identity & Access school identity

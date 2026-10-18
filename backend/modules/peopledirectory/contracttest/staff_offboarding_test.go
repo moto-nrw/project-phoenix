@@ -73,18 +73,17 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
-	deps := offboardingcompose.Dependencies{
-		DB: db, Access: api.StaffOffboardingAccess(authService),
-		People:     peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
-		Employment: api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
-			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
-			actor.AccountID = actorAccount.ID
-			actor.TenantID = tenant.FromContext(ctx)
-			return actor, nil
-		},
-		Cleanup: func(context.Context, int64) error { return nil },
+	deps, err := api.NewStaffOffboardingOwners(testpkg.NewDatabase(t, db), peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
+		api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))), nil)
+	require.NoError(t, err)
+	deps.Access = api.StaffOffboardingAccess(authService)
+	deps.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
+		actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
+		actor.AccountID = actorAccount.ID
+		actor.TenantID = tenant.FromContext(ctx)
+		return actor, nil
 	}
+	deps.Cleanup = func(context.Context, int64) error { return nil }
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{

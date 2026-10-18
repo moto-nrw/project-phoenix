@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -26,27 +26,6 @@ var invitationEmailBackoff = []time.Duration{
 	time.Second,
 	5 * time.Second,
 	15 * time.Second,
-}
-
-// StaffWelcomeDelay keeps the welcome behind the invitation while preserving
-// that delay in the durable outbox.
-const StaffWelcomeDelay = 30 * time.Second
-
-// systemRoleTranslations maps English system role names to the German
-// display names the invitation mail shows.
-var systemRoleTranslations = map[string]string{
-	"admin":     "Administrator",
-	"user":      "Betreuer",
-	"guest":     "Gast",
-	"guardian":  "Erziehungsberechtigter",
-	"lehrkraft": "Lehrkraft",
-}
-
-func translateRoleNameToGerman(roleName string) string {
-	if translated, ok := systemRoleTranslations[strings.ToLower(roleName)]; ok {
-		return translated
-	}
-	return roleName
 }
 
 // InvitationWiring is the configuration the invitation flows are composed
@@ -67,7 +46,7 @@ type InvitationWiring struct {
 	// carries; nil leaves them out and /help asks.
 	Settings tenantSettingsResolver
 	// Outbox persists the staff welcome in the invitation transaction.
-	Outbox func() platformModels.OutboxEnqueuer
+	Outbox func() MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
 }
@@ -122,22 +101,12 @@ type invitationDelivery struct {
 	invitations  func() identityaccess.SchoolInvitations
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
-	outbox       func() platformModels.OutboxEnqueuer
+	outbox       func() MailOutbox
 	welcomeDelay time.Duration
 }
 
 func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) string {
-	frontend := d.staffURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
-	}
-	// A school-portal role accepts on the school portal (#2207): the link
-	// must land where its login lives, otherwise the Lehrkraft sets a
-	// password in the staff portal and then cannot use it there.
-	if portal == identityaccess.InvitationPortalSchool && d.schoolURL != "" {
-		frontend = d.schoolURL
-	}
-	return frontend
+	return identityaccess.SchoolInvitationOrigin(portal, d.staffURL, d.schoolURL)
 }
 
 func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
@@ -150,32 +119,14 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 			slog.Int64("invitation_id", invitation.ID))
 		return
 	}
-	frontend := d.portalURL(portal)
-	subject := "Einladung zu moto"
-	if schoolName != "" {
-		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
-	}
+	mail := identityaccess.SchoolInvitationMail(invitation, schoolName, d.portalURL(portal), expiry)
 	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
 	// reach the OGS, not moto (#1936). The invitation names its school;
 	// create queues this after commit on a detached context that has no
 	// ambient tenant.
 	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, invitation.TenantID, d.logger)
-	message := email.Message{
-		From:     d.from,
-		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
-		To:       email.NewEmail("", invitation.Email),
-		Subject:  subject,
-		Template: "invitation.html",
-		Content: map[string]any{
-			"InvitationURL": fmt.Sprintf("%s/invite?token=%s", frontend, invitation.Token),
-			"RoleName":      translateRoleNameToGerman(invitation.RoleName),
-			"FirstName":     invitation.FirstName,
-			"LastName":      invitation.LastName,
-			"ExpiryHours":   int(expiry / time.Hour),
-			"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend),
-			"SchoolName":    schoolName,
-		},
-	}
+	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), mail)
+	message.ReplyTo = email.NewEmail(replyIdentity.Name, replyIdentity.Address)
 	meta := email.DeliveryMetadata{
 		Type:        "invitation",
 		ReferenceID: invitation.ID,
@@ -220,21 +171,15 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if err := identityaccessCompose.RunMailStepInSavepoint(ctx, resolveHelpURL); err != nil {
 		return fmt.Errorf("resolve staff welcome help URL: %w", err)
 	}
-	payload := map[string]any{
-		staffWelcomePayloadRecipientEmail: invitation.Email,
-		staffWelcomePayloadHelpURL:        helpURL,
-		staffWelcomePayloadFirstName:      trimmedValue(invitation.FirstName),
-		staffWelcomePayloadLogoURL:        fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend),
-		staffWelcomePayloadSchoolName:     schoolName,
-	}
+	payload := staffWelcomePayload(identityaccess.NewStaffWelcome(invitation, schoolName, frontend, helpURL))
 	deliverAfter := time.Time{}
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)
 	}
-	if err := d.outbox().EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:              platformModels.EmailKindStaffWelcome,
+	if err := d.outbox().EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+		Kind:              identityaccess.MailKindStaffWelcome,
 		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeSchoolInvitation,
+		RelatedEntityType: identityaccess.MailRelatedSchoolInvitation,
 		RelatedEntityID:   invitation.ID,
 		DeliverAfter:      deliverAfter,
 	}); err != nil {
@@ -274,14 +219,6 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 			slog.Any("error", result.Err),
 		)
 	}
-}
-
-// trimmedValue reads an optional name for a mail greeting.
-func trimmedValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }
 
 // InvitationCapability is what the invitation routes consume: the school

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
@@ -24,7 +23,7 @@ func NewDirectory(persons PersonDirectory, activities activitiesSvc.ActivityServ
 	if activities != nil {
 		catalog = activityCatalog{activities: activities}
 	}
-	return application.NewDirectory(directoryPeople{users: persons}, catalog, principals{}, logger)
+	return application.NewDirectory(directoryPeople{persons}, catalog, principals{}, logger)
 }
 
 func (c activityCatalog) Activities(ctx context.Context) ([]devicescan.DirectoryActivity, error) {
@@ -45,10 +44,10 @@ func (c activityCatalog) Activities(ctx context.Context) ([]devicescan.Directory
 	return result, nil
 }
 
-type directoryPeople struct{ users PersonDirectory }
+type directoryPeople struct{ PersonDirectory }
 
 func (d directoryPeople) Teachers(ctx context.Context) ([]application.DirectoryTeacher, error) {
-	teachers, err := d.users.ListTeachersWithStaffAndPerson(ctx)
+	teachers, err := d.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,36 +62,6 @@ func (d directoryPeople) Teachers(ctx context.Context) ([]application.DirectoryT
 			}
 		}
 		result = append(result, row)
-	}
-	return result, nil
-}
-
-func (d directoryPeople) Students(ctx context.Context, teacherIDs []int64) ([]devicescan.DirectoryStudent, error) {
-	var students []users.StudentWithGroupInfo
-	var err error
-	if teacherIDs == nil {
-		students, err = d.users.GetAllStudentsWithGroups(ctx)
-	} else {
-		students, err = d.users.GetStudentsWithGroupsByTeacherStaffIDs(ctx, teacherIDs)
-	}
-	if err != nil {
-		return nil, err
-	}
-	result := make([]devicescan.DirectoryStudent, 0, len(students))
-	for _, row := range students {
-		if row.Student == nil || row.Person == nil {
-			continue
-		}
-		student := row.Student
-		tag := ""
-		if student.Person.TagID != nil {
-			tag = *student.Person.TagID
-		}
-		result = append(result, devicescan.DirectoryStudent{
-			StudentID: student.ID, PersonID: student.PersonID,
-			FirstName: student.Person.FirstName, LastName: student.Person.LastName,
-			SchoolClass: student.SchoolClass, GroupName: row.GroupName, RFIDTag: tag,
-		})
 	}
 	return result, nil
 }

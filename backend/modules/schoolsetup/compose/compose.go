@@ -10,20 +10,18 @@ import (
 	"time"
 
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/application"
-
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetupview"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// Dependencies are the retained Settings Platform seams the wizard binds.
+// Dependencies are the Settings Platform seams the wizard binds.
 type Dependencies struct {
-	// Settings resolves the school's settings that decide which steps apply.
-	Settings configSvc.SettingsService
+	// Settings resolves the school's settings that decide which steps apply;
+	// the root binds it to the Settings Platform.
+	Settings schoolsetup.Settings
 }
 
 // New returns the wizard service.
@@ -33,7 +31,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 	}
 	store := configRepo.NewSchoolSetupRepository[schoolsetup.State](ambientRuntime{})
 	projection := schoolsetupview.New(ambientTx)
-	return application.New(store, progress{projection: projection}, settings{deps.Settings}, time.Now)
+	return application.New(store, progress{projection: projection}, deps.Settings, time.Now)
 }
 
 // NewStaffOnboarding returns the first steps of care workers (#3748): the
@@ -75,18 +73,6 @@ func (ambientRuntime) DB(ctx context.Context) bun.IDB {
 		panic(err)
 	}
 	return db
-}
-
-// settings resolves the two settings the steps depend on in the request's
-// tenant.
-type settings struct{ service configSvc.SettingsService }
-
-func (s settings) PresenceMode(ctx context.Context) (string, error) {
-	return s.service.ResolveString(ctx, configModel.KeyPresenceMode)
-}
-
-func (s settings) GroupMode(ctx context.Context) (string, error) {
-	return s.service.ResolveString(ctx, configModel.KeyGroupMode)
 }
 
 // progress adapts the projection to the service's port.

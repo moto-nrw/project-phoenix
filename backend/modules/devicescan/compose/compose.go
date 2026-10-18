@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -78,7 +77,7 @@ type Dependencies struct {
 	// binds it to the open-room move workflow; nil refuses the booking.
 	OpenRooms devicescan.OpenRoomMover
 	// Settings resolves tenant settings and is required.
-	Settings configSvc.SettingsService
+	Settings ScanSettings
 	// Now is the workflow clock; nil means the wall clock.
 	Now    func() time.Time
 	Logger *slog.Logger
@@ -118,7 +117,7 @@ func New(deps Dependencies) DeviceScan {
 		Presence:   deps.Presence,
 		Rooms:      deps.Rooms,
 		Principals: principals{},
-		People:     people{users: deps.Users},
+		People:     people{deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
 		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},

@@ -8,11 +8,10 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // The bindings below compose Enrollment's intake and change requests (#3565)
@@ -75,9 +74,9 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 	return enrollmentCompose.NewChangeRequests(deps)
 }
 
-// intakeMailOutbox binds Enrollment's mail outbox to the platform outbox;
-// nil without one.
-func intakeMailOutbox(outbox platformModels.OutboxEnqueuer) enrollmentCompose.MailOutbox {
+// intakeMailOutbox binds Enrollment's mail outbox to Delivery's; nil
+// without one.
+func intakeMailOutbox(outbox MailOutbox) enrollmentCompose.MailOutbox {
 	if outbox == nil {
 		return nil
 	}

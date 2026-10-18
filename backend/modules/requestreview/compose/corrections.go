@@ -9,21 +9,15 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	"github.com/uptrace/bun"
 )
 
-type AuditObservation = auditlog.Observation
-
-func NewCorrectionLog(db *bun.DB, people ReviewPeople, allowed func(context.Context) bool, observe func(AuditObservation)) (requestreview.CorrectionLog, error) {
-	if people == nil || allowed == nil {
-		return nil, errors.New("correction log: people and access policy are required")
-	}
-	query, err := auditcompose.NewCorrectionQueries(db, observe)
-	if err != nil {
-		return nil, err
+// NewCorrectionLog serves the direct correction history from the Audit
+// Platform's correction query, which the root builds (#4004).
+func NewCorrectionLog(query auditlog.CorrectionQuery, people ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
+	if query == nil || people == nil || allowed == nil {
+		return nil, errors.New("correction log: corrections, people and access policy are required")
 	}
 	return correctionLog{query: query, people: reviewDirectory{people: people}, allowed: allowed}, nil
 }
@@ -90,31 +84,11 @@ func (c correctionLog) History(ctx context.Context, filter requestreview.QueueFi
 		}
 		diff := make([]requestreview.OfferingRequestDiffResponse, 0, len(entries))
 		for _, entry := range entries {
-			diff = append(diff, requestreview.OfferingRequestDiffResponse{OfferingID: strconv.FormatInt(entry.OfferingID, 10), Label: entry.Label, Old: GermanOfferingDiffLabel(entry.OldState, entry.OldDays), New: GermanOfferingDiffLabel(entry.NewState, entry.NewDays)})
+			diff = append(diff, requestreview.OfferingRequestDiffResponse{OfferingID: strconv.FormatInt(entry.OfferingID, 10), Label: entry.Label, Old: requestreview.GermanOfferingDiffLabel(entry.OldState, entry.OldDays), New: requestreview.GermanOfferingDiffLabel(entry.NewState, entry.NewDays)})
 		}
 		result = append(result, requestreview.Row{Type: requestreview.TypeDirectCorrection, SortTime: row.ChangedAt, ID: row.ID, StudentID: row.StudentID, StudentName: name, DecidedAt: row.ChangedAt,
 			Data: requestreview.DirectCorrectionResponse{ID: strconv.FormatInt(row.ID, 10), StudentID: strconv.FormatInt(row.StudentID, 10), StudentName: name, ChangedAt: row.ChangedAt, ChangedByName: row.ActorName(), Reason: row.Reason, Diff: diff},
 		})
 	}
 	return result, next, nil
-}
-
-func GermanOfferingDiffLabel(state string, days []string) string {
-	switch state {
-	case "not_booked":
-		return "nicht gebucht"
-	case "removed":
-		return "abgemeldet"
-	}
-	if len(days) == 0 {
-		return "alle Betreuungstage"
-	}
-	labels := map[string]string{"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"}
-	parts := make([]string, 0, len(days))
-	for _, day := range days {
-		if label, found := labels[day]; found {
-			parts = append(parts, label)
-		}
-	}
-	return strings.Join(parts, ", ")
 }

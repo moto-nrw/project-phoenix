@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -30,7 +30,7 @@ func lockStaffShiftWrites(ctx context.Context, db *bun.DB, staffID int64) error 
 		return errors.New("tenant id is required")
 	}
 	key := fmt.Sprintf("staff-shift:%d:%d", tenantID, staffID)
-	if err := base.AcquireXactLock(ctx, db, key); err != nil {
+	if err := (transaction{lock: postgres.New(databaseRuntime(db)).AcquireXactLock}).acquireXactLock(ctx, key); err != nil {
 		return fmt.Errorf("lock staff shift writes: %w", err)
 	}
 	return nil

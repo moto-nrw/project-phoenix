@@ -46,8 +46,8 @@ func (f *pickupApprovalFixture) step(name string) error {
 func (f *pickupApprovalFixture) EnrolledUntil(context.Context, int64) (*calendar.Date, error) {
 	return nil, f.step("enrollment")
 }
-func (f *pickupApprovalFixture) ActingStaffID(context.Context) (int64, error) {
-	return f.staffID, f.step("staff")
+func (f *pickupApprovalFixture) CurrentStaffID(context.Context) (int64, bool, error) {
+	return f.staffID, true, f.step("staff")
 }
 func (f *pickupApprovalFixture) LockStudentAndExceptionDay(context.Context, int64, string) error {
 	return f.step("student-day-lock")

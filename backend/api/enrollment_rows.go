@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
@@ -13,9 +13,7 @@ import (
 // operations a binding calls.
 
 type enrollmentPersonRows interface {
-	Create(ctx context.Context, person *userModels.Person) error
 	FindByID(ctx context.Context, id any) (*userModels.Person, error)
-	Update(ctx context.Context, person *userModels.Person) error
 	FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
 }
 
@@ -35,13 +33,11 @@ type enrollmentGuardianProfileRows interface {
 	FindByEmails(ctx context.Context, emails []string) ([]*userModels.GuardianProfile, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
 	FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
-	LinkAccount(ctx context.Context, profileID int64, accountID int64) error
 }
 
 type enrollmentStudentGuardianRows interface {
 	Create(ctx context.Context, relationship *userModels.StudentGuardian) error
 	Update(ctx context.Context, relationship *userModels.StudentGuardian) error
-	Delete(ctx context.Context, id any) error
 	FindByStudentID(ctx context.Context, studentID int64) ([]*userModels.StudentGuardian, error)
 	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*userModels.StudentGuardian, error)
 	LinkIfNotExists(ctx context.Context, relationship *userModels.StudentGuardian) (bool, error)

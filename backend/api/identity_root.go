@@ -10,13 +10,12 @@ import (
 	"github.com/spf13/viper"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -126,8 +125,8 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, StaffURL: m.FrontendURL, SchoolURL: m.SchoolURL,
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
-			Outbox:       func() platformModels.OutboxEnqueuer { return m.Outbox() },
-			WelcomeDelay: StaffWelcomeDelay,
+			Outbox:       func() MailOutbox { return m.Outbox() },
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the role management of the module
 		// they are composed into.
@@ -154,7 +153,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	usercontextLogger := m.Logger.With("service", "usercontext")
 	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
 		Accounts:             module,
-		Persons:              m.PersonRows,
+		Persons:              callerPersons{rows: m.PersonRows, people: m.Persons},
 		Membership:           m.Membership,
 		StaffGroups:          m.StaffGroups,
 		SupervisedActivities: m.ActivityGroups.SupervisedActivityGroupIDs,
@@ -195,21 +194,17 @@ func operatorFrontendURLOf(operatorHostname, frontendURL string) (string, error)
 	return fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/")), nil
 }
 
-// emailChangeExpiry is the lifetime of an operator e-mail change link. It
-// deliberately reuses PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: both are one-time
-// verification links with the same delivery constraints and security
-// profile. If the two ever need to diverge, introduce
-// EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES. The 15-minute floor accounts for mail
-// delivery latency and the time the user needs.
+// emailChangeExpiry is the owner's lifetime of an operator e-mail change
+// link; the root reports when the owner raised the configured value.
 func emailChangeExpiry(passwordResetExpiry time.Duration, logger *slog.Logger) time.Duration {
-	if passwordResetExpiry >= 15*time.Minute {
-		return passwordResetExpiry
+	expiry := identityaccess.OperatorEmailChangeExpiry(passwordResetExpiry)
+	if expiry != passwordResetExpiry {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetExpiry.Minutes())),
+			slog.Int("effective_minutes", int(expiry.Minutes())),
+		)
 	}
-	logger.Warn("email change token expiry bumped to minimum 15 minutes",
-		slog.Int("configured_minutes", int(passwordResetExpiry.Minutes())),
-		slog.Int("effective_minutes", 15),
-	)
-	return 15 * time.Minute
+	return expiry
 }
 
 // identityMailRenderers render the Identity & Access mail kinds of the
@@ -218,14 +213,14 @@ func emailChangeExpiry(passwordResetExpiry time.Duration, logger *slog.Logger) t
 // out is Identity's rule, the root only reports Delivery's state.
 func identityMailRenderers(module *identityaccess.Module, m IdentityMaterial, logger *slog.Logger) map[string]deliveryCompose.MailRenderer {
 	return map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
+		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: m.DefaultFrom,
 		})),
-		platformModels.EmailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
+		identityaccess.MailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom:          m.DefaultFrom,
 			PrecedingEmailStatus: identityaccessCompose.NewGuardianWelcomeOrder(precedingMails{status: m.EmailStatus}),
 		})),
-		platformModels.EmailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
+		identityaccess.MailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
 			DefaultFrom: m.DefaultFrom, MailIdentity: m.MailIdentity, Logger: logger,
 			InvitationDeliverySent: module.SchoolInvitationDeliverySent,
 		}),

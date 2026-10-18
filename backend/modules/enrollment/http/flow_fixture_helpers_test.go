@@ -192,7 +192,7 @@ func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
 	return module
 }
 
-func testStudentEnrollment(db *bun.DB) TestDecisionStudentEnrollment {
+func testStudentEnrollment(db *bun.DB) api.EnrollmentDecisionPeople {
 	module, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	if err != nil {
 		panic(err)

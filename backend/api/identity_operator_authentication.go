@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -82,12 +82,12 @@ type operatorAuditLedger struct {
 }
 
 func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error {
-	row := &platformModels.OperatorAuditLog{
+	row := &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
 	if changes := operatorAuditChanges(entry); len(changes) > 0 {
-		if err := row.SetChanges(changes); err != nil {
+		if err := setOperatorAuditChanges(row, changes); err != nil {
 			return fmt.Errorf("encode operator audit log changes: %w", err)
 		}
 	}
@@ -111,14 +111,14 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 	}
 	changes := map[string]any{"schoolID": change.SchoolID, "email": change.Email}
 	switch entry.Action {
-	case platformModels.ActionCreate:
+	case identityaccess.OperatorAuditActionCreate:
 		changes["roleID"] = change.RoleID
 		changes["roleName"] = change.RoleName
-	case platformModels.ActionUpdate:
+	case identityaccess.OperatorAuditActionUpdate:
 		changes["roleID"] = change.RoleID
 		changes["roleName"] = change.RoleName
 		changes["removedRoles"] = change.RemovedRoles
-	case platformModels.ActionDelete:
+	case identityaccess.OperatorAuditActionDelete:
 		changes["accountDeactivated"] = change.AccountDeactivated
 	}
 	return changes
@@ -273,17 +273,13 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	return facts, nil
 }
 
-// latestPersonPerSchool keeps, per school, the most recently updated person
-// of the account.
+// latestPersonPerSchool is the People Directory's person of the account at
+// each school.
 func latestPersonPerSchool(persons []peopledirectory.Person, accountID int64) map[int64]peopledirectory.Person {
 	personByTenant := make(map[int64]peopledirectory.Person, len(persons))
-	for _, person := range persons {
-		if person.AccountID == nil || *person.AccountID != accountID {
-			continue
-		}
-		current, found := personByTenant[person.TenantID]
-		if !found || person.UpdatedAt.After(current.UpdatedAt) {
-			personByTenant[person.TenantID] = person
+	for key, person := range peopledirectory.LatestPersonsByAccountSchool(persons) {
+		if key.AccountID == accountID {
+			personByTenant[key.TenantID] = person
 		}
 	}
 	return personByTenant

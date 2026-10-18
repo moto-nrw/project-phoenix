@@ -10,13 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
+	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -24,13 +22,15 @@ import (
 type Resource = roomsHTTP.Resource
 
 type Dependencies struct {
-	Facilities  facilitiesService.Service
-	Settings    configService.SettingsService
-	UserContext CallerStaff
-	Active      studentpresence.Presence
-	Users       Students
-	Education   SchoolGroups
-	ListExport  *listexport.RendererService
+	Facilities facilitiesService.Service
+	// RoomHistorySettings resolves whether the room history is shown and how
+	// many days it spans; the root binds it to the Settings Platform.
+	RoomHistorySettings func(context.Context) (context.Context, bool, int)
+	UserContext         CallerStaff
+	Active              studentpresence.Presence
+	Users               Students
+	Education           SchoolGroups
+	ListExport          *listexport.RendererService
 }
 
 func NewResource(
@@ -38,17 +38,14 @@ func NewResource(
 	dependencies Dependencies,
 	logger *slog.Logger,
 	protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware)),
+	constraintViolation func(error) bool,
 ) *roomsHTTP.Resource {
-	if dependencies.Facilities == nil || dependencies.Settings == nil || dependencies.UserContext == nil ||
+	if dependencies.Facilities == nil || dependencies.RoomHistorySettings == nil || dependencies.UserContext == nil ||
 		dependencies.Active == nil || dependencies.Users == nil || dependencies.Education == nil ||
-		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil {
+		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil || constraintViolation == nil {
 		panic("rooms HTTP composition: all dependencies are required")
 	}
-	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger, protectedTenantRoutes))
-}
-
-func runtime(dependencies Dependencies, logger *slog.Logger, protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware))) roomsHTTP.Runtime {
-	return roomsHTTP.Runtime{
+	return roomsHTTP.NewResource(rooms, roomsHTTP.Runtime{
 		Protected:        protectedTenantRoutes,
 		Permission:       apiCommon.RequiresPermission,
 		ParseID:          apiCommon.ParseID,
@@ -63,14 +60,14 @@ func runtime(dependencies Dependencies, logger *slog.Logger, protectedTenantRout
 		Delete:           permissions.RoomsDelete,
 		Failure:          renderFailure,
 		Occupancy:        occupancyProjection(dependencies.Facilities),
-		HistoryConfig:    historyConfig(dependencies.Settings, logger),
+		HistoryConfig:    dependencies.RoomHistorySettings,
 		HistoryAllowed:   historyAllowed(dependencies.UserContext),
 		History:          roomHistory(dependencies.Facilities),
 		TodayBounds:      todayBounds,
 		ExportSnapshot:   snapshotExporter(dependencies),
-		ConstraintFailed: apiCommon.IsConstraintViolation,
+		ConstraintFailed: constraintViolation,
 		Log:              logger,
-	}
+	})
 }
 
 func respondPaginated(w http.ResponseWriter, r *http.Request, status int, data any, pagination roomsHTTP.Pagination, message string) {
@@ -133,16 +130,6 @@ func roomView(room facilitiesModule.Room, view facilitiesService.RoomWithOccupan
 	return roomsHTTP.RoomView{
 		Room: room, IsOccupied: view.IsOccupied, GroupName: view.GroupName, CategoryName: view.CategoryName,
 		StudentCount: view.StudentCount, SupervisorNames: view.SupervisorNames,
-	}
-}
-
-func historyConfig(settings configService.SettingsService, logger *slog.Logger) func(context.Context) (context.Context, bool, int) {
-	return func(ctx context.Context) (context.Context, bool, int) {
-		ctx = apiCommon.PrefetchSettings(ctx, settings,
-			configModel.KeyAttendanceLogEnabled, configModel.KeyRoomDetailVisibleDays)
-		enabled := configService.ResolveBoolOrDefault(ctx, settings, configModel.KeyAttendanceLogEnabled, false, logger)
-		days := configService.ResolveIntOrDefault(ctx, settings, configModel.KeyRoomDetailVisibleDays, 7, logger)
-		return ctx, enabled, days
 	}
 }
 

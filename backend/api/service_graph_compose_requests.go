@@ -6,29 +6,30 @@ import (
 	"fmt"
 	"strings"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -50,14 +51,14 @@ func composeDelivery(b graphBuild) (graphBuild, error) {
 	defaultFrom := b.graph.DefaultFrom
 	appointments := b.TimetableWiring.AppointmentRenderer(defaultFrom)
 	renderers := map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindParentAnnouncement: deliveryCompose.MailRendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
-			DefaultFrom: defaultFrom,
-		})),
-		platformModels.EmailKindParentMessage:        deliveryCompose.MailRendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
-		platformModels.EmailKindAppointmentPublished: appointments,
-		platformModels.EmailKindAppointmentUpdated:   appointments,
-		platformModels.EmailKindAppointmentCancelled: appointments,
-		platformModels.EmailKindAppointmentReminder:  appointments,
+		communication.MailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
+			DefaultFrom: communication.MailAddress(defaultFrom),
+		}))),
+		communication.MailKindParentMessage:           deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: communication.MailAddress(defaultFrom)}, deliveryPolicy.ParentDeliveryPolicy{}))),
+		calendarService.EmailKindAppointmentPublished: appointments,
+		calendarService.EmailKindAppointmentUpdated:   appointments,
+		calendarService.EmailKindAppointmentCancelled: appointments,
+		calendarService.EmailKindAppointmentReminder:  appointments,
 	}
 	for kind, renderer := range b.Enrollment.MailRenderers(defaultFrom) {
 		renderers[kind] = renderer
@@ -235,11 +236,16 @@ func composeEnrollmentDecisions(b graphBuild) (graphBuild, error) {
 	b.enrollmentCareOfferings = enrollmentCompose.NewCareOfferingRecords(b.CarePlan)
 	b.enrollmentDecisions = b.Enrollment.Decisions(b.enrollmentDecisionSources())
 	b.graph.EnrollmentDecision = enrollmentCompose.PublicDecisions(b.enrollmentDecisions)
+	structure, presence, err := NewGradeTransitionOwners(b.DB)
+	if err != nil {
+		return b, fmt.Errorf("compose grade transition owners: %w", err)
+	}
 	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
-		DB: b.DB.Pool(), Directory: b.Persons, Membership: b.Membership, Rosters: b.rosterReconciler,
+		DB: b.DB.Pool(), Structure: structure, Presence: presence, Directory: b.Persons, Membership: b.Membership, Rosters: b.rosterReconciler,
 		LockRecurrenceWrites:  b.TimetableWiring.RecurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: b.late.careBookings.ResyncOfferingSourcedTemplates,
-		Logger:                b.Logger.With("workflow", "grade_transition"), Audit: b.graph.Audit, Clock: b.now,
+		Logger:                b.Logger.With("workflow", "grade_transition"), Audit: b.graph.Audit, ClassListEntryRecord: GradeTransitionClassListRecord,
+		Clock: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose grade transition workflow: %w", err)
@@ -460,21 +466,21 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	portal := b.Platform.ParentPortal
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
-		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: StaffStudentReads{Caller: b.callerContext},
-		Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
-		Logger: b.Logger.With("service", "messaging"), Notifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
+		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(b.graph.Users), UserContext: StaffStudentReads{Caller: b.callerContext},
+		Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Logger: b.Logger.With("service", "messaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
-		Outbox: b.outbox(), GuardianProfiles: b.People.GuardianProfiles, Schools: b.People.SchoolNames,
+		Outbox: b.outbox(), GuardianProfiles: BindParentMessageGuardianProfiles(b.People.GuardianProfiles), Schools: b.People.SchoolNames,
 		LoginImages: b.settingsService, ParentsURL: b.parentsURL, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: b.graph.Users, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
-		Logger: b.Logger.With("service", "staffmessaging"), Notifier: b.graph.Notifications,
+		Persons: BindStaffSenderNames(b.graph.Users), Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
+		Logger: b.Logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	calendar := b.TimetableWiring.Calendar(b.calendarDependencies())
 	b.graph.Calendar, b.graph.CalendarFeedCleanup = calendar, calendar
 	return b, nil
@@ -515,12 +521,12 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.Parent = parentportalcompose.New(b.parentPortalDependencies(profiles))
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: b.settingsService, Outbox: b.late.emailOutbox,
-		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: b.graph.Notifications,
-		ReminderNotifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
+		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: OutboxEnqueuer{Outbox: b.late.emailOutbox},
+		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
+		ReminderNotifier: BindCommunicationDurableNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,
 		Fingerprints: SecurityFingerprints{}, Logger: b.Logger.With("service", "announcement"),
-	})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	b.graph.ParentAnnouncement = announcements
 	b.late.guardianNoticePublisher = announcements
 	return b, nil
@@ -532,6 +538,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
+		GuardianChanges: ParentGuardianChanges(),
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},
@@ -546,17 +553,17 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		PersonRepo: NewParentPersonReads(people.Persons), ChangeRequestRepo: NewParentDataRequestReads(b.CarePlan),
 		CareRequestRepo: NewParentCareRequestReads(b.CarePlan), ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
 		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(b.CarePlan)),
-		FamilyProtectionEvents:    peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool()),
-		ParentRequestShares:       peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool()),
+		FamilyProtectionEvents:    BindParentFamilyProtectionReads(peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool())),
+		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(b.DB.Pool())), StudentAudit: NewParentStudentAudit(b.graph.StudentAudit),
-		MessageThreadRepo: portal.ParentMessageThread, MessageRepo: messages, MessageReadRepo: portal.ParentMessageRead,
-		Conversations: communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+		MessageThreadRepo: BindParentMessageThreadAccess(portal.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(portal.ParentMessageRead),
+		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: portal.ParentMessageThread, MessageRepo: messages, ReadRepo: portal.ParentMessageRead,
 			Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent"),
-		}),
+		})),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(b.graph.ArrivalSchedule),
 		PickupSchedules: NewParentPickupSchedules(b.graph.PickupSchedule), CareRequests: b.graph.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(b.excusedRequests),
-		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: portal.ParentAnnouncement,
+		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(portal.ParentAnnouncement),
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool())),
 		StudentConsents: NewParentStudentConsents(b.graph.StudentConsents), StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),

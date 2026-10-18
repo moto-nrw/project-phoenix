@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
@@ -63,7 +63,7 @@ func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.Bo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return careplanCompose.NewBookingMaterialization(careplanCompose.BookingMaterializationDependencies{
+	deps := careplanCompose.BookingMaterializationDependencies{
 		Catalog:     inputs.Catalog,
 		Rosters:     bookingRosters{timetable: inputs.Timetable, students: inputs.Students, rosters: inputs.Rosters},
 		Templates:   bookingTemplates{timetable: inputs.Timetable},
@@ -79,10 +79,14 @@ func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.Bo
 		LockTemplateRecurrence:      inputs.LockRecurrence,
 		ResyncPickupAutoExcusals:    inputs.ResyncPickupAutoExcusals,
 		ClearPickupWeekdayExtension: inputs.ClearPickupWeekdayExtension,
-		AnnouncePickupChange:        announceOfferingPickupChange(inputs.Broadcaster, inputs.GuardianNotifier, logger),
+		PickupGuardians:             inputs.GuardianNotifier,
 		Today:                       inputs.Today,
 		Logger:                      logger,
-	})
+	}
+	if inputs.Broadcaster != nil {
+		deps.PickupStaff = pickupScheduleBroadcaster{broadcaster: inputs.Broadcaster}
+	}
+	return careplanCompose.NewBookingMaterialization(deps)
 }
 
 // timetableOfferingRosterResync serves the Timetable owner's roster resync
@@ -597,33 +601,11 @@ type bookingGuardianNotifier interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
 
-// announceOfferingPickupChange announces a changed offering pickup
-// projection once Care Plan's transaction committed: staff views refetch the
-// pickup schedule, and the guardians' child cards refresh. Nil without a
-// broadcaster and a notifier.
-func announceOfferingPickupChange(broadcaster realtime.Broadcaster, notifier bookingGuardianNotifier, logger *slog.Logger) func(int64, []int64) {
-	if broadcaster == nil && notifier == nil {
-		return nil
-	}
-	return func(tenantID int64, studentIDs []int64) {
-		if len(studentIDs) == 0 {
-			return
-		}
-		if broadcaster != nil {
-			source := "offering_pickup_projection"
-			event := realtime.NewEvent(realtime.EventPickupScheduleChanged, "", realtime.EventData{Source: &source})
-			if err := broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-				logger.Warn(
-					"offering pickup projection: failed to broadcast schedule change",
-					slog.Int64("tenant_id", tenantID),
-					slog.String("error", err.Error()),
-				)
-			}
-		}
-		if notifier != nil {
-			for _, studentID := range studentIDs {
-				notifier.BroadcastChildUpdateToGuardians(tenantID, studentID)
-			}
-		}
-	}
+// pickupScheduleBroadcaster wakes the staff pickup schedule views through the
+// realtime hub.
+type pickupScheduleBroadcaster struct{ broadcaster realtime.Broadcaster }
+
+func (b pickupScheduleBroadcaster) PickupScheduleChanged(tenantID int64) error {
+	source := "offering_pickup_projection"
+	return b.broadcaster.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventPickupScheduleChanged, "", realtime.EventData{Source: &source}))
 }

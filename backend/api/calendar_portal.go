@@ -7,9 +7,9 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -131,11 +131,11 @@ func calendarPushSuppressed(err error) bool {
 func calendarNotificationCopy(kind, locale string) (string, string) {
 	notificationKind := deliveryCompose.ParentAppointmentPublished
 	switch kind {
-	case platformModels.EmailKindAppointmentUpdated:
+	case calendarService.EmailKindAppointmentUpdated:
 		notificationKind = deliveryCompose.ParentAppointmentUpdated
-	case platformModels.EmailKindAppointmentCancelled:
+	case calendarService.EmailKindAppointmentCancelled:
 		notificationKind = deliveryCompose.ParentAppointmentCancelled
-	case platformModels.EmailKindAppointmentReminder:
+	case calendarService.EmailKindAppointmentReminder:
 		notificationKind = deliveryCompose.ParentAppointmentReminder
 	}
 	return deliveryCompose.ParentAppointmentCopy(locale, notificationKind)

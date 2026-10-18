@@ -137,6 +137,9 @@ type Command interface {
 	StudentPortalCommand
 	FamilyProtectionCommand
 	AccountLifecycleCommand
+	PersonDetailsCommand
+	EnrollmentPersonCommand
+	PersonRemovalCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -178,6 +181,9 @@ type engine interface {
 	guardianEngine
 	guardianPortalEngine
 	GuardianLifecycleCommand
+	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
+	PersonDetailsCommand
+	PersonRemovalCommand
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error

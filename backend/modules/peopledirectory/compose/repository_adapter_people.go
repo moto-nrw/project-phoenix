@@ -5,8 +5,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -91,13 +91,13 @@ func NewGuardianPhoneNumberRepository(db *bun.DB) peoplePorts.GuardianPhoneNumbe
 }
 
 // NewFamilyProtectionEventRepository is the family protection event repository.
-func NewFamilyProtectionEventRepository(db *bun.DB) userModels.FamilyProtectionEventRepository {
+func NewFamilyProtectionEventRepository(db *bun.DB) peoplePorts.FamilyProtectionRecords {
 	return usersRepo.NewFamilyProtectionEventRepository(NewLegacyRepositoryRuntime(db))
 }
 
 // NewParentRequestShareEventRepository is the parent request share event
 // repository.
-func NewParentRequestShareEventRepository(db *bun.DB) userModels.ParentRequestShareEventRepository {
+func NewParentRequestShareEventRepository(db *bun.DB) peoplePorts.ParentRequestShareRecords {
 	return usersRepo.NewParentRequestShareEventRepository(NewLegacyRepositoryRuntime(db))
 }
 

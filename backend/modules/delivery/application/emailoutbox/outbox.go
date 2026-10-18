@@ -162,31 +162,70 @@ type Enqueued struct {
 // is responsible for being inside a tenant tx (otherwise the RLS policy will
 // reject the INSERT).
 func (s *Service) Enqueue(ctx context.Context, req EnqueueRequest) (*Enqueued, error) {
+	recipient, _ := req.Payload["recipient_email"].(string)
+	return s.enqueue(ctx, enqueueInput{
+		kind: req.Kind, payloadMissing: req.Payload == nil, recipient: recipient,
+		encode:      func() ([]byte, error) { return json.Marshal(req.Payload) },
+		relatedType: req.RelatedEntityType, relatedID: req.RelatedEntityID,
+		idempotencyKey: req.IdempotencyKey, deliverAfter: req.DeliverAfter,
+	})
+}
+
+// EnqueueJSON exposes a native typed-object command on the same actual service.
+// Validation, school resolution, encoding and persistence share the old path.
+func (s *Service) EnqueueJSON(ctx context.Context, kind string, payload map[string]json.RawMessage, relatedType string, relatedID int64, idempotencyKey string, deliverAfter time.Time) (int64, error) {
+	var recipient string
+	if err := json.Unmarshal(payload["recipient_email"], &recipient); err != nil {
+		recipient = ""
+	}
+	row, err := s.enqueue(ctx, enqueueInput{
+		kind: kind, payloadMissing: payload == nil, recipient: recipient,
+		encode:      func() ([]byte, error) { return json.Marshal(payload) },
+		relatedType: relatedType, relatedID: relatedID, idempotencyKey: idempotencyKey, deliverAfter: deliverAfter,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return row.ID, nil
+}
+
+type enqueueInput struct {
+	kind           string
+	payloadMissing bool
+	recipient      string
+	encode         func() ([]byte, error)
+	relatedType    string
+	relatedID      int64
+	idempotencyKey string
+	deliverAfter   time.Time
+}
+
+func (s *Service) enqueue(ctx context.Context, req enqueueInput) (*Enqueued, error) {
 	if s == nil || s.delivery == nil {
 		return nil, errors.New("outbox service not wired")
 	}
-	if req.Kind == "" {
+	if req.kind == "" {
 		return nil, errors.New("outbox kind is required")
 	}
-	if req.Payload == nil {
+	if req.payloadMissing {
 		return nil, errors.New("outbox payload is required")
 	}
-	recipient, ok := req.Payload["recipient_email"].(string)
-	if !ok || recipient == "" {
+	recipient := req.recipient
+	if recipient == "" {
 		return nil, errors.New("outbox recipient_email is required")
 	}
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("enqueue email outbox row: tenant is required: %w", err)
 	}
-	payload, err := json.Marshal(req.Payload)
+	payload, err := req.encode()
 	if err != nil {
 		return nil, fmt.Errorf("enqueue email outbox row: encode payload: %w", err)
 	}
 	stored, err := s.delivery.EnqueueEmail(ctx, DurableEmail{
-		TenantID: tenantID.Int64(), Template: req.Kind, Recipient: recipient, Payload: payload,
-		RelatedType: req.RelatedEntityType, RelatedID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
-		DeliverAfter: req.DeliverAfter,
+		TenantID: tenantID.Int64(), Template: req.kind, Recipient: recipient, Payload: payload,
+		RelatedType: req.relatedType, RelatedID: req.relatedID, IdempotencyKey: req.idempotencyKey,
+		DeliverAfter: req.deliverAfter,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("enqueue email outbox row: %w", err)

@@ -4700,11 +4700,11 @@ unsupported schema versions, invalid enum values, missing or conflicting table
 owners, unsafe or overlapping projection grants, stale legacy symbols,
 duplicate classifications, stale packages, unknown dependencies, and
 logically overlapping rules. Change
-`schema_version` only when the JSON shape changes. Change `policy_epoch` only
+`schema_version` only when the JSON wire grammar changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
-Policy candidates must use `schema_version: 4`. Schema 4 adds optional
+Policy candidates must use `schema_version: 5`. Schema 4 added optional
 `source_package` and `target_package` rule selectors (ADR 0057 addendum,
 #4078). Each is an exact, classified module-relative package path. An omitted
 selector keeps the owner/role reach; an explicitly empty, null, unknown,
@@ -4717,17 +4717,29 @@ Adding a selector to an otherwise unchanged rule is narrowing. Removing or
 changing it is compared as a possible permission increase, including paths
 whose owner/role pairs are identical. Exact selectors also participate in
 rule-overlap detection, permission memoization and the target owner graph.
-For a #4078 successor, restrict the reclassified source and/or target package
-when owner/role selectors alone would grant reach to unchanged packages.
-The approved transition, deleted-rule/scope checks and non-increasing rule
-count still apply. This schema change grants no owner any permission itself.
+The completed #4078 cutover removed its owner-transition acceptors and
+historical Common fixtures. Ordinary ownership, classification and permission
+strictness applies to every candidate; selectors remain intersections only.
+
+Schema 5 replaces the removed `inbound` kind with the distinct engineering
+kind `tool`. The canonical tooling owners are `architecture-check` and
+`dev-tools`; all six existing package roles and test roles remain unchanged.
+Tools own no writable data and are not nodes of the domain dependency graph.
+No live policy may name `inbound`, including an owner-kind rule selector.
+`own-test.tool.contract` succeeds `own-test.inbound.contract` with identical
+scopes, target and same-owner restriction; no other rule changes.
 
 Only `LoadBasePolicyAndManifest`, reading an immutable Git base, accepts
-schema 2 or 3 during the rollout and normalizes it to 4 before full validation.
-Old schemas cannot carry package selectors. Candidates never use that path.
+schemas 2, 3 or 4. Schema 2/3 still rejects package selectors, and every old
+schema rejects the new `tool` spelling. Full historical validation runs before
+any wire upgrade. The final schema-4 inventory, whose only inbound-kind
+owners are the two canonical tools, uses schema-5 tooling vocabulary in the
+ordinary strictness comparison. Owner IDs, package classifications, scopes
+and permissions do not change. Older histories with actual inbound HTTP
+owners remain historical schema-4 policies, never aliases for tools or an
+ownership-transition exemption. Candidates never use this decoder path.
 Schema 1, future schemas, unknown fields and invalid metadata still fail.
-Remove the older-base allowance once all supported comparison bases use
-schema 4. Evidence and projection schemas remain separate contracts.
+Evidence and projection schemas remain separate contracts.
 
 #3416 leaves `policy_epoch` at the checkout's existing value, 17. Adding issue
 metadata and deleting unused permissions grants no new architectural permission

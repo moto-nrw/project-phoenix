@@ -39,7 +39,7 @@
     "sources": [
       "backend/modules/peopledirectory/internal/adapters/postgres/directory_reads.go",
       "backend/modules/peopledirectory/internal/adapters/postgres/directory_records.go",
-      "backend/database/repositories/users/projection_rows.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go",
       "backend/modules/guardianlinkview/compose/new.go",
       "backend/api/people_directory_roots.go",
       "backend/api/staff_notice_names.go",

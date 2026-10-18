@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
@@ -41,10 +40,10 @@ type CallerReader interface {
 	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 }
 
-// WriteScopeReader is the slice of the settings service the arrival
-// exceptions resolve operations.school_portal_write_scope with.
-type WriteScopeReader interface {
-	ResolveString(ctx context.Context, key string) (string, error)
+// ArrivalWriteScope decides whether the school portal may write class
+// arrival exceptions; the root binds it to the Settings Platform.
+type ArrivalWriteScope interface {
+	SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error)
 }
 
 // ClassDayDependencies wires the school-portal capability: the day report
@@ -64,7 +63,7 @@ type ClassDayDependencies struct {
 	EmergencyContacts      EmergencyContacts
 	AccessLog              AccessLog
 	ClassArrivalExceptions careplan.ClassArrivalExceptions
-	Settings               WriteScopeReader
+	WriteScope             ArrivalWriteScope
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
 }
@@ -83,8 +82,8 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		caller = callerBinding{context: deps.Caller}
 	}
 	var writeScope application.ArrivalWriteScope
-	if deps.Settings != nil {
-		writeScope = writeScopeBinding{settings: deps.Settings}
+	if deps.WriteScope != nil {
+		writeScope = deps.WriteScope
 	}
 	app := application.ClassDayDependencies{
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
@@ -259,16 +258,4 @@ func (b callerBinding) StaffID(ctx context.Context) (int64, error) {
 		return 0, classday.ErrStaffRecordRequired
 	}
 	return staffID, nil
-}
-
-// writeScopeBinding applies operations.school_portal_write_scope: only the
-// class arrival exception scope opens the school's write.
-type writeScopeBinding struct{ settings WriteScopeReader }
-
-func (b writeScopeBinding) SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error) {
-	scope, err := b.settings.ResolveString(ctx, configModel.KeySchoolPortalWriteScope)
-	if err != nil {
-		return false, err
-	}
-	return scope == configModel.SchoolPortalWriteScopeClassArrivalExceptions, nil
 }

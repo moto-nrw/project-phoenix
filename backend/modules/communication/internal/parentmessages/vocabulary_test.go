@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	"github.com/stretchr/testify/assert"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
@@ -19,14 +20,14 @@ import (
 func TestParentEventVocabularyMatchesOwner(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, usersModels.ParentMessageEventRequestCreated, parentmessaging.EventRequestCreated)
-	assert.Equal(t, usersModels.ParentMessageEventRequestStatus, parentmessaging.EventRequestStatus)
-	assert.Equal(t, usersModels.ParentMessageSenderGuardian, parentmessaging.ActorGuardian)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, parentmessaging.ActorStaff)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusOpen, parentmessaging.RequestStatusOpen)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusDone, parentmessaging.RequestStatusDone)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, parentmessaging.RequestStatusRejected)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusWithdrawn, parentmessaging.RequestStatusWithdrawn)
+	assert.Equal(t, messaging.ParentMessageEventRequestCreated, parentmessaging.EventRequestCreated)
+	assert.Equal(t, messaging.ParentMessageEventRequestStatus, parentmessaging.EventRequestStatus)
+	assert.Equal(t, messaging.ParentMessageSenderGuardian, parentmessaging.ActorGuardian)
+	assert.Equal(t, messaging.ParentMessageSenderStaff, parentmessaging.ActorStaff)
+	assert.Equal(t, messaging.ParentMessageRequestStatusOpen, parentmessaging.RequestStatusOpen)
+	assert.Equal(t, messaging.ParentMessageRequestStatusDone, parentmessaging.RequestStatusDone)
+	assert.Equal(t, messaging.ParentMessageRequestStatusRejected, parentmessaging.RequestStatusRejected)
+	assert.Equal(t, messaging.ParentMessageRequestStatusWithdrawn, parentmessaging.RequestStatusWithdrawn)
 
 	// The gate resolves the registry's key: a renamed setting must fail here,
 	// not silently fail open in production.

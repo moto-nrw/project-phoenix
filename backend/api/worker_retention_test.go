@@ -33,6 +33,10 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	owners, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
+	students, err := NewStudentTestRetention(db, owners.Audit, owners.Settings)
+	require.NoError(t, err)
+	staff, err := newStaffRetention(db, owners.Audit, owners.Settings, nil)
+	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,
 		settings:             owners.Settings,
@@ -49,7 +53,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		submissionLimits:     owners.SubmissionLimits,
 		settingAudit:         owners.SettingAudit,
 		exportTransfers:      owners.ExportTransfers,
-	})
+	}, students, staff)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -69,7 +73,7 @@ func (r workerRetention) runSteps(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("retention step %s: %w", step.Kind, err)
 		}
-		if outcome.Deleted == 0 {
+		if outcome.Deleted == 0 || step.LogsSubjects {
 			continue
 		}
 		if err := r.log(ctx, step.Kind, outcome); err != nil {
@@ -105,6 +109,22 @@ func (s retentionSuite) loggedDeletions(t *testing.T, tenantID int64, kind strin
 	return counts
 }
 
+type studentDeletionAudit struct {
+	RecordsDeleted       int `bun:"records_deleted"`
+	EnrollmentReferences int `bun:"enrollment_references"`
+}
+
+func (s retentionSuite) studentDeletionAudit(t *testing.T, tenantID, studentID int64) studentDeletionAudit {
+	t.Helper()
+	var audit studentDeletionAudit
+	require.NoError(t, s.admin.NewRaw(`
+		SELECT records_deleted, (metadata->'counts'->>'enrollment_references')::integer AS enrollment_references
+		FROM audit.data_deletions
+		WHERE tenant_id = ? AND student_id = ? AND deletion_type = 'student_retention'`, tenantID, studentID).
+		Scan(context.Background(), &audit))
+	return audit
+}
+
 func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 	t.Parallel()
 
@@ -113,6 +133,8 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
+		settingsModule.KeyGDPRStudentRetentionDays,
+		settingsModule.KeyGDPRTimeTrackingRetentionDays,
 	}, retentionSettingKeys)
 }
 

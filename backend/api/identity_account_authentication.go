@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -249,7 +249,7 @@ func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (
 	if err != nil {
 		return preparing, err
 	}
-	if !school.Active || school.IsDeleted() {
+	if !school.Operational() {
 		return preparing, nil
 	}
 	entry := identityaccess.DemoSchoolEntry{Exists: true, Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
@@ -325,7 +325,7 @@ func (d schoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64)
 	}
 	result := make([]identityaccess.School, 0, len(schools))
 	for _, school := range schools {
-		if school.Active && !school.IsDeleted() {
+		if school.Operational() {
 			result = append(result, schoolFact(school))
 		}
 	}
@@ -346,7 +346,7 @@ func (d schoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizati
 	}
 	ids := make([]int64, 0, len(schools))
 	for _, school := range schools {
-		if school.Active && !school.IsDeleted() {
+		if school.Operational() {
 			ids = append(ids, school.ID)
 		}
 	}

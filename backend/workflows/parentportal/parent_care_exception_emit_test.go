@@ -40,6 +40,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
 		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.NewParentGuardianPolicy(),
 		Fingerprints:      api.SecurityFingerprints{},
@@ -56,9 +57,9 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           api.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
@@ -116,6 +117,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
 		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.NewParentGuardianPolicy(),
 		Fingerprints:      api.SecurityFingerprints{},
@@ -132,9 +134,9 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           api.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
@@ -180,7 +182,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory,
 			return ferr
 		}
 		threadID = th.ID
-		ms, merr := communicationtest.NewParentMessageRepository(db).ListByThread(txCtx, th.ID, 100)
+		ms, merr := api.ParentConversationMessagesFixture(txCtx, communicationtest.NewParentMessageRepository(db), th.ID, 100)
 		msgs = ms
 		return merr
 	})

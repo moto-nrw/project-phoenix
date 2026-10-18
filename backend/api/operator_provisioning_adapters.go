@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -32,13 +32,18 @@ type accountEmailQuery interface {
 // operatorPersonStudents is the operator person listing's student-facts port.
 type operatorPersonStudents func(ctx context.Context, personIDs []int64) (map[int64]bool, error)
 
-// provisioningPersonRows are the person reads and writes of a person's
-// deletion.
+// provisioningPersonRows reads the person a deletion removes.
 type provisioningPersonRows interface {
 	FindByID(ctx context.Context, id any) (*userModels.Person, error)
-	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
-	UnlinkFromAccount(ctx context.Context, personID int64) error
-	AnonymizeAndSoftDelete(ctx context.Context, personID int64) error
+}
+
+// ProvisioningPersonDirectory is the People Directory the operator person
+// listing reads and a person's deletion writes through.
+type ProvisioningPersonDirectory interface {
+	peopledirectory.Query
+	peopledirectory.PersonRemovalCommand
+	UnlinkTag(ctx context.Context, personID int64) error
+	UnlinkAccount(ctx context.Context, personID int64) error
 }
 
 // provisioningStaffRows reads the staff row of a person.
@@ -54,7 +59,7 @@ type OperatorProvisioningDependencies struct {
 	// directory projection).
 	PersonStudents operatorPersonStudents
 	Devices        devicefleet.Capability
-	Persons        peopledirectory.Query
+	Persons        ProvisioningPersonDirectory
 	Membership     schoolmembership.Query
 	PersonRows     provisioningPersonRows
 	StaffRows      provisioningStaffRows
@@ -200,7 +205,7 @@ func isForeignKeyViolation(err error) bool {
 // --- People Directory and School Membership ---------------------------------
 
 type provisioningPeople struct {
-	persons    peopledirectory.Query
+	persons    ProvisioningPersonDirectory
 	membership schoolmembership.Query
 	childQuota schoolmembership.ChildQuotaCounts
 	personRows provisioningPersonRows
@@ -297,15 +302,15 @@ func (p provisioningPeople) FindStaff(ctx context.Context, personID int64) (orga
 }
 
 func (p provisioningPeople) UnlinkRFIDCard(ctx context.Context, personID int64) error {
-	return p.personRows.UnlinkFromRFIDCard(ctx, personID)
+	return p.persons.UnlinkTag(ctx, personID)
 }
 
 func (p provisioningPeople) UnlinkAccount(ctx context.Context, personID int64) error {
-	return p.personRows.UnlinkFromAccount(ctx, personID)
+	return p.persons.UnlinkAccount(ctx, personID)
 }
 
 func (p provisioningPeople) AnonymizeAndSoftDelete(ctx context.Context, personID int64) error {
-	return p.personRows.AnonymizeAndSoftDelete(ctx, personID)
+	return p.persons.AnonymizeAndSoftDeletePerson(ctx, personID)
 }
 
 // --- Student Presence --------------------------------------------------------
@@ -380,7 +385,7 @@ type provisioningAudit struct {
 }
 
 func (a provisioningAudit) RecordOperatorAction(ctx context.Context, entry organizationCompose.OperatorAuditEntry) error {
-	return a.log.Create(ctx, &platformModels.OperatorAuditLog{
+	return a.log.Create(ctx, &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: entry.ClientIP, Changes: json.RawMessage(entry.Changes),
 	})

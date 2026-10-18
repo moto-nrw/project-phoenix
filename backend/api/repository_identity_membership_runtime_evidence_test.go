@@ -121,15 +121,15 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			return len(guardians), err
 		})
 		measure("messageable_staff", iteration, false, func(txCtx context.Context) (int, error) {
-			rows, err := staff.Read.ListMessageableStaff(txCtx, chain.AccountID)
+			rows, err := staff.Read.ListAddressableStaff(txCtx, chain.AccountID)
 			return len(rows), err
 		})
 		measure("is_messageable_staff", iteration, false, func(txCtx context.Context) (int, error) {
-			ok, err := staff.Read.IsMessageableStaff(txCtx, colleagueAccount.ID)
+			ok, err := staff.Read.IsAddressableStaff(txCtx, colleagueAccount.ID)
 			return boolRows(ok), err
 		})
 		measure("staff_role_kinds", iteration, false, func(txCtx context.Context) (int, error) {
-			kinds, err := staff.Read.StaffRoleKinds(txCtx, []int64{colleagueAccount.ID, chain.AccountID})
+			kinds, err := staff.Read.StaffRoleKindsForAccounts(txCtx, []int64{colleagueAccount.ID, chain.AccountID})
 			return len(kinds), err
 		})
 		measure("parent_children", iteration, true, func(txCtx context.Context) (int, error) {

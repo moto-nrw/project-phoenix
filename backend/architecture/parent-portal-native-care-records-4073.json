@@ -43,8 +43,8 @@
       "backend/workflows/parentportal/care/data_requests.go",
       "backend/workflows/parentportal/care/request_ledger.go",
       "backend/modules/peopledirectory/contact/guardian_relationship.go",
-      "backend/database/repositories/users/guardian_relationship_snapshots.go",
-      "backend/database/repositories/users/parent_request_event_snapshots.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationship_snapshots.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/parent_request_event_snapshots.go",
       "backend/api/parent_data_request_reads.go",
       "backend/api/parent_guardian_relationship_reads.go",
       "backend/api/parent_request_events.go"

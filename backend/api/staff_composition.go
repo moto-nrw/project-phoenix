@@ -2,12 +2,13 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"path/filepath"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -224,20 +225,20 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 }
 
 func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
-	filePath, err := apiCommon.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	filePath, err := nativeUploads.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
 		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
-	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
+	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400", nativeUploads.UploadFiles{})
 }
 
 // renderStaffWriteFailure classifies the create/update/offboard errors: a
 // foreign-key violation on offboarding keeps its German conflict message,
 // everything else follows the service classification.
 func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) {
-	if apiCommon.IsConstraintViolation(err) {
-		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
+	if transactionFailures.IsConstraintViolation(err) {
+		renderStaffFailure(w, r, staffHTTP.FailureConflict, schoolMembershipModule.ErrStaffStillReferenced)
 		return
 	}
 	kind, rendered := ClassifyStaffWriteFailure(err)
@@ -358,10 +359,3 @@ func staffUpdate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP
 		return staffHTTP.UpdateStaffResult{Staff: result.Staff, Teacher: result.Teacher, Action: staffHTTP.TeacherAction(result.Action)}, nil
 	}
 }
-
-// errStaffStillReferenced is the German conflict message the offboarding
-// route produced for a foreign-key violation; it is user-facing copy, so it
-// keeps its capital letter.
-//
-//nolint:staticcheck // ST1005: user-facing German message, not a Go error string
-var errStaffStillReferenced = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")

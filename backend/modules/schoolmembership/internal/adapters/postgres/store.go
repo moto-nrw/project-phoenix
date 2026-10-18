@@ -49,6 +49,10 @@ type staffRow struct {
 	TenantID      int64      `bun:"tenant_id,notnull"`
 	PersonID      int64      `bun:"person_id,notnull"`
 	DeletedAt     *time.Time `bun:"deleted_at"`
+	// PersonalDataErasedAt marks a tombstone the automatic deletion of
+	// staff erased (#3963). The "staff".* reads return it, so the row maps
+	// it; scanonly keeps inserts and updates from overwriting the marker.
+	PersonalDataErasedAt *time.Time `bun:"personal_data_erased_at,scanonly"`
 	// IsGuest and GuestOrganization come from the staff member's guest
 	// profile (users.guests, #3823); reads fill them, writes never send them.
 	IsGuest           bool   `bun:"is_guest,scanonly"`

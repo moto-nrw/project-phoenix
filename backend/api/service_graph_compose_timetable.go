@@ -16,8 +16,9 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -91,8 +92,8 @@ func composePresence(b graphBuild) (graphBuild, error) {
 	// The chat-pill emitter (#1803) also wakes the guardians after
 	// enrollment writes that change a child's live care data.
 	emitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB: b.DB.Pool(), Runtime: b.TenantRuntime, ThreadRepo: b.Platform.ParentPortal.ParentMessageThread,
-		MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()), Settings: b.settingsService,
+		Runtime: NewCommunicationEventRuntime(b.DB.Pool() != nil, b.TenantRuntime), ThreadRepo: b.Platform.ParentPortal.ParentMessageThread,
+		MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()), Settings: settingsValues.NewParentEventValues(b.settingsService),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent-events"),
 	})
 	b.graph.ParentEventEmitter = emitter
@@ -169,7 +170,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 func composeShiftPlanning(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
+		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, ShiftMoveAudit: NewShiftMoveAudit(b.audits.DeviationEvent),
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:          facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRepository(b.Rooms)),
@@ -232,11 +233,10 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 			ActiveGroups: b.Presence.SessionRecords, Templates: repos.ActivityGroup, Instances: repos.ActivityInstance,
 			PickupSchedule: b.graph.PickupSchedule,
 		}),
-		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools: b.People.DisplaySchools, Settings: b.settingsService,
-		}),
+		Tenants:      NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),
 		Now:          timezone.Now,
-		OnlineWindow: devicefleetLegacy.NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
+		OnlineWindow: NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
+		APIKeys:      DeviceAPIKeys{},
 		Observe: func(observation devicefleetCompose.Observation) {
 			b.ObserveDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
 		},

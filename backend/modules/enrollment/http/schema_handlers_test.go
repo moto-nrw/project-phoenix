@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -161,7 +162,8 @@ func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in capabil
 // buildSchemaRouter wires the schema endpoints with a mock service.
 // db is nil so runInTenantTx short-circuits to the closure body.
 func buildSchemaRouter(svc capability.FormSchemaAdministration) chi.Router {
-	rs := &Resource{FormSchemaService: svc}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, FormSchemaService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/schema", rs.getActiveSchema)

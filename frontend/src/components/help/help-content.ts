@@ -3624,6 +3624,7 @@ function endCareTopic(): HelpTopic {
     notes: [
       "Bei `Anderer Grund` tragen Sie zusätzlich eine kurze Erklärung ein.",
       "Beendete Kinder finden Sie über das Menü mit den drei Punkten unter `Beendete Betreuungen`.",
+      "Nach der Löschfrist löscht moto das Kind mit allen Angaben. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz`.",
     ],
     differences: [
       "Ist schon ein Ende geplant, heißt der Knopf `Ende ändern`. Daneben steht `Ende stornieren`.",
@@ -4600,14 +4601,16 @@ function targetOverrideTopic(): HelpTopic {
  * `/database/personal`, Knopf `Löschen`. Der Knopf heisst `Endgültig
  * löschen`, der Vorgang ist aber eine Abschaltung: der Text des Dialogs sagt
  * ausdruecklich, dass Anwesenheiten und Zeiterfassung bleiben und die Person
- * erneut eingeladen werden kann. Genau das muss der Artikel sagen.
+ * erneut eingeladen werden kann. Genau das muss der Artikel sagen. Nach der
+ * Zeiterfassungsfrist löscht der nächtliche Lauf die Person (#3963).
  */
 function removeStaffTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadRemoveStaff,
     title: "Eine Person aus dem Team entfernen",
     question: "Wie entferne ich jemanden aus unserem Team?",
-    summary: "Der Zugang geht aus. Die bisherigen Einträge bleiben erhalten.",
+    summary:
+      "Der Zugang geht aus. Die bisherigen Einträge bleiben vorerst erhalten.",
     group: "personal",
     audience: "lead",
     icon: "Trash2",
@@ -4622,11 +4625,12 @@ function removeStaffTopic(): HelpTopic {
     result:
       "Der Zugang ist aus. Die Person steht in keiner Liste der OGS mehr.",
     notes: [
-      "Anwesenheiten und Zeiterfassung bleiben erhalten. Ihre Auswertungen bleiben vollständig.",
+      "Anwesenheiten und Zeiterfassung bleiben bis zum Ende der Frist für die Zeiterfassung erhalten. So lange bleiben Ihre Auswertungen vollständig.",
+      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
       "Sie können dieselbe Person später wieder einladen.",
     ],
     differences: [
-      "Der Knopf heißt `Endgültig löschen`. Gelöscht werden die bisherigen Einträge trotzdem nicht.",
+      "Der Knopf heißt `Endgültig löschen`. Die bisherigen Einträge löscht moto aber erst nach der Frist.",
     ],
     troubleshootingDetails: [
       "`Endgültig löschen` lässt sich nicht wählen? Dann stimmt der eingetippte Name noch nicht.",

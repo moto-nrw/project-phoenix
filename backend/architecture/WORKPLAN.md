@@ -3,27 +3,173 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 162 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
-0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.617 in `compose`
+Stand 18.10.2026 · Ratchet 62 · Composition 1.644 · Policy-Epoche 74 ·
+0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 1.138 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
+33.216 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 1 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 13 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 44 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
-| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
+| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule | 0 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
-| [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 162 |
+| [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 2 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 62 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4078-Abschluss: Alle HTTP-Pakete gehören ihren fachlichen, Plattform- oder
+Workflow-Ownern bzw. Root. `api/common` gehört zu `tenant-runtime/http`.
+`architecture-check` und `dev-tools` sind echte `tool`-Owner (Schema 5),
+keine Inbound-Aliasse. Ihre sechs Paket- und Testrollen bleiben unverändert.
+Die fertigen Inbound- und Rollenübergänge samt Tests sowie der obsolete
+Common-Akzeptor sind gelöscht. Parent- und HTTP-Host-Sicherungen verlieren
+nur den veralteten Common-Zweig; heutige negative Fälle bleiben geprüft.
+Inbound-Owner 2 → 0, #4078-Keys 0 → 0, Regeln 829 → 829. Nur
+`own-test.inbound.contract` wird gleich eng zu `own-test.tool.contract`.
+Epoche 72, Composition 1.657, Routen, Antworten, IoT, Goldens und Budgets
+bleiben unverändert. Historische Basisformate sind lesbar, Live-Policies
+lehnen `inbound` ab. Die normalen Ownership- und Berechtigungsprüfungen
+haben keine neue Ausnahme. Nachweis: ADR 0060, Addendum vom 18.10.2026.
+
+#4074: Communication verwendet vollständige native Workflow-Werte und eigene
+Ports für Staff-Announcements und Elternnachrichten. Die Root bindet die
+öffentlichen Owner-Fassaden und dieselben tenant-sicheren Personen- und
+Guardian-Projektionen. Der Parent-Store projiziert seine eigenen SQL-Werte
+unmittelbar in native Records; die fremden Modelle, Repository-Aliasse und
+Retained-Konverter entfallen. Die ursprünglichen Fehlerinitialisierer liegen
+einmal beim tatsächlichen Owner. Assertionen und DB-Zeitpunkt bleiben bei der
+mechanischen Fixture-Umstellung erhalten. Der native Schulnamen-Aufruf nutzt
+weiter den äußeren Decorator. Keine Änderung an SQL, Filtern, Berechtigungen,
+Sessions, Routen, Antworten, Goldens oder IoT.
+Fünf #4074-Keys und der #4076-Testbegleiter fallen: 119 → 113, nach unabhängigen
+Development-Reduktionen aktuell 104. #4074 5 → 0, #4076 14 → 13. Eigener
+Policy-Diff null; aktuell 842 Regeln, Epoche 72 und Composition 1.657.
+Communication-Composition 1.481 → 1.480, People-Vokabular 110 → 106,
+Compose-Gesamtstand 34.546 LOC. Keine neue Freigabe, kein Alias, keine
+Ausnahme und kein höheres Budget.
+Nachweis: [native Communication-Records](communication-native-staff-announcements-4074.json).
+
+#4074: Elternnachrichten verwenden vollständige native Workflow-Werte und
+Ports. Die gebundenen Stores bieten native Facetten; Schul- und Gruppen-
+Dekoratoren führen ihre Listen weiterhin über dieselben angereicherten Reads.
+Die gemeinsamen Cursor- und Receipt-Regeln wandern einmalig und unverändert
+in die eigene Application. Root-Callbacks binden denselben Conversation-Core
+und dieselben Personen-, Schüler- und Kontakt-Reads. Unveränderte Payloads
+behalten ihre ursprünglichen Typen und Maps; Teil-Mutationen samt Fehlern,
+JSON-Ganzzahlen, nil/leere Werte und undurchsichtige Receipt-Payloads bleiben
+sichtbar. Die unveränderte Deklarationsprobe liegt beim Announcement-Baustein;
+dessen bestehender Carrier bleibt sichtbar. Drei Keys fallen: 123 → 120,
+#4074 8 → 5. Regeln 843, Epoche 72 und Composition 1.657 bleiben gleich.
+Communication-Compose sinkt 1.486 → 1.481 LOC, die Summe 34.577 → 34.572.
+Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Root-Graph-Felder
+oder höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
+Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Elternnachrichten](communication-native-parent-messages-4074.json).
+
+#4074: Der Staff-Store bindet native Records direkt an dieselben SQL-Stores
+und dieselbe Inbox-Projektion. Die Root bindet Picker, Berechtigungsprüfung
+und Rollen an eine Instanz derselben People-Directory-Abfrage. Der kanonische
+Teilnehmerschlüssel wandert einmalig und unverändert in die Communication-Domain.
+DB-Zeitstempel, Sperren, Cursor und die Metadaten-Rückgabe nur bei erfolgreichem
+Insert bleiben erhalten. Ein Produktionskey fällt: 126 → 125, #4074 9 → 8.
+Regeln 844, Epoche 72, Composition 1.657 und Compose 34.584 bleiben gleich.
+Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
+höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions
+und Portal-Isolation bleiben unverändert.
+Nachweis: [nativer Staff-Store](communication-native-staff-store-4074.json).
+
+#4074: Staff-Messaging verwendet native Workflow-Records und eigene Ports für
+Threads, Nachrichten, Inbox und Empfänger. Dieselben gebundenen Stores bieten
+öffentliche native Facetten neben den verbliebenen Aufrufern. Alle Metadaten,
+Teil-Mutationen und Fehler, nil/leere Listen, Teilnehmer- und Read-Selektoren,
+Sperren, DB-Zeitstempel und Cursor bleiben erhalten. Die Root bindet denselben
+Personen-Read für die unveränderten Namensbestandteile; Trim und Fallback bleiben
+im Workflow. Ein Produktionskey fällt: 127 → 126, #4074 10 → 9.
+Regeln 844, Epoche 72, Composition 1.657, Communication-Compose 1.486 LOC und
+Compose-Summe 34.584 bleiben gleich. Keine neue Freigabe, Go-Typalias,
+Klassifizierung, Ausnahme, Root-Graph-Felder oder höheren Budgets. Die übrigen
+Store-Keys bleiben sichtbar. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
+Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Staff-Records](communication-native-staff-records-4074.json).
+
+#4074: Communication besitzt native Mail-Werte und schmale Lese- und Schreibports.
+Die Root bindet dieselbe Outbox, denselben Mail-Transport und dieselbe Audit-Facette.
+Der native Outbox-Einstieg teilt Validierung, Schul-Auflösung, Encoding und Insert
+mit dem bisherigen Einstieg. Vollständige Metadaten, Fehlerreihenfolge, große
+JSON-Ganzzahlen und nil/leere Schreibobjekte bleiben erhalten. Renderer lesen
+die ursprünglichen String-/Bool-Werte ohne JSON-Roundtrip; Header, Template,
+Inhalt und ausgelassene Schlüssel bleiben gleich. Die Audit-Bindung wandert an
+die Root und erhält SetChanges-, Kontext- und Create-Fehlersemantik.
+Zwölf Keys fallen: 139 → 127, #4074 22 → 10. Regeln 844, Epoche 72 und
+Composition 1.657 bleiben gleich. Communication-Compose sinkt 1.514 → 1.486 LOC,
+die Summe 34.612 → 34.584, das Dateigrößenbudget 1.183 → 1.178.
+Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
+höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
+Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Mail](communication-native-mail-4074.json).
+
+#4074: Communication besitzt native Application-Events und schmale Delivery-Ports.
+Die Root bindet denselben Router über öffentliche Commands. Alle Event- und
+Audience-Felder, Consent, Schul- und Portal-Selektoren, Kontext, Transaktionen,
+Fehleridentitäten sowie Teil-Receipts bleiben erhalten. Locale, Branding und
+kanonische Push-Texte bleiben beim Delivery-Owner; die Texte wandern einmalig
+in dessen bestehende Locale-Application. Zwölf Keys fallen: 151 → 139,
+#4074 34 → 22. Regeln 844, Epoche 72, Composition 1.657 und Compose 34.612 LOC
+bleiben gleich. Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme,
+Graph-Felder oder höheren Budgets. Eine überholte Funktionslängen-Ausnahme
+entfällt; das Dateigrößenbudget sinkt 1.188 → 1.183. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
+Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Notifications](communication-native-notifications-4074.json).
+
+#4074: Communication besitzt eigene semantische Settings-Ports. Die Root
+bindet fünf schmale öffentliche Settings-Facetten an denselben Resolver.
+Schlüssel, Registry-Defaults, Overrides, Cache und Fehler bleiben beim Owner;
+`false`, `0`, Schul-ID und Kontext bleiben erhalten.
+Log-Schlüssel benötigen keinen weiteren Read. Fehlende Abhängigkeiten bleiben
+`nil`, breite Service-Typen und ein Retention-Typalias entfallen. Sieben Keys
+fallen: 158 → 151, #4074 41 → 34. Regeln 844, Epoche 72, Composition 1.657 und
+Compose 34.612 LOC bleiben gleich. Das Dateigrößenbudget sinkt 1.189 → 1.188.
+Keine neue Freigabe, Go-Typalias, Ausnahme oder höheren Budgets. Routen,
+Antworten, Goldens, IoT, Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Settings](communication-native-settings-4074.json).
+
+#4074: Communication besitzt schmale Ports für Schul-ID, After-Commit und
+Detached-Transaktionen. Die Root bindet dieselbe öffentliche Tenant Runtime.
+Eine native Transaction-Runtime-Callback-Factory erhält die konkrete Typprüfung
+ohne ORM-Import oder Alias in der Root.
+Hintergrund-Kontext, UnitOfWork, konkrete `bun.Tx`-Prüfung, Missing-DB-Guard,
+Callback-Reihenfolge und Rollback bleiben erhalten. Ungenutzte DB-Slots entfallen;
+Konstruktoren verlangen die Runtime ausdrücklich. Drei Produktionskeys fallen:
+161 → 158, #4074 44 → 41. Regeln 844 und Epoche 72 bleiben gleich. Communication-
+Compose sinkt 1.518 → 1.514 LOC, Transaction Runtime 173 → 172,
+die Summe 34.617 → 34.612. Keine neue Freigabe,
+Alias, Ausnahme oder höheren Budgets. Routen, Antworten, Goldens, IoT,
+Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Runtime](communication-native-runtime-4074.json).
+
+#4073: Messaging verwendet vollständige native Workflow-Werte für Feed,
+Deklarationen, Nachrichten, Inbox, Familienschutz und Request-Sharing. Die Root
+bindet schmale öffentliche Owner-Facetten und projiziert eigene Antwortwerte.
+Dieselben gebundenen Store-, Schul-, Gruppen- und Staff-Reads bleiben erhalten.
+Die gemeinsame Conversation-Implementierung besitzt weiterhin Append, Cursor
+und Receipts; Mutationen samt Fehlern werden zurückgegeben. Typisierte
+JSON-Objekte erhalten `nil`, leere Objekte, `omitempty` und Ganzzahlen.
+Die kanonischen Deklarations-Encoder berechnen Hash-Eingaben aus den aktuellen
+Werten; es gibt keine Kopie der Regeln und keinen Cache kanonischer Bytes.
+Familienschutz behält den Ereigniszeitpunkt, damit alte Shares nicht wieder gelten.
+Der letzte Produktionskey fällt: 162 → 161, #4073 1 → 0. #4074 bleibt bei 44;
+seine alten Adapterverträge bleiben sichtbar. Regeln 844, Epoche 72,
+Composition 1.657 und alle Budgets bleiben gleich. Keine neue Freigabe, Alias,
+Klassifizierung, Ausnahme oder höheren Limits. Routen, Antworten, Goldens,
+IoT, Beziehungsrechte, Sessions und falsches Portal bleiben unverändert.
+Nachweis: [native Messaging-Werte](parent-portal-native-messaging-4073.json).
 
 #4073: Care verwendet eigene Plan-, Ausnahme-, Abwesenheits- und Angebots-DTOs
 sowie schmale Ports. Die Root bindet die öffentlichen Care-Plan-Facetten;
@@ -479,7 +625,6 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys (erledigt), [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
 - [ ] Phase 1: #4063 (ADR 0056), #4064, #4067, #2750, #3990 → #2729
-- [ ] Phase 2, Carrier: [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach (erledigt), [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Kompatibilität, [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) Delivery-Cutover (erledigt), [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner, #4004 Owner-Kompositionen, [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone`
 - [ ] Phase 2, Struktur: [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP, [#4082](https://github.com/moto-nrw/project-phoenix/issues/4082) Fachlogik aus der Root, [#4080](https://github.com/moto-nrw/project-phoenix/issues/4080) `api.serviceGraph` auflösen, [#4083](https://github.com/moto-nrw/project-phoenix/issues/4083) Worker-Root, [#4084](https://github.com/moto-nrw/project-phoenix/issues/4084) `compose` konstruiert nur, [#4085](https://github.com/moto-nrw/project-phoenix/issues/4085) Vokabular-Aliase, [#4086](https://github.com/moto-nrw/project-phoenix/issues/4086) Altlayout, [#4091](https://github.com/moto-nrw/project-phoenix/issues/4091) Prinzipien-ADRs
 - [ ] Phase 3, Laufzeit (nach #2751): [#4087](https://github.com/moto-nrw/project-phoenix/issues/4087) Outbox, [#4088](https://github.com/moto-nrw/project-phoenix/issues/4088) Tenant- und Transaktionskontext, [#4089](https://github.com/moto-nrw/project-phoenix/issues/4089) Fehler per Sentinel, [#4090](https://github.com/moto-nrw/project-phoenix/issues/4090) Testlücken, dann #3021
 
@@ -640,3 +785,22 @@ Memo-Port. Middleware, Note-Eviction und Verhaltenstests nutzen dieselbe Impleme
 Paketklassifikation, Regeln, Keys und Composition ändern sich nicht. Die bestehende
 Memo-Port-Bindung liegt nun in einer nativen Root-Datei: Der Legacy-File-Budgeteintrag
 sinkt von 73 auf 64 LOC, die Summe von 3.795 auf 3786 LOC.
+
+
+#4079 bounded delivery / #4314 decision: Request Review's native staff response
+mappers move from `compose` into its public capability. Students HTTP stays
+in People Directory and calls that single implementation, retiring its exact
+`requestreview/compose` key. Policy epoch 72 → 73, rules 827 → 830, keys
+101 → 100 (#4079 15 → 14), Root composition 1,652 unchanged. Three narrow
+projection-public → Care Plan public/contract and Security Runtime public
+rules serve actual imports. No rule is deleted. Compose LOC cap falls by 186.
+The full candidate's Root-to-Root/test edges and new composition fields are not
+approved. ADR 0058 records the settled owners and round-16 resolutions;
+`docs/architecture/4079-remaining-http-edges.md` lists all 14 retained keys,
+their blockers and two alternatives each. #4079 is not closed by this slice.
+
+
+#4079 / #4314: Option 1 für alle 14 verbleibenden HTTP-Keys umgesetzt.
+Owner-HTTP wird aus vorhandenen Root-Werten montiert; keine neuen Root-Felder.
+Keys 76 → 62, Composition 1.644 unverändert, Compose-Cap 33.216 unverändert.
+[Owner-HTTP-Nachweis](../../docs/architecture/4079-owner-http-evidence.md).

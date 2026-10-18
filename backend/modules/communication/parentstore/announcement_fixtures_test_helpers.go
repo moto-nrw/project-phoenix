@@ -6,17 +6,18 @@ import (
 	"context"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // ParentAnnouncementFixtures binds native test values without replacing the
 // store's validation, transactions, defaults or persisted-field copy-back.
 type ParentAnnouncementFixtures struct {
-	repo usersModels.ParentAnnouncementRepository
+	repo ParentAnnouncementRepository
 }
 
-func NewParentAnnouncementFixtures(repo usersModels.ParentAnnouncementRepository) ParentAnnouncementFixtures {
+func NewParentAnnouncementFixtures(repo ParentAnnouncementRepository) ParentAnnouncementFixtures {
 	return ParentAnnouncementFixtures{repo: repo}
 }
 
@@ -75,20 +76,25 @@ func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) (
 	return values, err
 }
 
-// Declaration reads retain the workflow's existing vocabulary. This fixture
-// cutover does not claim to remove its retained production DTO dependency.
-func (f ParentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, row *usersModels.DeclarationVersion) error {
-	return f.repo.InsertDeclarationVersion(ctx, row)
+// Declarations use the same stored records and canonical owner encoding.
+func (f ParentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, value *communication.PortalDeclarationVersion) error {
+	row := value
+	err := f.repo.InsertDeclarationVersion(ctx, row)
+	if value != nil && row != nil {
+		*value = *row
+	}
+	return err
 }
-func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*usersModels.DeclarationSubmission, error) {
-	return f.repo.ListDeclarationSubmissions(ctx, tenantID, id)
+func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*communication.PortalDeclarationSubmission, error) {
+	rows, err := f.repo.ListDeclarationSubmissions(ctx, tenantID, id)
+	return rows, err
 }
 
-func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *usersModels.ParentAnnouncement {
+func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *communication.PortalParentAnnouncement {
 	if value == nil {
 		return nil
 	}
-	row := &usersModels.ParentAnnouncement{
+	row := &communication.PortalParentAnnouncement{
 		Title:                   value.Title,
 		Body:                    value.Body,
 		Priority:                value.Priority,
@@ -108,12 +114,12 @@ func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *u
 		ReminderText:            value.ReminderText,
 		ReminderSentAt:          value.ReminderSentAt,
 		Targets:                 announcementTargetFixtureRows(value.Targets), Options: announcementOptionFixtureRows(value.Options),
-		Declaration: usersModels.AnnouncementDeclarationSettings(value.Declaration),
+		Declaration: communication.PortalAnnouncementDeclarationSettings(value.Declaration),
 	}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func announcementFixtureFromRow(row *usersModels.ParentAnnouncement) *communication.ParentAnnouncementFixture {
+func announcementFixtureFromRow(row *communication.PortalParentAnnouncement) *communication.ParentAnnouncementFixture {
 	if row == nil {
 		return nil
 	}
@@ -156,16 +162,16 @@ func announcementFixtureFromRow(row *usersModels.ParentAnnouncement) *communicat
 	}
 	return value
 }
-func announcementTargetFixtureRows(values []*communication.ParentAnnouncementTargetFixture) []*usersModels.ParentAnnouncementTarget {
+func announcementTargetFixtureRows(values []*communication.ParentAnnouncementTargetFixture) []*communication.PortalParentAnnouncementTarget {
 	if values == nil {
 		return nil
 	}
-	rows := make([]*usersModels.ParentAnnouncementTarget, len(values))
+	rows := make([]*communication.PortalParentAnnouncementTarget, len(values))
 	for i, v := range values {
 		if v == nil {
 			continue
 		}
-		r := &usersModels.ParentAnnouncementTarget{
+		r := &communication.PortalParentAnnouncementTarget{
 			ID:             v.ID,
 			AnnouncementID: v.AnnouncementID,
 			TargetType:     v.TargetType,
@@ -178,7 +184,7 @@ func announcementTargetFixtureRows(values []*communication.ParentAnnouncementTar
 	}
 	return rows
 }
-func announcementTargetFixture(row *usersModels.ParentAnnouncementTarget) *communication.ParentAnnouncementTargetFixture {
+func announcementTargetFixture(row *communication.PortalParentAnnouncementTarget) *communication.ParentAnnouncementTargetFixture {
 	if row == nil {
 		return nil
 	}
@@ -192,16 +198,16 @@ func announcementTargetFixture(row *usersModels.ParentAnnouncementTarget) *commu
 		CreatedAt:      row.CreatedAt,
 	}
 }
-func announcementOptionFixtureRows(values []*communication.ParentAnnouncementOptionFixture) []*usersModels.ParentAnnouncementOption {
+func announcementOptionFixtureRows(values []*communication.ParentAnnouncementOptionFixture) []*communication.PortalParentAnnouncementOption {
 	if values == nil {
 		return nil
 	}
-	rows := make([]*usersModels.ParentAnnouncementOption, len(values))
+	rows := make([]*communication.PortalParentAnnouncementOption, len(values))
 	for i, v := range values {
 		if v == nil {
 			continue
 		}
-		r := &usersModels.ParentAnnouncementOption{
+		r := &communication.PortalParentAnnouncementOption{
 			ID:             v.ID,
 			AnnouncementID: v.AnnouncementID,
 			Label:          v.Label,
@@ -213,7 +219,7 @@ func announcementOptionFixtureRows(values []*communication.ParentAnnouncementOpt
 	}
 	return rows
 }
-func announcementOptionFixture(row *usersModels.ParentAnnouncementOption) *communication.ParentAnnouncementOptionFixture {
+func announcementOptionFixture(row *communication.PortalParentAnnouncementOption) *communication.ParentAnnouncementOptionFixture {
 	if row == nil {
 		return nil
 	}
@@ -226,3 +232,5 @@ func announcementOptionFixture(row *usersModels.ParentAnnouncementOption) *commu
 		CreatedAt:      row.CreatedAt,
 	}
 }
+
+func ParentAnnouncementPublishedError() error { return domain.ErrParentAnnouncementPublished }

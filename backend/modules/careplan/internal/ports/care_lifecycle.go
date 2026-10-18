@@ -27,13 +27,12 @@ type CareStudentDirectory interface {
 	ListDueForDeactivation(ctx context.Context, lastCareDay calendar.Date) ([]int64, error)
 	// ListStudentIDs lists every child id of the tenant.
 	ListStudentIDs(ctx context.Context) ([]int64, error)
-	// EndCare sets the last care day of every given child; nil clears it.
-	// It fails with careplan.ErrCareExitPreviewChanged when a row moved.
-	EndCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) error
+	// EndCare sets the last care day of every given child; nil clears it. It
+	// reports how many rows it changed.
+	EndCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) (changed int64, err error)
 	// ResumeCare reopens one child's interval from start with status, frozen
-	// on the given day. It fails with careplan.ErrCareResumeNotEnded when the
-	// care did not end.
-	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) error
+	// on the given day. resumed is false when the care had not ended.
+	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) (resumed bool, err error)
 }
 
 // CareExitRoster is the Timetable half of the roster: the planned rows a care

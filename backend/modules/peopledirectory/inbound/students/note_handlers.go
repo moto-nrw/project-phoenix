@@ -1,27 +1,20 @@
 package students
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"strconv"
-	"time"
+	context "context"
+	json "encoding/json"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	time "time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// Child note card ("Notizen", Kartei): the durable hints that replaced the
-// Betreuernotizen field and the dated entries of the chronicle.
-//
-// Reading is gated by users:read plus the per-child read predicate every other
-// child surface uses; WHICH notes come back is then decided by the audience
-// (securityruntime.ResolveStudentNoteAudience), not by the route.
 
 type studentNoteResponse struct {
 	ID         string `json:"id"`
@@ -109,7 +102,7 @@ func (rs *Resource) listStudentNoteSubjects(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, buildNoteSubjectsResponse(activities), "Student note subjects retrieved")
 }
 
-func buildNoteSubjectsResponse(activities []ActiveEnrollmentGroup) noteSubjectsResponse {
+func buildNoteSubjectsResponse(activities []peopleModule.StudentActivityGroup) noteSubjectsResponse {
 	response := noteSubjectsResponse{Activities: make([]noteSubjectActivity, 0, len(activities))}
 	for _, group := range activities {
 		response.Activities = append(response.Activities, noteSubjectActivity{
@@ -280,7 +273,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 // which of THIS child's notes they may see.
 func (rs *Resource) resolveNoteReader(
 	w http.ResponseWriter, r *http.Request,
-) (*Student, securityruntime.StudentNoteChild, securityruntime.StudentNoteAudience, bool) {
+) (*peopleModule.StudentState, securityruntime.StudentNoteChild, securityruntime.StudentNoteAudience, bool) {
 	if rs.StudentNotes == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("student notes capability is not configured")))
 		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
@@ -344,7 +337,7 @@ func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNote
 // noteChild reads the child side of the audience question. The activity
 // enrollments are read for today: a note audience follows who has the child
 // now, not who had it last term.
-func (rs *Resource) noteChild(ctx context.Context, student *Student) (securityruntime.StudentNoteChild, error) {
+func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.StudentState) (securityruntime.StudentNoteChild, error) {
 	child := securityruntime.StudentNoteChild{
 		GroupID: student.GroupID, SchoolClass: schoolClassKey(student.SchoolClass),
 	}
@@ -361,7 +354,7 @@ func (rs *Resource) noteChild(ctx context.Context, student *Student) (securityru
 // noteActivities is the one read of the activities a note may refer to: the
 // child's enrollments today. The audience, the reference check and the picker
 // all use it, so the picker never offers an activity the write would refuse.
-func (rs *Resource) noteActivities(ctx context.Context, studentID int64) ([]ActiveEnrollmentGroup, error) {
+func (rs *Resource) noteActivities(ctx context.Context, studentID int64) ([]peopleModule.StudentActivityGroup, error) {
 	if rs.ActiveEnrollments == nil {
 		return nil, nil
 	}
@@ -481,7 +474,7 @@ func (rs *Resource) renderNotes(
 	r *http.Request,
 	notes []peopleModule.StudentNote,
 	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	student *peopleModule.StudentState,
 ) []studentNoteResponse {
 	reader := callerAccountID(r)
 	result := make([]studentNoteResponse, 0, len(notes))
@@ -495,7 +488,7 @@ func (rs *Resource) renderNote(
 	r *http.Request,
 	note peopleModule.StudentNote,
 	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	student *peopleModule.StudentState,
 ) studentNoteResponse {
 	return buildNoteResponse(note, audience, student, callerAccountID(r))
 }
@@ -503,7 +496,7 @@ func (rs *Resource) renderNote(
 func buildNoteResponse(
 	note peopleModule.StudentNote,
 	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	student *peopleModule.StudentState,
 	readerAccountID int64,
 ) studentNoteResponse {
 	response := studentNoteResponse{

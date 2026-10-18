@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,17 +23,17 @@ import (
 // reminderRepo adds the reminder repository slice to the publish-test fake.
 type reminderRepo struct {
 	fakeAnnouncementRepo
-	due                []*usersModels.ParentAnnouncement
-	byID               map[int64]*usersModels.ParentAnnouncement
+	due                []*ParentAnnouncement
+	byID               map[int64]*ParentAnnouncement
 	claim              map[int64]bool
 	claimCalls         []int64
 	releaseClaimCalls  []int64
 	setReminderCalls   []setReminderCall
 	setReminderApplied bool
-	deliveryRecipients []*usersModels.AnnouncementDeliveryRecipient
+	deliveryRecipients []*AnnouncementDeliveryRecipient
 }
 
-func (r *reminderRepo) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (r *reminderRepo) FindByID(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	if r.byID != nil {
 		return r.byID[id], nil
 	}
@@ -45,7 +46,7 @@ type setReminderCall struct {
 	text *string
 }
 
-func (r *reminderRepo) ListDueReminders(_ context.Context, _, _ time.Time) ([]*usersModels.ParentAnnouncement, error) {
+func (r *reminderRepo) ListDueReminders(_ context.Context, _, _ time.Time) ([]*ParentAnnouncement, error) {
 	return r.due, nil
 }
 
@@ -65,7 +66,7 @@ func (r *reminderRepo) SetReminder(_ context.Context, id int64, at *time.Time, t
 	return r.setReminderApplied, nil
 }
 
-func (r *reminderRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+func (r *reminderRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*AnnouncementDeliveryRecipient, error) {
 	return r.deliveryRecipients, nil
 }
 
@@ -92,13 +93,13 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		Outbox:           h.outbox,
 		ParentsURL:       "https://parents.example.test",
 		Logger:           slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 	h.svc.SetAttachmentPurger(&stubPurger{})
 	return h
 }
 
 // publishedWithReminder is a live announcement whose reminder fell due.
-func publishedWithReminder(sendEmail bool) *usersModels.ParentAnnouncement {
+func publishedWithReminder(sendEmail bool) *ParentAnnouncement {
 	a := draftAnnouncement(sendEmail)
 	published := time.Now().Add(-14 * 24 * time.Hour)
 	reminderAt := time.Now().Add(-time.Minute)
@@ -137,8 +138,8 @@ func TestNormalizeReminder_Rules(t *testing.T) {
 		{name: "a moment after the expiry is retained for a draft", in: Input{ReminderAt: &future, ExpiresAt: &expiry}},
 		{name: "a moment equal to the expiry is retained for a draft", in: Input{ReminderAt: &expiry, ExpiresAt: &expiry}},
 		{name: "a moment before the expiry passes", in: Input{ReminderAt: &future, ExpiresAt: ptrTime(future.Add(time.Hour))}},
-		{name: "a poll never carries a scheduled reminder", in: Input{ReminderAt: &future, ResponseType: usersModels.ParentAnnouncementResponseSingleChoice}, wantErr: true},
-		{name: "a letter may carry one", in: Input{ReminderAt: &future, DeliveryMode: usersModels.ParentAnnouncementDeliveryLetter}},
+		{name: "a poll never carries a scheduled reminder", in: Input{ReminderAt: &future, ResponseType: ParentAnnouncementResponseSingleChoice}, wantErr: true},
+		{name: "a letter may carry one", in: Input{ReminderAt: &future, DeliveryMode: ParentAnnouncementDeliveryLetter}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -205,7 +206,7 @@ func TestUpdateReminder_RefusesSystemAnnouncement(t *testing.T) {
 
 	a := publishedWithReminder(false)
 	a.ReminderSentAt = nil
-	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
+	kind := ParentAnnouncementSystemKindCareCancellation
 	a.SystemKind = &kind
 	repo := &reminderRepo{fakeAnnouncementRepo: fakeAnnouncementRepo{announcement: a}, setReminderApplied: true}
 	h := newReminderHarness(repo)
@@ -239,7 +240,7 @@ func TestUpdateReminder_RefusesPoll(t *testing.T) {
 	a := publishedWithReminder(false)
 	a.ReminderAt = nil
 	a.ReminderText = nil
-	a.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	a.ResponseType = ParentAnnouncementResponseSingleChoice
 	repo := &reminderRepo{fakeAnnouncementRepo: fakeAnnouncementRepo{announcement: a}, setReminderApplied: true}
 	h := newReminderHarness(repo)
 
@@ -292,18 +293,18 @@ func TestSendDueReminders_ReachesTheWholeAudienceOnceOverBothChannels(t *testing
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			recipients: []*usersModels.AnnouncementRecipient{
+			recipients: []*AnnouncementRecipient{
 				{AccountID: 101, Email: "Anna@example.test", FirstName: "Anna"},
 				{AccountID: 102, Email: "ben@example.test", FirstName: "Ben"},
 			},
 			// One guardian already read AND confirmed: the reminder goes to them
 			// regardless, that is the whole point of the feature.
-			audience: []*usersModels.AnnouncementRecipientStatus{
+			audience: []*AnnouncementRecipientStatus{
 				{AccountID: 101},
 				{AccountID: 102, ReadAt: &acknowledged, AcknowledgedAt: &acknowledged},
 			},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -339,9 +340,9 @@ func TestSendDueReminders_WithoutEmailOptInSendsPushOnly(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
+			recipients:   []*AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -360,13 +361,13 @@ func TestSendDueReminders_PushOutsideWindowReleasesClaimForRetry(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101}},
+			recipients:   []*AnnouncementRecipient{{AccountID: 101}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
-	h.notifier.err = notifications.ErrOutsideActiveWindow
+	h.notifier.err = devices.ErrOutsideNotificationWindow
 
 	sent, retryFrom, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
@@ -386,10 +387,10 @@ func TestSendDueReminders_SkipsUndeliverableReminderAndContinues(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: undeliverable,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
+			recipients:   []*AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
 		},
-		due:   []*usersModels.ParentAnnouncement{undeliverable, deliverable},
-		byID:  map[int64]*usersModels.ParentAnnouncement{undeliverable.ID: undeliverable, deliverable.ID: deliverable},
+		due:   []*ParentAnnouncement{undeliverable, deliverable},
+		byID:  map[int64]*ParentAnnouncement{undeliverable.ID: undeliverable, deliverable.ID: deliverable},
 		claim: map[int64]bool{undeliverable.ID: true, deliverable.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -409,7 +410,7 @@ func TestSendDueReminders_ReloadsTheClaimedReminderBeforeDelivery(t *testing.T) 
 	t.Parallel()
 
 	stale := publishedWithReminder(true)
-	stale.DeliveryMode = usersModels.ParentAnnouncementDeliveryLetter
+	stale.DeliveryMode = ParentAnnouncementDeliveryLetter
 	staleText := "Alter Erinnerungstext"
 	stale.ReminderText = &staleText
 	fresh := *stale
@@ -419,9 +420,9 @@ func TestSendDueReminders_ReloadsTheClaimedReminderBeforeDelivery(t *testing.T) 
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: &fresh,
 		},
-		due:                []*usersModels.ParentAnnouncement{stale},
+		due:                []*ParentAnnouncement{stale},
 		claim:              map[int64]bool{stale.ID: true},
-		deliveryRecipients: []*usersModels.AnnouncementDeliveryRecipient{{GuardianProfileID: 1, Email: "anna@example.test", HasPortalAccess: true}},
+		deliveryRecipients: []*AnnouncementDeliveryRecipient{{GuardianProfileID: 1, Email: "anna@example.test", HasPortalAccess: true}},
 	}
 	h := newReminderHarness(repo)
 
@@ -438,12 +439,12 @@ func TestSendDueReminders_SeparatesLocaleSpecificPushIntents(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			audience: []*usersModels.AnnouncementRecipientStatus{
+			audience: []*AnnouncementRecipientStatus{
 				{AccountID: 101, PortalLocale: "de"},
 				{AccountID: 102, PortalLocale: "en"},
 			},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -465,9 +466,9 @@ func TestSendDueReminders_LostClaimSendsNothing(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
+			recipients:   []*AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: false},
 	}
 	h := newReminderHarness(repo)
@@ -485,7 +486,7 @@ func TestSendDueReminders_NewsDisabledSendsNothing(t *testing.T) {
 	a := publishedWithReminder(true)
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{announcement: a},
-		due:                  []*usersModels.ParentAnnouncement{a},
+		due:                  []*ParentAnnouncement{a},
 		claim:                map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -501,18 +502,18 @@ func TestSendDueReminders_LetterCarriesTheReminderTextToItsWideAudience(t *testi
 	t.Parallel()
 
 	a := publishedWithReminder(true)
-	a.DeliveryMode = usersModels.ParentAnnouncementDeliveryLetter
-	a.EmailAudience = usersModels.EmailAudienceAllContacts
+	a.DeliveryMode = ParentAnnouncementDeliveryLetter
+	a.EmailAudience = EmailAudienceAllContacts
 	a.RequiresAcknowledgement = true
 	portalAccount := int64(101)
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			audience:     []*usersModels.AnnouncementRecipientStatus{{AccountID: portalAccount}},
+			audience:     []*AnnouncementRecipientStatus{{AccountID: portalAccount}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
-		deliveryRecipients: []*usersModels.AnnouncementDeliveryRecipient{
+		deliveryRecipients: []*AnnouncementDeliveryRecipient{
 			{GuardianProfileID: 1, AccountID: &portalAccount, Email: "anna@example.test", HasPortalAccess: true},
 			// No portal access, but the letter chose "alle Bezugspersonen":
 			// they got the letter, so they get the reminder.
@@ -544,17 +545,17 @@ func TestSendDueReminders_LetterWithoutOwnTextRepeatsTheBody(t *testing.T) {
 
 	a := publishedWithReminder(true)
 	a.ReminderText = nil
-	a.DeliveryMode = usersModels.ParentAnnouncementDeliveryLetter
+	a.DeliveryMode = ParentAnnouncementDeliveryLetter
 	a.RequiresAcknowledgement = true
 	portalAccount := int64(101)
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			audience:     []*usersModels.AnnouncementRecipientStatus{{AccountID: portalAccount}},
+			audience:     []*AnnouncementRecipientStatus{{AccountID: portalAccount}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
-		deliveryRecipients: []*usersModels.AnnouncementDeliveryRecipient{
+		deliveryRecipients: []*AnnouncementDeliveryRecipient{
 			{GuardianProfileID: 1, AccountID: &portalAccount, Email: "anna@example.test", HasPortalAccess: true},
 			// Portal-only letter: an address without portal access is NOT mailed.
 			{GuardianProfileID: 2, Email: "oma@example.test", HasPortalAccess: false},
@@ -575,9 +576,9 @@ func TestSendDueReminders_DeliveryFailureRollsTheTickBack(t *testing.T) {
 	repo := &reminderRepo{
 		fakeAnnouncementRepo: fakeAnnouncementRepo{
 			announcement: a,
-			recipients:   []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
+			recipients:   []*AnnouncementRecipient{{AccountID: 101, Email: "anna@example.test"}},
 		},
-		due:   []*usersModels.ParentAnnouncement{a},
+		due:   []*ParentAnnouncement{a},
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
@@ -592,7 +593,7 @@ func TestReminderPushShape_IsKeyedOnTheReminderMoment(t *testing.T) {
 
 	a := publishedWithReminder(false)
 	shape := reminderPushShape(a)
-	assert.Equal(t, notifications.ParentAnnouncementReminder, shape.copyKind)
+	assert.Equal(t, communication.ParentAnnouncementReminder, shape.copyKind)
 	assert.Equal(t, parentAnnouncementNotificationType, shape.notificationType, "consent is the announcement consent")
 	assert.Equal(t, relatedEntityTypeReminder, shape.relatedType)
 

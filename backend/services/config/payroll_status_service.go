@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Payroll configuration status (#1417 Tranche 2b). One source of truth for

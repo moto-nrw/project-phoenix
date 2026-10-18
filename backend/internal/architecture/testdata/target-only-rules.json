@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "policy_epoch": 47,
   "module_path": "example.test/target-only",
   "shared_kernel_types": [
@@ -43,8 +43,8 @@
       "kind": "composition"
     },
     {
-      "id": "portal",
-      "kind": "inbound"
+      "id": "tools",
+      "kind": "tool"
     }
   ],
   "roles": [

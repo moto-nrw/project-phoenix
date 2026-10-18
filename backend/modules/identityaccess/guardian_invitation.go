@@ -19,6 +19,16 @@ const (
 	GuardianInvitationApprovalRejected    = "rejected"
 )
 
+// Delivery outbox kinds of the guardian portal-access and welcome mails and
+// the entities they relate to. The composition root enqueues the mails and
+// registers their renderers under the same kinds.
+const (
+	MailKindGuardianInvitation    = "guardian_invitation"
+	MailKindGuardianWelcome       = "guardian_welcome"
+	MailRelatedGuardianInvitation = "guardian_invitation"
+	MailRelatedGuardianProfile    = "guardian_profile"
+)
+
 // Guardian invitations (#2722): the one-time link a guardian redeems for
 // their parents-portal account. A link is never stored already expired or
 // spent, a resend never revives one, and accepting it writes the account,
@@ -46,6 +56,13 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+}
+
+// ApprovalAllowsRedemption reports whether the invitation's approval state
+// lets the guardian redeem it: it needed no approval, or the approval was
+// given. A pending or rejected request is not redeemable.
+func (i GuardianInvitation) ApprovalAllowsRedemption() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalNotRequired || i.ApprovalStatus == GuardianInvitationApprovalApproved
 }
 
 // GuardianInvitationRequest issues an invitation for a guardian contact that

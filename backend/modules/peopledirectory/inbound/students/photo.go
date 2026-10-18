@@ -1,17 +1,17 @@
 package students
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"net/http"
-	"path/filepath"
+	context "context"
+	errors "errors"
+	fmt "fmt"
+	http "net/http"
+	filepath "path/filepath"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	chi "github.com/go-chi/chi/v5"
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // publicPhotoBaseDir + StudentPhotoStoredURLPrefix must stay aligned —
@@ -64,7 +64,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	// {tenantID}_{studentID} prefix prevents cross-tenant collisions and
 	// makes orphaned files traceable.
 	prefix := fmt.Sprintf("%d_%d", tenantID, id)
-	filePath, err := common.SaveImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType)
+	filePath, err := common.SaveImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType, rs.Uploads)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -73,7 +73,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.commitStudentPhoto(r.Context(), id, newStoredURL, consentAck); err != nil {
 		// Keep disk and DB consistent on rejection.
-		common.RemoveImage(filePath)
+		rs.Uploads.RemoveUpload(filePath)
 		mapPhotoUploadError(w, r, err)
 		return
 	}
@@ -122,13 +122,13 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedPath, resolveErr := common.ResolveStoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
+	resolvedPath, resolveErr := rs.Uploads.StoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
 	if resolveErr != nil {
 		// 403 not 500 — ResolveStoredPath rejected a path-traversal attempt.
 		renderError(w, r, common.ErrorForbidden(errors.New("could not resolve stored photo path")))
 		return
 	}
-	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache")
+	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache", rs.Uploads)
 }
 
 // mapPhotoUploadError maps service sentinels to HTTP status.

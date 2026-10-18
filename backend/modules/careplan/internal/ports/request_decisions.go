@@ -15,7 +15,6 @@ type RequestDecisionRecords interface {
 type RequestDecisionPeople interface {
 	LockStudent(context.Context, int64) (ReviewStudent, error)
 	CanReview(context.Context, ReviewStudent) (bool, error)
-	GuardianHasAccess(context.Context, int64, int64) (bool, error)
 }
 
 type RequestDecisionPlans interface {

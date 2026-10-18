@@ -109,3 +109,12 @@ lower, and list every deleted and successor rule. The #4078 transition and
 its tests still disappear with the final inbound owner. Immutable schema-2/3
 bases remain readable during rollout; only schema 4 candidates may use the
 new fields. No policy epoch increase is needed for this narrowing mechanism.
+
+
+## Addendum 2026-10-18: completed inbound cutover (#4078)
+
+The inbound-owner transition and its tests are removed with the last two
+engineering owners' move to the distinct `tool` kind (ADR 0060 addendum).
+Live candidates use schema 5 and reject `inbound`; package selectors retain
+all schema-4 restrictions. Immutable historical formats remain readable
+without restoring any completed ownership or role-transition acceptor.

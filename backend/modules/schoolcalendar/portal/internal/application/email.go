@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
@@ -178,17 +179,17 @@ func appointmentCopy(kind, schoolName string) (kicker, subjectVerb, intro string
 	known := schoolName != ""
 
 	switch kind {
-	case ports.EmailKindAppointmentUpdated:
+	case portal.EmailKindAppointmentUpdated:
 		if known {
 			return "Termin geändert", "Termin geändert", sender + " hat einen Termin geändert."
 		}
 		return "Termin geändert", "Termin geändert", "ein Termin wurde geändert."
-	case ports.EmailKindAppointmentCancelled:
+	case portal.EmailKindAppointmentCancelled:
 		if known {
 			return "Termin abgesagt", "Termin abgesagt", sender + " hat einen Termin abgesagt."
 		}
 		return "Termin abgesagt", "Termin abgesagt", "ein Termin wurde abgesagt."
-	case ports.EmailKindAppointmentReminder:
+	case portal.EmailKindAppointmentReminder:
 		if known {
 			return "Terminerinnerung", "Erinnerung", sender + " erinnert Sie an einen bevorstehenden Termin."
 		}
