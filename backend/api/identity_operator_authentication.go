@@ -273,17 +273,13 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	return facts, nil
 }
 
-// latestPersonPerSchool keeps, per school, the most recently updated person
-// of the account.
+// latestPersonPerSchool is the People Directory's person of the account at
+// each school.
 func latestPersonPerSchool(persons []peopledirectory.Person, accountID int64) map[int64]peopledirectory.Person {
 	personByTenant := make(map[int64]peopledirectory.Person, len(persons))
-	for _, person := range persons {
-		if person.AccountID == nil || *person.AccountID != accountID {
-			continue
-		}
-		current, found := personByTenant[person.TenantID]
-		if !found || person.UpdatedAt.After(current.UpdatedAt) {
-			personByTenant[person.TenantID] = person
+	for key, person := range peopledirectory.LatestPersonsByAccountSchool(persons) {
+		if key.AccountID == accountID {
+			personByTenant[key.TenantID] = person
 		}
 	}
 	return personByTenant
