@@ -186,7 +186,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 		INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
 		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount).Scan(ctx, &legacyGuardianLinkID))
 	var removedPhoto string
-	f.deps.PhotoRemoved = func(_ context.Context, _ studentdeletion.Actor, path string) { removedPhoto = path }
+	f.deps.PhotoRemoved = func(_ context.Context, _ studentdeletion.Actor, path string) error { removedPhoto = path; return nil }
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, target.ID)
@@ -612,7 +612,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 				f.deps.AppendAudit = func(context.Context, studentdeletion.Actor, studentdeletion.Result) error { return failure }
 			}
 			photoRemoved := false
-			f.deps.PhotoRemoved = func(context.Context, studentdeletion.Actor, string) { photoRemoved = true }
+			f.deps.PhotoRemoved = func(context.Context, studentdeletion.Actor, string) error { photoRemoved = true; return nil }
 			workflow := f.workflow(t)
 
 			preview, err := workflow.Preview(ctx, target.ID)

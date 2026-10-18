@@ -61,12 +61,11 @@ func TestStopCancelsRunningTaskContexts(t *testing.T) {
 	defer cancel()
 
 	stopped := make(chan struct{})
-	scheduler.wg.Add(1)
-	go func() {
-		defer scheduler.wg.Done()
+	scheduler.wg.Go(func() {
+
 		<-ctx.Done()
 		close(stopped)
-	}()
+	})
 
 	scheduler.Stop()
 

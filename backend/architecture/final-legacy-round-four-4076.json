@@ -33,10 +33,10 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/delivery|github.com/moto-nrw/project-phoenix/models/base",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres|github.com/moto-nrw/project-phoenix/database/repositories/base"
   ],
-  "atomic_cutover": "Retire 4 keys for carrier 4076 against development dd92c93a8af3c4cc3d74d51769eb04d4922c85b8. Total 15 to 1 keys; production composition remains 0. Root builds immutable values and passes positional consumer ports. No exception, grant, alias, hook allowance or checker change.",
+  "atomic_cutover": "Retire 4 keys for carrier 4076 against development dd92c93a8af3c4cc3d74d51769eb04d4922c85b8. Total 15 to 1 keys; production composition remains 0. Root builds immutable values and passes positional consumer ports. No exception, grant, alias, hook allowance or checker change. Clean integration of development 25c8d7368021768e253e1091ad297f01287e494c preserves the durable timeline transaction/error contract from PR 4336.",
   "tests": [
-    "scripts/backend-architecture.sh check --base-ref dd92c93a8af3c4cc3d74d51769eb04d4922c85b8",
-    "scripts/backend-architecture.sh validate-ticket --all --base-ref dd92c93a8af3c4cc3d74d51769eb04d4922c85b8",
+    "scripts/backend-architecture.sh check --base-ref 25c8d7368021768e253e1091ad297f01287e494c",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref 25c8d7368021768e253e1091ad297f01287e494c",
     "GOCACHE=/tmp/gocache-final /tmp/orch2580/heavy.sh scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development (full, no --fast)",
     "golangci-lint run --timeout 10m; full pre-commit/pre-push hooks",
     "TestFullProductionRouterGolden source unchanged. Golden normalization replaces only modules/timetable/compose/httpadapter with modules/timetable/http/activities and yields identical bytes."
@@ -53,7 +53,7 @@
       "backend/modules/dataimport/internal/application/importservice/authorization_double_test.go"
     ],
     "workload": "Code-only retirement against dd92c93a8af3c4cc3d74d51769eb04d4922c85b8. Test DB settings read only from the main checkout .env; GOCACHE=/tmp/gocache-final.",
-    "thresholds": "15 to 1 legacy keys: 10 from 4004 and 4 from 4076. Production composition 0. Foreign aliases 30 to 23. Conventional carriers 8 to 5. Compose LOC 31160 to 27204. No increased budget or new allowance.",
+    "thresholds": "15 to 1 legacy keys: 10 from 4004 and 4 from 4076. Production composition 0. Foreign aliases 30 to 23. Conventional carriers 8 to 5. Compose LOC 31146 to 27190. No increased budget or new allowance.",
     "errors": {
       "state": "not_applicable",
       "reason": "No new error semantics or failure policy; unchanged owner assertions are required in the final full affected-test gate."

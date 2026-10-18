@@ -51,6 +51,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
 	cfg = api.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	cfg = api.BindCalendarCaller(cfg, userContext)
+	cfg.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	cfg.Appointments = reposAppointments.Appointments()
 	cfg.Runtime = calendarCompose.NewTenantRuntime(db)
 	cfg.CalendarRenderer = calendarCompose.NewCalendarRenderer(reposCalendar.SchoolCalendar())

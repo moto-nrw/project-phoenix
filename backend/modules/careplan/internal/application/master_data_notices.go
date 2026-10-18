@@ -22,7 +22,7 @@ const (
 )
 
 // deferDecisionPill writes the durable decision intent in the decision
-// transaction, then posts the best-effort chat pill after commit. Every other
+// transaction, and appends the chat pill before commit. Every other
 // guardian of the child hears about it too: the full pill for explicit share
 // recipients, the neutral line for the rest.
 func (s *MasterDataDecisions) deferDecisionPill(ctx context.Context, req *careplan.StudentDataChangeRequest, actorAccountID int64, reason string, approved bool) error {
@@ -35,11 +35,10 @@ func (s *MasterDataDecisions) deferDecisionPill(ctx context.Context, req *carepl
 		return fmt.Errorf("review: enqueue master-data request decision: %w", err)
 	}
 	studentID, guardianAccountID := req.StudentID, req.SubmittedBy
-	s.hooks.AfterCommit(ctx, func() {
-		s.messenger.EmitChildEvent(tenantID, studentID, guardianAccountID, event)
-	})
-	s.notifyOtherGuardiansAfterCommit(ctx, req, event)
-	return nil
+	if err := s.messenger.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, event); err != nil {
+		return err
+	}
+	return s.notifyOtherGuardians(ctx, req, event)
 }
 
 func masterDataDecisionEvent(req *careplan.StudentDataChangeRequest, actorAccountID int64, reason string, approved bool) ports.RequestEvent {
@@ -65,9 +64,9 @@ func masterDataDecisionEvent(req *careplan.StudentDataChangeRequest, actorAccoun
 	}
 }
 
-// notifyOtherGuardiansAfterCommit resolves the audience inside the
+// notifyOtherGuardians resolves the audience inside the
 // transaction (a tenant-scoped read); only the pills go out after commit.
-func (s *MasterDataDecisions) notifyOtherGuardiansAfterCommit(ctx context.Context, req *careplan.StudentDataChangeRequest, event ports.RequestEvent) {
+func (s *MasterDataDecisions) notifyOtherGuardians(ctx context.Context, req *careplan.StudentDataChangeRequest, event ports.RequestEvent) error {
 	audience, err := s.messenger.ResolveDecisionAudience(ctx, req.StudentID, req.SubmittedBy, s.sharedRecipients(ctx, req))
 	if err != nil {
 		s.logger.Warn("co-guardian notice: resolving guardians failed",
@@ -75,18 +74,16 @@ func (s *MasterDataDecisions) notifyOtherGuardiansAfterCommit(ctx context.Contex
 			slog.Int64("student_id", req.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
-		return
+		return nil
 	}
 	tenantID := s.hooks.TenantID(ctx)
 	neutral := event
 	neutral.Body = masterDataCoGuardianBody
 	studentID := req.StudentID
-	s.hooks.AfterCommit(ctx, func() {
-		s.messenger.EmitDecisionAudience(tenantID, studentID, audience, event, neutral)
-	})
+	return s.messenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, event, neutral)
 }
 
 // sharedRecipients resolves who the parent explicitly shared the request

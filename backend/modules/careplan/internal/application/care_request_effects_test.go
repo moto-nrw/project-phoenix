@@ -23,9 +23,12 @@ type careRequestMessenger struct {
 	neutral []ports.RequestEvent
 }
 
-func (m *careRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience ports.DecisionAudience, full, neutral ports.RequestEvent) {
-	m.fakeMessenger.EmitDecisionAudience(tenantID, studentID, audience, full, neutral)
+func (m *careRequestMessenger) EmitDecisionAudience(ctx context.Context, tenantID, studentID int64, audience ports.DecisionAudience, full, neutral ports.RequestEvent) error {
+	if err := m.fakeMessenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, full, neutral); err != nil {
+		return err
+	}
 	m.neutral = append(m.neutral, neutral)
+	return nil
 }
 
 type careRequestBroadcasts struct{ events []string }
@@ -72,6 +75,8 @@ type careRequestHarness struct {
 func newCareRequestHarness(t *testing.T, rows careRequestRows, names careRequestNames) *careRequestHarness {
 	t.Helper()
 	h := &careRequestHarness{hooks: newFakeHooks(), messenger: &careRequestMessenger{}, ledger: &fakeLedger{}, broadcaster: &careRequestBroadcasts{}}
+	// The fake exposes the committed timeline, like another database reader.
+	h.messenger.committedView = h.hooks.AfterCommit
 	effects, err := NewCareRequestEffects(CareRequestEffectPorts{
 		Records: rows, Students: names, Messenger: h.messenger, Ledger: h.ledger, Broadcaster: h.broadcaster,
 	}, h.hooks)

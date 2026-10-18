@@ -9,6 +9,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -16,6 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Identity & Access owns the account and operator second factor and both
@@ -32,6 +35,7 @@ func newMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 	if codec == nil || operatorAuditLog == nil || mail.logger == nil || logger == nil {
 		return nil, errors.New("identity access composition: the second factor needs the challenge codec, the operator audit log and a logger")
 	}
+
 	return &identityaccessCompose.MFADependencies{
 		Settings:      mfaSettingsFor(settings),
 		Codec:         codec,
@@ -131,63 +135,92 @@ func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) 
 // device-added notice asynchronously. A nil backoff uses the production
 // spacing of the send retries.
 type mfaMailer struct {
-	dispatcher  *email.Dispatcher
+	enqueue     func(context.Context, DurableMail) (int64, error)
+	deliver     func(context.Context, int64) error
 	from        email.Email
 	frontendURL string
 	logger      *slog.Logger
 	backoff     []time.Duration
 }
 
-func (m mfaMailer) DeliverCode(ctx context.Context, message identityaccess.MFACodeMail) error {
-	if m.dispatcher == nil {
-		return email.ErrDeliveryUnavailable
+func newMFAMailer(db transactionruntime.Database, runtime *deliveryCompose.Runtime, transport email.Mailer, from email.Email, frontendURL string, logger *slog.Logger, backoff []time.Duration) (mfaMailer, error) {
+	mail := mfaMailer{from: from, frontendURL: frontendURL, logger: logger, backoff: backoff}
+	if transport == nil {
+		return mail, nil
+	}
+	if runtime == nil {
+		return mail, errors.New("mfa mail requires the delivery runtime")
+	}
+	outbox := OutboxEnqueuer{Module: runtime.Module}
+	provider := &deliveryCompose.MailPushProvider{
+		Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{transactionalMailKind: transactionalMailRenderer{logger: logger}}),
+		Mailer:   transport, Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(db.Pool()),
+	}
+	worker, err := deliveryCompose.NewWorker(runtime, provider)
+	if err != nil {
+		return mail, err
+	}
+	mail.enqueue = func(ctx context.Context, message DurableMail) (int64, error) {
+		queued, err := outbox.enqueueTransactionalMail(ctx, message)
+		return queued.ID, err
+	}
+	mail.deliver = func(ctx context.Context, id int64) error {
+		return worker.DeliverEmail(tenant.WithUnitOfWork(ctx, db.UnitOfWork()), 0, id)
+	}
+	return mail, nil
+}
+
+// EnqueueCode returns a continuation that may run only after its transaction
+// commits. A failed synchronous send is terminal, as for the original mailer.
+func (m mfaMailer) EnqueueCode(ctx context.Context, message identityaccess.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error) {
+	if m.deliver == nil || m.enqueue == nil {
+		return nil, email.ErrDeliveryUnavailable
 	}
 	deliveryType := "mfa_email_code"
 	if message.Operator {
 		deliveryType = "operator_mfa_email_code"
 	}
-	err := m.dispatcher.Deliver(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
-		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
-			identityaccess.MFACodeMailContent(message, m.frontendURL)),
-		Metadata: email.DeliveryMetadata{
-			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
-		},
-	}, m.backoff))
+	id, err := m.enqueue(ctx, DurableMail{
+		IdempotencyKey: fmt.Sprintf("%s:%d", deliveryType, challengeID),
+		Message:        *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient), identityaccess.MFACodeMailContent(message, m.frontendURL)),
+		Type:           deliveryType, ReferenceID: message.ReferenceID, ExpiresAt: expiresAt, Backoff: m.backoff,
+	})
 	if err != nil {
-		m.logger.Warn("mfa challenge delivery failed",
-			slog.Int64("reference_id", message.ReferenceID),
-			slog.Bool("operator", message.Operator),
-			slog.String("error", err.Error()))
-		return err
+		return nil, err
 	}
-	return nil
+	return func(sendCtx context.Context) error {
+		err := m.deliver(sendCtx, id)
+		if err != nil {
+			m.logger.Warn("mfa challenge delivery failed",
+				slog.Int64("reference_id", message.ReferenceID),
+				slog.Bool("operator", message.Operator),
+				slog.String("error", err.Error()),
+			)
+		}
+		return err
+	}, nil
 }
 
-func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail) {
-	if m.dispatcher == nil {
-		m.logger.Warn("email dispatcher unavailable; trusted-device-added mail skipped",
-			slog.Int64("reference_id", message.ReferenceID))
-		return
+func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail, deviceID int64) error {
+	if m.enqueue == nil {
+		return email.ErrDeliveryUnavailable
 	}
 	deliveryType := "mfa_trusted_device_added"
 	if message.Operator {
 		deliveryType = "operator_mfa_trusted_device_added"
 	}
-	m.dispatcher.Dispatch(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
-		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
-			identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
-		Metadata: email.DeliveryMetadata{
-			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
-		},
-	}, m.backoff))
+	_, err := m.enqueue(ctx, DurableMail{
+		IdempotencyKey: fmt.Sprintf("%s:%d", deliveryType, deviceID),
+		Message:        *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient), identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
+		Type:           deliveryType, ReferenceID: message.ReferenceID, Backoff: m.backoff,
+	})
+	return err
 }
 
 // --- the operator action log -------------------------------------------------
 
-// operatorActionLog appends an operator MFA entry on a detached context so
-// the login pipeline never pays for the insert, and recovers from a panic in
-// the write path: without the guard a nil pointer, a driver bug or any other
-// surprise in the goroutine would take the whole server down.
+// operatorActionLog appends before returning, joining the triggering transaction.
+// A driver panic remains contained, as for the former detached writer.
 type operatorActionLog struct {
 	ledger operatorAuditWriter
 	logger *slog.Logger
@@ -201,42 +234,44 @@ type (
 	operatorAuditEntry  = identityaccess.OperatorAuditEntry
 )
 
-func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.OperatorAuditEntry) {
+func (l operatorActionLog) RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) (err error) {
 	if l.ledger == nil {
-		return
+		return errors.New("operator audit ledger is required")
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("panic in operator mfa audit logging: %v", recovered)
+			l.logger.Error("operator audit write panic recovered",
+				slog.String("action", entry.Action),
+				slog.String("error", err.Error()),
+			)
+			sentry.WithScope(func(scope *sentry.Scope) {
+				scope.SetTag("job", "operator-audit-log")
+				sentry.CurrentHub().Recover(recovered)
+			})
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 	row := &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
-	// A marshal failure falls through with empty changes: losing the
-	// metadata beats losing the whole audit row.
-	if changes, err := entry.MFAAuditChanges(); err != nil {
+	if changes, encodeErr := entry.MFAAuditChanges(); encodeErr != nil {
 		l.logger.Warn("failed to encode operator mfa audit changes",
 			slog.String("action", entry.Action),
-			slog.String("error", err.Error()))
+			slog.String("error", encodeErr.Error()),
+		)
 	} else {
 		row.Changes = changes
 	}
-	go func() {
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				l.logger.Error("operator audit goroutine panic recovered",
-					slog.String("action", entry.Action),
-					slog.String("error", fmt.Sprintf("panic in operator mfa audit logging: %v", recovered)))
-				sentry.WithScope(func(scope *sentry.Scope) {
-					scope.SetTag("job", "operator-audit-log")
-					sentry.CurrentHub().Recover(recovered)
-				})
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := l.ledger.Create(logCtx, row); err != nil {
-			l.logger.Error("failed to log operator mfa audit event",
-				slog.String("action", entry.Action),
-				slog.String("error", err.Error()))
-		}
-	}()
+	logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	err = l.ledger.Create(logCtx, row)
+	if err != nil {
+		l.logger.Error("failed to log operator mfa audit event",
+			slog.String("action", entry.Action),
+			slog.String("error", err.Error()),
+		)
+	}
+	return err
 }

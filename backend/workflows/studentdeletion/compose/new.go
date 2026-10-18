@@ -38,7 +38,7 @@ type Dependencies struct {
 	LockCareBookingWrites func(context.Context) error
 	// UnlinkPhoto schedules the removal of a stored photo after the outer
 	// transaction commits. Optional: nil keeps the bytes (bare compositions).
-	UnlinkPhoto func(context.Context, string)
+	UnlinkPhoto func(context.Context, string) error
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	// Audit overrides the append command of Owners.
@@ -131,29 +131,29 @@ func Assemble(deps Dependencies, enrollments studentdeletion.ActivityEnrollments
 	if now == nil {
 		now = time.Now
 	}
-	owners := deps.Owners
 	return studentdeletion.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
 		Authorize: func(ctx context.Context) (studentdeletion.Actor, error) {
 			return Authorize(ctx, deps.IsVerifiedStaff)
 		},
 		Today: today, Now: now,
-		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: owners.Structure,
-		Conversations: owners.Conversations, Enrollment: owners.Enrollment,
-		CountAttendance:          owners.Attendance,
-		CountVisits:              owners.Visits,
-		CountConsents:            owners.Consents,
+		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: deps.Owners.Structure,
+		Conversations: deps.Owners.Conversations, Enrollment: deps.Owners.Enrollment,
+		CountAttendance:          deps.Owners.Attendance,
+		CountVisits:              deps.Owners.Visits,
+		CountConsents:            deps.Owners.Consents,
 		CountActivityEnrollments: enrollments.CountStudentEnrollments,
-		CountAppointments:        owners.Appointments,
+		CountAppointments:        deps.Owners.Appointments,
 		CountFeedback:            deps.Feedback.CountForStudent,
-		CountAuditReferences:     owners.AuditReferences,
-		CountGuardianInvitations: owners.GuardianInvitations,
+		CountAuditReferences:     deps.Owners.AuditReferences,
+		CountGuardianInvitations: deps.Owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
-		AppendAudit:              appendDeletionAudit(deps.Audit, owners),
-		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) {
+		AppendAudit:              appendDeletionAudit(deps.Audit, deps.Owners),
+		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) error {
 			if deps.UnlinkPhoto != nil {
-				deps.UnlinkPhoto(ctx, path)
+				return deps.UnlinkPhoto(ctx, path)
 			}
+			return nil
 		},
 		CompanionsChanged: func(ctx context.Context, actor studentdeletion.Actor, studentID int64) {
 			if deps.Broadcaster == nil {

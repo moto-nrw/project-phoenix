@@ -13,6 +13,7 @@ type fileCleanupRow struct {
 	bun.BaseModel  `bun:"table:documents.file_cleanup,alias:intent"`
 	ID             int64      `bun:"id,pk,autoincrement"`
 	TenantID       int64      `bun:"tenant_id,notnull"`
+	ObjectKind     string     `bun:"object_kind,notnull"`
 	OwnerID        int64      `bun:"owner_id,notnull"`
 	FilenameStored string     `bun:"filename_stored,notnull"`
 	RetryAfter     time.Time  `bun:"retry_after,notnull"`
@@ -32,14 +33,17 @@ func (r fileCleanupRow) intent() domain.CleanupIntent {
 // the durable cleanup intents of the folder files in documents.files. An
 // intent's owner is the folder the upload was meant for; like the attachment
 // intents it carries no foreign key, so it outlives a deleted folder.
-type FileCleanupStore struct{ database Database }
+type FileCleanupStore struct {
+	database Database
+	kind     string
+}
 
 // NewFileCleanupStore wires the folder-file intent store.
 func NewFileCleanupStore(database Database) *FileCleanupStore {
 	if database == nil {
 		panic("file storage postgres: database runtime is required")
 	}
-	return &FileCleanupStore{database: database}
+	return &FileCleanupStore{database: database, kind: "files"}
 }
 
 // Queue durably records the intent to remove an object before it is written.
@@ -50,11 +54,11 @@ func (s *FileCleanupStore) Queue(ctx context.Context, ownerID int64, storedName 
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	row := fileCleanupRow{TenantID: tenantID, OwnerID: ownerID, FilenameStored: storedName, RetryAfter: retryAfter}
+	row := fileCleanupRow{TenantID: tenantID, ObjectKind: s.kind, OwnerID: ownerID, FilenameStored: storedName, RetryAfter: retryAfter}
 	started := time.Now()
 	_, err = db.NewInsert().Model(&row).
 		ModelTableExpr(`documents.file_cleanup`).
-		On("CONFLICT (tenant_id, filename_stored) DO UPDATE").
+		On("CONFLICT (tenant_id, object_kind, filename_stored) DO UPDATE").
 		Set("cleaned_at = NULL").
 		Set("retry_after = EXCLUDED.retry_after").
 		Set("owner_id = EXCLUDED.owner_id").
@@ -81,6 +85,7 @@ func (s *FileCleanupStore) ListQueued(ctx context.Context) ([]domain.CleanupInte
 	err = db.NewSelect().Model(&rows).
 		ModelTableExpr(`documents.file_cleanup AS "intent"`).
 		Where(`"intent".tenant_id = ?`, tenantID).
+		Where(`"intent".object_kind = ?`, s.kind).
 		Where(`"intent".retry_after <= ?`, time.Now()).
 		Where(`"intent".cleaned_at IS NULL`).
 		OrderExpr(`"intent".id ASC`).
@@ -124,6 +129,7 @@ func (s *FileCleanupStore) settle(ctx context.Context, operation string, narrow 
 	query := narrow(db.NewUpdate().Model((*fileCleanupRow)(nil)).
 		ModelTableExpr(`documents.file_cleanup AS "intent"`)).
 		Where(`"intent".tenant_id = ?`, tenantID).
+		Where(`"intent".object_kind = ?`, s.kind).
 		Where(`"intent".cleaned_at IS NULL`)
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -135,4 +141,15 @@ func (s *FileCleanupStore) settle(ctx context.Context, operation string, narrow 
 		stats.Rows = affected
 	}
 	return stats, nil
+}
+
+// NewPhotoCleanupStore shares the existing intent protocol, with a disjoint
+// namespace so a folder sweep can never remove a student's photo.
+func NewUploadCleanupStore(database Database, kind string) *FileCleanupStore {
+	if kind != "student-photos" && kind != "enrollment-legal-documents" {
+		panic("unsupported upload cleanup namespace")
+	}
+	store := NewFileCleanupStore(database)
+	store.kind = kind
+	return store
 }

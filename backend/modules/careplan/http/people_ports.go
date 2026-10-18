@@ -51,7 +51,7 @@ type StudentPhotoLifecycle interface {
 	FindStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error)
 	CommitStudentPhoto(ctx context.Context, studentID int64, storedURL string, consentAck bool) error
 	ClearStudentPhoto(ctx context.Context, studentID int64) (string, error)
-	ApplyStudentPhotoConsent(ctx context.Context, current peopleModule.StudentPhotoState, requestedConsent *bool) peopleModule.StudentPhotoState
+	ApplyStudentPhotoConsent(ctx context.Context, current peopleModule.StudentPhotoState, requestedConsent *bool) (peopleModule.StudentPhotoState, error)
 }
 
 // StudentConsentCapability is the consent surface of the student rows these

@@ -425,7 +425,9 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 	}
 
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, update.snapshot, fresh)
-	rs.applyPhotoConsent(ctx, effectiveConsent, fresh)
+	if err := rs.applyPhotoConsent(ctx, effectiveConsent, fresh); err != nil {
+		return false, err
+	}
 
 	if err := rs.PersistStudentStatusHistory(ctx, fresh, req.Sick, req.Excused, update.wasSick, update.wasExcused, update.now, trimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(update.snapshot.ID, err)

@@ -21,6 +21,7 @@ type StudentPhotoConsentSnapshot = internalports.StudentPhotoConsentSnapshot
 type StudentPhotoRuntime interface {
 	PhotoFeatureEnabled(ctx context.Context) (bool, error)
 	ActingAccountID(ctx context.Context) int64
+	QueueUnlinkStoredPhoto(context.Context, string) error
 	UnlinkStoredPhoto(storedURL string)
 	BroadcastPhotoChange(tenantID, studentID int64, source string)
 	RecordPhotoConsent(
@@ -33,10 +34,11 @@ type StudentPhotoRuntime interface {
 
 type disabledStudentPhotos struct{}
 
-func (disabledStudentPhotos) PhotoFeatureEnabled(context.Context) (bool, error) { return false, nil }
-func (disabledStudentPhotos) ActingAccountID(context.Context) int64             { return 0 }
-func (disabledStudentPhotos) UnlinkStoredPhoto(string)                          {}
-func (disabledStudentPhotos) BroadcastPhotoChange(int64, int64, string)         {}
+func (disabledStudentPhotos) PhotoFeatureEnabled(context.Context) (bool, error)    { return false, nil }
+func (disabledStudentPhotos) ActingAccountID(context.Context) int64                { return 0 }
+func (disabledStudentPhotos) QueueUnlinkStoredPhoto(context.Context, string) error { return nil }
+func (disabledStudentPhotos) UnlinkStoredPhoto(string)                             {}
+func (disabledStudentPhotos) BroadcastPhotoChange(int64, int64, string)            {}
 func (disabledStudentPhotos) RecordPhotoConsent(context.Context, StudentPhotoConsentSnapshot, StudentPhotoConsentSnapshot, *int64, time.Time) error {
 	return errStudentPhotoRuntimeUnbound
 }

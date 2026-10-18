@@ -21,14 +21,15 @@ const transactionalMailKind = "transactional_mail"
 // DurableMail is a rendered feature snapshot, persisted with its triggering
 // write. TenantID is absent for global identity flows, never a made-up school.
 type DurableMail struct {
-	TenantID    int64
-	Message     email.Message
-	Type        string
-	ReferenceID int64
-	BaseRetry   int
-	ExpiresAt   time.Time
-	MaxAttempts int             `json:"delivery_max_attempts,omitempty"`
-	Backoff     []time.Duration `json:"delivery_backoff,omitempty"`
+	IdempotencyKey string
+	TenantID       int64
+	Message        email.Message
+	Type           string
+	ReferenceID    int64
+	BaseRetry      int
+	ExpiresAt      time.Time
+	MaxAttempts    int             `json:"delivery_max_attempts,omitempty"`
+	Backoff        []time.Duration `json:"delivery_backoff,omitempty"`
 }
 
 type DurableMailOutbox interface {
@@ -69,7 +70,7 @@ func (o OutboxEnqueuer) enqueueTransactionalMail(ctx context.Context, mail Durab
 		return delivery.Enqueued{}, fmt.Errorf("encode transactional mail: %w", err)
 	}
 	intent := delivery.EmailIntent{
-		TenantID: mail.TenantID, Template: transactionalMailKind,
+		TenantID: mail.TenantID, Template: transactionalMailKind, IdempotencyKey: mail.IdempotencyKey,
 		Recipient: delivery.EmailRecipient{Name: mail.Message.To.Name, Address: mail.Message.To.Address},
 		Payload:   payload,
 	}

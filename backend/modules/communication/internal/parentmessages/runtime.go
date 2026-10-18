@@ -10,6 +10,7 @@ type Runtime interface {
 
 // EventRuntime carries the same unit of work into detached event writes.
 type EventRuntime interface {
+	RegisterAfterCommit(context.Context, func())
 	Configured() bool
 	BackgroundContext() context.Context
 	InTransaction(context.Context) bool

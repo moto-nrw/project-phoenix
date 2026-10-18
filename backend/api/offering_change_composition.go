@@ -493,8 +493,8 @@ func (m excusedRequestMessenger) EnqueueRequestDecision(ctx context.Context, ten
 	return m.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, childEvent(event))
 }
 
-func (m excusedRequestMessenger) EmitChildEvent(tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) {
-	m.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, childEvent(event))
+func (m excusedRequestMessenger) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) error {
+	return m.emitter.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, childEvent(event))
 }
 
 func (m excusedRequestMessenger) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
@@ -510,8 +510,8 @@ func (m excusedRequestMessenger) ResolveDecisionAudience(ctx context.Context, st
 	return carePlanCompose.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, err
 }
 
-func (m excusedRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience carePlanCompose.DecisionAudience, full, neutral carePlanCompose.RequestEvent) {
-	m.emitter.EmitDecisionAudience(tenantID, studentID, eventContract.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
+func (m excusedRequestMessenger) EmitDecisionAudience(ctx context.Context, tenantID, studentID int64, audience carePlanCompose.DecisionAudience, full, neutral carePlanCompose.RequestEvent) error {
+	return m.emitter.EmitDecisionAudience(ctx, tenantID, studentID, eventContract.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
 }
 
 func childEvent(event carePlanCompose.RequestEvent) eventContract.ChildEvent {

@@ -106,16 +106,15 @@ func (e *EventEmitter) MessagingEnabledForTenant(ctx context.Context, tenantID i
 // see the reconcile path below, which appends the closing pill to the existing
 // thread without ever creating one (and, when the submitting guardian has since
 // lost access, without waking that guardian).
-func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent) {
+func (e *EventEmitter) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent) error {
 	if e == nil || e.runtime == nil || !e.runtime.Configured() || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
-		return
+		return nil
 	}
 	if tenantID <= 0 || studentID <= 0 || guardianAccountID <= 0 {
-		return
+		return nil
 	}
-	// Detached background context: the pill outlives the (already committed)
-	// request transaction and must not inherit its cancellation.
-	bgCtx := e.backgroundContext()
+	// Keep the triggering command context so the pill joins its transaction.
+	bgCtx := ctx
 	enabled, err := e.settings.ParentNotesEnabledForTenant(bgCtx, tenantID)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
@@ -134,9 +133,8 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	messagingOff := err != nil || !enabled
 	isTerminal := parentmessaging.IsTerminalRequestEvent(ev)
 	if messagingOff && !isTerminal {
-		return
+		return nil
 	}
-
 	var threadID int64
 	var suppressReason string
 	skipGuardianBroadcast := false
@@ -215,7 +213,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			slog.String("event_type", ev.EventType),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if suppressReason != "" {
 		loggerOr(e.logger).Info("parent messaging: child event pill suppressed",
@@ -224,7 +222,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			slog.String("event_type", ev.EventType),
 			slog.String("reason", suppressReason),
 		)
-		return
+		return nil
 	}
 	// The staff inbox and open threads refetch only on a parent_message SSE
 	// event — not student_updated — so without this the pill stays invisible
@@ -238,7 +236,8 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	if skipGuardianBroadcast {
 		broadcastGuardianID = 0
 	}
-	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
+	e.runtime.RegisterAfterCommit(ctx, func() { Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID) })
+	return nil
 }
 
 // WakeChildGuardians wakes EVERY guardian of the child with a message-

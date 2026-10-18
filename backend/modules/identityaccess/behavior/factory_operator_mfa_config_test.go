@@ -33,6 +33,10 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)
+	t.Cleanup(func() {
+		_, err := db.NewDelete().TableExpr("platform.email_outbox").Where("tenant_id IS NULL AND related_entity_type = ? AND related_entity_id = ?", "operator_mfa_email_code", operator.ID).Exec(context.Background())
+		require.NoError(t, err)
+	})
 	_, err = identityModule.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 }

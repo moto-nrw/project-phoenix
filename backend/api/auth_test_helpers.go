@@ -287,11 +287,19 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	mfa, err := newMFADependencies(codec, settings.Settings, mfaMailer{
-		dispatcher: dispatcher, from: defaultFrom, frontendURL: frontendURL, logger: logger, backoff: settingsOverrides.mfaBackoff,
-	}, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
+	mfaMail, err := newMFAMailer(db, deliveryModule.Runtime, mailer, defaultFrom, frontendURL, logger, settingsOverrides.mfaBackoff)
 	if err != nil {
 		return AuthTestModule{}, err
+	}
+	mfa, err := newMFADependencies(codec, settings.Settings, mfaMail, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	if mail.outbox == nil {
+		source := mfa.Mail.(mfaMailer)
+		mfa.Mail = fixtureMFAMail(func() (mfaMailer, *deliveryCompose.Runtime, *slog.Logger) {
+			return source, deliveryModule.Runtime, logger
+		})
 	}
 	mfa.DecorateRecords, mfa.Capability = settingsOverrides.mfaRecords, settingsOverrides.mfaCapability
 	guardianMail, enrollmentClaims, err := guardianInvitationDependencies(settings.Settings, organizations, OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},

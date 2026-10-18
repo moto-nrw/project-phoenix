@@ -74,6 +74,7 @@ type ReminderPushOutbox interface {
 }
 
 type DeliveryDependencies struct {
+	Now          func() time.Time
 	Outbox       ReminderPushOutbox
 	Appointments appointments.Capability
 	Audiences    func(context.Context, []int64) (map[int64]GuardianAudience, error)

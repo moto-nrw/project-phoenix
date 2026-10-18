@@ -31,23 +31,26 @@ func (e Engine) ApplyStudentPhotoConsent(
 	ctx context.Context,
 	current peopledirectory.StudentPhotoState,
 	requestedConsent *bool,
-) peopledirectory.StudentPhotoState {
-	updated := e.studentPhotos.ApplyPhotoConsent(ctx, domain.StudentPhoto{
+) (peopledirectory.StudentPhotoState, error) {
+	updated, err := e.studentPhotos.ApplyPhotoConsent(ctx, domain.StudentPhoto{
 		StudentID:           current.StudentID,
 		PhotoPath:           current.PhotoPath,
 		PhotoConsentGivenAt: current.PhotoConsentGivenAt,
 		PhotoConsentGivenBy: current.PhotoConsentGivenBy,
 	}, requestedConsent)
+	if err != nil {
+		return current, mapPhotoError(err)
+	}
 	return peopledirectory.StudentPhotoState{
 		StudentID:           updated.StudentID,
 		PhotoPath:           updated.PhotoPath,
 		PhotoConsentGivenAt: updated.PhotoConsentGivenAt,
 		PhotoConsentGivenBy: updated.PhotoConsentGivenBy,
-	}
+	}, nil
 }
 
-func (e Engine) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) {
-	e.studentPhotos.ScheduleUnlink(ctx, storedURL)
+func (e Engine) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {
+	return mapPhotoError(e.studentPhotos.ScheduleUnlink(ctx, storedURL))
 }
 
 func mapPhotoError(err error) error {

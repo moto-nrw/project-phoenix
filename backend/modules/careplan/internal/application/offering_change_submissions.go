@@ -164,7 +164,7 @@ func (s *OfferingChanges) createOfferingChangeRow(
 		map[string]any{"effective_from": offeringChangeEffectiveFrom(created).String()}); err != nil {
 		return nil, err
 	}
-	if err := s.emitPillAfterCommit(ctx, created, requestCreatedEvent(input.AccountID)); err != nil {
+	if err := s.emitPill(ctx, created, requestCreatedEvent(input.AccountID)); err != nil {
 		return nil, err
 	}
 	s.logger().Info("offering change request created",

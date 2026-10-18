@@ -82,7 +82,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)), settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestCreated,
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -97,7 +97,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	require.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestCreated))
 
 	// 2) Guardian self-service mirror pill advances the thread preview + wakes SSE.
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      "sick_note",
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -109,7 +109,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	// 3) Messaging OFF; a staff decision on the SAME request still writes the
 	//    closing pill onto the existing thread (reconcile), no new thread.
 	settings.enabled = false
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -126,7 +126,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	// 4) Messaging OFF terminal for a DIFFERENT request with no request_created
 	//    pill to close is dropped — no dangling status pill appears.
 	before := len(msgs)
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -152,7 +152,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -179,7 +179,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      "sick_note",
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -207,7 +207,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
 	// A request_created pill exists (thread born while the guardian had access).
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestCreated,
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -231,7 +231,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	bc.Reset()
 	// Staff decides the request: the closing pill must still land, but the
 	// guardian must NOT be woken (broadcast guardian id forced to 0).
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,

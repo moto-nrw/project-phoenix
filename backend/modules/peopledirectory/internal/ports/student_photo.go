@@ -37,6 +37,7 @@ type StudentPhotoRuntime interface {
 	// for; 0 when the caller is not an authenticated account.
 	ActingAccountID(ctx context.Context) int64
 	// UnlinkStoredPhoto deletes a detached file after the commit.
+	QueueUnlinkStoredPhoto(context.Context, string) error
 	UnlinkStoredPhoto(storedURL string)
 	// BroadcastPhotoChange wakes open tabs; source labels the reason.
 	BroadcastPhotoChange(tenantID, studentID int64, source string)

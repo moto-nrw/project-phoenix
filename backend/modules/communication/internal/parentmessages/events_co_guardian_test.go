@@ -51,7 +51,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	}
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
 	require.Equal(t, []int64{other.AccountID}, recipients)
-	emitter.EmitChildEventToGuardians(submitter.TenantID, submitter.StudentID, recipients, full)
+	_ = emitter.EmitChildEventToGuardians(context.Background(), submitter.TenantID, submitter.StudentID, recipients, full)
 
 	// The other guardian gets exactly one line, and it carries nothing that
 	// belongs to the submitting parent.
@@ -83,7 +83,7 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
 	assert.Empty(t, recipients, "a child with one guardian has nobody to notify")
-	emitter.EmitChildEventToGuardians(submitter.TenantID, submitter.StudentID, recipients,
+	_ = emitter.EmitChildEventToGuardians(context.Background(), submitter.TenantID, submitter.StudentID, recipients,
 		eventContract.ChildEvent{
 			EventType: "request_status", ActorKind: messaging.ParentMessageSenderStaff,
 			Body: "Betreuungsstand geändert: Krankmeldung 01.09.2026",

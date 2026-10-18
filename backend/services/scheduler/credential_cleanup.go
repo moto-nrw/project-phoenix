@@ -16,7 +16,6 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 
 // runTokenCleanupTask runs the token cleanup task on schedule
 func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
-	defer s.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("panic in token cleanup task: %v", r)

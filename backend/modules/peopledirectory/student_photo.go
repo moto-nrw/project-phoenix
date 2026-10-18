@@ -99,10 +99,10 @@ type StudentPhotoCommand interface {
 	// stamps it, a withdrawal clears the consent and the photo together, and
 	// a repeated grant keeps the original timestamp. The file a withdrawal
 	// detaches is removed after the caller's commit.
-	ApplyStudentPhotoConsent(ctx context.Context, current StudentPhotoState, requestedConsent *bool) StudentPhotoState
+	ApplyStudentPhotoConsent(ctx context.Context, current StudentPhotoState, requestedConsent *bool) (StudentPhotoState, error)
 	// ScheduleStudentPhotoUnlink removes a detached file after the caller's
 	// transaction commits; an empty URL is a no-op.
-	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string)
+	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error
 }
 
 func (m *Module) FindStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {
@@ -137,10 +137,10 @@ func (m *Module) ApplyStudentPhotoConsent(
 	ctx context.Context,
 	current StudentPhotoState,
 	requestedConsent *bool,
-) StudentPhotoState {
+) (StudentPhotoState, error) {
 	return m.engine.ApplyStudentPhotoConsent(ctx, current, requestedConsent)
 }
 
-func (m *Module) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) {
-	m.engine.ScheduleStudentPhotoUnlink(ctx, storedURL)
+func (m *Module) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {
+	return m.engine.ScheduleStudentPhotoUnlink(ctx, storedURL)
 }

@@ -23,8 +23,8 @@ type parentChildEvents struct {
 	source communication.ParentChildEvents
 }
 
-func (e parentChildEvents) EmitChildEvent(tenantID, studentID, accountID int64, event parentChildEvent) {
-	e.source.EmitParentChildEvent(tenantID, studentID, accountID, communication.ParentChildEvent{
+func (e parentChildEvents) EmitChildEvent(ctx context.Context, tenantID, studentID, accountID int64, event parentChildEvent) error {
+	return e.source.EmitParentChildEvent(ctx, tenantID, studentID, accountID, communication.ParentChildEvent{
 		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID,
 		Body: event.Body, RequestType: event.RequestType, RequestStatus: event.RequestStatus,
 		RefTable: event.RefTable, RefID: event.RefID,

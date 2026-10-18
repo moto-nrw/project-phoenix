@@ -4,7 +4,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery"
 
 	"github.com/go-chi/chi/v5"
 
@@ -71,6 +75,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	calendarConfig = BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	calendarConfig = BindCalendarFeedFacts(calendarConfig, reposSchools.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
 	calendarConfig = BindCalendarCaller(calendarConfig, identity.Caller())
+	calendarConfig.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	calendarConfig.Appointments = appointments
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
 	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)
@@ -104,3 +109,22 @@ func RenderCalendarMailForTest(ctx context.Context, runtime *calendarCompose.Ten
 // CalendarRenderCancelled is the error a calendar mail render reports when
 // the mail may never go out, so Delivery stops retrying it.
 func CalendarRenderCancelled() error { return deliveryCompose.ErrRenderCancelled }
+
+// CalendarOutboxNotifierForTest exposes the enqueue boundary without granting
+// calendar tests a foreign module dependency.
+func CalendarOutboxNotifierForTest(module DeliveryTestModule) fixtureCalendarNotifier {
+	return func(ctx context.Context, event calendarCompose.Notification) error {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			return err
+		}
+		_, err = module.Delivery.EnqueueDeferredPush(ctx, delivery.DeferredPushIntent{TenantID: event.Audience.TenantID, Template: event.Type, IdempotencyKey: event.IdempotencyKey, Related: delivery.RelatedEntity{Type: event.RelatedType, ID: event.RelatedID}, Payload: payload})
+		return err
+	}
+}
+
+type fixtureCalendarNotifier func(context.Context, calendarCompose.Notification) error
+
+func (notify fixtureCalendarNotifier) Notify(ctx context.Context, event calendarCompose.Notification) error {
+	return notify(ctx, event)
+}

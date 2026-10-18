@@ -2,6 +2,8 @@
 
 Base: development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` after PR #4335. This section is the current result; the round-3 record below is historical.
 
+Integrated development: `25c8d7368021768e253e1091ad297f01287e494c` (PR #4336). Its durable timeline transaction context/error returns are preserved in the native event contract and the relocated implementation. The report's before column is the initial round-4 base above; pre-push architecture and ticket validation use this integrated development SHA.
+
 ## Current result
 
 | Surface | Before | Candidate |
@@ -14,7 +16,7 @@ Base: development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` after PR #4335. Thi
 | Conventional production package carriers | 8 | 5 |
 | Legacy-tree LOC | 0 | 0 |
 | Legacy-prefixed file LOC | 2,897 | 2,666 |
-| Compose LOC | 31,160 | 27,204 |
+| Compose LOC | 31,160 | 27,190 |
 | Policy rules | 902 | 926 |
 
 Architecture passes at one retained key against the fixed base. The checker includes two unchanged test hooks in its combined surface measurement (`2 -> 2`); production remains zero. All 14 removed keys have retirement evidence in `final-legacy-round-four-4004.json` and `final-legacy-round-four-4076.json`. No key, alias, exception, grant, hook allowance, checker behavior or budget is added. Twenty-nine native-contract successor rules replace five stale rules.
@@ -62,7 +64,7 @@ Normalized SHA-256: `8aac8ecab2b289d4672a132a762e8dea6b5f6d2400495c262c178cf322e
 | `models/schedule` | Timetable composition, application, ports and its external integration suites still construct retained ORM rows/repository contracts (`ActivityInstance`, `InstanceStudent`, recovery/snapshot, recurrence and school-calendar records). Public contracts cannot carry those Bun/generic APIs; external integration tests lack the private domain/port reach. A value/capability/fixture cutover is still required, not a policy-only package rename. |
 | `models/delivery` | The live private row is separated from the now base-free subscription value. A public publication attempt needs new `delivery-platform/postgres -> contract` and integration-fixture reach at an existing policy point; the checker rejected it as loosening. No rule/grant is added. The remaining persistence capability needs a native port/fixture cutover before the model carrier can disappear. |
 | Delivery email aliases | The 23 remaining foreign aliases are all in `modules/delivery/compose/email`. They expose actual provider `Message`, `Mailer`, `Dispatcher`, SMTP construction and test-mock types from `email` (adapter). Removing the facade requires native mail contracts and a test-support seam; redirecting roots to the private adapter would add private reach. These are retained explicitly, not claimed retired. |
-| Compose and legacy files | There are still 27,204 compose LOC and 2,666 legacy-prefixed LOC. In particular Timetable's retained activity service, repository bindings and model contracts remain business/persistence code. Their removal depends on the bounded capability cutover above. They are not renamed outside the counted trees. |
+| Compose and legacy files | There are still 27,190 compose LOC and 2,666 legacy-prefixed LOC. In particular Timetable's retained activity service, repository bindings and model contracts remain business/persistence code. Their removal depends on the bounded capability cutover above. They are not renamed outside the counted trees. |
 
 ## Round-4 baseline foreign-importer inventory
 

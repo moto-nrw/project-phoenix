@@ -59,19 +59,23 @@ func (e *Emitter) OtherPortalGuardianAccountIDs(
 // The event is stripped here rather than at the call sites, so no caller can
 // leak a reason or an author into it by forgetting to clear a field.
 func (e *Emitter) EmitChildEventToGuardians(
+	ctx context.Context,
 	tenantID, studentID int64,
 	accountIDs []int64,
 	ev eventContract.ChildEvent,
-) {
+) error {
 	if e == nil || tenantID <= 0 || studentID <= 0 {
-		return
+		return nil
 	}
 	neutral := NeutralChildEvent(ev)
 	for _, accountID := range accountIDs {
 		if accountID > 0 {
-			e.EmitChildEvent(tenantID, studentID, accountID, neutral)
+			if err := e.EmitChildEvent(ctx, tenantID, studentID, accountID, neutral); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // NeutralChildEvent strips everything that belongs to the submitting
@@ -142,17 +146,20 @@ func (e *Emitter) ResolveDecisionAudience(
 // EmitDecisionAudience posts the full pill to the explicit recipients and the
 // neutral line to everyone else. Call it after the decision committed.
 func (e *Emitter) EmitDecisionAudience(
+	ctx context.Context,
 	tenantID, studentID int64,
 	audience eventContract.DecisionAudience,
 	full, neutral eventContract.ChildEvent,
-) {
+) error {
 	if e == nil {
-		return
+		return nil
 	}
 	for _, accountID := range audience.Full {
-		e.EmitChildEvent(tenantID, studentID, accountID, full)
+		if err := e.EmitChildEvent(ctx, tenantID, studentID, accountID, full); err != nil {
+			return err
+		}
 	}
-	e.EmitChildEventToGuardians(tenantID, studentID, audience.Neutral, neutral)
+	return e.EmitChildEventToGuardians(ctx, tenantID, studentID, audience.Neutral, neutral)
 }
 
 // eventContract.ShareVisibilityResolver names the guardians the submitting parent explicitly

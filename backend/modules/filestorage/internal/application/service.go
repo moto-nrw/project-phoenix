@@ -66,6 +66,9 @@ type Service struct {
 // New wires the service. Every persistence, identity and runtime dependency
 // is required so a missing production binding fails at startup.
 func New(deps Dependencies) *Service {
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	if deps.Folders == nil || deps.Files == nil || deps.FileCleanups == nil ||
 		deps.Attachments == nil || deps.AttachmentCleanups == nil ||
 		deps.FileObjects == nil || deps.AttachmentObjects == nil ||

@@ -46,8 +46,8 @@ type PortalGuardian struct {
 
 type Events interface {
 	// EmitChildEvent appends one pill to the (student, guardian) thread in a
-	// detached tenant transaction and fires the parent-message wake-up.
-	EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev ChildEvent)
+	// triggering tenant transaction; only the parent-message wake waits for commit.
+	EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev ChildEvent) error
 	// WakeChildGuardians wakes every portal guardian of the child with a
 	// message-independent care-state invalidation.
 	WakeChildGuardians(tenantID, studentID int64)
@@ -126,14 +126,14 @@ func (p *ChildEventPayload) MarshalJSON() ([]byte, error) {
 
 // Emitter is Communication's timeline and decision-delivery capability.
 type Emitter interface {
-	EmitChildEvent(int64, int64, int64, ChildEvent)
+	EmitChildEvent(context.Context, int64, int64, int64, ChildEvent) error
 	EnqueueRequestDecision(context.Context, int64, int64, int64, ChildEvent) error
 	BroadcastChildUpdateToGuardians(int64, int64)
 	MessagingEnabledForTenant(context.Context, int64) bool
 	GuardianHasChildAccess(context.Context, int64, int64) (bool, error)
-	EmitParentChildEvent(int64, int64, int64, communication.ParentChildEvent)
+	EmitParentChildEvent(context.Context, int64, int64, int64, communication.ParentChildEvent) error
 	OtherPortalGuardianAccountIDs(context.Context, int64, int64) ([]int64, error)
-	EmitChildEventToGuardians(int64, int64, []int64, ChildEvent)
+	EmitChildEventToGuardians(context.Context, int64, int64, []int64, ChildEvent) error
 	ResolveDecisionAudience(context.Context, int64, int64, []int64) (DecisionAudience, error)
-	EmitDecisionAudience(int64, int64, DecisionAudience, ChildEvent, ChildEvent)
+	EmitDecisionAudience(context.Context, int64, int64, DecisionAudience, ChildEvent, ChildEvent) error
 }
