@@ -62,14 +62,14 @@ type testContext struct {
 func setupImportRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := setupImportModule(t)
+	db, svc, people, membership := setupImportModule(t)
 	// Create import resource
-	resource := importAPI.NewResource(importAPI.Dependencies{Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(svc.PeopleDirectory, svc.Membership, nil)})
+	resource := importAPI.NewResource(importAPI.Dependencies{Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(people, membership, nil)})
 
 	return &testContext{
 		db: db,
 		student: func(ctx context.Context, id int64) (peopledirectory.EnrollmentRecord, error) {
-			return svc.PeopleDirectory.ReadEnrollmentStudent(ctx, id, "")
+			return people.ReadEnrollmentStudent(ctx, id, "")
 		},
 		resource: resource,
 	}

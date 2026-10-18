@@ -12,8 +12,8 @@ import (
 
 func TestPresentStudentsInRoomsQueryBudget(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := setupRemindersModule(t)
-	require.NoError(t, serviceFactory.Settings.SetValue(
+	db, serviceFactory, settings := setupRemindersModule(t)
+	require.NoError(t, settings.Settings.SetValue(
 		testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil,
 	))
 	query := serviceFactory.Reminders

@@ -21,6 +21,8 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	_, auth := setupIoTSettingsModule(t)
 	feedback, err := NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
+	identity, err := NewRFIDTestModule(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
 	schools, err := NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -31,7 +33,7 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 		Configuration:            data.Configuration,
 		Rooms:                    data.RoomAvailability,
 		FeedbackService:          feedback.Feedback,
-		FeedbackStudents:         feedback.FeedbackStudents,
+		FeedbackStudents:         identity.FeedbackStudents,
 		FeedbackResponseObserver: func(int, string) {},
 		DeviceScan:               routerDeviceScan{},
 		StaffClock:               routerStaffClock{},
