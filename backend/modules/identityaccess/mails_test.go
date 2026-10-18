@@ -199,3 +199,12 @@ func TestPlatformCaregiverRoleNamesMatchThePredicate(t *testing.T) {
 	}
 	assert.Equal(t, []string{"user", "teacher"}, identityaccess.PlatformCaregiverRoleNames())
 }
+
+// An audit names the account by its person, or by its username without one.
+func TestAuditActorName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Ada Lovelace", identityaccess.AuditActorName(" Ada", "Lovelace ", "ada"))
+	assert.Equal(t, "ada", identityaccess.AuditActorName(" ", "", " ada "))
+	assert.Equal(t, "Ada", identityaccess.AuditActorName("Ada", "", "ada"))
+}

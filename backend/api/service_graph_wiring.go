@@ -390,7 +390,7 @@ type EnrollmentDecisionSources struct {
 	Persons                enrollmentPersonRows
 	Staff                  enrollmentStaffRows
 	Students               enrollmentStudentRows
-	StudentEnrollment      enrollmentCompose.DecisionStudentEnrollment
+	StudentEnrollment      EnrollmentDecisionPeople
 	Companions             EnrollmentDepartureCompanions
 	DeleteCompanions       func(context.Context, []int64) error
 	StudentGuardians       enrollmentStudentGuardianRows

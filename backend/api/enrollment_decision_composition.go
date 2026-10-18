@@ -64,7 +64,7 @@ func enrollmentPeopleDirectory(src EnrollmentDecisionSources) enrollmentCompose.
 		IsLockNotAvailable:             isPostgresLockNotAvailable,
 	}
 	if src.Persons != nil {
-		people.Persons = enrollmentPersons{repo: src.Persons}
+		people.Persons = enrollmentPersons{repo: src.Persons, people: src.StudentEnrollment}
 	}
 	if src.Staff != nil {
 		people.Staff = enrollmentReviewerStaff{repo: src.Staff}
@@ -73,10 +73,10 @@ func enrollmentPeopleDirectory(src EnrollmentDecisionSources) enrollmentCompose.
 		people.Students = enrollmentStudentRecords{repo: src.Students}
 	}
 	if src.GuardianProfiles != nil {
-		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfiles}
+		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfiles, accounts: src.StudentEnrollment}
 	}
 	if src.StudentGuardians != nil {
-		people.StudentGuardians = enrollmentStudentGuardians{repo: src.StudentGuardians}
+		people.StudentGuardians = enrollmentStudentGuardians{repo: src.StudentGuardians, people: src.StudentEnrollment}
 	}
 	if src.GuardianPhones != nil {
 		people.GuardianPhones = enrollmentGuardianPhones{repo: src.GuardianPhones}

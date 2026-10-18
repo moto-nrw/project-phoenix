@@ -7,16 +7,30 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The bindings below connect Enrollment's decision flow (#3564) to the People
-// Directory rows the retained repositories still hold: persons, students,
-// guardian profiles, student-guardian links and guardian phones. Every record
-// travels whole, so an update writes back exactly what was read plus the
-// decision's changes.
+// Directory. The child's person, its details, a guardian's account link and
+// the removal of a relationship are the owner's commands; the other guardian
+// profile, relationship and phone writes still travel whole through the
+// retained repositories, so such an update writes back exactly what was read
+// plus the decision's changes.
+
+// EnrollmentDecisionPeople is the People Directory the decision flow writes
+// through: the child's enrollment and person, the person's details, a
+// guardian's account link and the removal of a relationship.
+type EnrollmentDecisionPeople interface {
+	enrollmentCompose.DecisionStudentEnrollment
+	peopledirectory.EnrollmentPersonCommand
+	peopledirectory.PersonDetailsCommand
+	LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error
+	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
+}
 
 // enrollmentPeopleRules applies the People Directory's validation and role
 // rules to the decision flow's records.
@@ -83,16 +97,25 @@ func enrollmentGuardianRoleName(role enrollmentCompose.GuardianRole) string {
 	}
 }
 
-// enrollmentPersons creates and renames persons and resolves a reviewer's
-// person.
-type enrollmentPersons struct{ repo enrollmentPersonRows }
+// enrollmentPersons creates and renames persons through the People Directory
+// and resolves a reviewer's person.
+type enrollmentPersons struct {
+	repo   enrollmentPersonRows
+	people EnrollmentDecisionPeople
+}
 
 func (p enrollmentPersons) CreatePerson(ctx context.Context, person *enrollmentCompose.Person) error {
-	row := decisionPersonRow(person)
-	if err := p.repo.Create(ctx, row); err != nil {
+	created, err := p.people.CreateChildPerson(ctx, peopledirectory.ChildPerson{
+		FirstName: person.FirstName, LastName: person.LastName, Birthday: decisionBirthday(person.Birthday),
+	})
+	if err != nil {
 		return err
 	}
-	*person = *decisionPersonRecord(row)
+	*person = enrollmentCompose.Person{
+		ID: created.ID, TenantID: created.TenantID, CreatedAt: created.CreatedAt, UpdatedAt: created.UpdatedAt,
+		FirstName: created.FirstName, LastName: created.LastName, Birthday: person.Birthday,
+		TagID: created.TagID, AccountID: created.AccountID,
+	}
 	return nil
 }
 
@@ -102,7 +125,17 @@ func (p enrollmentPersons) PersonByID(ctx context.Context, id int64) (*enrollmen
 }
 
 func (p enrollmentPersons) UpdatePerson(ctx context.Context, person *enrollmentCompose.Person) error {
-	return p.repo.Update(ctx, decisionPersonRow(person))
+	return p.people.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{
+		FirstName: person.FirstName, LastName: person.LastName, Birthday: decisionBirthday(person.Birthday),
+	})
+}
+
+// decisionBirthday is the People Directory's form of a decision's birthday.
+func decisionBirthday(birthday *timezone.Date) string {
+	if birthday == nil {
+		return ""
+	}
+	return birthday.String()
 }
 
 func (p enrollmentPersons) PersonByAccount(ctx context.Context, accountID int64) (*enrollmentCompose.Person, error) {
@@ -190,9 +223,11 @@ func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, st
 	return a.auditor.RecordSystemStatusChange(ctx, studentID, userModels.StudentStatus(before), userModels.StudentStatus(after))
 }
 
-// enrollmentGuardianProfiles reads and writes the tenant's guardian profiles.
+// enrollmentGuardianProfiles reads and writes the tenant's guardian profiles;
+// accounts links a profile's account, which only the decision flow does.
 type enrollmentGuardianProfiles struct {
-	repo enrollmentGuardianProfileRows
+	repo     enrollmentGuardianProfileRows
+	accounts EnrollmentDecisionPeople
 }
 
 func (g enrollmentGuardianProfiles) GuardianProfileByAccount(ctx context.Context, accountID int64) (*enrollmentCompose.GuardianProfile, error) {
@@ -285,7 +320,10 @@ func (g enrollmentGuardianProfiles) UpdateGuardianProfile(ctx context.Context, p
 }
 
 func (g enrollmentGuardianProfiles) LinkGuardianAccount(ctx context.Context, profileID, accountID int64) error {
-	return g.repo.LinkAccount(ctx, profileID, accountID)
+	if g.accounts == nil {
+		return errors.New("enrollment guardian profiles: the account link is bound to the decision flow only")
+	}
+	return g.accounts.LinkGuardianProfileToAccount(ctx, profileID, accountID)
 }
 
 func decisionGuardianProfileRow(profile *enrollmentCompose.GuardianProfile) *userModels.GuardianProfile {
@@ -316,9 +354,11 @@ func decisionGuardianProfileRecord(row *userModels.GuardianProfile) *enrollmentC
 }
 
 // enrollmentStudentGuardians reads and writes the student-guardian links
-// through the retained composition seam over their three owners.
+// through the retained composition seam over their three owners and removes
+// them through the People Directory.
 type enrollmentStudentGuardians struct {
-	repo enrollmentStudentGuardianRows
+	repo   enrollmentStudentGuardianRows
+	people EnrollmentDecisionPeople
 }
 
 func (s enrollmentStudentGuardians) GuardianLinksOfStudent(ctx context.Context, studentID int64) ([]*enrollmentCompose.StudentGuardian, error) {
@@ -347,7 +387,7 @@ func (s enrollmentStudentGuardians) UpdateGuardianLink(ctx context.Context, link
 }
 
 func (s enrollmentStudentGuardians) DeleteGuardianLink(ctx context.Context, id int64) error {
-	return s.repo.Delete(ctx, id)
+	return s.people.DeleteStudentGuardianLink(ctx, id)
 }
 
 func (s enrollmentStudentGuardians) GuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*enrollmentCompose.StudentGuardian, error) {

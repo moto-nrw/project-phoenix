@@ -138,6 +138,7 @@ type Command interface {
 	FamilyProtectionCommand
 	AccountLifecycleCommand
 	PersonDetailsCommand
+	EnrollmentPersonCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.

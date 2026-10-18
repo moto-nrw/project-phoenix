@@ -100,13 +100,40 @@ func (m *Module) CreateInvitedGuardian(ctx context.Context, guardian InvitedGuar
 // trimmed, but neither capped nor required to keep a character after the
 // trim.
 func (m *Module) CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error {
-	if firstName == "" || lastName == "" {
-		return invalid("first name and last name are required")
-	}
-	_, err := m.engine.Create(ctx, CreatePerson{
-		FirstName: strings.TrimSpace(firstName), LastName: strings.TrimSpace(lastName), AccountID: &accountID,
-	})
+	_, err := m.createAsGiven(ctx, CreatePerson{FirstName: firstName, LastName: lastName, AccountID: &accountID})
 	return err
+}
+
+// ChildPerson is the person an enrollment approval creates for the child it
+// admits. Birthday is a calendar date in BirthdayLayout.
+type ChildPerson struct {
+	FirstName string
+	LastName  string
+	Birthday  string
+}
+
+// EnrollmentPersonCommand creates the person behind a child an enrollment
+// approval admits.
+type EnrollmentPersonCommand interface {
+	// CreateChildPerson inserts the person at the school in context and
+	// returns it. Both names are required.
+	CreateChildPerson(context.Context, ChildPerson) (Person, error)
+}
+
+// CreateChildPerson stores the names as the approval always did: trimmed,
+// but neither capped nor required to keep a character after the trim.
+func (m *Module) CreateChildPerson(ctx context.Context, child ChildPerson) (Person, error) {
+	return m.createAsGiven(ctx, CreatePerson{FirstName: child.FirstName, LastName: child.LastName, Birthday: child.Birthday})
+}
+
+// createAsGiven is the create of the flows that predate the directory's name
+// rules: both names must be given, they are trimmed and not capped.
+func (m *Module) createAsGiven(ctx context.Context, person CreatePerson) (Person, error) {
+	if person.FirstName == "" || person.LastName == "" {
+		return Person{}, invalid("first name and last name are required")
+	}
+	person.FirstName, person.LastName = strings.TrimSpace(person.FirstName), strings.TrimSpace(person.LastName)
+	return m.engine.Create(ctx, person)
 }
 
 // RenamePerson refuses an empty name; the stored names are trimmed but not

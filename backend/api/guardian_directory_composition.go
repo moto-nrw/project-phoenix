@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
@@ -121,9 +120,6 @@ type GuardianDirectoryRuntime struct {
 	// of pdf, docx or xlsx, validated by the adapter beforehand.
 	RenderPaymentExport func(rows []peopledirectory.GuardianPaymentRow, format string) (GuardianExportFile, error)
 }
-
-// exportConfidentialityNote is stamped on every page of the exported list.
-const exportConfidentialityNote = "Vertraulich. Enthält Bankverbindungen. Bitte nicht per E-Mail weitergeben."
 
 // GuardianDirectoryInvitations is the Identity & Access half the guardian
 // routes drive: the invitation lifecycle and the relative access flows.
@@ -273,18 +269,19 @@ func guardianPaymentExport(renderer *lists.RendererService) func(rows []peopledi
 		if renderer == nil {
 			return GuardianExportFile{}, errors.New("list export service is not configured")
 		}
+		list := peopledirectory.GuardianPaymentListOf(rows)
 		doc := lists.Document{
-			Title:       "Bankverbindungen",
-			Subtitle:    paymentExportSubtitle(rows),
+			Title:       list.Title,
+			Subtitle:    list.Subtitle,
 			GeneratedAt: time.Now(),
-			Footer:      exportConfidentialityNote,
+			Footer:      list.Footer,
 			Columns: []lists.Column{
-				{ID: lists.ColumnStudentName, Label: "Kind"},
-				{ID: lists.ColumnStudentClass, Label: "Klasse"},
-				{ID: lists.ColumnContactName, Label: "Kontoinhaber"},
-				{ID: lists.ColumnIBAN, Label: "IBAN"},
+				{ID: lists.ColumnStudentName, Label: list.Headings.Student},
+				{ID: lists.ColumnStudentClass, Label: list.Headings.Class},
+				{ID: lists.ColumnContactName, Label: list.Headings.AccountHolder},
+				{ID: lists.ColumnIBAN, Label: list.Headings.IBAN},
 			},
-			Rows: buildPaymentExportRows(rows),
+			Rows: paymentExportRows(list.Lines),
 		}
 		file, err := renderer.Render(doc, lists.Format(format), doc.Title)
 		if err != nil {
@@ -313,42 +310,16 @@ func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
 	}
 }
 
-// paymentExportSubtitle states how complete the list is. A bank list that
-// silently omits its gaps reads as finished when it is not.
-func paymentExportSubtitle(rows []peopledirectory.GuardianPaymentRow) string {
-	withIBAN := 0
-	for _, row := range rows {
-		if row.HasIBAN() {
-			withIBAN++
-		}
-	}
-	if withIBAN == len(rows) {
-		return fmt.Sprintf("%d Kinder, alle mit Bankverbindung", len(rows))
-	}
-	return fmt.Sprintf("%d Kinder, davon %d mit Bankverbindung", len(rows), withIBAN)
-}
-
-// buildPaymentExportRows renders one line per child. Children without a payer
-// or without an IBAN keep their row and say what is missing, so the list can
-// be used as a to-do rather than read as complete.
-func buildPaymentExportRows(rows []peopledirectory.GuardianPaymentRow) []lists.Row {
-	out := make([]lists.Row, 0, len(rows))
-	for _, row := range rows {
-		holder := row.AccountHolder
-		iban := row.IBAN
-		switch {
-		case row.GuardianProfileID == nil:
-			holder = "Nicht zugeordnet"
-			iban = "Fehlt"
-		case iban == "":
-			iban = "Fehlt"
-		}
+// paymentExportRows places the owner's lines in the export's columns.
+func paymentExportRows(lines []peopledirectory.GuardianPaymentLine) []lists.Row {
+	out := make([]lists.Row, 0, len(lines))
+	for _, line := range lines {
 		out = append(out, lists.Row{
 			Values: map[lists.ColumnID]string{
-				lists.ColumnStudentName:  row.StudentName,
-				lists.ColumnStudentClass: row.SchoolClass,
-				lists.ColumnContactName:  holder,
-				lists.ColumnIBAN:         iban,
+				lists.ColumnStudentName:  line.Student,
+				lists.ColumnStudentClass: line.Class,
+				lists.ColumnContactName:  line.AccountHolder,
+				lists.ColumnIBAN:         line.IBAN,
 			},
 		})
 	}
