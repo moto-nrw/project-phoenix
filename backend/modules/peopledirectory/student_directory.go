@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory. Running and Ended are the two
@@ -76,6 +77,22 @@ type StudentRecord struct {
 }
 
 func (r StudentRecord) IsAlumnus() bool { return r.Status == StudentStatusAlumnus }
+
+// IsActive reports a child whose care is running: not pending, inactive or
+// graduated.
+func (r StudentRecord) IsActive() bool { return r.Status == StudentStatusActive }
+
+// CareEndedOn reports whether the child's care has ended by day: a last care
+// day is set and day lies after it.
+func (r StudentRecord) CareEndedOn(day calendar.Date) bool {
+	return r.EnrolledUntil != "" && day.After(calendar.Date(r.EnrolledUntil))
+}
+
+// PickupEligibleOn reports a child a pickup plan applies to on day: not
+// graduated and still in care.
+func (r StudentRecord) PickupEligibleOn(day calendar.Date) bool {
+	return !r.IsAlumnus() && !r.CareEndedOn(day)
+}
 
 // StudentRosterEntry is a child together with the identity it renders under.
 // Every roster surface needs both, and both are this owner's rows.

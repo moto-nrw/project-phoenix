@@ -64,7 +64,7 @@ func (s classArrivalStudents) HasActiveClass(ctx context.Context, class string, 
 		return false, err
 	}
 	for _, row := range rows {
-		if row.EnrolledUntil == "" || !today.After(timezone.Date(row.EnrolledUntil)) {
+		if !row.CareEndedOn(today) {
 			return true, nil
 		}
 	}
