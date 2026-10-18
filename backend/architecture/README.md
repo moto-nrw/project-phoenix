@@ -4700,6 +4700,20 @@ The group handovers of School Structure's substitution module are written
 through Workforce's public commands by the existing `shift-plan-sync`
 workflow, whose public role already reaches Workforce.
 
+The staff directory joins of the retained staff repository (account links,
+reachable and permitted staff, staff contacts, staff by role and the staff
+birthdays) are the read projection `modules/staffdirectoryview` (owner
+`staff-directory-view`, kind `projection`, one `public` package). It reads
+School Membership's staff rows through the production rule
+`staff-directory-view.to.school-membership` and declares its own person and
+account ports, which the root binds to the People Directory and Identity &
+Access. Its join tests build staff rows through
+`staff-directory-view.internal-test.school-membership-public`. The
+employment writes of live staff (notes and the birthday opt-out) run through
+`staffoffboarding.LiveStaffEmployment`, whose public role already reaches
+School Membership and Workforce; the membership lock stays first and the
+Workforce write runs inside it.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
