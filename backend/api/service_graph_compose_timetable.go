@@ -253,13 +253,10 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 // activity templates into concrete instances with their staff and students
 // for a date window, for the scheduler task and the manual admin endpoint.
 func composeMaterialization(b graphBuild) (graphBuild, error) {
-	deps := b.TimetableWiring.Materialization(TimetableMaterializationInputs{
-		Rows: b.templateRows, CareBounds: b.People.Students,
-		// Holidays and closing days carry no series occurrences unless the
-		// series opts into closing days (#3594); the School Calendar answers.
-		NonWorkingDays: b.Calendar, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
-		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "materialization"),
-	})
+	// Holidays and closing days carry no series occurrences unless the
+	// series opts into closing days (#3594); the School Calendar answers.
+	deps := b.TimetableWiring.Materialization(b.templateRows, b.People.Students, b.Calendar,
+		b.TimetableWiring.RecurrenceLock, b.graph.RealtimeHub, b.Logger.With("service", "materialization"))
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(b.DB.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(deps)
 	if err != nil {
@@ -275,13 +272,13 @@ func composeMaterialization(b graphBuild) (graphBuild, error) {
 func composeLifecycle(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	b.timetableRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(b.DB.Pool(), repos.InstanceStudent)
-	conflicts, err := b.TimetableWiring.ConflictDetection(TimetableConflictReaders{
+	conflicts, err := b.TimetableWiring.ConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, InstanceStudents: repos.InstanceStudent,
 		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: NewTimetableStaff(b.People.Staff),
 		CalendarPeriods: b.templateRows.CalendarPeriods, ArrivalExceptions: b.People.ArrivalExceptions,
 		Sessions: b.Presence.SessionRecords, Shifts: b.Workforce.ShiftRows, Presence: b.Presence.Presence,
-		ArrivalBaselines: b.arrivalBaselines, Logger: b.Logger.With("service", "timetable-conflicts"),
-	})
+		Logger: b.Logger.With("service", "timetable-conflicts"),
+	}, b.arrivalBaselines)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable conflict detection: %w", err)
 	}
@@ -290,26 +287,24 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 	if err != nil {
 		return b, fmt.Errorf("compose timetable substitute conflicts: %w", err)
 	}
-	instances, err := b.TimetableWiring.Lifecycle(TimetableLifecycleInputs{
-		Rows: b.timetableRows,
-		Planning: timetablePorts.InstanceLifecycleDependencies{
-			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
-			CalendarPeriodRepo: b.templateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(b.DB.Pool()),
-		},
-		Staff: NewTimetableStaff(b.People.Staff), Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
-		Presence: b.Presence.Presence, SessionEnder: b.graph.Active, CareDays: b.graph.CareDay, CareDayLocks: b.CarePlan,
-		// The cancellation notice (#2601) rides on the announcement service,
-		// which is composed later.
-		GuardianNotices: communicationCompose.LateCareCancellationPublisher(func() communication.CareCancellationPublisher {
-			return b.late.guardianNoticePublisher
-		}),
-		Settings: b.settingsService, Materialization: b.graph.Materialization,
-		RecurrenceLock: b.TimetableWiring.RecurrenceLock, StartConflicts: conflicts, SubstituteConflicts: substituteConflicts,
-		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "instance-lifecycle"), Now: b.now,
+	instances, err := b.TimetableWiring.Lifecycle(timetablePorts.InstanceLifecycleDependencies{
+		IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
+		CalendarPeriodRepo: b.templateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(b.DB.Pool()),
+		StaffRepo: NewTimetableStaff(b.People.Staff), ActiveGroupRepo: b.Presence.SessionRecords, SupervisorRepo: b.groupSupervisions,
+		Presence: b.Presence.Presence, ActiveService: b.graph.Active, CareDayLocks: b.CarePlan,
+		Materialization: b.graph.Materialization, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
+		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts,
+		Logger: b.Logger.With("service", "instance-lifecycle"), Now: b.now,
 		// Development and test seed profiles create completed instances at
 		// the current clock time; dedicated tests cover the policy.
 		EnforceTimePolicy: enforceInstanceTimePolicy(b.Config.AppEnv),
-	})
+	}, b.timetableRows, b.graph.CareDay,
+		// The cancellation notice (#2601) rides on the announcement service,
+		// which is composed later.
+		communicationCompose.LateCareCancellationPublisher(func() communication.CareCancellationPublisher {
+			return b.late.guardianNoticePublisher
+		}),
+		b.settingsService, b.graph.RealtimeHub)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable instance lifecycle: %w", err)
 	}
@@ -322,11 +317,8 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 // (Vertretungsplan, #3424 slice S3): the cancel branch and the understaffed
 // acknowledgement hand over to the lifecycle.
 func composeDeviations(b graphBuild) (graphBuild, error) {
-	deps, err := b.TimetableWiring.StaffDeviations(TimetableDeviationInputs{
-		Rows: b.timetableRows, Staff: NewTimetableStaff(b.People.Staff), Supervisions: b.groupSupervisions,
-		Lifecycle: b.instances.DeviationLifecycle(), Broadcaster: b.graph.RealtimeHub,
-		Logger: b.Logger.With("service", "timetable-deviations"), Now: b.now,
-	})
+	deps, err := b.TimetableWiring.StaffDeviations(b.timetableRows, NewTimetableStaff(b.People.Staff), b.groupSupervisions,
+		b.instances.DeviationLifecycle(), b.graph.RealtimeHub, b.Logger.With("service", "timetable-deviations"), b.now)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable deviations: %w", err)
 	}
@@ -343,10 +335,8 @@ func composeDeviations(b graphBuild) (graphBuild, error) {
 // tracking (Tranche 0b) and the per-child change history (#1455), and the
 // automatic start and end of instances.
 func composeCleanups(b graphBuild) (graphBuild, error) {
-	timetableCleanup, err := b.TimetableWiring.Cleanup(TimetableRetentionInputs{
-		Owner: b.Timetable, Deletions: b.audits.DataDeletion, Deviations: b.audits.DeviationEvent,
-		Settings: b.settingsService, Logger: b.Logger.With("service", "timetable-cleanup"), Clock: b.now,
-	})
+	timetableCleanup, err := b.TimetableWiring.Cleanup(b.Timetable, b.audits.DataDeletion, b.audits.DeviationEvent,
+		b.settingsService, b.Logger.With("service", "timetable-cleanup"), b.now)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable cleanup: %w", err)
 	}
@@ -380,13 +370,12 @@ func composeOperations(b graphBuild) (graphBuild, error) {
 		return b, err
 	}
 	b.graph.ArrivalSchedule = arrivals
-	operations, err := b.TimetableWiring.Operations(TimetableOperationInputs{
-		Rows: b.timetableRows, PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords,
-		Supervisions: b.groupSupervisions, Visits: b.Presence.Presence, Presence: b.graph.Active,
-		People: newTimetableOperationPeople(b.graph.Users), Settings: b.settingsService, CareDays: b.graph.CareDay,
-		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: arrivalTimetable.NewOperationLifecycle(b.instances),
-		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "timetable-operations"), Now: b.now,
-	})
+	operations, err := b.TimetableWiring.Operations(timetablePorts.OperationDependencies{
+		PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
+		Visits: b.Presence.Presence, People: newTimetableOperationPeople(b.graph.Users),
+		Lifecycle: arrivalTimetable.NewOperationLifecycle(b.instances),
+		Logger:    b.Logger.With("service", "timetable-operations"), Now: b.now,
+	}, b.timetableRows, b.graph.Active, b.settingsService, b.graph.CareDay, arrivals, b.graph.PickupSchedule, b.graph.RealtimeHub)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable operations: %w", err)
 	}

@@ -49,13 +49,8 @@ func newRetentionCleanupService(db transactionruntime.Database, schools organiza
 
 func newTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command auditModels.Command) (timetable.TimetableCleanup, error) {
 	audits := newCleanupAudits(db, command)
-	return api.NewTimetableCleanup(api.TimetableRetentionInputs{
-		Owner:      timetableCapability,
-		Deletions:  audits.DataDeletion,
-		Deviations: audits.DeviationEvent,
-		Settings:   newCleanupSettingsService(db, schools, logger),
-		Logger:     logger,
-	})
+	return api.NewTimetableCleanup(timetableCapability, audits.DataDeletion, audits.DeviationEvent,
+		newCleanupSettingsService(db, schools, logger), logger, nil)
 }
 
 // newTimeTrackingCleanupService builds the time-tracking retention over the

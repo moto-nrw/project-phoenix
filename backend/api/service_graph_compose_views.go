@@ -141,12 +141,10 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 // Enrollment's roster resync reconciles offering-sourced rosters (#2137,
 // #2147).
 func composePlanning(b graphBuild) (graphBuild, error) {
-	data, err := b.TimetableWiring.Data(TimetableDataInputs{
-		Rows: b.timetableRows, ArrivalBaselines: b.arrivalBaselines, PickupBaselines: b.pickupBaselines,
-		Visits: b.Presence.Presence, Groups: b.Timetable, Sessions: b.Presence.SessionRecords, ConflictAcks: b.Timetable,
-		BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(b.DB.Pool(), blockDisplayCompose.List),
-		Transactional: true, Logger: b.Logger.With("service", "timetable-data"),
-	})
+	data, err := b.TimetableWiring.Data(b.timetableRows, b.arrivalBaselines, b.pickupBaselines,
+		b.Presence.Presence, b.Timetable, b.Presence.SessionRecords, b.Timetable,
+		arrivalTimetable.NewBlockDisplayMetadata(b.DB.Pool(), blockDisplayCompose.List),
+		true, b.Logger.With("service", "timetable-data"))
 	if err != nil {
 		return b, fmt.Errorf("compose timetable data: %w", err)
 	}
@@ -162,10 +160,8 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("compose timetable series conversion: %w", err)
 	}
 	b.graph.InstanceSeriesConverter = converter
-	corrections, err := b.TimetableWiring.AttendanceCorrections(TimetableCorrectionInputs{
-		Rows: b.timetableRows, Trail: b.audits.AttendanceCorrection, People: timetableCorrectionPeople{rows: b.People.Persons},
-		Logger: b.Logger.With("service", "attendance-correction"),
-	})
+	corrections, err := b.TimetableWiring.AttendanceCorrections(b.timetableRows, b.audits.AttendanceCorrection,
+		timetableCorrectionPeople{rows: b.People.Persons}, b.Logger.With("service", "attendance-correction"))
 	if err != nil {
 		return b, fmt.Errorf("compose timetable attendance corrections: %w", err)
 	}
@@ -180,13 +176,9 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 // lifecycle's series deviations, the care-offering guards and the roster
 // resync.
 func (b *graphBuild) composeTemplates() (timetable.TemplateAdministration, error) {
-	deps, err := b.TimetableWiring.Templates(TimetableTemplateInputs{
-		Rows: b.templateRows, PlanningTracks: b.TimetableWiring.PlanningTracks, Materialization: b.graph.Materialization,
-		Deviations: b.instances.SeriesDeviations(), CareOfferings: b.careOfferings,
-		ResyncOfferingRoster: b.CarePlanWiring.OfferingRosterResync(b.late.careBookings),
-		RecurrenceLock:       b.TimetableWiring.RecurrenceLock, Broadcaster: b.graph.RealtimeHub,
-		Logger: b.Logger.With("service", "timetable-templates"), Today: b.today,
-	})
+	deps, err := b.TimetableWiring.Templates(b.templateRows, b.TimetableWiring.PlanningTracks, b.graph.Materialization,
+		b.instances.SeriesDeviations(), b.careOfferings, b.CarePlanWiring.OfferingRosterResync(b.late.careBookings),
+		b.TimetableWiring.RecurrenceLock, b.graph.RealtimeHub, b.Logger.With("service", "timetable-templates"), b.today)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable templates: %w", err)
 	}

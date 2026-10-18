@@ -185,12 +185,12 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // over the lifecycle's repositories and its (possibly fault-injecting)
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	detection, err := api.NewTimetableConflictDetection(api.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.repos.Staff),
 		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
 		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
-	})
+	}, nil)
 	if err != nil {
 		panic(err)
 	}

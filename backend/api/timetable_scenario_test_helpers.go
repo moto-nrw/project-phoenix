@@ -44,10 +44,8 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	cleanup, err := NewTimetableCleanup(TimetableRetentionInputs{
-		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
-		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: OptionalClock(clocks),
-	})
+	cleanup, err := NewTimetableCleanup(r.Timetable, NewDataDeletionTestRepository(db, command),
+		r.DeviationEvent, live.Settings, slog.Default(), OptionalClock(clocks))
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}

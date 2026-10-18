@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -78,9 +82,12 @@ func NewTimetableWiring(owners TimetableWiringOwners) (TimetableWiring, error) {
 		Cleanup:                NewTimetableCleanup,
 		// The operational day resolves the acting account's staff ID through
 		// School Membership alone (#2753).
-		Operations: func(in TimetableOperationInputs) (timetable.OperationCapability, error) {
-			in.People = TimetableOperationPeople{OperationPeople: in.People, Membership: owners.Membership}
-			return NewTimetableOperations(in)
+		Operations: func(
+			deps timetablePorts.OperationDependencies, rows timetableCompose.OwnerRows, presence TimetableOperationPresence, settings TimetableSettings,
+			careDays careplan.CareDayQuery, arrivals EffectiveArrivalTimes, pickups EffectivePickupTimes, broadcaster realtime.Broadcaster,
+		) (timetable.OperationCapability, error) {
+			deps.People = TimetableOperationPeople{OperationPeople: deps.People, Membership: owners.Membership}
+			return NewTimetableOperations(deps, rows, presence, settings, careDays, arrivals, pickups, broadcaster)
 		},
 		Materialization:       TimetableMaterializationDependencies,
 		Data:                  NewTimetableData,
