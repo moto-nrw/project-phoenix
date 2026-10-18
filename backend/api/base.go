@@ -1632,7 +1632,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Active:     svc.Active,
 		Users:      NewDeviceScanPeople(svc.Users),
 		Activities: svc.Activities,
-		Rosters:    SessionRosters{Sessions: presence, Roster: modules.timetable},
+		Rosters:    modules.timetable,
 		Education:  svc.Education,
 		Pickups:    svc.PickupSchedule,
 		// A destination chosen at the kiosk runs the phone's open-room

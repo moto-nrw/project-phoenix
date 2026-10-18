@@ -142,4 +142,7 @@ type SessionFacts interface {
 	// which of the instances ended, which of the participants carry the
 	// frozen non-booking marker.
 	ExecutionFacts(ctx context.Context, instanceIDs, participantIDs []int64) (completed, notScheduled []int64, err error)
+	// RunningSessionsByInstance maps the instance of each running session
+	// among sessionIDs to that session.
+	RunningSessionsByInstance(ctx context.Context, sessionIDs []int64) (map[int64]int64, error)
 }

@@ -183,6 +183,7 @@ type SessionFacts interface {
 	ObservedParticipantIDs(context.Context, []int64) ([]int64, error)
 	NotScheduledParticipantIDs(context.Context, []int64) ([]int64, error)
 	ExecutionFacts(ctx context.Context, instanceIDs, participantIDs []int64) (completed, notScheduled []int64, err error)
+	RunningSessionsByInstance(ctx context.Context, sessionIDs []int64) (map[int64]int64, error)
 }
 
 type Observation struct {
