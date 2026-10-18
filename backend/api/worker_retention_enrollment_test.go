@@ -21,7 +21,7 @@ import (
 // enrollmentFixture writes the enrollments of one school through the
 // Enrollment owner and backdates them as the superuser.
 type enrollmentFixture struct {
-	admin    *bun.DB
+	admin    retentionDB
 	tenantID int64
 	ctx      context.Context
 	owner    *enrollment.Module

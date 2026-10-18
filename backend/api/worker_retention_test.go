@@ -20,8 +20,12 @@ import (
 // does (#3950): the steps the root composes, inside the school's tenant
 // transaction on the least-privilege Serve pool, and seeds and inspects rows
 // as the superuser.
+// retentionDB is the superuser pool of the suite the fixtures backdate
+// rows through.
+type retentionDB = *bun.DB
+
 type retentionSuite struct {
-	admin     *bun.DB
+	admin     retentionDB
 	serve     *bun.DB
 	retention workerRetention
 }
