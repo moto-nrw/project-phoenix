@@ -19,7 +19,7 @@ import (
 func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	t.Parallel()
 	env := newOwnSchoolDemoEnv(t)
-	_, module := setupStudentModule(t)
+	_, module, live := setupStudentModule(t)
 	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
 	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
 	env.grantRole(t, visitor.ID, "user")
@@ -33,7 +33,7 @@ func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	parent := int64(claims.ID)
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, env.db))
 
-	children := parentPortalChildIDs(t, ctx, env.db, module, parent)
+	children := parentPortalChildIDs(t, ctx, env.db, module, live, parent)
 	require.Len(t, children, 1, "the visitor sees exactly the one child")
 	assert.Equal(t, own.StudentID, children[0])
 
@@ -42,10 +42,10 @@ func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	pickupChange := map[string]any{"weekdays": []any{map[string]any{
 		"weekday": 2, "scheduled": true, "pickup": "15:30", "mode": "pickup",
 	}}}
-	_, err := submitParentCareScheduleRequest(t, ctx, env.db, module, parent, foreign.StudentID, pickupChange)
+	_, err := submitParentCareScheduleRequest(t, ctx, env.db, module, live, parent, foreign.StudentID, pickupChange)
 	require.Error(t, err, "no request for a foreign child")
 
-	requestID, err := submitParentCareScheduleRequest(t, ctx, env.db, module, parent, own.StudentID, pickupChange)
+	requestID, err := submitParentCareScheduleRequest(t, ctx, env.db, module, live, parent, own.StudentID, pickupChange)
 	require.NoError(t, err, "the visitor may ask for a new pickup time")
 
 	// The request waits for the OGS, where the visitor finds it as the lead.

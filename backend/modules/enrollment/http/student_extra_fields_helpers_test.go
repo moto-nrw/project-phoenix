@@ -22,9 +22,9 @@ func setupStudentsRoute(t *testing.T) *studentExtraFieldsTestContext {
 	db := testpkg.SetupTestDB(t)
 	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	svc, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback)
+	_, live, people, _, _, _, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback)
 	require.NoError(t, err)
-	return &studentExtraFieldsTestContext{db: db, resource: api.NewStudentEnrollmentHTTPTestResource(svc)}
+	return &studentExtraFieldsTestContext{db: db, resource: api.NewStudentEnrollmentHTTPTestResource(people, live.UserContext)}
 }
 func authExec(t *testing.T, tc *studentExtraFieldsTestContext, req *http.Request, claims testutil.Claims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()

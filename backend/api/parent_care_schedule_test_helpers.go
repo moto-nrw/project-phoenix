@@ -14,11 +14,18 @@ import (
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-func NewParentCareScheduleTestService(db transactionruntime.Database, module StudentTestModule) (*parentService.Portal, error) {
-	repos, err := NewStudentTestRepositories(db, module.Audit)
+// NewParentCareScheduleTestService composes the parent portal over the
+// student graph's Care Plan side and the live graph it runs beside.
+func NewParentCareScheduleTestService(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule) (*parentService.Portal, error) {
+	students, repos, err := NewStudentTestRepositories(db, nil)
 	if err != nil {
 		return nil, err
 	}
+	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return nil, err
+	}
+	messages := NewStudentMessageRows(db)
 	members := MustNewMembershipTestRepositories(db)
 	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
@@ -34,11 +41,11 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Runtime:         ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(members.GuardianProfile),
-		Settings: BindParentSettings(module.Settings), ArrivalSchedules: NewParentArrivalSchedules(module.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(module.PickupSchedule),
-		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),
-		FamilyProtectionEvents: BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(repos.ParentRequestShare),
-		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(repos.ParentMessageThread),
-		MessageRepo: BindParentMessageReads(repos.ParentMessage),
+		Settings: BindParentSettings(live.Settings), ArrivalSchedules: NewParentArrivalSchedules(live.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(live.PickupSchedule),
+		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(students.CarePlan),
+		FamilyProtectionEvents: BindParentFamilyProtectionReads(studentPeople.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(studentPeople.ParentRequestShare),
+		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(messages.ParentMessageThread),
+		MessageRepo: BindParentMessageReads(messages.ParentMessage),
 		Logger:      slog.Default(),
 
 		CarePlanPolicy: NewParentCarePlanPolicy(),

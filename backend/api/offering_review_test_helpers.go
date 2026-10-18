@@ -25,7 +25,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 	if err != nil {
 		return nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	_, repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -37,24 +36,19 @@ import (
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
+// StudentTestModule is the Care Plan side of the student graph: the care
+// lifecycle, the partial absences, the parent requests and their reviews,
+// the offering changes and the pickup adjustments. The other owners'
+// services of the graph come beside it (NewStudentTestModule).
 type StudentTestModule struct {
-	ActiveTestModule
-	GradeTransitionTestModule
-	PeopleDirectory    peopledirectory.Capability
-	Audit              auditModels.Command
-	Schools            organizationtenancy.Capability
-	CareLifecycle      careplan.CareLifecycle
-	StudentAudit       peoplePorts.StudentAuditService
-	PartialAbsence     careplan.PartialAbsenceService
-	EnrollmentDecision enrollmentOwner.Decisions
-	CareRequests       carerequests.Service
-	OfferingChanges    careplan.OfferingChangeCapability
-	PickupAdjustments  careplan.PickupAdjustments
-	ExcusedRequests    careplan.ExcusedAbsenceRequests
-	MasterDataReview   masterdatarequests.Decisions
-	ParentRequests     parentrequests.Coordinator
-	OGSGroupLive       grouplive.Query
-	StudentPhotos      peoplePorts.StudentPhotoService
+	CareLifecycle     careplan.CareLifecycle
+	PartialAbsence    careplan.PartialAbsenceService
+	CareRequests      carerequests.Service
+	OfferingChanges   careplan.OfferingChangeCapability
+	PickupAdjustments careplan.PickupAdjustments
+	ExcusedRequests   careplan.ExcusedAbsenceRequests
+	MasterDataReview  masterdatarequests.Decisions
+	ParentRequests    parentrequests.Coordinator
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
@@ -70,9 +64,18 @@ func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) pre
 	return NewManualPartialAbsenceDates(source)
 }
 
-// DataAccessAudit supplies the access-evidence writer from this module's audit command.
-func (m StudentTestModule) DataAccessAudit() presenceservice.DataAccessAudit {
-	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
+// StudentTestPeople are the People Directory services of the student graph:
+// the owner capability, the student audit and the photo lifecycle.
+type StudentTestPeople struct {
+	PeopleDirectory peopledirectory.Capability
+	StudentAudit    peoplePorts.StudentAuditService
+	StudentPhotos   peoplePorts.StudentPhotoService
+}
+
+// StudentTestDataAccessAudit supplies the access-evidence writer from the
+// student graph's audit command.
+func StudentTestDataAccessAudit(audit auditModels.Command) presenceservice.DataAccessAudit {
+	return NewDataAccessAudit(studentAccessAuditWriter{audit})
 }
 
 type studentAccessAuditWriter struct{ auditModels.Command }
@@ -81,47 +84,45 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 	return w.Append(ctx, entry)
 }
 
-func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, error) {
+// NewStudentTestModule composes the student graph over db and returns its
+// Care Plan side with the live graph it runs over, its People Directory
+// services, the Audit command it records into, the Enrollment decisions and
+// the OGS group live projection.
+func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, ActiveTestModule, StudentTestPeople, auditModels.Command, enrollmentOwner.Decisions, grouplive.Query, error) {
 	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	students, repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
+	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
+	}
+	studentAudits := NewStudentAuditRows(db, auditCommand)
+	messages := NewStudentMessageRows(db)
 	live, err := NewActiveTestModule(db, unit, clocks...)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	care, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
-		return StudentTestModule{}, err
-	}
-	// The offering-roster resync is provided by the enrollment decision
-	// service constructed below; the closure reads it once it exists.
-	var offeringResync schoolStructure.OfferingSourceResyncer
-	grade, err := NewGradeTransitionTestModule(db, func(ctx context.Context, effectiveFrom timezone.Date) error {
-		if offeringResync == nil {
-			return nil
-		}
-		return offeringResync.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
-	}, clocks...)
-	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	delivery, err := NewDeliveryTestModule(db, unit)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	guardian, err := NewGuardianTestModule(db, unit)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	persons := guardian.PeopleDirectory
 	contextRepos, _, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	logger := slog.Default()
 	now := OptionalClock(clocks)
@@ -159,56 +160,56 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: persons})
-	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+	pickupBaselines, err := careplanCompose.NewPickupBaselines(students.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: students.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 
 		Runtime:     NewCommunicationEventRuntime(db.Pool() != nil, unit),
-		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
+		ThreadRepo:  messages.ParentMessageThread,
+		MessageRepo: messages.ParentMessage,
 		Settings:    settingsValues.NewParentEventValues(settingsService),
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db.Pool(), repos.CarePlan, NewLoggedStudentPresence(db, logger), pickupAutoExcusal)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db.Pool(), students.CarePlan, NewLoggedStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	offeringLinks, err := NewCareOfferingCatalogTestModule(db, unit, CareOfferingCatalogTestOptions{
 		Settings: settingsService, LockRecurrence: recurrenceLock.LockRecurrenceWrites,
 	})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	careBookingDeps, err := bookingMaterializationOwners(
 		repos.Timetable, rosterReconciler, persons, repos.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
-		repos.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, repos.CarePlan,
+		studentAudits.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, students.CarePlan,
 	)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	careBookingDeps.Catalog = offeringLinks.Catalog
 	careBookingDeps.Settings = settingsValues.NewCareBookingValues(settingsService)
-	careBookingDeps.Bookings = repos.CarePlan
+	careBookingDeps.Bookings = students.CarePlan
 	careBookingDeps.Withdrawals = careLifecycleService
 	careBookingDeps.LockTemplateRecurrence = recurrenceLock.LockRecurrenceWrites
 	careBookingDeps.ResyncPickupAutoExcusals = pickupAutoExcusal.ResyncFutureExceptions
@@ -217,7 +218,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	careBookingDeps.Logger = logger.With("service", "care-plan-bookings")
 	careBookings, err := newBookingMaterialization(careBookingDeps, realtimeHub)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:       repos.Enrollment(),
@@ -226,7 +227,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		LateInvites:    repos.Enrollment(),
 		Phases:         repos.Enrollment(),
 		Schemas:        repos.Enrollment(),
-		Offerings:      enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(students.CarePlan),
 		Notifications:  NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
 		Bookings:       careBookings,
 		GuardianAccess: guardianAccess,
@@ -234,13 +235,13 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, persons,
 		),
 		StudentEnrollment:      persons,
-		Companions:             EnrollmentDecisionCompanions(NewStudentCompanionRepository(repos.CarePlan), repos.CarePlan.DeleteCompanionEdges),
+		Companions:             EnrollmentDecisionCompanions(NewStudentCompanionRepository(students.CarePlan), students.CarePlan.DeleteCompanionEdges),
 		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
 		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
 		AccessLog:              EnrollmentDecisionAccessLog(repos.DataAccessLog),
-		Adjustments:            EnrollmentDecisionAdjustments(repos.EnrollmentOfferingAdjustment),
-		Restorations:           EnrollmentDecisionRestorations(repos.EnrollmentRestorationAudit),
-		Payers:                 EnrollmentDecisionPayers(repos.GuardianFinancialChange),
+		Adjustments:            EnrollmentDecisionAdjustments(studentAudits.EnrollmentOfferingAdjustment),
+		Restorations:           EnrollmentDecisionRestorations(studentAudits.EnrollmentRestorationAudit),
+		Payers:                 EnrollmentDecisionPayers(studentAudits.GuardianFinancialChange),
 		StudentAudit:           EnrollmentDecisionStudentAudit(studentAuditService),
 		StudentConsents:        EnrollmentDecisionStudentConsents(studentConsentService),
 		CareWithdrawal:         careLifecycleService,
@@ -255,17 +256,16 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	}))
-	offeringResync = careBookings
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
-	parentRequestEvents := repos.ParentRequestEvent
+	parentRequestEvents := studentPeople.ParentRequestEvent
 	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		repos.CarePlan,
+		students.CarePlan,
 		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
 		NewLoggedStudentPresence(db, logger),
 		pickupAutoExcusal,
-		repos.CarePlan,
+		students.CarePlan,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -277,11 +277,11 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		WithCareRequestToday(today),
 	)
 	offeringChangeDeps, err := offeringChangeOwners(
-		repos.CarePlan, nil, repos.Enrollment(), repos.Student, repos.CareWithdrawal, settingsService,
+		students.CarePlan, nil, repos.Enrollment(), repos.Student, studentPeople.CareWithdrawal, settingsService,
 		requestReviewPolicy, requestTokenReads.Permissions, pillEmitter, parentRequestEvents,
 	)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	offeringChangeDeps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
 	offeringChangeDeps.Bookings = careBookings
@@ -289,39 +289,39 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	offeringChangeDeps.Logger = logger.With("service", "offering-change-requests")
 	offeringChanges, err := newOfferingChanges(offeringChangeDeps)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	newPickupAdjustmentsFor := func(offerings careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error) {
 		return NewPickupAdjustments(
-			repos.CarePlan, pickupScheduleService, arrivalScheduleService, pickupBaselines, offerings,
+			students.CarePlan, pickupScheduleService, arrivalScheduleService, pickupBaselines, offerings,
 			settingsService, studentAuditService, repos.Student, today,
 		)
 	}
 	pickupAdjustments, err := newPickupAdjustmentsFor(offeringChanges)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	excusedRequestService, err := NewExcusedAbsenceRequestService(
-		repos.CarePlan, repos.Student, repos.Person, ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
+		students.CarePlan, repos.Student, repos.Person, ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
 		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil,
 	)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	masterDataDecisions, err := NewMasterDataDecisions(
-		repos.CarePlan, persons, repos.Student, repos.Person, studentAuditService,
+		students.CarePlan, persons, repos.Student, repos.Person, studentAuditService,
 		ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
 		pillEmitter, realtimeHub, parentRequestEvents, nil, logger.With("service", "master-data-review"), nil,
 	)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	parentRequestCoordinator, err := NewParentRequestCoordinator(
 		masterDataDecisions, excusedRequestService, careRequestService,
 		newOfferingChangeConflicts(offeringChanges), parentRequestEvents, requestTokenReads.Permissions,
 	)
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
@@ -329,7 +329,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {
-		return StudentTestModule{}, err
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
 		Groups: NewSchoolStructureSuiteRepositories(db).Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions, NewTestGroupHandovers(db)),
@@ -337,7 +337,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Staff: NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Audit:                   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
@@ -355,9 +355,9 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	})
 	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
-		NewManualPartialAbsenceDates(repos.CarePlan),
+		NewManualPartialAbsenceDates(students.CarePlan),
 		db.Pool(),
-		repos.CarePlan.LockExceptionDay,
+		students.CarePlan.LockExceptionDay,
 		now,
 	)
 	ogsGroupLiveService, err := newGroupLive(groupLiveSources{
@@ -379,22 +379,21 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Now:               now,
 	})
 	if err != nil {
-		return StudentTestModule{}, fmt.Errorf("compose OGS group live projection: %w", err)
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
 	return StudentTestModule{
-		ActiveTestModule: live, GradeTransitionTestModule: grade, PeopleDirectory: persons, Audit: auditCommand,
-		StudentPhotos: studentPhotoService, NewStudentPhotos: newStudentPhotos, NewPickupAdjustments: newPickupAdjustmentsFor,
-		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
-		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
-		OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
-		MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
-	}, nil
+			NewStudentPhotos: newStudentPhotos, NewPickupAdjustments: newPickupAdjustmentsFor,
+			CareLifecycle: careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
+			OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
+			MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator,
+		}, live, StudentTestPeople{PeopleDirectory: persons, StudentAudit: studentAuditService, StudentPhotos: studentPhotoService},
+		auditCommand, enrollmentDecisionService, ogsGroupLiveService, nil
 }
 
-// StatusDayOverviewPeople serves the absence overview's people reads from the
-// module's users service.
-func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOverviewPeople {
-	return StatusDayOverviewPeople(m.Users)
+// StudentTestStatusDayOverviewPeople serves the absence overview's people
+// reads from the live graph's users service.
+func StudentTestStatusDayOverviewPeople(live ActiveTestModule) presenceservice.StatusDayOverviewPeople {
+	return StatusDayOverviewPeople(live.Users)
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.

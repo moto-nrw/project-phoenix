@@ -59,7 +59,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, command)
+	students, _, err := NewStudentTestRepositories(db, command)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
@@ -120,7 +120,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	}
 	dataImports := imports{
 		Student: newStudentImport(
-			runtime, rfid, groups, rooms, persons, studentGuardians, repos.CarePlan, NewStudentPresenceForTests(db),
+			runtime, rfid, groups, rooms, persons, studentGuardians, students.CarePlan, NewStudentPresenceForTests(db),
 			auditCompose.NewConsentRecorder(command),
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
