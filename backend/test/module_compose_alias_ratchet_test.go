@@ -37,7 +37,6 @@ import (
 // directory. A package without aliases has no entry.
 var moduleComposeAliasBudgets = map[string]int{
 	"modules/auditlog/compose":                   16,
-	"modules/auditlog/compose/vocabulary":        115,
 	"modules/communication/composition":          4,
 	"modules/dataimport/compose/retained":        16,
 	"modules/delivery/compose":                   2,
@@ -60,7 +59,7 @@ var moduleComposeAliasBudgets = map[string]int{
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 482
+const moduleComposeAliasBudgetTotal = 367
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

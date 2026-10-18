@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 )
 
 // SQL clause constants

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"

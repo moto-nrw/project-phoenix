@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 

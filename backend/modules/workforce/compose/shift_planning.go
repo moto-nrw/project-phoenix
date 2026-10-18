@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
@@ -126,13 +125,13 @@ type ShiftPlanningDependencies struct {
 	Staff     StaffDirectory
 	// CalendarPeriods resolves the period a series materializes over.
 	CalendarPeriods CalendarPeriodLookup
-	// DeviationEvents appends the shift_moved Änderungsprotokoll row (#1884).
+	// ShiftMoveAudit appends the shift_moved Änderungsprotokoll row (#1884).
 	// Optional: nil skips the audit; production binds it.
-	DeviationEvents auditModels.DeviationEventRepository
-	Instances       ActivityInstanceReader
-	InstanceStaff   InstanceStaffReader
-	Rooms           RoomReader
-	ActivityGroups  ActivityGroupReader
+	ShiftMoveAudit func(context.Context, workforce.ShiftMovedEvent) error
+	Instances      ActivityInstanceReader
+	InstanceStaff  InstanceStaffReader
+	Rooms          RoomReader
+	ActivityGroups ActivityGroupReader
 	// WorkSchedules, WorkModels and Holidays refine the week grid's weekly
 	// targets; all three are optional.
 	WorkSchedules StaffWorkScheduleReader
@@ -195,8 +194,8 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
 		planning.WithStaffShiftBroadcaster(deps.Broadcaster),
 	}
-	if deps.DeviationEvents != nil {
-		shiftOptions = append(shiftOptions, planning.WithStaffShiftDeviationEvents(NewShiftMoveAudit(deps.DeviationEvents)))
+	if deps.ShiftMoveAudit != nil {
+		shiftOptions = append(shiftOptions, planning.WithStaffShiftDeviationEvents(deps.ShiftMoveAudit))
 	}
 	lockStaffShifts := NewStaffShiftLock(deps.DB)
 	shifts := planning.NewStaffShiftService(shiftRows, deps.Staff, shiftTypes, lockStaffShifts, logger, shiftOptions...)
@@ -227,19 +226,6 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		series:      series,
 		overview:    overview,
 	}, nil
-}
-
-// NewShiftMoveAudit stores the shift_moved Änderungsprotokoll entry (#1884) as
-// a shift-anchored audit deviation event.
-func NewShiftMoveAudit(events auditModels.DeviationEventRepository) planning.ShiftMoveAudit {
-	return func(ctx context.Context, moved planning.ShiftMovedEvent) error {
-		return events.Create(ctx, &auditModels.DeviationEvent{
-			OccurrenceDate: auditModels.Date(moved.OccurrenceDate), StartTime: moved.StartTime,
-			StaffShiftID: &moved.StaffShiftID, SubjectStaffID: &moved.SubjectStaffID, RelatedStaffID: moved.RelatedStaffID,
-			ActorAccountID: moved.ActorAccountID, EventType: auditModels.DeviationEventShiftMoved,
-			OldValue: moved.OldValue, NewValue: moved.NewValue,
-		})
-	}
 }
 
 // seriesOptions binds the series service's optional collaborators. A nil

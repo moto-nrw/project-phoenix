@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 

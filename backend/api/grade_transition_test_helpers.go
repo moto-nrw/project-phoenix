@@ -62,7 +62,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		Rosters:               tt.RosterMaintenance(slog.Default(), clock),
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: resync,
-		Audit:                 command, Clock: clock,
+		Audit:                 command, ClassListEntryRecord: GradeTransitionClassListRecord, Clock: clock,
 	})
 	if err != nil {
 		return GradeTransitionTestModule{}, err

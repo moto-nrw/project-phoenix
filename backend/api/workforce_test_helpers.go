@@ -10,7 +10,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -101,7 +101,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	// Workforce planning composition and the timetable test module, bound
 	// the way the service graph binds it (#3418).
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(repos.Staff), CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
+		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(repos.Staff), CalendarPeriods: repos.SchoolCalendar(), ShiftMoveAudit: NewShiftMoveAudit(repos.DeviationEvent),
 		Instances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms: facilitiesCompose.NewRoomNameDirectory(repos.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(repos.ActivityGroup),
 		WorkSchedules: repos.Workforce, WorkModels: repos.Workforce, Holidays: nonWorkingDayService,
