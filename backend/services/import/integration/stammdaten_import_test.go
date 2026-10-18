@@ -22,9 +22,9 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
@@ -40,7 +40,7 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 		Membership:          api.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
 		Records:             api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 	})
-	return config, repos
+	return config, reposPeople
 }
 
 func inTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) {
@@ -225,7 +225,7 @@ func TestStaffImportConfig_FindExisting_RefusesAmbiguousName(t *testing.T) {
 	})
 }
 
-func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *api.RepositoryTestFactory) {
+func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	// Guardian commands need the owner's provider, which the legacy root
 	// binds; the guardian-bearing cutover tests therefore live in the
@@ -233,6 +233,7 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 	// person, student, schedule and consent paths.
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
@@ -248,7 +249,7 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 		FindRFIDCard:    rfid.FindRFIDCard,
 		Resolver:        importService.NewRelationshipResolver(references.Groups, references.Rooms),
 	})
-	return config, repos
+	return config, reposPeople
 }
 
 func TestStudentImportConfig_Validate_RejectsUnknownOrTakenTag(t *testing.T) {

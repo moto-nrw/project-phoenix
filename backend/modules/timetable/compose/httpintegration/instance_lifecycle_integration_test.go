@@ -552,7 +552,7 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 		ReportedAt: time.Now(),
 		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
-	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
+	require.NoError(t, s.reposCare.StudentStatusDay.UpsertReported(s.ctx, sick))
 
 	partial := testpkg.CreateTestPickupException(t, s.db, s.student2, ai.Date.AddDays(1), s.staffID, "13:00", "Termin")
 	partialRow := fetchAttendance(t, s, ai.ID, s.student2)
@@ -1578,8 +1578,8 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 		StudentID: s.student2, Date: updatedDate, Status: absencerecords.StudentStatusDayExcused,
 		ReportedAt: time.Now().Add(time.Minute), Source: absencerecords.StudentStatusSourcePlanned,
 	}
-	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
-	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, excused))
+	require.NoError(t, s.reposCare.StudentStatusDay.UpsertReported(s.ctx, sick))
+	require.NoError(t, s.reposCare.StudentStatusDay.UpsertReported(s.ctx, excused))
 
 	inst, err := s.svc.CreateInstance(s.ctx, timetable.CreateInstanceInput{
 		Date: createdDate, StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),

@@ -20,7 +20,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	audits := NewTestAuditPersistence(testpkg.MustDatabase(db), nil)
 	svc, err := NewStaffAdmin(StaffAdminDependencies{
 		DB: testpkg.MustDatabase(db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),

@@ -25,9 +25,9 @@ func weeklyPlanSettings(bookingsAuthoritative bool) map[string]bool {
 func TestGetAndCreateCareScheduleRequest_BookingsAuthoritative(t *testing.T) {
 	t.Parallel()
 
-	_, db, repos := buildCareScheduleService(t, true)
+	_, db, repos, reposPeople := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	svc := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(true))
+	svc := careScheduleServiceWithSettings(t, db, repos, reposPeople, weeklyPlanSettings(true))
 
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -41,15 +41,15 @@ func TestGetAndCreateCareScheduleRequest_BookingsAuthoritative(t *testing.T) {
 func TestExistingCareScheduleRequestSurvivesBookingAuthorityChange(t *testing.T) {
 	t.Parallel()
 
-	_, db, repos := buildCareScheduleService(t, true)
+	_, db, repos, reposPeople := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	weeklyPlan := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(false))
+	weeklyPlan := careScheduleServiceWithSettings(t, db, repos, reposPeople, weeklyPlanSettings(false))
 
 	created, err := weeklyPlan.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	require.NotNil(t, created.PendingRequest)
 
-	bookingLed := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(true))
+	bookingLed := careScheduleServiceWithSettings(t, db, repos, reposPeople, weeklyPlanSettings(true))
 	view, err := bookingLed.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, view.PendingRequest)
@@ -70,15 +70,15 @@ func TestExistingCareScheduleRequestSurvivesBookingAuthorityChange(t *testing.T)
 func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.T) {
 	t.Parallel()
 
-	_, db, repos := buildCareScheduleService(t, true)
+	_, db, repos, reposPeople := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	var requests carerequests.Service
-	weeklyPlan := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(false), &requests)
+	weeklyPlan := careScheduleServiceWithSettings(t, db, repos, reposPeople, weeklyPlanSettings(false), &requests)
 	created, err := weeklyPlan.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	require.NotNil(t, created.PendingRequest)
 
-	bookingLed := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(true))
+	bookingLed := careScheduleServiceWithSettings(t, db, repos, reposPeople, weeklyPlanSettings(true))
 	view, err := bookingLed.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, view.PendingRequest)

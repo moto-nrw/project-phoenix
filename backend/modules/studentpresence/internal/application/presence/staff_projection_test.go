@@ -18,7 +18,7 @@ import (
 // by the composition layer through School Membership (#2667); the tests drive
 // the factory-composed repository and pin the caller-visible contract.
 
-func offboardStaff(tb testing.TB, ctx context.Context, factory *api.RepositoryTestFactory, staffID int64) {
+func offboardStaff(tb testing.TB, ctx context.Context, factory *api.PeopleRepositorySuiteFactory, staffID int64) {
 	tb.Helper()
 	require.NoError(tb, factory.Staff.Delete(ctx, staffID))
 }
@@ -27,7 +27,8 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	present := testpkg.CreateTestStaff(t, db, "Anwesende", "Betreuung")
 	offboarded := testpkg.CreateTestStaff(t, db, "Ehemalige", "Betreuung")
@@ -38,9 +39,9 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, db, offboarded.ID, group.ID, "supervisor")
 	// The replaced LEFT JOIN had no soft-delete filter: an offboarded
 	// colleague keeps resolving on a supervision that is still recorded.
-	offboardStaff(t, ctx, factory, offboarded.ID)
+	offboardStaff(t, ctx, factoryPeople, offboarded.ID)
 
-	rows, err := sessionSupervisors(factory.ActiveGroup).FindByActiveGroupID(ctx, group.ID, false)
+	rows, err := sessionSupervisors(factoryPresence.ActiveGroup).FindByActiveGroupID(ctx, group.ID, false)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 
@@ -54,7 +55,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	require.NotNil(t, byStaff[offboarded.ID].Staff, "an offboarded supervisor still resolves")
 	assert.Equal(t, offboarded.PersonID, byStaff[offboarded.ID].Staff.PersonID)
 
-	bulk, err := sessionSupervisors(factory.ActiveGroup).FindByActiveGroupIDs(ctx, []int64{group.ID}, false)
+	bulk, err := sessionSupervisors(factoryPresence.ActiveGroup).FindByActiveGroupIDs(ctx, []int64{group.ID}, false)
 	require.NoError(t, err)
 	require.Len(t, bulk, 2)
 	for _, row := range bulk {
@@ -62,7 +63,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	}
 }
 
-func createAbsence(tb testing.TB, ctx context.Context, factory *api.RepositoryTestFactory, staffID int64, approvedBy *int64) {
+func createAbsence(tb testing.TB, ctx context.Context, factory *api.StaffAbsenceSuiteRepositories, staffID int64, approvedBy *int64) {
 	tb.Helper()
 	today := calendar.TodayDate()
 	absence := &api.StaffAbsenceRow{
@@ -82,17 +83,17 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStaff(t, db, "Antrag", "Stellerin")
 	decider := testpkg.CreateTestStaff(t, db, "Antrag", "Entscheiderin")
 	other := testpkg.CreateTestStaff(t, db, "Andere", "Person")
 	deciderID := decider.ID
-	createAbsence(t, ctx, factory, subject.ID, &deciderID)
-	createAbsence(t, ctx, factory, other.ID, nil)
+	createAbsence(t, ctx, factoryAbsences, subject.ID, &deciderID)
+	createAbsence(t, ctx, factoryAbsences, other.ID, nil)
 
 	filter := api.AbsenceRequestFilter{Statuses: []string{workforce.AbsenceStatusRequested}}
-	rows, err := factory.StaffAbsence.ListRequests(ctx, filter)
+	rows, err := factoryAbsences.StaffAbsence.ListRequests(ctx, filter)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	for _, row := range rows {
@@ -111,7 +112,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Run("a person filter narrows to that person's staff", func(t *testing.T) {
 		filtered := filter
 		filtered.SubjectPersonIDs = []int64{subject.PersonID}
-		rows, err := factory.StaffAbsence.ListRequests(ctx, filtered)
+		rows, err := factoryAbsences.StaffAbsence.ListRequests(ctx, filtered)
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		assert.Equal(t, subject.ID, rows[0].StaffID)
@@ -120,7 +121,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Run("an empty person set matches nobody", func(t *testing.T) {
 		filtered := filter
 		filtered.SubjectPersonIDs = []int64{}
-		rows, err := factory.StaffAbsence.ListRequests(ctx, filtered)
+		rows, err := factoryAbsences.StaffAbsence.ListRequests(ctx, filtered)
 		require.NoError(t, err)
 		assert.Empty(t, rows, "an empty search result must not widen to everybody")
 	})
@@ -128,7 +129,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Run("the limit caps the list", func(t *testing.T) {
 		limited := filter
 		limited.Limit = 1
-		rows, err := factory.StaffAbsence.ListRequests(ctx, limited)
+		rows, err := factoryAbsences.StaffAbsence.ListRequests(ctx, limited)
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 	})

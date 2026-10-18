@@ -366,7 +366,7 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)),
 		"the reported count keeps the team mark, so the client can explain it")
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	thread, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(adminCtx(t, f.staffAccount), threadID)
 	require.NoError(t, err)
 	assert.NotNil(t, thread.StaffMarkedUnreadAt, "the team mark stays")
@@ -382,7 +382,7 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	guardianCtx := adminCtx(t, f.chain.AccountID)
 

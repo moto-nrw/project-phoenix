@@ -18,7 +18,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionGroups(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).ActiveGroup)
+	repo := sessionGroups(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Administrative activity")
 	room := testpkg.CreateTestRoom(t, db, "Administrative room")

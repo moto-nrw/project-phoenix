@@ -174,7 +174,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := sessionGroups(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).ActiveGroup)
+	repo := sessionGroups(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups

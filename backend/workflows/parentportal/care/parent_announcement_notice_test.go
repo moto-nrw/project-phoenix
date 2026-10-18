@@ -22,20 +22,22 @@ import (
 // buildNoticeFeedService wires the parent service with the optional news feed
 // set explicitly. The cancellation notice (#2601) has no school switch since
 // #3731: a sent notice is always visible to the family.
-func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Runtime:               api.ParentPortalRuntime{},
-		Children:              childResolver(db, repos),
+		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
-		StudentRepo:           api.NewParentStudentReads(repos.Student),
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement),
+		StudentRepo:           api.NewParentStudentReads(reposPeople.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
 				parentportal.KeyParentNewsEnabled: newsEnabled,
@@ -43,7 +45,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Porta
 		},
 		Logger: slog.Default(),
 	})
-	return svc, db, repos
+	return svc, db, reposMessages
 }
 
 // seedCareCancellationNotice publishes a system-authored notice aimed at one

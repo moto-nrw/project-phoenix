@@ -33,17 +33,21 @@ import (
 // masterDataFixture is one child with a guardian who files Stammdaten
 // requests, in the test's own tenant.
 type masterDataFixture struct {
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
-	chain testpkg.ParentChain
+	db            *bun.DB
+	repos         *api.PeopleRepositorySuiteFactory
+	reposCare     *api.RepositoryTestFactory
+	reposMessages *api.ParentMessagingSuiteRepositories
+	chain         testpkg.ParentChain
 }
 
 func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 	t.Helper()
 	return masterDataFixture{
-		db:    db,
-		repos: api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)),
-		chain: testpkg.CreateTestParentGuardianChain(t, db),
+		db:            db,
+		repos:         api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)),
+		reposCare:     api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)),
+		reposMessages: api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db)),
+		chain:         testpkg.CreateTestParentGuardianChain(t, db),
 	}
 }
 
@@ -63,7 +67,7 @@ func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.Master
 // decisionInputs are the Care Plan and People Directory inputs decisions
 // composes the decision from.
 func (f masterDataFixture) decisionInputs() (api.MasterDataDecisionTestOptions, api.MasterDataDecisionTestPeople) {
-	return api.MasterDataDecisionTestOptions{CarePlan: f.repos.CarePlan(), Logger: slog.Default()},
+	return api.MasterDataDecisionTestOptions{CarePlan: f.reposCare.CarePlan(), Logger: slog.Default()},
 		api.MasterDataDecisionTestPeople{
 			People:   api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
 			Students: f.repos.Student, Persons: f.repos.Person,
@@ -221,7 +225,7 @@ func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: f.repos.CarePlan(), Logger: slog.Default(),
+		CarePlan: f.reposCare.CarePlan(), Logger: slog.Default(),
 	}, api.ExcusedRequestTestPeople{Students: f.repos.Student, Persons: f.repos.Person}, nil, nil)
 	require.NoError(t, err)
 	coordinator, err := careplanCompose.NewParentRequestCoordinator(careplanCompose.ParentRequestCoordinatorDependencies{
@@ -538,7 +542,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
 		messagingOnSettings{}, broadcaster, slog.Default())
 	options, people := f.decisionInputs()
 	options.Shares = shares
@@ -555,7 +559,7 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
 	require.NoError(t, err)
 	require.NotNil(t, pill, "an approved master-data request must drop a decision pill")
 	assert.Equal(t, userModels.ParentMessageRequestStatusDone, pill.RequestStatus)
@@ -571,7 +575,7 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
 	require.NoError(t, err)
 	require.NotNil(t, pill, "a rejected request must drop a decision pill")
 	assert.Equal(t, userModels.ParentMessageRequestStatusRejected, pill.RequestStatus)
@@ -613,7 +617,7 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, userModels.ParentMessageEventRequestStatus)
+			pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, userModels.ParentMessageEventRequestStatus)
 			require.NoError(t, err)
 			require.NotNil(t, pill, "the other guardian must hear that the child's data changed")
 			assert.Equal(t, tc.wantBody, pill.Body)

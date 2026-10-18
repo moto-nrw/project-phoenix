@@ -30,12 +30,13 @@ import (
 )
 
 type deletionFixture struct {
-	db       *bun.DB
-	repos    *api.RepositoryTestFactory
-	people   peopledirectory.Capability
-	deps     studentdeletion.Dependencies
-	actorID  int64
-	feedback *testpkg.FeedbackEntryCounterMock
+	db        *bun.DB
+	repos     *api.PeopleRepositorySuiteFactory
+	reposCare *api.RepositoryTestFactory
+	people    peopledirectory.Capability
+	deps      studentdeletion.Dependencies
+	actorID   int64
+	feedback  *testpkg.FeedbackEntryCounterMock
 }
 
 // companionLinks is the Care Plan record store behind the "läuft mit" edges,
@@ -72,6 +73,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
@@ -87,7 +89,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {
 		return studentdeletion.Actor{TenantID: tenant.FromContext(ctx), AccountID: actor.ID}, nil
 	}
-	return &deletionFixture{db: db, repos: repos, people: people, deps: deps, actorID: actor.ID, feedback: feedback}
+	return &deletionFixture{db: db, repos: reposPeople, reposCare: repos, people: people, deps: deps, actorID: actor.ID, feedback: feedback}
 }
 
 func (f *deletionFixture) workflow(t *testing.T) *studentdeletion.Workflow {
@@ -624,7 +626,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
-			queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
+			queued, err := f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
 			require.NoError(t, err)
 			assert.Empty(t, queued, "%s: no cleanup intent may outlive the rollback", phase)
 			pending, err := f.repos.CareWithdrawal.FindByID(ctx, completion.ID)
@@ -677,12 +679,12 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	// Already soft-deleted, bytes not yet unlinked: still pending cleanup.
 	deleted := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategoryAttest, fmt.Sprintf("attest-%d.pdf", suffix))
-	_, err := f.repos.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
+	_, err := f.reposCare.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
 	require.NoError(t, err)
 	// Bytes already gone: nothing left to reclaim, so no intent must appear.
 	settled := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("erledigt-%d.pdf", suffix))
-	require.NoError(t, f.repos.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
+	require.NoError(t, f.reposCare.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -695,7 +697,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	assert.Zero(t, rowCount(t, db, "users.student_documents", live.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", deleted.ID))
 
-	queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
+	queued, err := f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	names := make([]string, 0, len(queued))
 	for _, cleanup := range queued {
@@ -706,9 +708,9 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 
 	// A durable intent is retried, not duplicated: queueing the same object
 	// again reactivates the row instead of adding a second one.
-	_, err = f.repos.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
+	_, err = f.reposCare.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
 	require.NoError(t, err)
-	queued, err = f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
+	queued, err = f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	assert.Len(t, queued, 2)
 }

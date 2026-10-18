@@ -222,7 +222,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 		ExcludedAutoOfferingIDs: []int64{auto.ID},
 	}))
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	linkedIDs := make([]int64, 0, len(links))
 	for _, link := range links {
@@ -309,7 +309,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	applied := false
 	for _, link := range links {
@@ -374,7 +374,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{lunch.ID},
 	}))
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	for _, link := range links {
 		if link.CareOfferingID == lunch.ID {

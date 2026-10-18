@@ -19,11 +19,12 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	now := fixedNow
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
-		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
+		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
 		Now:                     func() time.Time { return now },
 	})
 

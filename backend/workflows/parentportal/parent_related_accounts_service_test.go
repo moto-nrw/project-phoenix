@@ -75,6 +75,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -89,7 +90,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
@@ -97,8 +98,8 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
@@ -130,7 +131,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
 	defer func() {
@@ -164,7 +165,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
 	defer func() {
@@ -210,7 +211,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
@@ -425,6 +426,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
@@ -438,12 +440,12 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		StudentRepo:         api.NewParentStudentReads(reposPeople.Student),
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
@@ -508,6 +510,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -521,15 +524,15 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
 		},
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
@@ -579,7 +582,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
@@ -618,7 +621,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")

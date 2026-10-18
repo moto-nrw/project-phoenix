@@ -42,15 +42,18 @@ import (
 // careFixture is the fully-wired care-request stack plus a parent→child chain
 // and a staff account whose id the decide path resolves as the acting staff.
 type careFixture struct {
-	db           *bun.DB
-	svc          carerequests.Service
-	sf           *api.TestServiceGraph
-	repos        *api.RepositoryTestFactory
-	timetable    api.TimetableRepositories
-	chain        testpkg.ParentChain
-	staffAccount int64
-	staffID      int64
-	autoExcusal  careplan.PickupAutoExcusal
+	db            *bun.DB
+	svc           carerequests.Service
+	sf            *api.TestServiceGraph
+	repos         *api.CareScheduleSuiteRepositories
+	reposMessages *api.ParentMessagingSuiteRepositories
+	reposCare     *api.RepositoryTestFactory
+	reposPeople   *api.PeopleRepositorySuiteFactory
+	timetable     api.TimetableRepositories
+	chain         testpkg.ParentChain
+	staffAccount  int64
+	staffID       int64
+	autoExcusal   careplan.PickupAutoExcusal
 }
 
 func newCareScheduleRequestService(
@@ -77,7 +80,7 @@ func (f *careFixture) emitter(
 	broadcaster realtime.Broadcaster,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), settings, broadcaster, slog.Default())
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), settings, broadcaster, slog.Default())
 	return emitter
 }
 
@@ -100,6 +103,9 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	db := testpkg.SetupTestDB(t)
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -127,15 +133,18 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
 
 	return &careFixture{
-		db:           db,
-		svc:          svc,
-		sf:           sf,
-		repos:        repos,
-		timetable:    api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
-		chain:        chain,
-		staffAccount: staffAccount.ID,
-		staffID:      staff.ID,
-		autoExcusal:  autoExcusal,
+		db:            db,
+		svc:           svc,
+		sf:            sf,
+		repos:         reposSchedules,
+		reposMessages: reposMessages,
+		reposCare:     repos,
+		reposPeople:   reposPeople,
+		timetable:     api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		chain:         chain,
+		staffAccount:  staffAccount.ID,
+		staffID:       staff.ID,
+		autoExcusal:   autoExcusal,
 	}
 }
 
@@ -153,7 +162,7 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date calendar.
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := f.repos.CarePlan().LockStudentAndExceptionDay(txCtx, f.chain.StudentID, date.String()); err != nil {
+		if err := f.reposCare.CarePlan().LockStudentAndExceptionDay(txCtx, f.chain.StudentID, date.String()); err != nil {
 			return err
 		}
 		exception := &scheduleModels.StudentPickupException{
@@ -333,7 +342,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	student.DepartureDays = nil
 	student.BusDays = nil
 	student.PickupDays = nil
-	require.NoError(t, f.repos.Student.Update(ctx, student))
+	require.NoError(t, f.reposPeople.Student.Update(ctx, student))
 
 	// Seed a direct Wednesday arrival (not via a request).
 	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
@@ -406,7 +415,7 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 	wantErr := errors.New("pickup delete failed")
 	failingService := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
@@ -447,7 +456,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 	service := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		offeringProjectedPickupService{
@@ -488,7 +497,7 @@ func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int)
 	student.DepartureDays = nil
 	student.BusDays = nil
 	student.PickupDays = nil
-	require.NoError(t, f.repos.Student.Update(ctx, student))
+	require.NoError(t, f.reposPeople.Student.Update(ctx, student))
 	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
 		&careplan.ArrivalSchedule{
 			StudentID:       f.chain.StudentID,
@@ -535,12 +544,12 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	// live. Only the thread repo is consulted for the access check — the pill
 	// path self-no-ops with the remaining deps nil.
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, nil, nil, nil, slog.Default()),
+		api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, nil, nil, nil, slog.Default()),
 		nil,
 		slog.Default(),
 	)
@@ -607,7 +616,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	// the clear LAST so it runs FIRST (LIFO) before fixture ownership.
 	settings := &toggleSettings{enabled: true}
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
@@ -623,7 +632,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	thread, err := f.reposMessages.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill must have opened the thread while messaging was on")
 	created, err := communicationtest.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -659,7 +668,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
@@ -675,7 +684,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	thread, err := f.reposMessages.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill opens the thread")
 	created, err := communicationtest.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -695,7 +704,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, status, "the reject decision writes a request_status pill")
 
-	decided, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	decided, err := f.reposMessages.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	require.NotNil(t, decided)
 	require.NotNil(t, decided.LastMessageID, "a request_status decision advances the thread preview")
@@ -713,7 +722,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 
 	f := newCareFixture(t)
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
@@ -734,7 +743,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 
 	// No thread was ever opened (created pill dropped while disabled), so there is
 	// nothing to reconcile and no dangling status pill.
-	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	thread, err := f.reposMessages.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
 }
@@ -748,7 +757,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	// Wire an emitter whose settings report messaging OFF; notification pills
 	// are dropped, but the request workflow remains available.
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
@@ -963,7 +972,7 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(), f.sf.PeopleDirectory,
+		f.reposCare.CarePlan(), f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
@@ -990,7 +999,7 @@ func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(), f.sf.PeopleDirectory,
+		f.reposCare.CarePlan(), f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
@@ -1050,7 +1059,7 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	})
 
 	accompaniedTuesday := func(studentID int64) {
-		student, err := f.repos.Student.FindByID(ctx, studentID)
+		student, err := f.reposPeople.Student.FindByID(ctx, studentID)
 		require.NoError(t, err)
 		modes := usersModels.AllowedDepartureModes{}
 		for day, allowed := range student.AllowedDepartureModes {
@@ -1063,14 +1072,14 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 		student.PickupDays = nil
 		note := "Nachbarskind"
 		student.DepartureCompanionNote = &note
-		require.NoError(t, f.repos.Student.Update(ctx, student))
+		require.NoError(t, f.reposPeople.Student.Update(ctx, student))
 	}
 	accompaniedTuesday(partner.ID)
 	accompaniedTuesday(f.chain.StudentID)
 
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.reposCare.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:
@@ -1108,7 +1117,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,

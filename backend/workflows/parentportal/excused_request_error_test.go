@@ -57,6 +57,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -71,7 +72,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		Settings:        excusedApprovalSettings{requiresApproval: true},
 		StudentUpdates:  api.BindParentStudentUpdates(bc),
 		ExcusedRequests: api.NewParentExcusedAbsenceRequests(excused),

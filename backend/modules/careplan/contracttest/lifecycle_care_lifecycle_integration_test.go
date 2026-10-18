@@ -39,11 +39,13 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(reposPresence.ActiveGroup)
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
@@ -62,7 +64,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: api.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
+			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -93,6 +95,8 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	today := calendar.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
@@ -141,7 +145,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	applied, err := svc.ApplyDueEffects(ctx, today)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
-	latePlans, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+	latePlans, err := reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	assert.Empty(t, latePlans, "effect-day cleanup removes plans written after exit confirmation")
 
@@ -169,7 +173,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
 		personSvc := api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
+			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),
 		}).WithCareParticipation(func(
 			ctx context.Context, studentIDs []int64, on, today calendar.Date,
 		) (map[int64]bool, error) {

@@ -115,6 +115,7 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	}
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -129,7 +130,7 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: values,
@@ -152,6 +153,8 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	settings := parentSettingsStub{
 		boolValues: map[string]bool{
@@ -176,14 +179,14 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       api.NewParentStudentReads(repos.Student),
+		StudentRepo:       api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(bc),
-		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageThreadRepo: api.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
 		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
-		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
+		MessageReadRepo:   api.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
@@ -450,6 +453,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	parentLocked := make(chan struct{})
@@ -468,7 +472,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
-		StudentRepo:     newPausingStudentRepository(api.NewParentStudentReads(repos.Student), parentLocked, releaseParent),
+		StudentRepo:     newPausingStudentRepository(api.NewParentStudentReads(reposPeople.Student), parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentSickNoteEnabled: true,
@@ -488,7 +492,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
 	staffAttempted := make(chan struct{})
-	staffStudentSvc := newSignalingStudentService(api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))), repos.Student, staffAttempted)
+	staffStudentSvc := newSignalingStudentService(api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))), reposPeople.Student, staffAttempted)
 	date := calendar.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)

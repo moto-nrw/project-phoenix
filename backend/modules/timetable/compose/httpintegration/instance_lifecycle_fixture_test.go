@@ -41,10 +41,13 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 // lifecycleSetup bundles the wired lifecycle + common fixtures. Rows belong
 // to the test's own tenant clone; nothing is cleaned up explicitly.
 type lifecycleSetup struct {
-	presence timetablePorts.LifecyclePresence
-	svc      timetablePorts.InstanceLifecycle
-	factory  *api.TestServiceGraph
-	repos    *api.RepositoryTestFactory
+	presence       timetablePorts.LifecyclePresence
+	svc            timetablePorts.InstanceLifecycle
+	factory        *api.TestServiceGraph
+	repos          *api.PresenceSuiteRepositories
+	reposPeople    *api.PeopleRepositorySuiteFactory
+	reposSchedules *api.CareScheduleSuiteRepositories
+	reposCare      *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable api.TimetableRepositories
 	db        *bun.DB
@@ -64,6 +67,9 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	repoFactoryPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -89,18 +95,21 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
 	setup := &lifecycleSetup{
-		presence:  newInstancePresence(t, db),
-		factory:   serviceFactory,
-		repos:     repoFactory,
-		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
-		db:        db,
-		ctx:       ctx,
-		roomID:    room.ID,
-		staffID:   staff.ID,
-		student1:  student1.ID,
-		student2:  student2.ID,
-		tmplID:    templateRow.ID,
-		period:    period,
+		presence:       newInstancePresence(t, db),
+		factory:        serviceFactory,
+		repos:          repoFactoryPresence,
+		reposPeople:    repoFactoryPeople,
+		reposSchedules: repoFactorySchedules,
+		reposCare:      repoFactory,
+		timetable:      api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		db:             db,
+		ctx:            ctx,
+		roomID:         room.ID,
+		staffID:        staff.ID,
+		student1:       student1.ID,
+		student2:       student2.ID,
+		tmplID:         templateRow.ID,
+		period:         period,
 	}
 	// These state-machine fixtures use fixed wall-clock windows. Time-policy
 	// boundaries have dedicated clock-injected tests; keep this suite focused on
@@ -160,14 +169,14 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		SupervisorRepo:      s.repos.GroupSupervisor,
 		Rooms:               api.NewTimetableRoomNames(rooms),
 		ActivityGroupRepo:   s.timetable.ActivityGroup,
-		StaffRepo:           api.NewTimetableStaff(s.repos.Staff),
-		StudentRepo:         api.NewTimetableLifecycleStudents(s.repos.Student),
-		CalendarPeriodRepo:  s.repos.CalendarPeriod,
+		StaffRepo:           api.NewTimetableStaff(s.reposPeople.Staff),
+		StudentRepo:         api.NewTimetableLifecycleStudents(s.reposPeople.Student),
+		CalendarPeriodRepo:  s.reposSchedules.CalendarPeriod,
 		ActiveService:       s.factory.Active,
 		Materialization:     s.factory.Materialization,
 		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
-		CareDayLocks:        s.repos.CarePlan(),
+		CareDayLocks:        s.reposCare.CarePlan(),
 		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		Database:            compose.NewTenantDatabase(s.db),
@@ -186,8 +195,8 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
 	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
-		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.repos.Staff),
-		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
+		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.reposPeople.Staff),
+		CalendarPeriods: s.reposSchedules.CalendarPeriod, ArrivalExceptions: s.reposSchedules.StudentArrivalException,
 		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
 	}, nil)
 	if err != nil {

@@ -67,6 +67,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -106,7 +107,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	})
 
 	t.Run("the inherited time is never written back", func(t *testing.T) {
-		stored, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+		stored, storeErr := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, stored, 2)
 		for _, row := range stored {

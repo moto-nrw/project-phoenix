@@ -60,24 +60,26 @@ type emailFixture struct {
 func newEmailFixture(t *testing.T, preferences communication.NotificationPreferences) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
-		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
-		Persons:     newPersons(repos, db),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
-		GuardianProfiles: api.BindParentMessageGuardianProfiles(repos.GuardianProfile),
+		GuardianProfiles: api.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

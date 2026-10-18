@@ -111,7 +111,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 		t, env, "dated-switch@example.com", "DatedSwitch",
 		[]*enrollmentModels.CareOffering{oldOffering},
 	)
-	submittedBefore, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	submittedBefore, err := env.reposEnrollment.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, submittedBefore, 1)
 
@@ -156,23 +156,23 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
 
-	currentLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
+	currentLinks, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, oldOffering.ID, currentLinks[0].CareOfferingID,
 		"the parent-facing booking remains the old offering before the switch")
-	futureLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
+	futureLinks, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, newOffering.ID, futureLinks[0].CareOfferingID)
 
-	oldTaken, err := env.repos.Enrollment().OfferingCapacityPeak(ctx, oldOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
+	oldTaken, err := env.reposEnrollment.Enrollment().OfferingCapacityPeak(ctx, oldOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
 	require.NoError(t, err)
 	assert.Zero(t, oldTaken)
-	newTaken, err := env.repos.Enrollment().OfferingCapacityPeak(ctx, newOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
+	newTaken, err := env.reposEnrollment.Enrollment().OfferingCapacityPeak(ctx, newOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
 	require.NoError(t, err)
 	assert.Equal(t, 1, newTaken)
-	submittedAfter, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	submittedAfter, err := env.reposEnrollment.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
 	require.NoError(t, err)
 	assert.Equal(t, submittedBefore, submittedAfter, "a care switch must not rewrite or append original submission choices")
 }
@@ -275,7 +275,7 @@ func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesSchedule
 	})
 	require.NoError(t, err)
 
-	futureLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
+	futureLinks, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, scheduledOffering.ID, futureLinks[0].CareOfferingID)
@@ -443,7 +443,7 @@ func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(decisionTestToday.AddDays(-60))
 	env.sourcePhase.ServiceEndDate = enrollmentTest.Date(decisionTestToday.AddDays(240))
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 }
 
 // A dated switch splits the child's offering links into intervals. Everything
@@ -488,7 +488,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	requestRow, err := readOwnerRequestForTest(ctx, env.repos.Enrollment(), requestID)
+	requestRow, err := readOwnerRequestForTest(ctx, env.reposEnrollment.Enrollment(), requestID)
 	require.NoError(t, err)
 
 	// The reopened form and the change request below predate the takeover
@@ -557,7 +557,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	currentLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
+	currentLinks, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, newOffering.ID, currentLinks[0].CareOfferingID,

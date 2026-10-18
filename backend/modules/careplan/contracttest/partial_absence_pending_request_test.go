@@ -21,6 +21,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), nil)
 	require.NoError(t, err)
 
@@ -49,7 +50,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	})
 	require.ErrorIs(t, err, careplan.ErrPartialAbsencePendingRequestConflict)
 
-	rows, listErr := repos.StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, scheduleModels.Date(day), scheduleModels.Date(day))
+	rows, listErr := reposSchedules.StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, scheduleModels.Date(day), scheduleModels.Date(day))
 	require.NoError(t, listErr)
 	assert.Empty(t, rows, "pending full-day request must block partial-absence creation")
 }

@@ -25,10 +25,11 @@ import (
 // real configuration.
 
 type payrollScenario struct {
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
-	svc   workforce.StaffRecordAdmin
-	ctx   context.Context
+	db          *bun.DB
+	repos       *api.RepositoryTestFactory
+	reposPeople *api.PeopleRepositorySuiteFactory
+	svc         workforce.StaffRecordAdmin
+	ctx         context.Context
 	// updateStaff runs the staff directory's directory-field update without a
 	// teacher-record change.
 	updateStaff func(context.Context, *userModels.Staff) error
@@ -69,10 +70,11 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, reposPeople, reposPeople.Staff))
 	require.NoError(t, err)
 	dir := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{
-		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
+		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: reposPeople.Person, Staff: reposPeople.Staff, Teachers: reposPeople.Teacher,
 		MayManageStaff: api.StaffAdministrationPermitted,
 	})
 
@@ -81,10 +83,10 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 		return err
 	}
 
-	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
+	return &payrollScenario{db: db, repos: repos, reposPeople: reposPeople, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
-func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff peoplePorts.StaffRepository) api.StaffAdminDependencies {
+func payrollAdminDeps(db *bun.DB, repos *api.PeopleRepositorySuiteFactory, staff peoplePorts.StaffRepository) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
 		DB: testpkg.MustDatabase(db), Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
@@ -189,13 +191,13 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
 	staffRepo := &serializingStaffRepo{
-		StaffRepository: s.repos.Staff,
+		StaffRepository: s.reposPeople.Staff,
 		firstLocked:     make(chan struct{}),
 		secondAttempted: make(chan struct{}),
 		secondRead:      make(chan struct{}),
 		releaseFirst:    make(chan struct{}),
 	}
-	svc, err := api.NewStaffAdmin(payrollAdminDeps(s.db, s.repos, staffRepo))
+	svc, err := api.NewStaffAdmin(payrollAdminDeps(s.db, s.reposPeople, staffRepo))
 	require.NoError(t, err)
 
 	personnelNumberSeed := staff.ID % 10_000_000
@@ -273,7 +275,7 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Stale")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
-	staleStaff, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	staleStaff, err := s.reposPeople.Staff.FindByID(s.ctx, staff.ID)
 	require.NoError(t, err)
 
 	value := fmt.Sprintf("6%07d1", staff.ID%10_000_000)
@@ -284,7 +286,7 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	err = s.updateStaff(s.ctx, staleStaff)
 	require.NoError(t, err)
 
-	reloaded, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	reloaded, err := s.reposPeople.Staff.FindByID(s.ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.PersonnelNumber)
 	assert.Equal(t, value, *reloaded.PersonnelNumber)
@@ -311,7 +313,7 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 
 	// Missing audit wiring refuses the change entirely (fail fast): the
 	// administration cannot be composed without the audit repository.
-	unwired := payrollAdminDeps(s.db, s.repos, s.repos.Staff)
+	unwired := payrollAdminDeps(s.db, s.reposPeople, s.reposPeople.Staff)
 	unwired.PersonnelNumber = nil
 	_, err := api.NewStaffAdmin(unwired)
 	require.Error(t, err, "without the audit repository no change may happen")

@@ -22,7 +22,7 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 
 	sick := true
@@ -46,7 +46,7 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	student := testpkg.CreateTestStudent(t, db, "FailClosed", "Student", "FC1")
 	ctx := testpkg.Ctx(t)
 
@@ -66,7 +66,7 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)
