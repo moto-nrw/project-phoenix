@@ -59,4 +59,4 @@ type ParentAnnouncementOption struct {
 
 // ErrParentAnnouncementPublished reports a draft-only write that found the
 // announcement already published: the row is no longer editable.
-var ErrParentAnnouncementPublished = errors.New("communication: parent announcement is published (not editable)")
+var ErrParentAnnouncementPublished = errors.New("users: parent announcement is published (not editable)")

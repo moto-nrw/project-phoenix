@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,21 +21,21 @@ import (
 // drives.
 type mockRepo struct {
 	// Declaration reads are unused by these tests (#3430).
-	usersModels.ParentDeclarationRepository
-	createFn        func(ctx context.Context, a *usersModels.ParentAnnouncement) error
-	updateFn        func(ctx context.Context, a *usersModels.ParentAnnouncement) error
-	findByIDFn      func(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
+	ParentDeclarationRepository
+	createFn        func(ctx context.Context, a *ParentAnnouncement) error
+	updateFn        func(ctx context.Context, a *ParentAnnouncement) error
+	findByIDFn      func(ctx context.Context, id int64) (*ParentAnnouncement, error)
 	deleteFn        func(ctx context.Context, id int64) error
-	listForTenantFn func(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error)
+	listForTenantFn func(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error)
 	setPublishedFn  func(ctx context.Context, id int64, publishedAt *time.Time) error
 	publishIfDraft  func(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
 	setReminderFn   func(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error)
-	replaceTargets  func(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error
-	listTargetsFn   func(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementTarget, error)
-	resolveEmailsFn func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error)
+	replaceTargets  func(ctx context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error
+	listTargetsFn   func(ctx context.Context, announcementID int64) ([]*ParentAnnouncementTarget, error)
+	resolveEmailsFn func(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
 	schoolNameFn    func(ctx context.Context, tenantID int64) (string, error)
-	audienceFn      func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error)
-	statsFn         func(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementStats, error)
+	audienceFn      func(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipientStatus, error)
+	statsFn         func(ctx context.Context, tenantID, announcementID int64) (*AnnouncementStats, error)
 
 	// Anhänge (#2890): ClearEngagement wird von den Anhang-Pfaden aufgerufen.
 	clearedEngagement  []int64
@@ -44,36 +43,36 @@ type mockRepo struct {
 
 	// Poll (#1371). replaceOptions defaults to a no-op when nil so the pre-poll
 	// tests, which never set it, keep exercising Create/Update unchanged.
-	replaceOptions    func(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error
-	listOptionsFn     func(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementOption, error)
-	pollResultsFn     func(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementPollResults, error)
-	pollChildrenFn    func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollChildStatus, error)
-	pollReminderFn    func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error)
+	replaceOptions    func(ctx context.Context, tenantID, announcementID int64, options []*ParentAnnouncementOption) error
+	listOptionsFn     func(ctx context.Context, announcementID int64) ([]*ParentAnnouncementOption, error)
+	pollResultsFn     func(ctx context.Context, tenantID, announcementID int64) (*AnnouncementPollResults, error)
+	pollChildrenFn    func(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollChildStatus, error)
+	pollReminderFn    func(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollReminderRecipient, error)
 	setResponseFn     func(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error)
-	answerChildrenFn  func(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.AnnouncementPollChild, error)
+	answerChildrenFn  func(ctx context.Context, accountID int64, announcementIDs []int64) ([]*AnnouncementPollChild, error)
 	mayAnswerFn       func(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error)
-	listOptionsFeedFn func(ctx context.Context, announcementIDs []int64) ([]*usersModels.ParentAnnouncementOption, error)
+	listOptionsFeedFn func(ctx context.Context, announcementIDs []int64) ([]*ParentAnnouncementOption, error)
 }
 
-func (m *mockRepo) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error {
+func (m *mockRepo) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*ParentAnnouncementOption) error {
 	if m.replaceOptions == nil {
 		return nil
 	}
 	return m.replaceOptions(ctx, tenantID, announcementID, options)
 }
-func (m *mockRepo) ListOptions(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (m *mockRepo) ListOptions(ctx context.Context, announcementID int64) ([]*ParentAnnouncementOption, error) {
 	if m.listOptionsFn == nil {
 		return nil, nil
 	}
 	return m.listOptionsFn(ctx, announcementID)
 }
-func (m *mockRepo) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (m *mockRepo) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*ParentAnnouncementOption, error) {
 	if m.listOptionsFeedFn == nil {
 		return nil, nil
 	}
 	return m.listOptionsFeedFn(ctx, announcementIDs)
 }
-func (m *mockRepo) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.AnnouncementPollChild, error) {
+func (m *mockRepo) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*AnnouncementPollChild, error) {
 	return m.answerChildrenFn(ctx, accountID, announcementIDs)
 }
 func (m *mockRepo) AccountMayAnswerForStudent(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error) {
@@ -82,33 +81,33 @@ func (m *mockRepo) AccountMayAnswerForStudent(ctx context.Context, tenantID, ann
 func (m *mockRepo) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	return m.setResponseFn(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 }
-func (m *mockRepo) PollResults(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementPollResults, error) {
+func (m *mockRepo) PollResults(ctx context.Context, tenantID, announcementID int64) (*AnnouncementPollResults, error) {
 	return m.pollResultsFn(ctx, tenantID, announcementID)
 }
-func (m *mockRepo) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollChildStatus, error) {
+func (m *mockRepo) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollChildStatus, error) {
 	return m.pollChildrenFn(ctx, tenantID, announcementID)
 }
-func (m *mockRepo) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (m *mockRepo) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollReminderRecipient, error) {
 	return m.pollReminderFn(ctx, tenantID, announcementID)
 }
 
-func (m *mockRepo) Create(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (m *mockRepo) Create(ctx context.Context, a *ParentAnnouncement) error {
 	return m.createFn(ctx, a)
 }
-func (m *mockRepo) Update(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (m *mockRepo) Update(ctx context.Context, a *ParentAnnouncement) error {
 	return m.updateFn(ctx, a)
 }
-func (m *mockRepo) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (m *mockRepo) FindByID(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	return m.findByIDFn(ctx, id)
 }
 
 // FindByIDForUpdate has no lock to take against a mock; it answers from the
 // same source as FindByID so a test can arrange one state for both.
-func (m *mockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (m *mockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	return m.findByIDFn(ctx, id)
 }
 func (m *mockRepo) Delete(ctx context.Context, id int64) error { return m.deleteFn(ctx, id) }
-func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
+func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error) {
 	return m.listForTenantFn(ctx, includeInactive)
 }
 func (m *mockRepo) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
@@ -127,7 +126,7 @@ func (m *mockRepo) SetReminder(ctx context.Context, id int64, reminderAt *time.T
 	}
 	return true, nil
 }
-func (m *mockRepo) ListDueReminders(context.Context, time.Time, time.Time) ([]*usersModels.ParentAnnouncement, error) {
+func (m *mockRepo) ListDueReminders(context.Context, time.Time, time.Time) ([]*ParentAnnouncement, error) {
 	return nil, nil
 }
 func (m *mockRepo) ClaimReminder(context.Context, int64, time.Time) (bool, error) { return true, nil }
@@ -137,10 +136,10 @@ func (m *mockRepo) ReleaseReminderClaim(context.Context, int64, time.Time) (bool
 func (m *mockRepo) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
 	return m.publishIfDraft(ctx, id, publishedAt)
 }
-func (m *mockRepo) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error {
+func (m *mockRepo) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error {
 	return m.replaceTargets(ctx, tenantID, announcementID, targets)
 }
-func (m *mockRepo) ListTargets(ctx context.Context, announcementID int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+func (m *mockRepo) ListTargets(ctx context.Context, announcementID int64) ([]*ParentAnnouncementTarget, error) {
 	return m.listTargetsFn(ctx, announcementID)
 }
 func (m *mockRepo) CountAudience(ctx context.Context, tenantID, announcementID int64) (int, error) {
@@ -149,19 +148,19 @@ func (m *mockRepo) CountAudience(ctx context.Context, tenantID, announcementID i
 func (m *mockRepo) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
 	return false, nil
 }
-func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
+func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error) {
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
 }
 
 // UnacknowledgedReminderRecipients satisfies the same interface extension.
-func (m *mockRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (m *mockRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*AnnouncementPollReminderRecipient, error) {
 	return nil, nil
 }
 
 // LetterChildStatuses satisfies the same interface extension. These tests never
 // drive an Elternbrief, so an empty result is correct rather than a stub that
 // could mask a wrong call path.
-func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*AnnouncementLetterChildStatus, error) {
 	return nil, nil
 }
 
@@ -169,19 +168,19 @@ func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersM
 // tests drive plain Mitteilungen, which never take the tracked delivery path, so
 // an empty result is the correct answer rather than a stub that could mask a
 // wrong path being taken.
-func (m *mockRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+func (m *mockRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*AnnouncementDeliveryRecipient, error) {
 	return nil, nil
 }
 func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	return m.schoolNameFn(ctx, tenantID)
 }
-func (m *mockRepo) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+func (m *mockRepo) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipientStatus, error) {
 	return m.audienceFn(ctx, tenantID, announcementID)
 }
-func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
+func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, scope AnnouncementFeedScope) ([]*AnnouncementFeedItem, error) {
 	return nil, nil
 }
-func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) (int, error) {
+func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, scope AnnouncementFeedScope) (int, error) {
 	return 0, nil
 }
 func (m *mockRepo) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
@@ -193,7 +192,7 @@ func (m *mockRepo) MarkRead(ctx context.Context, tenantID, announcementID, accou
 func (m *mockRepo) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
 	return false, nil
 }
-func (m *mockRepo) Stats(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementStats, error) {
+func (m *mockRepo) Stats(ctx context.Context, tenantID, announcementID int64) (*AnnouncementStats, error) {
 	return m.statsFn(ctx, tenantID, announcementID)
 }
 
@@ -229,11 +228,11 @@ const (
 	testTenantID = int64(42)
 )
 
-func draft() *usersModels.ParentAnnouncement {
-	a := &usersModels.ParentAnnouncement{
+func draft() *ParentAnnouncement {
+	a := &ParentAnnouncement{
 		Title:    "Sommerfest",
 		Body:     "Wir feiern am Freitag.",
-		Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Priority: ParentAnnouncementPriorityInfo,
 		Active:   true,
 	}
 	a.ID = testAnnID
@@ -241,7 +240,7 @@ func draft() *usersModels.ParentAnnouncement {
 	return a
 }
 
-func published() *usersModels.ParentAnnouncement {
+func published() *ParentAnnouncement {
 	a := draft()
 	now := time.Now()
 	a.PublishedAt = &now
@@ -252,8 +251,8 @@ func validInputM() Input {
 	return Input{
 		Title:    "Sommerfest",
 		Body:     "Wir feiern am Freitag.",
-		Priority: usersModels.ParentAnnouncementPriorityImportant,
-		Targets:  []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Priority: ParentAnnouncementPriorityImportant,
+		Targets:  []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 }
 
@@ -262,8 +261,8 @@ func validInputM() Input {
 func TestService_List(t *testing.T) {
 	t.Parallel()
 
-	want := []*usersModels.ParentAnnouncement{draft()}
-	repo := &mockRepo{listForTenantFn: func(_ context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
+	want := []*ParentAnnouncement{draft()}
+	repo := &mockRepo{listForTenantFn: func(_ context.Context, includeInactive bool) ([]*ParentAnnouncement, error) {
 		if !includeInactive {
 			t.Fatalf("expected includeInactive=true")
 		}
@@ -282,7 +281,7 @@ func TestService_List(t *testing.T) {
 func TestService_List_RepoError(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{listForTenantFn: func(_ context.Context, _ bool) ([]*usersModels.ParentAnnouncement, error) {
+	repo := &mockRepo{listForTenantFn: func(_ context.Context, _ bool) ([]*ParentAnnouncement, error) {
 		return nil, errors.New("db down")
 	}}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -296,10 +295,10 @@ func TestService_List_RepoError(t *testing.T) {
 func TestService_Get(t *testing.T) {
 	t.Parallel()
 
-	targets := []*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}
+	targets := []*ParentAnnouncementTarget{{TargetType: AnnouncementTargetSchoolAll}}
 	repo := &mockRepo{
-		findByIDFn:    func(_ context.Context, id int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return targets, nil },
+		findByIDFn:    func(_ context.Context, id int64) (*ParentAnnouncement, error) { return draft(), nil },
+		listTargetsFn: func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return targets, nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	got, err := svc.Get(context.Background(), testAnnID)
@@ -314,7 +313,7 @@ func TestService_Get(t *testing.T) {
 func TestService_Get_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Get(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -325,8 +324,8 @@ func TestService_Get_TargetsError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		listTargetsFn: func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) {
 			return nil, errors.New("boom")
 		},
 	}
@@ -343,12 +342,12 @@ func TestService_Create(t *testing.T) {
 
 	var replaced bool
 	repo := &mockRepo{
-		createFn: func(_ context.Context, a *usersModels.ParentAnnouncement) error {
+		createFn: func(_ context.Context, a *ParentAnnouncement) error {
 			a.ID = testAnnID
 			a.SetTenantID(testTenantID)
 			return nil
 		},
-		replaceTargets: func(_ context.Context, tenantID, announcementID int64, targets []*usersModels.ParentAnnouncementTarget) error {
+		replaceTargets: func(_ context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error {
 			replaced = true
 			if tenantID != testTenantID {
 				t.Fatalf("expected tenant %d, got %d", testTenantID, tenantID)
@@ -398,7 +397,7 @@ func TestService_Create_InvalidInput(t *testing.T) {
 func TestService_Create_RepoError(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{createFn: func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return errors.New("insert failed") }}
+	repo := &mockRepo{createFn: func(_ context.Context, _ *ParentAnnouncement) error { return errors.New("insert failed") }}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Create(context.Background(), 1, validInputM()); err == nil {
 		t.Fatal("expected error")
@@ -409,8 +408,8 @@ func TestService_Create_TargetsError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		createFn: func(_ context.Context, a *usersModels.ParentAnnouncement) error { a.ID = testAnnID; return nil },
-		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
+		createFn: func(_ context.Context, a *ParentAnnouncement) error { a.ID = testAnnID; return nil },
+		replaceTargets: func(_ context.Context, _, _ int64, _ []*ParentAnnouncementTarget) error {
 			return errors.New("targets failed")
 		},
 	}
@@ -426,9 +425,9 @@ func TestService_Update(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		updateFn:       func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return nil },
-		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error { return nil },
+		findByIDFn:     func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		updateFn:       func(_ context.Context, _ *ParentAnnouncement) error { return nil },
+		replaceTargets: func(_ context.Context, _, _ int64, _ []*ParentAnnouncementTarget) error { return nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	got, err := svc.Update(context.Background(), testAnnID, validInputM())
@@ -448,9 +447,9 @@ func TestService_Update_AllowsPastReminderOnUnpublishedAnnouncement(t *testing.T
 	announcement := draft()
 	announcement.ReminderAt = &past
 	repo := &mockRepo{
-		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return announcement, nil },
-		updateFn:       func(_ context.Context, _ *usersModels.ParentAnnouncement) error { updated = true; return nil },
-		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error { return nil },
+		findByIDFn:     func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return announcement, nil },
+		updateFn:       func(_ context.Context, _ *ParentAnnouncement) error { updated = true; return nil },
+		replaceTargets: func(_ context.Context, _, _ int64, _ []*ParentAnnouncementTarget) error { return nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	in := validInputM()
@@ -467,7 +466,7 @@ func TestService_Update_AllowsPastReminderOnUnpublishedAnnouncement(t *testing.T
 func TestService_Update_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Update(context.Background(), testAnnID, validInputM()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -477,7 +476,7 @@ func TestService_Update_NotFound(t *testing.T) {
 func TestService_Update_PublishedImmutable(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return published(), nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Update(context.Background(), testAnnID, validInputM()); !errors.Is(err, ErrPublishedImmutable) {
 		t.Fatalf("expected ErrPublishedImmutable, got %v", err)
@@ -488,9 +487,9 @@ func TestService_Update_PublishedRace(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		updateFn: func(_ context.Context, _ *usersModels.ParentAnnouncement) error {
-			return usersModels.ErrAnnouncementPublished
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		updateFn: func(_ context.Context, _ *ParentAnnouncement) error {
+			return errPublishedConflictForTest
 		},
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -503,10 +502,10 @@ func TestService_Update_TargetsPublishedRace(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		updateFn:   func(_ context.Context, _ *usersModels.ParentAnnouncement) error { return nil },
-		replaceTargets: func(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
-			return usersModels.ErrAnnouncementPublished
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		updateFn:   func(_ context.Context, _ *ParentAnnouncement) error { return nil },
+		replaceTargets: func(_ context.Context, _, _ int64, _ []*ParentAnnouncementTarget) error {
+			return errPublishedConflictForTest
 		},
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -543,7 +542,7 @@ func TestService_Delete(t *testing.T) {
 
 	var cancelled, deleted bool
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
 		deleteFn:   func(_ context.Context, _ int64) error { deleted = true; return nil },
 	}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { cancelled = true; return 2, nil }}
@@ -560,7 +559,7 @@ func TestService_Delete(t *testing.T) {
 func TestService_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if err := svc.Delete(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -569,10 +568,10 @@ func TestService_Delete_NotFound(t *testing.T) {
 
 func TestService_SystemAnnouncementCannotBeDeletedOrUnpublished(t *testing.T) {
 	t.Parallel()
-	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
+	kind := ParentAnnouncementSystemKindCareCancellation
 	system := published()
 	system.SystemKind = &kind
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return system, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return system, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	assert.ErrorIs(t, svc.Delete(context.Background(), testAnnID), ErrSystemAnnouncementImmutable)
@@ -583,7 +582,7 @@ func TestService_SystemAnnouncementCannotBeDeletedOrUnpublished(t *testing.T) {
 func TestService_Delete_CancelError(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil }}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) {
 		return 0, errors.New("cancel failed")
 	}}
@@ -601,19 +600,19 @@ func TestService_Publish_WithEmail(t *testing.T) {
 	var enqueued int
 	fresh := draft()
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 			f := *fresh
 			f.SendEmail = true
 			return &f, nil
 		},
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
-		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
-		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) {
-			return []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "a@b.de", FirstName: "Ada", LastName: "L"}}, nil
+		listTargetsFn:  func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
+		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipient, error) {
+			return []*AnnouncementRecipient{{AccountID: 101, Email: "a@b.de", FirstName: "Ada", LastName: "L"}}, nil
 		},
 		schoolNameFn: func(_ context.Context, _ int64) (string, error) { return "OGS Am Berg", nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
-			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
+			return []*AnnouncementRecipientStatus{{AccountID: 101}}, nil
 		},
 	}
 	outbox := &stubOutbox{enqueueFn: func(_ context.Context, input communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
@@ -646,8 +645,8 @@ func TestService_Publish_AlreadyPublished_NoEmail(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn:    func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil },
-		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
+		findByIDFn:    func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return published(), nil },
+		listTargetsFn: func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
 	}
 	// PublishIfDraft must not be called for an already-published row.
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -660,9 +659,9 @@ func TestService_Publish_LostRace_NoEmail(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn:     func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
+		findByIDFn:     func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return false, nil },
-		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
+		listTargetsFn:  func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Publish(context.Background(), testAnnID); err != nil {
@@ -673,7 +672,7 @@ func TestService_Publish_LostRace_NoEmail(t *testing.T) {
 func TestService_Publish_NewsDisabled(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil }}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: false}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Publish(context.Background(), testAnnID); !errors.Is(err, ErrNewsDisabled) {
 		t.Fatalf("expected ErrNewsDisabled, got %v", err)
@@ -686,7 +685,7 @@ func TestService_Publish_ExpiredDraft(t *testing.T) {
 	past := time.Now().Add(-time.Hour)
 	a := draft()
 	a.ExpiresAt = &past
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return a, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return a, nil }}
 	svc := NewService(ServiceConfig{Repo: repo, Settings: stubSettings{newsEnabled: true}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Publish(context.Background(), testAnnID); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected ErrValidation for expired draft, got %v", err)
@@ -696,7 +695,7 @@ func TestService_Publish_ExpiredDraft(t *testing.T) {
 func TestService_Publish_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Publish(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -710,12 +709,12 @@ func TestService_Unpublish(t *testing.T) {
 
 	var setNil, cancelled bool
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return published(), nil },
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return published(), nil },
 		setPublishedFn: func(_ context.Context, _ int64, publishedAt *time.Time) error {
 			setNil = publishedAt == nil
 			return nil
 		},
-		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
+		listTargetsFn: func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
 	}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { cancelled = true; return 1, nil }}
 	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -731,8 +730,8 @@ func TestService_Unpublish_Draft_NoOp(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn:    func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		listTargetsFn: func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
+		findByIDFn:    func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		listTargetsFn: func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Unpublish(context.Background(), testAnnID); err != nil {
@@ -743,7 +742,7 @@ func TestService_Unpublish_Draft_NoOp(t *testing.T) {
 func TestService_Unpublish_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Unpublish(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -755,10 +754,10 @@ func TestService_Unpublish_NotFound(t *testing.T) {
 func TestService_Stats(t *testing.T) {
 	t.Parallel()
 
-	want := &usersModels.AnnouncementStats{TargetCount: 10, ReadCount: 4, AcknowledgedCount: 1}
+	want := &AnnouncementStats{TargetCount: 10, ReadCount: 4, AcknowledgedCount: 1}
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		statsFn:    func(_ context.Context, _, _ int64) (*usersModels.AnnouncementStats, error) { return want, nil },
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		statsFn:    func(_ context.Context, _, _ int64) (*AnnouncementStats, error) { return want, nil },
 	}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	got, err := svc.Stats(context.Background(), testAnnID)
@@ -773,7 +772,7 @@ func TestService_Stats(t *testing.T) {
 func TestService_Stats_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Stats(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -783,10 +782,10 @@ func TestService_Stats_NotFound(t *testing.T) {
 func TestService_Recipients(t *testing.T) {
 	t.Parallel()
 
-	want := []*usersModels.AnnouncementRecipientStatus{{AccountID: 1, FirstName: "Ada", LastName: "L"}}
+	want := []*AnnouncementRecipientStatus{{AccountID: 1, FirstName: "Ada", LastName: "L"}}
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
 			return want, nil
 		},
 	}
@@ -803,7 +802,7 @@ func TestService_Recipients(t *testing.T) {
 func TestService_Recipients_NotFound(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return nil, nil }}
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return nil, nil }}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if _, err := svc.Recipients(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -818,15 +817,15 @@ func TestService_Publish_EmailNoOutbox(t *testing.T) {
 	// send_email is on but no outbox is wired: publish still succeeds (in-app
 	// feed works), the missing binding is logged, not fatal.
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 			a := draft()
 			a.SendEmail = true
 			return a, nil
 		},
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
-		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
-			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		listTargetsFn:  func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
+			return []*AnnouncementRecipientStatus{{AccountID: 101}}, nil
 		},
 	}
 	svc := NewService(ServiceConfig{
@@ -842,7 +841,7 @@ func TestService_Publish_EmailNoOutbox(t *testing.T) {
 func TestService_Get_RepoError(t *testing.T) {
 	t.Parallel()
 
-	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 		return nil, errors.New("db")
 	}}
 	svc := NewService(ServiceConfig{Repo: repo}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -855,7 +854,7 @@ func TestService_Delete_RepoError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
 		deleteFn:   func(_ context.Context, _ int64) error { return errors.New("delete failed") },
 	}
 	// no outbox -> cancelPendingEmails is a no-op, so the delete error surfaces.
@@ -869,8 +868,8 @@ func TestService_Stats_RepoError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		statsFn: func(_ context.Context, _, _ int64) (*usersModels.AnnouncementStats, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		statsFn: func(_ context.Context, _, _ int64) (*AnnouncementStats, error) {
 			return nil, errors.New("db")
 		},
 	}
@@ -884,8 +883,8 @@ func TestService_Recipients_RepoError(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return draft(), nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
 			return nil, errors.New("db")
 		},
 	}
@@ -913,19 +912,19 @@ func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
 	// just without the school logo.
 	var enqueued int
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 			a := draft()
 			a.SendEmail = true
 			return a, nil
 		},
 		publishIfDraft: func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
-		listTargetsFn:  func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
-		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) {
-			return []*usersModels.AnnouncementRecipient{{AccountID: 101, Email: "a@b.de"}}, nil
+		listTargetsFn:  func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
+		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipient, error) {
+			return []*AnnouncementRecipient{{AccountID: 101, Email: "a@b.de"}}, nil
 		},
 		schoolNameFn: func(_ context.Context, _ int64) (string, error) { return "OGS", nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
-			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
+			return []*AnnouncementRecipientStatus{{AccountID: 101}}, nil
 		},
 	}
 	outbox := &stubOutbox{enqueueFn: func(_ context.Context, input communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
@@ -954,15 +953,15 @@ func TestService_Publish_EmptyAudience(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockRepo{
-		findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 			a := draft()
 			a.SendEmail = true
 			return a, nil
 		},
 		publishIfDraft:  func(_ context.Context, _ int64, _ time.Time) (bool, error) { return true, nil },
-		listTargetsFn:   func(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) { return nil, nil },
-		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) { return nil, nil },
-		audienceFn: func(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+		listTargetsFn:   func(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) { return nil, nil },
+		resolveEmailsFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipient, error) { return nil, nil },
+		audienceFn: func(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
 			return nil, nil
 		},
 	}
@@ -979,4 +978,10 @@ func TestService_Publish_EmptyAudience(t *testing.T) {
 	if _, err := svc.Publish(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Publish empty audience: %v", err)
 	}
+}
+
+var errPublishedConflictForTest = errors.New("published conflict fixture")
+
+func (m *mockRepo) IsPublishedConflict(err error) bool {
+	return errors.Is(err, errPublishedConflictForTest)
 }

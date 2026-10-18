@@ -1,4 +1,4 @@
-package users
+package application
 
 // Pure model tests for the parent-announcement entities: the priority/target
 // validators and the IsPublished derivation. No DB connection is needed.
@@ -41,9 +41,9 @@ func TestParentAnnouncement_IsPublished(t *testing.T) {
 	t.Parallel()
 
 	a := &ParentAnnouncement{}
-	assert.False(t, a.IsPublished(), "a draft (PublishedAt nil) is not published")
+	assert.False(t, AnnouncementIsPublished(a), "a draft (PublishedAt nil) is not published")
 
 	now := time.Now()
 	a.PublishedAt = &now
-	assert.True(t, a.IsPublished(), "a row with PublishedAt set is published")
+	assert.True(t, AnnouncementIsPublished(a), "a row with PublishedAt set is published")
 }

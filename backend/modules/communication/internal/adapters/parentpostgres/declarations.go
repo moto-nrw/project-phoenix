@@ -27,7 +27,7 @@ const (
 )
 
 // ErrDeclarationVersionConflict reports a version number written concurrently.
-var ErrDeclarationVersionConflict = errors.New("parent declaration version already exists")
+var ErrDeclarationVersionConflict = errors.New("users: declaration version already exists")
 
 // declarationColumns is embedded in parentAnnouncementRow. NULL kind/signers
 // is every non-declaration announcement.
