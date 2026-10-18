@@ -9,7 +9,7 @@ import (
 // Resource defines the time-tracking API resource: the staff member's own
 // stamps, history, absences and planning views under /api/time-tracking.
 type Resource struct {
-	WorkSessionService  workforce.WorkSessions
+	WorkSessionService  workforce.OwnWorkSessions
 	StaffAbsenceService workforce.StaffAbsences
 	PersonService       workforce.StaffDirectory
 	StaffShiftService   workforce.OwnShiftQuery
@@ -31,7 +31,7 @@ type Resource struct {
 
 // Dependencies are the collaborators of the time-tracking resource.
 type Dependencies struct {
-	WorkSessions  workforce.WorkSessions
+	WorkSessions  workforce.OwnWorkSessions
 	StaffAbsences workforce.StaffAbsences
 	Staff         workforce.StaffDirectory
 	WorkTimeMonth workforce.WorkTimeMonths
