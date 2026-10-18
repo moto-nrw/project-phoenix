@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The personnel-record administration (#3752) lives in Workforce. What it does
@@ -33,7 +33,19 @@ type staffAdminStaffRows interface {
 // staffAdminPersonRows are the retained person rows behind a staff member.
 type staffAdminPersonRows interface {
 	FindByIDForUpdate(context.Context, int64) (*userModels.Person, error)
-	Update(context.Context, *userModels.Person) error
+}
+
+// staffAdminPersonDetails writes the names and the birthday of the person
+// behind a staff member through the People Directory.
+type staffAdminPersonDetails interface {
+	SetPersonDetails(ctx context.Context, personID int64, details peopledirectory.PersonDetails) error
+}
+
+// staffAdminPersons reads the person behind a staff member from the retained
+// rows and writes its details through the People Directory.
+type staffAdminPersons struct {
+	rows    staffAdminPersonRows
+	details staffAdminPersonDetails
 }
 
 // staffDataAccessTrail is the Audit Platform's data access log.
@@ -45,7 +57,7 @@ type staffDataAccessTrail interface {
 // administration: the staff and person rows and the audit trail.
 type staffAdminOwners struct {
 	Staff      staffAdminStaffRows
-	Persons    staffAdminPersonRows
+	Persons    staffAdminPersons
 	Membership schoolmembership.Capability
 
 	MasterDataAudit auditModels.StaffMasterDataChangeCreator
@@ -58,7 +70,7 @@ type staffAdminOwners struct {
 // caller binds (the database, the observer, the logger and the clock); the
 // subjects, the audit trail and the permission matcher are bound here.
 func composeStaffAdmin(admin workforceCompose.StaffAdminDependencies, owners staffAdminOwners) (*workforceModule.StaffAdmin, error) {
-	if owners.Staff == nil || owners.Persons == nil || owners.Membership == nil ||
+	if owners.Staff == nil || owners.Persons.rows == nil || owners.Persons.details == nil || owners.Membership == nil ||
 		owners.MasterDataAudit == nil || owners.PersonnelNumber == nil || owners.DataAccessLog == nil {
 		return nil, errors.New("staff admin: staff, person, membership and audit repositories are required")
 	}
@@ -70,7 +82,7 @@ func composeStaffAdmin(admin workforceCompose.StaffAdminDependencies, owners sta
 
 type staffAdminSubjects struct {
 	staff      staffAdminStaffRows
-	persons    staffAdminPersonRows
+	persons    staffAdminPersons
 	membership schoolmembership.Capability
 }
 
@@ -95,7 +107,7 @@ func (s staffAdminSubjects) LockStaff(ctx context.Context, staffID int64, withPe
 	if withPerson && staff.Person == nil {
 		// FindByIDForUpdate does not preload; lock the person row too so
 		// person-section diffs read the last committed values.
-		person, err := s.persons.FindByIDForUpdate(ctx, staff.PersonID)
+		person, err := s.persons.rows.FindByIDForUpdate(ctx, staff.PersonID)
 		if err != nil {
 			return workforceModule.StaffProfile{}, err
 		}
@@ -108,21 +120,11 @@ func (s staffAdminSubjects) LockStaff(ctx context.Context, staffID int64, withPe
 }
 
 func (s staffAdminSubjects) UpdatePerson(ctx context.Context, personID int64, firstName, lastName string, birthday *string) error {
-	person, err := s.persons.FindByIDForUpdate(ctx, personID)
-	if err != nil {
-		return err
-	}
-	person.FirstName = firstName
-	person.LastName = lastName
-	person.Birthday = nil
+	details := peopledirectory.PersonDetails{FirstName: firstName, LastName: lastName}
 	if birthday != nil {
-		day, err := timezone.ParseDate(*birthday)
-		if err != nil {
-			return err
-		}
-		person.Birthday = &day
+		details.Birthday = *birthday
 	}
-	return s.persons.Update(ctx, person)
+	return s.persons.details.SetPersonDetails(ctx, personID, details)
 }
 
 func (s staffAdminSubjects) SetEmploymentType(ctx context.Context, staffID int64, value *string) error {

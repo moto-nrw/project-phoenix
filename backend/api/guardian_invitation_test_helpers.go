@@ -59,7 +59,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
-		expiry = GuardianTokenExpiryFallback
+		expiry = identityaccess.GuardianInvitationExpiryFallback
 	}
 	outbox := cfg.Outbox
 	if outbox == nil {

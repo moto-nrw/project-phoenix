@@ -295,6 +295,37 @@ func (s *Store) SoftDelete(ctx context.Context, id int64) (domain.OperationStats
 	return execOne(ctx, query, "soft delete person")
 }
 
+// The names an operator-deleted person keeps.
+const (
+	deletedPersonFirstName = "Gelöscht"
+	deletedPersonLastName  = "Benutzer"
+)
+
+func (s *Store) AnonymizeAndSoftDelete(ctx context.Context, id int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*personRow)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(`first_name = ?`, deletedPersonFirstName).
+		Set(`last_name = ?`, deletedPersonLastName).
+		Set(`birthday = NULL`).
+		Set(`deleted_at = NOW()`).
+		Where(`"person".id = ?`, id), tenantID)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := query.Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, wrapWriteError("anonymize and soft delete", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil {
+		stats.Rows = rows
+	}
+	return stats, nil
+}
+
 func (s *Store) SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -307,6 +338,40 @@ func (s *Store) SetAccount(ctx context.Context, personID int64, accountID *int64
 		Where(`"person".id = ?`, personID).
 		Where(`"person".deleted_at IS NULL`), tenantID)
 	return execOne(ctx, query, "set person account")
+}
+
+// SetNames leaves updated_at to the row trigger, like every write of the
+// profile flow.
+func (s *Store) SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*personRow)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(`first_name = ?`, firstName).
+		Set(`last_name = ?`, lastName).
+		Where(`"person".id = ?`, personID), tenantID)
+	return execOne(ctx, query, "set person names")
+}
+
+// SetDetails leaves updated_at to the row trigger, like SetNames.
+func (s *Store) SetDetails(ctx context.Context, personID int64, firstName, lastName, birthday string) (domain.OperationStats, error) {
+	date, err := optionalDate(birthday)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*personRow)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(`first_name = ?`, firstName).
+		Set(`last_name = ?`, lastName).
+		Set(`birthday = ?`, date).
+		Where(`"person".id = ?`, personID), tenantID)
+	return execOne(ctx, query, "set person details")
 }
 
 func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error) {

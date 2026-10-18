@@ -12,7 +12,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are
@@ -26,7 +25,7 @@ func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.M
 	}
 	deps := carePlanCompose.MasterDataDecisionDependencies{
 		CarePlan: wiring.CarePlan, People: masterDataFieldReviews{fields: wiring.Fields}, Scope: wiring.Scope, Shares: wiring.Shares,
-		Records: masterDataRecords{students: wiring.Students, persons: wiring.Persons, audit: wiring.Audit},
+		Records: masterDataRecords{students: wiring.Students, persons: wiring.Persons, details: wiring.Fields, audit: wiring.Audit},
 		Today:   carePlanCompose.Today, Logger: wiring.Logger,
 	}
 	if wiring.Today != nil {
@@ -120,13 +119,21 @@ func (r masterDataFieldReviews) ReviewFields(ctx context.Context, changes []care
 	return facts, nil
 }
 
+// MasterDataPeople is the People Directory surface the decision binds: its
+// review of a proposed field change and the person details write.
+type MasterDataPeople interface {
+	peopledirectory.StudentFieldReviewQuery
+	peopledirectory.PersonDetailsCommand
+}
+
 // masterDataRecords binds the decision's People Directory port to the
-// retained student and person repositories, which reach the owner's write
-// path, and to the per-child change history. A nil audit recorder skips the
-// history, as graphs without one always did.
+// retained student and person reads, the student write path they reach, the
+// People Directory's person details write and the per-child change history.
+// A nil audit recorder skips the history, as graphs without one always did.
 type masterDataRecords struct {
 	students masterDataStudentRows
 	persons  masterDataPersonRows
+	details  peopledirectory.PersonDetailsCommand
 	audit    peoplePorts.StudentChangeRecorder
 }
 
@@ -141,7 +148,6 @@ type masterDataStudentRows interface {
 type masterDataPersonRows interface {
 	FindByID(ctx context.Context, id interface{}) (*usersModels.Person, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Person, error)
-	Update(ctx context.Context, person *usersModels.Person) error
 }
 
 var _ carePlanCompose.MasterDataRecords = masterDataRecords{}
@@ -212,16 +218,9 @@ func (r masterDataRecords) UpdatePerson(ctx context.Context, id int64, change ca
 	if err := change(&view); err != nil {
 		return err
 	}
-	person.FirstName, person.LastName = view.FirstName, view.LastName
-	person.Birthday = nil
-	if view.Birthday != "" {
-		birthday, err := timezone.ParseDate(view.Birthday)
-		if err != nil {
-			return &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteUpdate, Err: err}
-		}
-		person.Birthday = &birthday
-	}
-	if err := r.persons.Update(ctx, person); err != nil {
+	if err := r.details.SetPersonDetails(ctx, id, peopledirectory.PersonDetails{
+		FirstName: view.FirstName, LastName: view.LastName, Birthday: view.Birthday,
+	}); err != nil {
 		return &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteUpdate, Err: err}
 	}
 	return nil

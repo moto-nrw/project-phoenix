@@ -22,11 +22,20 @@ type Store interface {
 	Search(context.Context, domain.Filter) ([]domain.Person, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
+	// AnonymizeAndSoftDelete puts the deletion placeholders in place of the
+	// names, clears the birthday and marks the row deleted; a missing row is
+	// no error.
+	AnonymizeAndSoftDelete(context.Context, int64) (domain.OperationStats, error)
 	// AnonymizeIfUnchanged replaces the direct identifiers of a deleted
 	// child's person with placeholders and tombstones the row, only while its
 	// updated_at still equals the previewed value. False means the row moved.
 	AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, domain.OperationStats, error)
 	SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error)
+	// SetNames writes the names of the person, deleted or not, as given.
+	SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error)
+	// SetDetails writes the names and the birthday (YYYY-MM-DD, empty for
+	// none) of the person, deleted or not, as given.
+	SetDetails(ctx context.Context, personID int64, firstName, lastName, birthday string) (domain.OperationStats, error)
 	SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error)
 	LockHeldTags(context.Context, []int64) ([]domain.ReleasedTag, domain.OperationStats, error)
 	ClearTags(context.Context, []int64) (domain.OperationStats, error)

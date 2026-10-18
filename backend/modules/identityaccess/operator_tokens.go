@@ -253,3 +253,19 @@ func (m *Module) DeleteStaleOperatorEmailChanges(ctx context.Context) (int, erro
 	}
 	return deleted, nil
 }
+
+// minimumOperatorEmailChangeExpiry accounts for mail delivery latency and the
+// time the operator needs to open the link.
+const minimumOperatorEmailChangeExpiry = 15 * time.Minute
+
+// OperatorEmailChangeExpiry is the lifetime of an operator e-mail change
+// link. It deliberately reuses the password reset lifetime: both are
+// one-time verification links with the same delivery constraints and
+// security profile, floored at 15 minutes. If the two ever need to diverge,
+// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES.
+func OperatorEmailChangeExpiry(passwordResetExpiry time.Duration) time.Duration {
+	if passwordResetExpiry >= minimumOperatorEmailChangeExpiry {
+		return passwordResetExpiry
+	}
+	return minimumOperatorEmailChangeExpiry
+}
