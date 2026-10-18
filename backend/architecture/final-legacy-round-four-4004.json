@@ -70,7 +70,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "Architecture passes against the fixed development base at 1 retained Data Import key and unchanged composition surface (0 production, 2 existing test hooks). Full tests, lint and hooks are required before publication; final outcomes are recorded in the cluster report."
+      "result": "Integrated development 25c8d7368021768e253e1091ad297f01287e494c: architecture passes with one retained original Data Import key and unchanged production composition 0. All 14 retirements are covered by validate-ticket --all. Full test-changed without --fast passes 221 affected packages with /tmp/gocache-final. Full lint reports 0 issues; both test-entry and production dead-code gates pass. Normal pre-commit hooks pass. Full pre-push hooks are required before publication."
     },
     "affected_rows": {
       "state": "not_applicable",

@@ -130,12 +130,14 @@ All new rules target native public/contract values, or the exact existing HTTP r
 - Fixed-base architecture: passed, 1 retained key and unchanged production composition 0.
 - Retirement validation: passed, all 14 removed keys covered; historical evidence paths for moved files use immutable base links.
 - Source ratchets: passed after lowering the improved entries; no new budget entry.
-- Full affected tests, lint and full hooks: running; publication requires them to pass. Final outcomes are recorded before the publication commit.
+- Full affected tests: passed all 221 affected packages without `--fast`, using `/tmp/orch2580/heavy.sh` and `GOCACHE=/tmp/gocache-final`.
+- Full lint: 0 issues. Test-entry and production dead-code gates pass after deletion of the now-unused generic activity model/accessors.
+- Normal pre-commit hooks pass. Full pre-push hooks are required before publication and their final outcome is reported with the PR.
 
 | Issue | Exit evidence / intended state |
 |---|---|
 | #4004 | Ten keys retire; one original Data Import authorization key remains because the immutable canonical regression gate requires at least one forbidden import; open |
-| #4076 | All 4 remaining carrier keys retire; no keys for this issue remain, subject to final full verification |
+| #4076 | All 4 remaining carrier keys retire; no keys for this issue remain; the full affected tests, lint and retirement evidence pass |
 | #4084 | Not met: composition still contains retained business/persistence code; open |
 | #4085 | Not met: alias ratchet is 23, not 0; open |
 | #4086 | Not met: five conventional production carriers, legacy-prefixed files and non-internal implementations remain; open |
