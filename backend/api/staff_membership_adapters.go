@@ -654,30 +654,18 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 }
 
 // The employment-only writes go to their Workforce owner. The opt-out and the
-// notes apply to live staff members only, as before the split, so both check
-// the membership first. Inside a caller's transaction the check and the write
-// share it and the membership stays locked; without one they are two short
-// transactions, and an offboarding that commits in between leaves the note or
-// opt-out on the retired member, which nothing reads for live staff.
+// notes apply to live staff members only, as before the split; School
+// Membership checks the membership before each write.
 
 func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return membershipError("set staff birthday display opt-out", r.withLiveStaff(ctx, staffID, func(ctx context.Context) error {
+	return membershipError("set staff birthday display opt-out", r.Membership.WithLiveStaff(ctx, staffID, func(ctx context.Context) error {
 		return MembershipEmploymentError(r.Deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
 	}))
 }
 
 func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	return membershipError("add notes", r.withLiveStaff(ctx, id, func(ctx context.Context) error {
+	return membershipError("add notes", r.Membership.WithLiveStaff(ctx, id, func(ctx context.Context) error {
 		_, err := r.Deps.employment.AppendStaffNotes(ctx, id, notes)
 		return MembershipEmploymentError(err)
 	}))
-}
-
-// withLiveStaff runs write only for a live membership. Inside the caller's
-// transaction the membership stays locked until it commits.
-func (r StaffMembershipRepository) withLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
-	if _, err := r.Membership.FindStaffForMutation(ctx, staffID); err != nil {
-		return err
-	}
-	return write(ctx)
 }
