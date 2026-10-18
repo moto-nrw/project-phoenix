@@ -63,7 +63,7 @@ func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, membe
 		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,
-		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
+		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db.Pool(), newParentGuardianLister(db, NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
 		ParentMessage:              parentStore.NewParentMessageRepository(db.Pool()),
 	}, nil
 }

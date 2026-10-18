@@ -118,6 +118,16 @@ func (s *Service) DeleteInstanceStaffByInstance(ctx context.Context, instanceID 
 	})
 }
 
+func (s *Service) deleteInstanceStaffByStaff(ctx context.Context, staffID int64) (result int64, err error) {
+	err = s.runWrite(ctx, "delete_instance_staff_by_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, deleteErr := s.store.DeleteInstanceStaffByStaff(txCtx, staffID)
+		stats.Add(queryStats)
+		result = rows
+		return deleteErr
+	})
+	return result, err
+}
+
 func (s *Service) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (result int64, err error) {
 	err = s.runWrite(ctx, "delete_upcoming_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		// A block of the day that Student Presence already runs or ended is

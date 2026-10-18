@@ -42,6 +42,11 @@ const (
 	// child after the school's window past the last care day (#3962). It
 	// names the child like a manual deletion and is written by the system.
 	DeletionTypeStudentRetention = "student_retention"
+	// DeletionTypeStaffRetention records the automatic deletion of one staff
+	// member after the school's time-tracking window past the exit (#3963).
+	// It names the staff member like the offboarding and is written by the
+	// system.
+	DeletionTypeStaffRetention = "staff_retention"
 )
 
 // Retention types that log one data kind of a nightly run without a subject
@@ -139,7 +144,8 @@ func (dd *DataDeletion) Validate() error {
 		dd.DeletionType == DeletionTypeTimetableRetention,
 		dd.DeletionType == DeletionTypeTimeTrackingRetention,
 		dd.DeletionType == DeletionTypeStudentChangeLogRetention,
-		dd.DeletionType == DeletionTypeStudentRetention:
+		dd.DeletionType == DeletionTypeStudentRetention,
+		dd.DeletionType == DeletionTypeStaffRetention:
 		if hasStudent == hasStaff {
 			// Both set or both unset — the DB would reject this too.
 			return errors.New("exactly one of student_id / staff_id must be set")

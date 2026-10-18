@@ -66,8 +66,8 @@ func TestStudentProjectionReplacementRejectsOtherChanges(t *testing.T) {
 		{"owner kind", func(b, c *Policy) {
 			for i, o := range b.Owners {
 				if o.ID == "parent-message-inbox" {
-					b.Owners[i].Kind = "inbound"
-					c.Owners[i].Kind = "inbound"
+					b.Owners[i].Kind = "tool"
+					c.Owners[i].Kind = "tool"
 				}
 			}
 		}},

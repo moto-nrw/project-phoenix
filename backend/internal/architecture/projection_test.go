@@ -47,11 +47,11 @@ func TestTargetProjectionExcludesNonModuleOwners(t *testing.T) {
 	t.Parallel()
 
 	policy := loadProjectionPolicy(t)
-	policy.Owners = append(policy.Owners, Owner{ID: "http-adapter", Kind: "inbound"})
-	policy.Packages = append(policy.Packages, Package{Path: "http", Owner: "http-adapter", Role: "application"})
+	policy.Owners = append(policy.Owners, Owner{ID: "engineering-tool", Kind: "tool"})
+	policy.Packages = append(policy.Packages, Package{Path: "engineering", Owner: "engineering-tool", Role: "application"})
 	projection := TargetProjection(policy)
 
-	if slices.Contains(projectionNodeIDs(projection), "http-adapter") {
+	if slices.Contains(projectionNodeIDs(projection), "engineering-tool") {
 		t.Fatalf("target projection contains non-module owner: %#v", projection.Nodes)
 	}
 }

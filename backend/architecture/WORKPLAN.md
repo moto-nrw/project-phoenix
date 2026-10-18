@@ -3,44 +3,58 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 18.10.2026 · Ratchet 107 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 18.10.2026 · Ratchet 101 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.539 in `compose`
+34.534 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 13 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 67 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 5 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 107 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 101 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
-#4078: Root bindet die Settings-Berechtigungen und meldet Serverfehler an
-Sentry. Common hält nur die unveränderten, anfragegebundenen Fehlerdaten;
-SDK, Datenschutzfilter und ursprüngliche Tests liegen bei Root. Alle
-ursprünglichen Testaussagen bleiben erhalten. Die Middleware-Golden ändert
-nur 1.127 Paketpfade von `api/common.ServerErrorReporting` zu
-`api.ServerErrorReporting`; die Vergleichslogik bleibt unverändert.
+#4078-Abschluss: Alle HTTP-Pakete gehören ihren fachlichen, Plattform- oder
+Workflow-Ownern bzw. Root. `api/common` gehört zu `tenant-runtime/http`.
+`architecture-check` und `dev-tools` sind echte `tool`-Owner (Schema 5),
+keine Inbound-Aliasse. Ihre sechs Paket- und Testrollen bleiben unverändert.
+Die fertigen Inbound- und Rollenübergänge samt Tests sowie der obsolete
+Common-Akzeptor sind gelöscht. Parent- und HTTP-Host-Sicherungen verlieren
+nur den veralteten Common-Zweig; heutige negative Fälle bleiben geprüft.
+Inbound-Owner 2 → 0, #4078-Keys 0 → 0, Regeln 829 → 829. Nur
+`own-test.inbound.contract` wird gleich eng zu `own-test.tool.contract`.
+Epoche 72, Composition 1.657, Routen, Antworten, IoT, Goldens und Budgets
+bleiben unverändert. Historische Basisformate sind lesbar, Live-Policies
+lehnen `inbound` ab. Die normalen Ownership- und Berechtigungsprüfungen
+haben keine neue Ausnahme. Nachweis: ADR 0060, Addendum vom 18.10.2026.
 
-`api/common` gehört zu `tenant-runtime/http`, die drei übrigen
-Communication-HTTP-Pakete zu `communication/http`. Testrollen bleiben gleich;
-Nachfolger sind auf die bisherigen Pakete begrenzt. Drei Inbound-Owner und
-zwölf Regeln entfallen, der letzte #4078-Key wechselt zum vorhandenen
-öffentlichen Settings-Key. Keys 110 → 109 (#4078: 1 → 0), Inbound-Owner 5 → 2,
-Regeln 841 → 829; Composition 1.657, Epoche 72 und Budgets unverändert.
-Die historische Epochensicherung bleibt als eigenständige Fixture erhalten.
-`architecture-check` und `dev-tools` sowie der temporäre Inbound-Übergang
-folgen im tatsächlichen #4078-Abschluss; das Ticket bleibt offen.
-Nachweis: [Common und Communication](common-communication-http-owners-4078.json).
+#4074: Communication verwendet vollständige native Workflow-Werte und eigene
+Ports für Staff-Announcements und Elternnachrichten. Die Root bindet die
+öffentlichen Owner-Fassaden und dieselben tenant-sicheren Personen- und
+Guardian-Projektionen. Der Parent-Store projiziert seine eigenen SQL-Werte
+unmittelbar in native Records; die fremden Modelle, Repository-Aliasse und
+Retained-Konverter entfallen. Die ursprünglichen Fehlerinitialisierer liegen
+einmal beim tatsächlichen Owner. Assertionen und DB-Zeitpunkt bleiben bei der
+mechanischen Fixture-Umstellung erhalten. Der native Schulnamen-Aufruf nutzt
+weiter den äußeren Decorator. Keine Änderung an SQL, Filtern, Berechtigungen,
+Sessions, Routen, Antworten, Goldens oder IoT.
+Fünf #4074-Keys und der #4076-Testbegleiter fallen: 119 → 113, nach unabhängigen
+Development-Reduktionen aktuell 104. #4074 5 → 0, #4076 14 → 13. Eigener
+Policy-Diff null; aktuell 842 Regeln, Epoche 72 und Composition 1.657.
+Communication-Composition 1.481 → 1.480, People-Vokabular 110 → 106,
+Compose-Gesamtstand 34.546 LOC. Keine neue Freigabe, kein Alias, keine
+Ausnahme und kein höheres Budget.
+Nachweis: [native Communication-Records](communication-native-staff-announcements-4074.json).
 
 #4074: Elternnachrichten verwenden vollständige native Workflow-Werte und
 Ports. Die gebundenen Stores bieten native Facetten; Schul- und Gruppen-
@@ -611,7 +625,6 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys (erledigt), [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
 - [ ] Phase 1: #4063 (ADR 0056), #4064, #4067, #2750, #3990 → #2729
-- [ ] Phase 2, Carrier: [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach (erledigt), [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal (erledigt), [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Kompatibilität, [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) Delivery-Cutover (erledigt), [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner, #4004 Owner-Kompositionen, [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone`
 - [ ] Phase 2, Struktur: [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP, [#4082](https://github.com/moto-nrw/project-phoenix/issues/4082) Fachlogik aus der Root, [#4080](https://github.com/moto-nrw/project-phoenix/issues/4080) `api.serviceGraph` auflösen, [#4083](https://github.com/moto-nrw/project-phoenix/issues/4083) Worker-Root, [#4084](https://github.com/moto-nrw/project-phoenix/issues/4084) `compose` konstruiert nur, [#4085](https://github.com/moto-nrw/project-phoenix/issues/4085) Vokabular-Aliase, [#4086](https://github.com/moto-nrw/project-phoenix/issues/4086) Altlayout, [#4091](https://github.com/moto-nrw/project-phoenix/issues/4091) Prinzipien-ADRs
 - [ ] Phase 3, Laufzeit (nach #2751): [#4087](https://github.com/moto-nrw/project-phoenix/issues/4087) Outbox, [#4088](https://github.com/moto-nrw/project-phoenix/issues/4088) Tenant- und Transaktionskontext, [#4089](https://github.com/moto-nrw/project-phoenix/issues/4089) Fehler per Sentinel, [#4090](https://github.com/moto-nrw/project-phoenix/issues/4090) Testlücken, dann #3021
 

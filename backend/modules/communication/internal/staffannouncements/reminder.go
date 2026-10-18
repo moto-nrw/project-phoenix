@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
@@ -79,8 +78,8 @@ func normalizeReminder(in *Input) error {
 	if in.ReminderText != nil && len([]rune(*in.ReminderText)) > maxReminderTextLen {
 		return fmt.Errorf("%w: reminder_text is at most %d characters", ErrValidation, maxReminderTextLen)
 	}
-	if in.ResponseType == usersModels.ParentAnnouncementResponseSingleChoice ||
-		in.ResponseType == usersModels.ParentAnnouncementResponseMultiChoice {
+	if in.ResponseType == ParentAnnouncementResponseSingleChoice ||
+		in.ResponseType == ParentAnnouncementResponseMultiChoice {
 		return fmt.Errorf("%w: polls do not support a scheduled reminder", ErrValidation)
 	}
 	return nil
@@ -119,7 +118,7 @@ func validateReminder(reminderAt, expiresAt *time.Time, now time.Time) error {
 // UpdateReminder is the one edit a published announcement still accepts: the
 // reminder can be moved, reworded or removed until it has been sent. Everything
 // else stays frozen (ErrPublishedImmutable in Update).
-func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*usersModels.ParentAnnouncement, error) {
+func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput) (*ParentAnnouncement, error) {
 	// Under the row lock: the due tick claims the reminder with a guarded
 	// UPDATE, and this edit must see either the unsent row or the sent one,
 	// never an in-between.
@@ -254,7 +253,7 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 // channels: push always, e-mail only when the announcement opted in, with the
 // audience rules of the publication (portal audience, or the wider letter
 // audience) applied unchanged.
-func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (reminderDeliveryResult, error) {
+func (s *service) deliverReminder(ctx context.Context, a *ParentAnnouncement) (reminderDeliveryResult, error) {
 	pushAccepted, err := s.notifyReminderGuardians(ctx, a, reminderPushShape(a))
 	pushDeferred := s.deliveryPolicy.IsOutsideActiveWindow(err)
 	if err != nil && !pushDeferred && !s.deliveryPolicy.IsNotificationsDisabled(err) {
@@ -292,7 +291,7 @@ func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnno
 // content leaves the portal) and keys it on the reminder moment and publication
 // cycle: a moved or republished reminder is a new intent, while a retried tick
 // for the same publication remains idempotent.
-func reminderPushShape(a *usersModels.ParentAnnouncement) pushShape {
+func reminderPushShape(a *ParentAnnouncement) pushShape {
 	stamp := int64(0)
 	if a.ReminderAt != nil {
 		stamp = a.ReminderAt.UTC().UnixNano()
@@ -310,7 +309,7 @@ func reminderPushShape(a *usersModels.ParentAnnouncement) pushShape {
 // reminder moment and publication cycle. A retried tick must not queue twice;
 // a correction can retract and republish an announcement at the same reminder
 // moment, and must not collide with that cancelled publication's outbox row.
-func reminderIdempotencyKey(a *usersModels.ParentAnnouncement, address string) string {
+func reminderIdempotencyKey(a *ParentAnnouncement, address string) string {
 	stamp := int64(0)
 	if a.ReminderAt != nil {
 		stamp = a.ReminderAt.UTC().UnixNano()
@@ -318,7 +317,7 @@ func reminderIdempotencyKey(a *usersModels.ParentAnnouncement, address string) s
 	return fmt.Sprintf("parent_announcement_reminder:%d:%d:%d:%s", a.ID, stamp, reminderPublicationCycle(a), address)
 }
 
-func reminderPublicationCycle(a *usersModels.ParentAnnouncement) int64 {
+func reminderPublicationCycle(a *ParentAnnouncement) int64 {
 	if a.PublishedAt == nil {
 		return 0
 	}
@@ -335,7 +334,7 @@ func reminderIntro(schoolName, what string) string {
 // reminderMailSpec is the untracked reminder mail of a plain Mitteilung: like
 // its publish mail it carries the title and a portal link, never the text —
 // the reminder wording waits in the portal, where reading counts.
-func reminderMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
+func reminderMailSpec(a *ParentAnnouncement) mailSpec {
 	return mailSpec{
 		title:  reminderTitlePrefix + a.Title,
 		kicker: reminderEmailKicker,
@@ -353,7 +352,7 @@ func reminderMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 // confirmation notice is deliberately absent: the reminder asks for no second
 // confirmation, and nagging a family that confirmed weeks ago is exactly what
 // the manual "Offene erinnern" exists to avoid.
-func reminderLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
+func reminderLetterMailSpec(a *ParentAnnouncement) mailSpec {
 	spec := mailSpec{
 		title:          reminderTitlePrefix + a.Title,
 		kicker:         reminderEmailKicker,
@@ -378,7 +377,7 @@ func reminderLetterMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 // reminder: the same people, the same reachability decision, the same opt-out
 // rule. It does NOT rewrite the delivery matrix — the matrix documents the
 // publication, and a reminder must not make a failed publish mail look sent.
-func (s *service) enqueueTrackedReminderEmails(ctx context.Context, a *usersModels.ParentAnnouncement) (int, error) {
+func (s *service) enqueueTrackedReminderEmails(ctx context.Context, a *ParentAnnouncement) (int, error) {
 	resolved, err := s.repo.ResolveDeliveryRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
 		return 0, fmt.Errorf("announcement: resolve reminder recipients: %w", err)

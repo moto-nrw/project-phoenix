@@ -19,7 +19,7 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 		t.Fatalf("owner declaration order must not matter: %v", err)
 	}
 	for _, owner := range policy.Owners {
-		if owner.Kind != "domain" && owner.Kind != "platform" {
+		if owner.Kind != "domain" && owner.Kind != "platform" && owner.Kind != "tool" {
 			continue
 		}
 		for _, change := range []string{"remove", "rename", "reclassify"} {
@@ -45,7 +45,7 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 			})
 		}
 	}
-	for _, kind := range []string{"domain", "platform"} {
+	for _, kind := range []string{"domain", "platform", "tool"} {
 		t.Run("additional-"+kind, func(t *testing.T) {
 			t.Parallel()
 			candidate, err := LoadPolicy(policyPath)

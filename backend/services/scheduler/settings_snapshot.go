@@ -37,6 +37,7 @@ var schedulerPollingSettingKeys = []string{
 	settingEnrollmentRejectedRetentionDays,
 	settingStaffSickNoteRetentionDays,
 	settingStudentRetentionDays,
+	settingTimeTrackingRetentionDays,
 	settingFeedbackDataRetentionDays,
 	settingSessionEndEnabled,
 	settingSessionEndTime,

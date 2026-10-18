@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
@@ -50,7 +49,7 @@ type CareCancellationInput struct {
 
 // CareCancellationResult reports what was sent.
 type CareCancellationResult struct {
-	Announcement *usersModels.ParentAnnouncement
+	Announcement *ParentAnnouncement
 	// RecipientCount is the number of guardian accounts the notice reaches in
 	// the feed, before push consent and e-mail opt-out narrow the channels.
 	RecipientCount int
@@ -104,11 +103,11 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 	// families who opted out of these e-mails.
 	const sendEmail = true
 
-	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
-	a := &usersModels.ParentAnnouncement{
+	kind := ParentAnnouncementSystemKindCareCancellation
+	a := &ParentAnnouncement{
 		Title:      title,
 		Body:       body,
-		Priority:   usersModels.ParentAnnouncementPriorityImportant,
+		Priority:   ParentAnnouncementPriorityImportant,
 		SendEmail:  sendEmail,
 		Active:     true,
 		CreatedBy:  in.CreatedBy,
@@ -117,11 +116,11 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 	if err := s.repo.Create(ctx, a); err != nil {
 		return nil, fmt.Errorf("announcement: create cancellation notice: %w", err)
 	}
-	targets := make([]*usersModels.ParentAnnouncementTarget, 0, len(studentIDs))
+	targets := make([]*ParentAnnouncementTarget, 0, len(studentIDs))
 	for _, studentID := range studentIDs {
 		id := studentID
-		targets = append(targets, &usersModels.ParentAnnouncementTarget{
-			TargetType:  usersModels.AnnouncementTargetStudent,
+		targets = append(targets, &ParentAnnouncementTarget{
+			TargetType:  AnnouncementTargetStudent,
 			TargetRefID: &id,
 		})
 	}
@@ -180,8 +179,8 @@ func ValidateCareCancellationText(title, body string) (string, string, error) {
 // link for an announcement. Hand-written rows and polls keep their generic
 // wording under the announcement consent; a system row rides its own type so a
 // family can opt into cancellations separately from news.
-func pushShapeFor(a *usersModels.ParentAnnouncement) (notificationType, copyKind, deepLink string) {
-	if a.IsSystem() && *a.SystemKind == usersModels.ParentAnnouncementSystemKindCareCancellation {
+func pushShapeFor(a *ParentAnnouncement) (notificationType, copyKind, deepLink string) {
+	if a.IsSystem() && *a.SystemKind == ParentAnnouncementSystemKindCareCancellation {
 		return deliveryPorts.TypeParentCareCancelled, deliveryPorts.ParentCareCancelled, careCancelledDeepLink
 	}
 	if a.IsPoll() {
