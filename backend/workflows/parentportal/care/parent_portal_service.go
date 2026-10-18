@@ -32,6 +32,7 @@ type MealWeekday int
 type MealParticipationDay struct {
 	Date          string
 	Participating bool
+	Regular       bool
 	Source        string
 	Changeable    bool
 	CanRegister   bool

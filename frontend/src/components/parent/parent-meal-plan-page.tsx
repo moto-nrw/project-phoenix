@@ -909,9 +909,11 @@ function ParticipationWeek({
               const dishes = dishesByDate.get(date) ?? [];
               const day = participationByDate.get(date);
               const draftChange = editingDate === date ? dayChange : null;
-              const regularParticipation = weekdays.includes(
-                parseISODate(date).getDay(),
-              );
+              // The server knows holidays and closed days; the weekdays alone
+              // would promise a meal the school does not serve.
+              const regularParticipation = day
+                ? day.regular_participating
+                : weekdays.includes(parseISODate(date).getDay());
               const displayedParticipation = draftChange
                 ? draftChange.mode === "reset"
                   ? regularParticipation

@@ -79,6 +79,10 @@ type ParticipationData struct {
 type ParticipationDay struct {
 	Date          Date
 	Participating bool
+	// Registered is the registration before absences; Regular what the
+	// weekly pattern alone gives on the day (#3873).
+	Registered    bool
+	Regular       bool
 	Source        ParticipationSource
 	CanRegister   bool
 	CanCancel     bool
@@ -131,6 +135,7 @@ type DailyList struct {
 	Date         Date
 	CutoffTime   string
 	Deadline     time.Time
+	Closed       bool
 	Participants []DailyParticipant
 }
 

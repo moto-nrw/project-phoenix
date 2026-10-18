@@ -889,6 +889,9 @@ type MealParticipationSource =
 interface MealParticipationDay {
   readonly date: string;
   readonly participating: boolean;
+  // What the regular days alone give on this day: false in school holidays
+  // and on closed days (#3873).
+  readonly regular_participating: boolean;
   readonly source: MealParticipationSource;
   // True while the parent may still register or cancel the day (#3873).
   readonly changeable: boolean;

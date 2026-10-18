@@ -100,7 +100,7 @@ type schoolCalendar struct{ find CalendarFinder }
 func (c schoolCalendar) Days(ctx context.Context, from, to domain.Date) (domain.CalendarDays, domain.OperationStats, error) {
 	started := time.Now()
 	closed, holiday, err := c.find(ctx, from.String(), to.String())
-	return domain.NewCalendarDays(closed, holiday), domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
+	return domain.NewCalendarDays(closed, holiday), domain.OperationStats{Queries: 3, StatementDuration: time.Since(started)}, err
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.
@@ -244,7 +244,7 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 	if err != nil {
 		return mealplan.DailyList{}, mapError(err)
 	}
-	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
+	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
 	for _, participant := range list.Participants {
 		result.Participants = append(result.Participants, mealplan.DailyParticipant{StudentID: participant.StudentID, FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
 	}
@@ -258,7 +258,7 @@ func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.Participati
 	}
 	for _, day := range plan.Days {
 		result.Days = append(result.Days, mealplan.ParticipationDay{
-			Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source),
+			Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Regular: day.Regular, Source: mealplan.ParticipationSource(day.Source),
 			Changeable: day.Changeable(), CanRegister: day.CanRegister, CanCancel: day.CanCancel,
 			RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
 		})

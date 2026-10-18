@@ -43,6 +43,8 @@ export interface DailyMealList {
   cutoffTime: string;
   // RFC 3339 instant when the day's order is fixed (#3873).
   deadline: string;
+  // A closing day or public holiday: nobody eats.
+  closed: boolean;
   participants: DailyMealParticipant[];
 }
 
@@ -110,6 +112,7 @@ export async function getDailyMealParticipants(
       date: string;
       cutoff_time: string;
       deadline: string;
+      closed: boolean;
       participants: Array<{
         student_id: string;
         first_name: string;
@@ -124,6 +127,7 @@ export async function getDailyMealParticipants(
     date: data.date,
     cutoffTime: data.cutoff_time,
     deadline: data.deadline,
+    closed: data.closed === true,
     participants: data.participants.map((participant) => ({
       studentId: participant.student_id,
       firstName: participant.first_name,

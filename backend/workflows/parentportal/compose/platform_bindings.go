@@ -67,7 +67,7 @@ func (m mealPlan) Participation(ctx context.Context, studentID int64, from, to c
 	}
 	for _, day := range plan.Days {
 		out.Days = append(out.Days, care.MealParticipationDay{
-			Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable,
+			Date: string(day.Date), Participating: day.Participating, Regular: day.Regular, Source: string(day.Source), Changeable: day.Changeable,
 			CanRegister: day.CanRegister, CanCancel: day.CanCancel, RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
 		})
 	}

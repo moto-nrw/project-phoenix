@@ -15,28 +15,39 @@ type dayState struct {
 	absences  []domain.SickDay
 }
 
+// dayResult is the resolved meal of one child on one day. Regular is what
+// the weekly pattern gives (outside holidays), Registered what the day's
+// exception makes of it, Participating what remains after absences.
+type dayResult struct {
+	participating bool
+	registered    bool
+	regular       bool
+	source        domain.ParticipationSource
+}
+
 // resolveDay applies the rules in order: a closed day ends everything, the
 // weekly pattern applies outside school holidays, the day's exception
 // replaces it, and an absence at cutoff cancels the meal (#3873). An
 // exception still registers a child in the holidays, for holiday care.
-func resolveDay(state dayState, cutoff time.Time) (bool, domain.ParticipationSource) {
+func resolveDay(state dayState, cutoff time.Time) dayResult {
 	if state.closed {
-		return false, domain.ParticipationClosed
+		return dayResult{source: domain.ParticipationClosed}
 	}
-	participating, source := false, domain.ParticipationNone
+	result := dayResult{source: domain.ParticipationNone}
 	if state.scheduled && !state.holiday {
-		participating, source = true, domain.ParticipationRegular
+		result.regular, result.registered, result.source = true, true, domain.ParticipationRegular
 	}
 	if state.override != nil {
-		participating, source = *state.override, domain.ParticipationOverride
+		result.registered, result.source = *state.override, domain.ParticipationOverride
 	}
+	result.participating = result.registered
 	if absent, sick := absenceAt(state.absences, cutoff); absent {
+		result.participating, result.source = false, domain.ParticipationAbsent
 		if sick {
-			return false, domain.ParticipationSick
+			result.source = domain.ParticipationSick
 		}
-		return false, domain.ParticipationAbsent
 	}
-	return participating, source
+	return result
 }
 
 // absenceAt reports whether any absence status holds at cutoff, and whether

@@ -48,6 +48,7 @@ describe("MealParticipantList", () => {
       date: "2026-09-07",
       cutoffTime: "09:00",
       deadline: "2026-09-04T07:00:00Z",
+      closed: false,
       participants: [
         {
           studentId: "42",
@@ -132,7 +133,9 @@ describe("MealParticipantList", () => {
 
     expect(
       // #3873: the deadline of the day, here the Friday before.
-      await screen.findByText("Frist für diesen Tag: Fr., 04.09., 09:00."),
+      await screen.findByText(
+        "Bestellfrist für diesen Tag: Fr., 04.09., 09:00.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2a").length).toBeGreaterThan(0);
@@ -252,6 +255,7 @@ describe("MealParticipantList", () => {
         date: "2026-09-07",
         cutoffTime: "09:00",
         deadline: "2026-09-07T07:00:00Z",
+        closed: false,
         participants: [],
       });
 

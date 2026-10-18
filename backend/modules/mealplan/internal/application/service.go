@@ -115,7 +115,7 @@ func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID
 		now := s.now()
 		for _, day := range plan.Days {
 			switch {
-			case day.Source == domain.ParticipationClosed, day.Participating == participating, day.Date.Before(domain.DateFromInstant(now)):
+			case day.Source == domain.ParticipationClosed, day.Registered == participating, day.Date.Before(domain.DateFromInstant(now)):
 			case parentMayChange(rules, now, day.Date, participating):
 				changed = append(changed, day.Date)
 			default:
@@ -155,13 +155,12 @@ func (s *Service) ClearParticipationDay(ctx context.Context, studentID, _ int64,
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		data, stats, findErr := s.store.FindParticipation(txCtx, studentID, date, date)
-		if findErr != nil {
-			return stats, findErr
+		plan, stats, readErr := s.readParticipation(txCtx, studentID, date, date, rules)
+		if readErr != nil {
+			return stats, readErr
 		}
-		scheduled := scheduleContains(scheduleForDate(data.Schedules, date), date.Weekday())
-		for _, override := range data.Overrides {
-			if override.Date == date && override.Participating != scheduled && !parentMayChange(rules, s.now(), date, scheduled) {
+		for _, day := range plan.Days {
+			if day.Source != domain.ParticipationClosed && day.Registered != day.Regular && !parentMayChange(rules, s.now(), date, day.Regular) {
 				return stats, ErrCutoffPassed
 			}
 		}
@@ -188,7 +187,8 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		deadline := rules.FreezeAt(date)
 		list = domain.DailyList{Date: date, CutoffTime: deadline.In(calendarZone).Format("15:04"), Deadline: deadline, Participants: []domain.DailyParticipant{}}
 		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
-		if calendarErr != nil || days.Closed[date] {
+		list.Closed = days.Closed[date]
+		if calendarErr != nil || list.Closed {
 			return stats, calendarErr
 		}
 		cutoff := rules.AbsenceCutoff(date)
@@ -209,7 +209,7 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		for _, candidate := range candidates {
 			state := participation[candidate.StudentID]
 			day := dayState{holiday: days.Holiday[date], scheduled: state.Regular, override: state.Override, absences: state.Absences}
-			if participating, _ := resolveDay(day, cutoff); participating {
+			if resolveDay(day, cutoff).participating {
 				list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
 			}
 		}
@@ -319,9 +319,9 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 		if value, exists := overrides[date]; exists {
 			state.override = &value
 		}
-		participating, source := resolveDay(state, rules.AbsenceCutoff(date))
+		result := resolveDay(state, rules.AbsenceCutoff(date))
 		day := domain.ParticipationDay{
-			Date: date, Participating: participating, Source: source,
+			Date: date, Participating: result.participating, Registered: result.registered, Regular: result.regular, Source: result.source,
 			RegisterUntil: rules.RegistrationAt(date), CancelUntil: rules.CancellationAt(date),
 		}
 		if !state.closed {

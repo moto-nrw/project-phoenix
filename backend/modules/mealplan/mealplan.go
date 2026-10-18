@@ -79,6 +79,9 @@ const (
 type ParticipationDay struct {
 	Date          Date
 	Participating bool
+	// Regular is what the weekly pattern alone gives on the day: false in
+	// school holidays and on closed days (#3873).
+	Regular       bool
 	Source        ParticipationSource
 	Changeable    bool
 	CanRegister   bool
@@ -138,9 +141,11 @@ type DailyParticipant struct {
 // DailyList is the kitchen's list of a day. Deadline is when the day's
 // order is fixed (#3873); CutoffTime is its Berlin clock time.
 type DailyList struct {
-	Date         Date
-	CutoffTime   string
-	Deadline     time.Time
+	Date       Date
+	CutoffTime string
+	Deadline   time.Time
+	// Closed is a closing day or public holiday: nobody eats.
+	Closed       bool
 	Participants []DailyParticipant
 }
 

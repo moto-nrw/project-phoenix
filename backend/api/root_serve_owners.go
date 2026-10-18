@@ -195,6 +195,9 @@ func observePeopleDirectory(observation peopleCompose.Observation) {
 // buildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
 func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, calendarRecords *schoolcalendar.Records) (*mealplanModule.Module, error) {
+	if calendarRecords == nil {
+		return nil, errors.New("meal plan: the school calendar is required")
+	}
 	return mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,

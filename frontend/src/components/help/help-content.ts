@@ -4035,7 +4035,7 @@ function mealOrderingTopic(): HelpTopic {
       "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
       "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
       "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
-      "Wählen Sie bei `Krankmeldung nach der Frist`, was mit dem Essen passiert.",
+      "Wählen Sie bei `Krank oder abwesend nach der Frist`, was mit dem Essen passiert.",
     ],
     result:
       "Eltern sehen bei jedem Tag, bis wann sie an- oder abmelden können.",

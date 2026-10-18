@@ -900,3 +900,49 @@ func TestPreviousWeekDeadlineMovesTheNewPatternToTheWeekAfter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, mealplan.Date("2026-09-21"), effectiveFrom)
 }
+
+// Clearing a holiday-care registration would cancel the day, so the
+// cancellation deadline decides; clearing a cancellation the holiday makes
+// moot changes nothing and stays allowed.
+func TestClearingAnOverrideInTheHolidaysFollowsTheHolidayResult(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	holidays := fixedCalendar(nil, []string{"2026-09-08", "2026-09-09"})
+	student := testpkg.CreateTestStudent(t, db, "Hugo", "Ferienbetreuung", "3e")
+	account := testpkg.CreateTestAccount(t, db, "meal-holiday-clear")
+	ctx := testpkg.Ctx(t)
+	early := buildModuleWithCalendar(t, db, holidays, time.Date(2026, 9, 4, 8, 0, 0, 0, testBerlin))
+	_, err := early.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Tuesday, mealplan.Wednesday}})
+	require.NoError(t, err)
+	require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-08", Participating: true}))
+	require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-09", Participating: false}))
+
+	late := buildModuleWithCalendar(t, db, holidays, time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
+	err = late.ClearParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-08"})
+	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff, "holiday care cannot be dropped after the deadline")
+
+	plan, err := late.Participation(ctx, student.ID, "2026-09-08", "2026-09-09")
+	require.NoError(t, err)
+	assert.False(t, plan.Days[0].Regular, "the pattern does not apply in the holidays")
+	assert.True(t, plan.Days[0].Participating)
+
+	require.NoError(t, late.ClearParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-09"}))
+}
+
+// A registered child who is absent still has the meal registered: cancelling
+// the week must cancel that day too, so clearing the absence later does not
+// bring the meal back.
+func TestWeekChangeCancelsRegisteredDaysOfAnAbsentChild(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, true, nil)
+	student := testpkg.CreateTestStudent(t, db, "Anton", "Abwesend", "4d")
+	account := testpkg.CreateTestAccount(t, db, "meal-week-absent")
+	ctx := testpkg.Ctx(t)
+	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-10", Participating: true}))
+	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-10", "excused", time.Date(2026, 9, 6, 18, 0, 0, 0, testBerlin))
+
+	change, err := module.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-07", Participating: false})
+	require.NoError(t, err)
+	assert.Equal(t, []mealplan.Date{"2026-09-10"}, change.Changed)
+}

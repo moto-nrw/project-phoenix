@@ -20,7 +20,8 @@ type Store interface {
 }
 
 // Calendar is the school calendar of the tenant in the caller's unit of
-// work.
+// work. One read runs three statements: the federal state, the closing days
+// and the holiday periods.
 type Calendar interface {
 	Days(context.Context, domain.Date, domain.Date) (domain.CalendarDays, domain.OperationStats, error)
 }

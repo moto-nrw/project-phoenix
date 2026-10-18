@@ -206,9 +206,10 @@ var mealDefinitions = []config.Definition{
 	},
 	{
 		Key:   config.KeyMealSickAfterDeadline,
-		Label: "Krankmeldung nach der Frist",
-		Description: "Bleibt bestellt: Eine spätere Krankmeldung ändert nichts, das Essen zählt. " +
-			"Wird abbestellt: Eine Krankmeldung bis zum Essenstag bestellt das Essen ab. Der Caterer sieht nur „abbestellt“, nie den Grund.",
+		Label: "Krank oder abwesend nach der Frist",
+		Description: "Gilt für Krankmeldungen, Entschuldigungen und Klassenfahrten. " +
+			"Bleibt bestellt: Eine spätere Meldung ändert nichts, das Essen zählt. " +
+			"Wird abbestellt: Eine Meldung bis zum Essenstag bestellt das Essen ab. Der Caterer sieht nur „abbestellt“, nie den Grund.",
 		Type:            config.FieldSelect,
 		Default:         config.MealSickStaysOrdered,
 		ReadPermission:  "config:read",

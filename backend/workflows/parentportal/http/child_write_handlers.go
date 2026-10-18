@@ -375,6 +375,7 @@ type MealPlanEntryResponse struct {
 type MealParticipationDayResponse struct {
 	Date          string    `json:"date"`
 	Participating bool      `json:"participating"`
+	Regular       bool      `json:"regular_participating"`
 	Source        string    `json:"source"`
 	Changeable    bool      `json:"changeable"`
 	CanRegister   bool      `json:"can_register"`
@@ -568,7 +569,7 @@ func mealParticipationResponse(plan parentService.MealParticipationPlan) MealPar
 	days := make([]MealParticipationDayResponse, 0, len(plan.Days))
 	for _, day := range plan.Days {
 		days = append(days, MealParticipationDayResponse{
-			Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable,
+			Date: string(day.Date), Participating: day.Participating, Regular: day.Regular, Source: string(day.Source), Changeable: day.Changeable,
 			CanRegister: day.CanRegister, CanCancel: day.CanCancel, RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
 		})
 	}

@@ -138,6 +138,7 @@ describe("ParentMealPlanPage", () => {
     const participationDay = (date: string, changeable: boolean) => ({
       date,
       participating: true,
+      regular_participating: true,
       source: "regular",
       changeable,
       can_register: changeable,
@@ -394,6 +395,7 @@ describe("ParentMealPlanPage", () => {
         {
           date: "2026-08-12",
           participating: false,
+          regular_participating: false,
           source: "none",
           changeable: true,
           can_register: true,
@@ -404,6 +406,7 @@ describe("ParentMealPlanPage", () => {
         {
           date: "2026-08-14",
           participating: true,
+          regular_participating: false,
           source: "override",
           changeable: true,
           can_register: true,
@@ -437,7 +440,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByText("mit Salat")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Eine bestätigte Krankmeldung bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
+        "Eine bestätigte Krankmeldung oder Abwesenheit bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -778,6 +781,7 @@ describe("ParentMealPlanPage", () => {
         {
           date: "2026-08-12",
           participating: false,
+          regular_participating: false,
           source: "none",
           changeable: true,
           can_register: true,
@@ -900,6 +904,7 @@ describe("ParentMealPlanPage", () => {
       date: string,
       overrides: Partial<{
         participating: boolean;
+        regular_participating: boolean;
         source: string;
         can_register: boolean;
         can_cancel: boolean;
@@ -910,6 +915,7 @@ describe("ParentMealPlanPage", () => {
       const value = {
         date,
         participating: true,
+        regular_participating: true,
         source: "regular",
         can_register: true,
         can_cancel: true,
@@ -955,6 +961,7 @@ describe("ParentMealPlanPage", () => {
             day("2026-08-12", { can_register: false }),
             day("2026-08-13", {
               participating: false,
+              regular_participating: false,
               source: "none",
               can_register: false,
             }),
@@ -1027,7 +1034,7 @@ describe("ParentMealPlanPage", () => {
 
       expect(
         await screen.findByText(
-          "Eine bestätigte Krankmeldung bis zum Essenstag meldet Ihr Kind vom Essen ab.",
+          "Eine bestätigte Krankmeldung oder Abwesenheit bis zum Essenstag meldet Ihr Kind vom Essen ab.",
         ),
       ).toBeInTheDocument();
     });

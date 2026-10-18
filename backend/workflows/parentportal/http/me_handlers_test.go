@@ -464,7 +464,7 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
 		Model: "ongoing_split", ScheduleChangeable: true, SickCancels: true,
 		Days: []parentService.MealParticipationDay{{
-			Date: "2026-08-24", Participating: true, Source: "regular", Changeable: true, CanRegister: false, CanCancel: true,
+			Date: "2026-08-24", Participating: true, Regular: true, Source: "regular", Changeable: true, CanRegister: false, CanCancel: true,
 			RegisterUntil: time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC), CancelUntil: time.Date(2026, 8, 24, 6, 0, 0, 0, time.UTC),
 		}},
 	}}}
@@ -473,7 +473,7 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	rs.getMealParticipation(w, mealParticipationRequest())
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","model":"ongoing_split","schedule_changeable":true,"sick_cancels_after_deadline":true,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":true,"can_register":false,"can_cancel":true,"register_until":"2026-08-20T10:00:00Z","cancel_until":"2026-08-24T06:00:00Z"}]},"message":"Meal participation retrieved"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","model":"ongoing_split","schedule_changeable":true,"sick_cancels_after_deadline":true,"days":[{"date":"2026-08-24","participating":true,"regular_participating":true,"source":"regular","changeable":true,"can_register":false,"can_cancel":true,"register_until":"2026-08-20T10:00:00Z","cancel_until":"2026-08-24T06:00:00Z"}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSetMealParticipationWeek_ResponseContract(t *testing.T) {

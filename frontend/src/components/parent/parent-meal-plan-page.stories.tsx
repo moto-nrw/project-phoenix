@@ -125,6 +125,7 @@ function participationForFourWeeks(): MealParticipation {
     .map(({ date, offset }) => ({
       date,
       participating: offset !== 4,
+      regular_participating: true,
       source: offset === 4 ? ("override" as const) : ("regular" as const),
       changeable: date >= today,
       can_register: date >= today,
