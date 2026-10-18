@@ -217,8 +217,8 @@ type roomHistorySettingsReader interface {
 func NewRoomHistorySettings(settings roomHistorySettingsReader, logger *slog.Logger, prefetch func(context.Context, any, ...string) context.Context) func(context.Context) (context.Context, bool, int) {
 	return func(ctx context.Context) (context.Context, bool, int) {
 		ctx = prefetch(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.KeyRoomDetailVisibleDays)
-		enabled := settingsCompose.ResolveBoolOrDefault(ctx, settings, configModels.KeyAttendanceLogEnabled, false, logger)
-		days := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyRoomDetailVisibleDays, 7, logger)
+		enabled := settingsCompose.ResolveBoolOrDefault(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.AttendanceLogEnabledFallback, logger)
+		days := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyRoomDetailVisibleDays, configModels.RoomDetailVisibleDaysFallback, logger)
 		return ctx, enabled, days
 	}
 }

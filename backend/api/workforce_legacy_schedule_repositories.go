@@ -120,18 +120,7 @@ func (r *StaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(ctx contex
 }
 
 func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
-	// The rows of one version share their start day; a row without one
-	// starts the version today.
-	validFrom := configModels.CalendarDate("")
-	for _, entry := range entries {
-		if entry == nil {
-			continue
-		}
-		if validFrom == "" {
-			validFrom = entry.ValidFrom
-		}
-	}
-	return r.ReplaceScheduleWithValidFrom(ctx, staffID, entries, anchor, validFrom)
+	return r.ReplaceScheduleWithValidFrom(ctx, staffID, entries, anchor, configModels.StaffScheduleVersionStart(entries))
 }
 
 func (r *StaffWorkScheduleRepository) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor, validFrom configModels.CalendarDate) error {
