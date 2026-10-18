@@ -51,6 +51,10 @@ type StudentTransitionHistory interface {
 // PurgedStudentPlaceholder is the name the ledger keeps for a deleted child.
 const PurgedStudentPlaceholder = "Gelöschtes Kind"
 
+// UnknownGroupName labels a group the caller cannot see, such as the group
+// of a supervision that blocks removing a caregiver.
+const UnknownGroupName = "Unbekannte Gruppe"
+
 type engine interface {
 	FindGroup(context.Context, int64) (Group, error)
 	ListGroupsByID(context.Context, []int64) ([]Group, error)

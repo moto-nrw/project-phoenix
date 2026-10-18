@@ -178,6 +178,14 @@ type SubstitutionOperationError struct {
 	Field   string
 }
 
+// InvalidSubstitutionPeriod refuses a period whose day the caller sent
+// malformed or empty, with the German message the substitution page shows.
+func InvalidSubstitutionPeriod(cause error) *SubstitutionOperationError {
+	return &SubstitutionOperationError{
+		Target: ErrSubstitutionInvalidPeriod, Code: "substitutions.invalid_period", Message: "Der Zeitraum ist ungültig.", Cause: cause,
+	}
+}
+
 // SubstitutionRefusalValues are the values a refused schedule substitution
 // names: the failing day (YYYY-MM-DD) or a cap. Unset values stay off the wire.
 type SubstitutionRefusalValues struct {
