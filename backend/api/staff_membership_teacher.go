@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -331,152 +330,54 @@ func (r TeacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Con
 
 // --- caregivers ---
 
-type activeCaregiverCandidate struct {
-	caregiver *userModels.ActiveCaregiver
-	tenantID  int64
-}
-
-// activeCaregivers is the canonical caregiver composition: live teachers of the
-// tenant whose staff member has a person with an active account, an active
-// tenant mapping, and one of the system caregiver roles at that tenant.
+// activeCaregivers lists School Membership's active caregivers of the
+// caller's school over the People Directory persons and the Identity &
+// Access account facts, in the picker order.
 func (r TeacherMembershipRepository) activeCaregivers(ctx context.Context, accountID *int64) ([]*userModels.ActiveCaregiver, error) {
-	candidates, accountIDsByTenant, err := r.caregiverCandidates(ctx, accountID)
+	values, err := schoolmembership.ActiveCaregivers(ctx, r.Membership, caregiverDirectory{r.Deps}, peopleCompose.CallerTenantID(ctx), accountID)
 	if err != nil {
 		return nil, err
 	}
-	if len(candidates) == 0 {
-		return []*userModels.ActiveCaregiver{}, nil
-	}
-	facts, err := r.caregiverAccountFacts(ctx, accountIDsByTenant)
-	if err != nil {
-		return nil, err
-	}
-	emails, err := r.Deps.identity.ListAccountEmails(ctx, facts.activeAccountIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]*userModels.ActiveCaregiver, 0, len(candidates))
-	for _, candidate := range candidates {
-		if !facts.active[candidate.tenantID][candidate.caregiver.AccountID] || !facts.caregiver[candidate.tenantID][candidate.caregiver.AccountID] {
-			continue
-		}
-		candidate.caregiver.Email = emails[candidate.caregiver.AccountID]
-		result = append(result, candidate.caregiver)
+	result := make([]*userModels.ActiveCaregiver, 0, len(values))
+	for _, value := range values {
+		result = append(result, &userModels.ActiveCaregiver{
+			AccountID: value.AccountID, PersonID: value.PersonID, StaffID: value.StaffID, TeacherID: value.TeacherID,
+			FirstName: value.FirstName, LastName: value.LastName, Email: value.Email,
+			CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		})
 	}
 	sortActiveCaregivers(result)
 	return result, nil
 }
 
-// caregiverCandidates lists the live teachers of the tenant with their staff
-// member and an account-holding person, and the candidate accounts per
-// tenant. accountID narrows the list to one account.
-func (r TeacherMembershipRepository) caregiverCandidates(ctx context.Context, accountID *int64) ([]activeCaregiverCandidate, map[int64][]int64, error) {
-	teachers, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{})
-	if err != nil || len(teachers) == 0 {
-		return nil, nil, err
-	}
-	staffIDs := make([]int64, 0, len(teachers))
-	for _, teacher := range teachers {
-		staffIDs = append(staffIDs, teacher.StaffID)
-	}
-	staffValues, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+// caregiverDirectory serves School Membership's caregiver directory from the
+// People Directory persons and the Identity & Access account query.
+type caregiverDirectory struct{ deps *staffMembershipDeps }
+
+func (d caregiverDirectory) FindCaregiverPersons(ctx context.Context, personIDs []int64) (map[int64]schoolmembership.CaregiverPerson, error) {
+	persons, err := d.deps.persons.FindByIDs(ctx, personIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	staffByID := make(map[int64]schoolmembership.Staff, len(staffValues))
-	personIDs := make([]int64, 0, len(staffValues))
-	for _, value := range staffValues {
-		staffByID[value.ID] = value
-		personIDs = append(personIDs, value.PersonID)
-	}
-	persons, err := r.Deps.persons.FindByIDs(ctx, personIDs)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	tenantID := peopleCompose.CallerTenantID(ctx)
-	candidates := make([]activeCaregiverCandidate, 0, len(teachers))
-	accountIDsByTenant := make(map[int64][]int64)
-	for _, teacher := range teachers {
-		candidate, ok := caregiverCandidate(teacher, staffByID, persons, tenantID, accountID)
-		if !ok {
-			continue
+	result := make(map[int64]schoolmembership.CaregiverPerson, len(persons))
+	for id, person := range persons {
+		if person != nil {
+			result[id] = schoolmembership.CaregiverPerson{ID: person.ID, TenantID: person.GetTenantID(), AccountID: person.AccountID, FirstName: person.FirstName, LastName: person.LastName}
 		}
-		candidates = append(candidates, candidate)
-		accountIDsByTenant[teacher.TenantID] = append(accountIDsByTenant[teacher.TenantID], candidate.caregiver.AccountID)
 	}
-	return candidates, accountIDsByTenant, nil
+	return result, nil
 }
 
-// caregiverCandidate joins one teacher to its staff member and person, or
-// reports that the teacher is no candidate of the tenant (or the account).
-func caregiverCandidate(teacher schoolmembership.Teacher, staffByID map[int64]schoolmembership.Staff, persons map[int64]*userModels.Person, tenantID int64, accountID *int64) (activeCaregiverCandidate, bool) {
-	staff, found := staffByID[teacher.StaffID]
-	if !found {
-		return activeCaregiverCandidate{}, false
-	}
-	if tenantID > 0 && (teacher.TenantID != tenantID || staff.TenantID != tenantID) {
-		return activeCaregiverCandidate{}, false
-	}
-	person, found := persons[staff.PersonID]
-	if !found || person.AccountID == nil {
-		return activeCaregiverCandidate{}, false
-	}
-	if tenantID > 0 && person.GetTenantID() != tenantID {
-		return activeCaregiverCandidate{}, false
-	}
-	if accountID != nil && *person.AccountID != *accountID {
-		return activeCaregiverCandidate{}, false
-	}
-	return activeCaregiverCandidate{caregiver: &userModels.ActiveCaregiver{
-		AccountID: *person.AccountID,
-		PersonID:  person.ID,
-		StaffID:   staff.ID,
-		TeacherID: teacher.ID,
-		FirstName: person.FirstName,
-		LastName:  person.LastName,
-		CreatedAt: staff.CreatedAt,
-		UpdatedAt: staff.UpdatedAt,
-	}, tenantID: teacher.TenantID}, true
+func (d caregiverDirectory) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error) {
+	return d.deps.identity.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
 }
 
-// caregiverAccounts are the account facts of the candidates per tenant: which
-// accounts are active there and which hold a caregiver role there.
-type caregiverAccounts struct {
-	active           map[int64]map[int64]bool
-	caregiver        map[int64]map[int64]bool
-	activeAccountIDs []int64
+func (d caregiverDirectory) ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error) {
+	return d.deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, roleNames, tenantID)
 }
 
-func (r TeacherMembershipRepository) caregiverAccountFacts(ctx context.Context, accountIDsByTenant map[int64][]int64) (caregiverAccounts, error) {
-	facts := caregiverAccounts{
-		active:    make(map[int64]map[int64]bool, len(accountIDsByTenant)),
-		caregiver: make(map[int64]map[int64]bool, len(accountIDsByTenant)),
-	}
-	for candidateTenantID, accountIDs := range accountIDsByTenant {
-		allowed, err := r.Deps.identity.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
-		if err != nil {
-			return caregiverAccounts{}, err
-		}
-		facts.active[candidateTenantID] = idSet(allowed)
-		facts.activeAccountIDs = append(facts.activeAccountIDs, allowed...)
-
-		withRole, err := r.Deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, identityaccess.PlatformCaregiverRoleNames(), candidateTenantID)
-		if err != nil {
-			return caregiverAccounts{}, err
-		}
-		facts.caregiver[candidateTenantID] = idSet(withRole)
-	}
-	return facts, nil
-}
-
-func idSet(ids []int64) map[int64]bool {
-	set := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		set[id] = true
-	}
-	return set
+func (d caregiverDirectory) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	return d.deps.identity.ListAccountEmails(ctx, accountIDs)
 }
 
 // sortActiveCaregivers keeps the picker order of the replaced query: first

@@ -13,9 +13,8 @@ import (
 type RequestConflictRecords interface {
 	FindCareScheduleRequest(context.Context, int64, bool) (carerequests.Request, error)
 }
-type RequestConflictPlans = ports.RequestConflictPlans
 
-func NewRequestConflicts(records RequestConflictRecords, plans RequestConflictPlans, decisions carerequests.Decisions, today func() calendar.Date) (carerequests.Conflicts, error) {
+func NewRequestConflicts(records RequestConflictRecords, plans ports.RequestConflictPlans, decisions carerequests.Decisions, today func() calendar.Date) (carerequests.Conflicts, error) {
 	if records == nil || plans == nil || decisions == nil || today == nil {
 		return nil, errors.New("care request conflicts: records, plans, decisions, and clock are required")
 	}

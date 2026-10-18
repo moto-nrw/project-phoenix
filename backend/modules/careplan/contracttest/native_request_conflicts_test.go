@@ -48,7 +48,7 @@ func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	require.NoError(t, err)
 	decisionPort := &decisionBoundary{owner: owner, student: compose.ReviewStudent{ID: student.ID}, staffID: staff.ID, guardianAccess: true}
 	decisions, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{
-		Records: owner, People: decisionPort, Plans: decisionPort, Effects: decisionPort, Today: today,
+		Records: owner, People: decisionPort, Guardians: decisionPort, Plans: decisionPort, Effects: decisionPort, Today: today,
 	})
 	require.NoError(t, err)
 	exceptions, err := compose.NewPickupApprovalExceptions(owner)

@@ -64,7 +64,7 @@ func masterDataPendingRow(item *masterdatarequests.ReviewItem) requestreview.Row
 		BulkIneligibleText:   item.BulkIneligibleText,
 		ConflictKeys:         item.Request.ConflictKeys(),
 		CurrentValueChanged:  item.CurrentValueChanged,
-		Data:                 ToMasterDataChangeRequestResponse(item),
+		Data:                 requestreview.ToMasterDataChangeRequestResponse(item),
 	}
 }
 
@@ -77,8 +77,8 @@ func masterDataHistoryRow(item *masterdatarequests.HistoryItem) requestreview.Ro
 		StudentID:   item.Request.StudentID,
 		StudentName: item.FirstName + " " + item.LastName,
 		Status:      item.Request.Status,
-		DecidedAt:   HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedAt:   requestreview.HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
 		CanCorrect:  item.Request.CanCorrect(),
-		Data:        ToMasterDataHistoryResponse(item),
+		Data:        requestreview.ToMasterDataHistoryResponse(item),
 	}
 }

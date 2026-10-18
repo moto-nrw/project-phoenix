@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -239,7 +238,7 @@ func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string)
 // everything else follows the service classification.
 func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) {
 	if transactionFailures.IsConstraintViolation(err) {
-		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
+		renderStaffFailure(w, r, staffHTTP.FailureConflict, schoolMembershipModule.ErrStaffStillReferenced)
 		return
 	}
 	kind, rendered := ClassifyStaffWriteFailure(err)
@@ -360,10 +359,3 @@ func staffUpdate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP
 		return staffHTTP.UpdateStaffResult{Staff: result.Staff, Teacher: result.Teacher, Action: staffHTTP.TeacherAction(result.Action)}, nil
 	}
 }
-
-// errStaffStillReferenced is the German conflict message the offboarding
-// route produced for a foreign-key violation; it is user-facing copy, so it
-// keeps its capital letter.
-//
-//nolint:staticcheck // ST1005: user-facing German message, not a Go error string
-var errStaffStillReferenced = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")

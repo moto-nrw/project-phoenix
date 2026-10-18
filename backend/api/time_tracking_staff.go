@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
@@ -23,24 +24,22 @@ type staffNameRecords interface {
 
 type monthCloseStaffQuery struct{ source staffListRecords }
 
-// MonthCloseStaff preserves the staff selection used by school-wide month close.
+// MonthCloseStaff lists the staff members a school-wide month close may
+// cover; Workforce decides whom it closes.
 func MonthCloseStaff(source staffListRecords) workforceCompose.MonthCloseStaffQuery {
 	return monthCloseStaffQuery{source: source}
 }
 
-func (q monthCloseStaffQuery) ListStaffIDs(ctx context.Context) ([]int64, error) {
+func (q monthCloseStaffQuery) ListMonthCloseStaff(ctx context.Context) ([]workforceModule.MonthCloseStaff, error) {
 	rows, err := q.source.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0, len(rows))
+	staff := make([]workforceModule.MonthCloseStaff, 0, len(rows))
 	for _, row := range rows {
-		// External caregivers (#3823) record no working time to close.
-		if !row.IsGuest {
-			ids = append(ids, row.ID)
-		}
+		staff = append(staff, workforceModule.MonthCloseStaff{ID: row.ID, Guest: row.IsGuest})
 	}
-	return ids, nil
+	return staff, nil
 }
 
 type overviewStaffQuery struct{ source staffListRecords }
@@ -57,13 +56,9 @@ func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]workforceC
 	}
 	staff := make([]workforceCompose.OverviewStaff, 0, len(rows))
 	for _, row := range rows {
-		// External caregivers (#3823) record no working time.
-		if row.IsGuest {
-			continue
-		}
 		member := workforceCompose.OverviewStaff{
 			ID: row.ID, EmploymentType: row.EmploymentType, PersonnelNumber: row.PersonnelNumber,
-			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
+			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate, Guest: row.IsGuest,
 		}
 		if row.Person != nil {
 			member.FirstName = row.Person.FirstName
@@ -88,11 +83,7 @@ func (q timeExportStaffQuery) ListExportStaff(ctx context.Context) ([]workforceC
 	}
 	staff := make([]workforceCompose.TimeExportStaff, 0, len(rows))
 	for _, row := range rows {
-		// External caregivers (#3823) record no working time.
-		if row.IsGuest {
-			continue
-		}
-		member := workforceCompose.TimeExportStaff{ID: row.ID}
+		member := workforceCompose.TimeExportStaff{ID: row.ID, Guest: row.IsGuest}
 		if row.Person != nil {
 			member.FirstName = row.Person.FirstName
 			member.LastName = row.Person.LastName

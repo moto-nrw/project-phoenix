@@ -13,19 +13,19 @@ func OfferingRequestDiffLines(entries []offeringrequests.DiffEntry) []requestrev
 		line := requestreview.OfferingRequestDiffResponse{
 			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
 			Label:      entry.Label,
-			Old:        GermanOfferingDiffLabel(entry.OldState, entry.OldDays),
-			New:        GermanOfferingDiffLabel(entry.NewState, entry.NewDays),
+			Old:        requestreview.GermanOfferingDiffLabel(entry.OldState, entry.OldDays),
+			New:        requestreview.GermanOfferingDiffLabel(entry.NewState, entry.NewDays),
 			IsCourse:   entry.IsCourse,
 		}
 		if len(entry.NewAutomaticDays) > 0 {
 			line.Automatic = true
-			line.AutomaticDays = GermanOfferingDiffLabel("booked", entry.NewAutomaticDays)
+			line.AutomaticDays = requestreview.GermanOfferingDiffLabel("booked", entry.NewAutomaticDays)
 			if len(entry.NewRuleDays) > 0 {
-				line.RuleDays = GermanOfferingDiffLabel("booked", entry.NewRuleDays)
+				line.RuleDays = requestreview.GermanOfferingDiffLabel("booked", entry.NewRuleDays)
 			}
 			line.Optoutable = len(entry.AutoTriggerIDs) > 0
 			if len(entry.NewDaysWithoutRules) > 0 {
-				line.NewWhenExcluded = GermanOfferingDiffLabel("booked", entry.NewDaysWithoutRules)
+				line.NewWhenExcluded = requestreview.GermanOfferingDiffLabel("booked", entry.NewDaysWithoutRules)
 			}
 			for _, triggerID := range entry.AutoTriggerIDs {
 				line.TriggerIDs = append(line.TriggerIDs, strconv.FormatInt(triggerID, 10))
@@ -45,7 +45,7 @@ func ToOfferingRequestResponse(item *offeringrequests.ReviewItem) requestreview.
 		unchanged = append(unchanged, requestreview.OfferingRequestUnchangedResponse{
 			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
 			Label:      entry.Label,
-			Days:       GermanOfferingDiffLabel(entry.NewState, entry.NewDays),
+			Days:       requestreview.GermanOfferingDiffLabel(entry.NewState, entry.NewDays),
 		})
 	}
 	resp := requestreview.OfferingRequestResponse{
@@ -84,7 +84,7 @@ func ToOfferingRequestHistoryResponse(item *offeringrequests.HistoryItem) reques
 		requested = append(requested, requestreview.OfferingRequestRequestedResponse{
 			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
 			Label:      entry.Name,
-			New:        GermanOfferingDiffLabel("booked", entry.Days),
+			New:        requestreview.GermanOfferingDiffLabel("booked", entry.Days),
 		})
 	}
 	return requestreview.OfferingRequestHistoryResponse{
@@ -93,7 +93,7 @@ func ToOfferingRequestHistoryResponse(item *offeringrequests.HistoryItem) reques
 			StudentName: item.StudentName,
 			Diff:        item.Diff,
 		}),
-		DecidedAt:     HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedAt:     requestreview.HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
 		DecidedByName: item.ReviewerName,
 		Requested:     requested,
 	}

@@ -2,7 +2,6 @@ package planning
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,25 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ShiftMovedEvent is the shift_moved Änderungsprotokoll entry (#1884) of one
-// changing move. It anchors on the shift row, because a shift is not an
-// activity slot; OccurrenceDate and StartTime snapshot the NEW slot, OldValue
-// and NewValue the audit-relevant slot before and after the move.
-type ShiftMovedEvent struct {
-	OccurrenceDate calendar.Date
-	StartTime      time.Time
-	StaffShiftID   int64
-	SubjectStaffID int64
-	// RelatedStaffID is the new owner of a cross-person move, nil otherwise.
-	RelatedStaffID *int64
-	ActorAccountID *int64
-	OldValue       json.RawMessage
-	NewValue       json.RawMessage
-}
-
 // ShiftMoveAudit appends a shift_moved entry inside the caller's tenant
 // transaction; the composition binds it to the audit deviation events.
-type ShiftMoveAudit func(ctx context.Context, event ShiftMovedEvent) error
+type ShiftMoveAudit func(ctx context.Context, event workforce.ShiftMovedEvent) error
 
 // MoveShiftInput is the complete desired slot for one concrete shift. The
 // source owner is an optimistic-concurrency guard: a retry after a successful
@@ -179,7 +162,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 }
 
 // logShiftMovedEvent appends the shift_moved Änderungsprotokoll row (#1884)
-// inside the caller's tenant tx (ShiftMovedEvent). Fail closed when the
+// inside the caller's tenant tx (workforce.ShiftMovedEvent). Fail closed when the
 // audit is wired: an audit failure aborts the move. The audit is optional
 // only for unit tests constructed without audit wiring — production always
 // sets it.
@@ -187,7 +170,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 	if s.shiftMoveAudit == nil {
 		return nil
 	}
-	event := ShiftMovedEvent{
+	event := workforce.ShiftMovedEvent{
 		OccurrenceDate: moved.Date,
 		StartTime:      calendar.NormalizeWallClock(moved.StartTime),
 		StaffShiftID:   moved.ID,

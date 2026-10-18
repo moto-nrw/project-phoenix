@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,11 +15,11 @@ import (
 
 // shiftMoveEventRepo captures the recorded shift_moved entries.
 type shiftMoveEventRepo struct {
-	created   []ShiftMovedEvent
+	created   []workforce.ShiftMovedEvent
 	createErr error
 }
 
-func (m *shiftMoveEventRepo) record(_ context.Context, event ShiftMovedEvent) error {
+func (m *shiftMoveEventRepo) record(_ context.Context, event workforce.ShiftMovedEvent) error {
 	if m.createErr != nil {
 		return m.createErr
 	}

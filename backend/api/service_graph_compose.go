@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -580,7 +579,11 @@ func composeTimeTracking(b graphBuild) (graphBuild, error) {
 		if err != nil {
 			return 0, 0, err
 		}
-		return len(members), countWithoutPersonnelNumber(members), nil
+		numbers := make([]*string, len(members))
+		for i, member := range members {
+			numbers[i] = member.PersonnelNumber
+		}
+		return len(members), workforceModule.MissingPersonnelNumbers(numbers), nil
 	})
 	// The #1843 sick cascade is the shift-plan-sync workflow, which needs the
 	// planning capability and the timetable services built long after the
@@ -598,16 +601,4 @@ func composeTimeTracking(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.WorkSession = timeTracking
 	return b, nil
-}
-
-// countWithoutPersonnelNumber counts the staff members without a payroll
-// number.
-func countWithoutPersonnelNumber(members []*userModels.Staff) int {
-	count := 0
-	for _, member := range members {
-		if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
-			count++
-		}
-	}
-	return count
 }

@@ -189,17 +189,6 @@ func TestProvisioningRoleAndUsernameRules(t *testing.T) {
 	assert.Empty(t, identityaccess.ProvisioningUsernameSuffix(func(int) (string, error) { return "partial", fmt.Errorf("no entropy") }))
 }
 
-// The caregiver role names are exactly the roles the caregiver predicate
-// recognises.
-func TestPlatformCaregiverRoleNamesMatchThePredicate(t *testing.T) {
-	t.Parallel()
-
-	for _, name := range identityaccess.PlatformCaregiverRoleNames() {
-		assert.True(t, identityaccess.IsPlatformCaregiverRole(&identityaccess.RoleFacts{Name: name, IsSystem: true}), name)
-	}
-	assert.Equal(t, []string{"user", "teacher"}, identityaccess.PlatformCaregiverRoleNames())
-}
-
 // An audit names the account by its person, or by its username without one.
 func TestAuditActorName(t *testing.T) {
 	t.Parallel()

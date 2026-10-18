@@ -57,7 +57,7 @@ func (q careScheduleQueue) Open(ctx context.Context, filter requestreview.QueueF
 			ID: item.Request.ID, StudentID: item.Request.StudentID, StudentName: item.FirstName + " " + item.LastName, Status: item.Request.Status,
 			Version: excusedrequests.ParentRequestVersion(item.Request.UpdatedAt), UrgentToday: careplan.CareReviewUrgentOn(*item, today), Past: careplan.CareReviewPastOn(*item, today),
 			BulkIneligibleReason: "single_only", BulkIneligibleText: "Betreuungszeiten müssen einzeln geprüft werden.",
-			ConflictKeys: careplan.CareReviewConflictKeys(*item), Data: ToCareRequestResponse(item),
+			ConflictKeys: careplan.CareReviewConflictKeys(*item), Data: requestreview.ToCareRequestResponse(item),
 		})
 	}
 	return rows, careQueueCursor(cursor), nil
@@ -73,8 +73,8 @@ func (q careScheduleQueue) History(ctx context.Context, filter requestreview.Que
 		row := item.Request
 		rows = append(rows, requestreview.Row{Type: requestreview.TypeCareSchedule, SortTime: row.UpdatedAt,
 			ID: row.ID, StudentID: row.StudentID, StudentName: item.FirstName + " " + item.LastName, Status: row.Status,
-			Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt),
-			CanCorrect: row.RequestKind == "pickup_change" && (row.Status == "approved" || row.Status == "rejected"), Data: ToCareRequestHistoryResponse(item),
+			Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: requestreview.HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt),
+			CanCorrect: row.RequestKind == "pickup_change" && (row.Status == "approved" || row.Status == "rejected"), Data: requestreview.ToCareRequestHistoryResponse(item),
 		})
 	}
 	return rows, careQueueCursor(cursor), nil

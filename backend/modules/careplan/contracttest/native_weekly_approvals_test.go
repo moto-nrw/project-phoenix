@@ -29,9 +29,9 @@ type weeklyApprovalBoundary struct {
 func (b *weeklyApprovalBoundary) TrackCompanionChanges(ctx context.Context) (context.Context, func() bool) {
 	return ctx, func() bool { return true }
 }
-func (b *weeklyApprovalBoundary) ActingStaffID(context.Context) (int64, error) {
+func (b *weeklyApprovalBoundary) CurrentStaffID(context.Context) (int64, bool, error) {
 	b.calls = append(b.calls, "staff")
-	return b.staffID, nil
+	return b.staffID, true, nil
 }
 func (b *weeklyApprovalBoundary) LockDepartureModes(context.Context, int64) (map[string][]string, error) {
 	b.calls = append(b.calls, "lock")

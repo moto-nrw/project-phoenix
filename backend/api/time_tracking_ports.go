@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
