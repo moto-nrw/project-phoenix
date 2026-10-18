@@ -135,6 +135,7 @@ type Store interface {
 	PatchInstanceStaff(context.Context, int64, domain.InstanceStaffFields, []string) (int64, domain.OperationStats, error)
 	DeleteInstanceStaff(context.Context, int64) (domain.OperationStats, error)
 	DeleteInstanceStaffByInstance(context.Context, int64) (domain.OperationStats, error)
+	DeleteInstanceStaffByStaff(context.Context, int64) (int64, domain.OperationStats, error)
 	DeleteUpcomingInstanceStaff(context.Context, int64, string, []int64) (int64, domain.OperationStats, error)
 	FindInstanceStudent(context.Context, int64) (domain.InstanceStudent, bool, domain.OperationStats, error)
 	ListInstanceStudents(context.Context, domain.InstanceStudentFilter) ([]domain.InstanceStudent, domain.OperationStats, error)

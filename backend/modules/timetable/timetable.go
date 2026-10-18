@@ -248,11 +248,6 @@ type Capability interface {
 	Command
 }
 
-type engine interface {
-	Capability
-	ObserveRejection(string, time.Duration, error)
-}
-
 type Module struct{ engine engine }
 
 func NewModule(engine engine) *Module {

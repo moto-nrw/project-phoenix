@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -50,10 +51,11 @@ type RetiredWorkforce interface {
 	EraseRetiredStaffRecords(ctx context.Context, staffID int64, retiredBefore time.Time) (map[string]int64, error)
 }
 
-// RetiredTimetable removes planned supervision assignments that may predate
-// the regular offboarding workflow.
+// RetiredTimetable removes every remaining timetable assignment of retired
+// staff. Historical instance assignments remain at ordinary offboarding but
+// are personal data once the retention window expires.
 type RetiredTimetable interface {
-	DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error)
+	DeleteRetiredStaffAssignments(ctx context.Context, staffID int64) (timetable.RetiredStaffAssignments, error)
 }
 
 // RetiredPeople anonymizes the person of a retired staff member.
@@ -71,6 +73,7 @@ type Erasure struct {
 	Workforce           map[string]int64
 	Supervisions        int64
 	PlannedSupervisions int64
+	InstanceAssignments int64
 	// PersonAnonymized is false when the person is on the staff again
 	// under a newer membership, or was anonymized before.
 	PersonAnonymized bool
@@ -83,7 +86,8 @@ func (e Erasure) Counts() map[string]int64 {
 		"teachers": e.Membership.Teachers, "group_teacher": e.Membership.GroupAssignments,
 		"guests":         e.Membership.Guests,
 		"class_teachers": e.Membership.ClassAssignments, "group_supervisors": e.Supervisions,
-		"planned_supervisors": e.PlannedSupervisions,
+		"planned_supervisors":      e.PlannedSupervisions,
+		"timetable_instance_staff": e.InstanceAssignments,
 	}
 	for kind, count := range e.Workforce {
 		counts[kind] += count
@@ -225,9 +229,12 @@ func (r *Retention) eraseNext(ctx context.Context, retiredBefore time.Time, curs
 	if erasure.Workforce, err = r.deps.Workforce.EraseRetiredStaffRecords(ctx, erasure.StaffID, retiredBefore); err != nil {
 		return err
 	}
-	if erasure.PlannedSupervisions, err = r.deps.Timetable.DeletePlannedSupervisorsByStaff(ctx, erasure.StaffID); err != nil {
+	timetableAssignments, err := r.deps.Timetable.DeleteRetiredStaffAssignments(ctx, erasure.StaffID)
+	if err != nil {
 		return err
 	}
+	erasure.PlannedSupervisions = timetableAssignments.PlannedSupervisors
+	erasure.InstanceAssignments = timetableAssignments.InstanceStaff
 	if erasure.Supervisions, err = r.removeSupervisions(ctx, erasure.StaffID); err != nil {
 		return err
 	}

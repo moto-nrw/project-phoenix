@@ -59,7 +59,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/service.go":                   1178,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1850,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
-	"modules/timetable/timetable.go":                                                 1771,
+	"modules/timetable/timetable.go":                                                 1766,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
 }
 

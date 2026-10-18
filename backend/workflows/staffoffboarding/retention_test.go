@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ type retiredDoubles struct {
 	refuse                        map[int64]bool
 	failStaff                     map[int64]error
 	plannedSupervisions           map[int64]int64
+	instanceAssignments           map[int64]int64
 	retiredBefore                 []time.Time
 	logged                        []int64
 	live                          map[int64]bool
@@ -52,8 +54,8 @@ func (d *retiredDoubles) EraseRetiredStaffRecords(_ context.Context, staffID int
 	return map[string]int64{"master_data": 1}, d.failStaff[staffID]
 }
 
-func (d *retiredDoubles) DeletePlannedSupervisorsByStaff(_ context.Context, staffID int64) (int64, error) {
-	return d.plannedSupervisions[staffID], nil
+func (d *retiredDoubles) DeleteRetiredStaffAssignments(_ context.Context, staffID int64) (timetable.RetiredStaffAssignments, error) {
+	return timetable.RetiredStaffAssignments{PlannedSupervisors: d.plannedSupervisions[staffID], InstanceStaff: d.instanceAssignments[staffID]}, nil
 }
 
 func (d *retiredDoubles) FindPersonForMutation(_ context.Context, id int64) (peopledirectory.Person, error) {
@@ -162,13 +164,14 @@ func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
 		Workforce:           map[string]int64{"master_data": 1, "documents": 4},
 		Supervisions:        3,
 		PlannedSupervisions: 2,
+		InstanceAssignments: 2,
 		PersonAnonymized:    true,
 	}
 
 	assert.Equal(t, map[string]int64{
-		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "planned_supervisors": 2, "master_data": 1, "documents": 4,
+		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "planned_supervisors": 2, "timetable_instance_staff": 2, "master_data": 1, "documents": 4,
 	}, erasure.Counts())
-	assert.Equal(t, 16, erasure.Records(), "every deleted row and the anonymized person")
+	assert.Equal(t, 18, erasure.Records(), "every deleted row and the anonymized person")
 }
 
 func TestStaffRetentionStopsWhenTheSavepointFails(t *testing.T) {

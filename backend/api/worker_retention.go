@@ -293,12 +293,16 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 	if err != nil {
 		return nil, err
 	}
+	retiredTimetable, ok := plannedSupervisions.(staffoffboarding.RetiredTimetable)
+	if !ok {
+		return nil, fmt.Errorf("compose staff retention: timetable lacks retired-staff deletion")
+	}
 	return staffoffboarding.NewRetention(staffoffboarding.RetentionDependencies{
 		Window: func(ctx context.Context) (int, error) {
 			return settings.ResolveInt(ctx, settingsModule.KeyGDPRTimeTrackingRetentionDays)
 		},
 		Tenant: tenant.FromContext, Today: calendar.TodayDate,
-		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(), Timetable: plannedSupervisions,
+		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(), Timetable: retiredTimetable,
 		SupervisionIDs: func(ctx context.Context, staffID int64) ([]int64, error) {
 			supervisions, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffIDs: []int64{staffID}})
 			ids := make([]int64, 0, len(supervisions))
