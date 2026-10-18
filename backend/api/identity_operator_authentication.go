@@ -86,11 +86,11 @@ func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry ide
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
-	if changes := entry.AuditChanges(); len(changes) > 0 {
-		if err := setOperatorAuditChanges(row, changes); err != nil {
-			return fmt.Errorf("encode operator audit log changes: %w", err)
-		}
+	changes, err := entry.AuditChanges()
+	if err != nil {
+		return fmt.Errorf("encode operator audit log changes: %w", err)
 	}
+	row.Changes = changes
 	return a.ledger.Create(ctx, row)
 }
 

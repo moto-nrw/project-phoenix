@@ -250,14 +250,14 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
-	if changes := entry.MFAAuditChanges(); len(changes) > 0 {
-		// A marshal failure falls through with empty changes: losing the
-		// metadata beats losing the whole audit row.
-		if err := setOperatorAuditChanges(row, changes); err != nil {
-			l.logger.Warn("failed to encode operator mfa audit changes",
-				slog.String("action", entry.Action),
-				slog.String("error", err.Error()))
-		}
+	// A marshal failure falls through with empty changes: losing the
+	// metadata beats losing the whole audit row.
+	if changes, err := entry.MFAAuditChanges(); err != nil {
+		l.logger.Warn("failed to encode operator mfa audit changes",
+			slog.String("action", entry.Action),
+			slog.String("error", err.Error()))
+	} else {
+		row.Changes = changes
 	}
 	go func() {
 		defer func() {
