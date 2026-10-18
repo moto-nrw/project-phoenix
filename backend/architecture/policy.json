@@ -13994,17 +13994,6 @@
       "target_role": "http"
     },
     {
-      "id": "identity-access.compose.session-runtime",
-      "description": "Identity & Access compose reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "identity-access.e2e-test.session-runtime",
       "description": "Identity & Access e2e-test reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
       "scopes": [

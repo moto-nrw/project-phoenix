@@ -187,7 +187,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
 	// Raised by ADR 0063: the operator status lifecycle (#4047).
-	"modules/identityaccess/compose":      1801,
+	"modules/identityaccess/compose":      1768,
 	"modules/mealplan/compose":            274,
 	"modules/organizationtenancy/compose": 479,
 	// #4076: the compositions of the parent request feed, student directory
