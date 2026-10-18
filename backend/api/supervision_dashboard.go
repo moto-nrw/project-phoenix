@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -321,9 +320,7 @@ func (s supervisionSessions) records(ctx context.Context, groups []*studentprese
 		}
 		result = append(result, item)
 	}
-	sort.SliceStable(result, func(i, j int) bool {
-		return s.collate(result[i].RoomName, result[j].RoomName) < 0
-	})
+	supervisiondashboard.SortSessionsByRoom(result, s.collate)
 	return result, nil
 }
 
