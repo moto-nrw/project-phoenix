@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -23,56 +24,24 @@ import (
 // settings that parameterise the gate, the challenge JWT codec, the Argon2id
 // code hasher, the two mails and the operator action log.
 
-// MfaWiring is the retained material the MFA seams bind to. A nil wiring
-// composes the module without MFA, which the cleanup and fixture roots do.
-type MfaWiring struct {
-	// OperatorAuditLog is the operator ledger the operator second factor
-	// appends to (#3331).
-	OperatorAuditLog operatorAuditEntries
-	Settings         settingsCompose.SettingsService
-	Dispatcher       *email.Dispatcher
-	DefaultFrom      email.Email
-	FrontendURL      string
-	JwtSecret        string
-	Logger           *slog.Logger
-	// Backoff spaces the send retries; nil uses the production spacing.
-	Backoff []time.Duration
-	// Decorate wraps the record port before the module is composed, so a
-	// behaviour test can make one statement fail and prove the flow refuses
-	// rather than degrades. Nil in production.
-	Decorate func(identityPorts.AccountMFARecords) identityPorts.AccountMFARecords
-	// Capability serves the account second factor instead of composing it
-	// over the records. Nil in production.
-	Capability identityaccess.AccountMFA
-	// Passkeys carries the relying-party facts; nil leaves the ceremonies
-	// unavailable.
-	Passkeys *identityaccessCompose.PasskeyDependencies
-}
-
-func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
-	if wiring == nil || wiring.OperatorAuditLog == nil || codec == nil {
-		return nil
+// newMFADependencies binds the second factor and the passkey ceremonies to
+// the challenge codec, the school settings, the mails and the operator
+// ledger. passkeys carries the relying-party facts; nil leaves the
+// ceremonies unavailable.
+func newMFADependencies(codec identityPorts.MFAChallengeCodec, settings settingsCompose.SettingsService, mail mfaMailer, operatorAuditLog operatorAuditEntries, jwtSecret string, passkeys *identityaccessCompose.PasskeyDependencies, logger *slog.Logger) (*identityaccessCompose.MFADependencies, error) {
+	if codec == nil || operatorAuditLog == nil || mail.logger == nil || logger == nil {
+		return nil, errors.New("identity access composition: the second factor needs the challenge codec, the operator audit log and a logger")
 	}
-	logger := wiring.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	backoff := wiring.Backoff
 	return &identityaccessCompose.MFADependencies{
-		DecorateRecords: wiring.Decorate,
-		Settings:        mfaSettingsFor(wiring.Settings),
-		Codec:           codec,
-		Codes:           shortCodeHasher{},
-		Mail: mfaMailer{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom,
-			frontendURL: wiring.FrontendURL, logger: logger, backoff: backoff,
-		},
-		OperatorAudit: operatorActionLog{ledger: wiring.OperatorAuditLog, logger: logger},
-		JWTSecret:     wiring.JwtSecret,
-		Passkeys:      wiring.Passkeys,
-		Capability:    wiring.Capability,
+		Settings:      mfaSettingsFor(settings),
+		Codec:         codec,
+		Codes:         shortCodeHasher{},
+		Mail:          mail,
+		OperatorAudit: operatorActionLog{ledger: operatorAuditLog, logger: logger},
+		JWTSecret:     jwtSecret,
+		Passkeys:      passkeys,
 		Logger:        logger,
-	}
+	}, nil
 }
 
 // --- the school settings -----------------------------------------------------
@@ -159,7 +128,8 @@ func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) 
 // --- the two mails -----------------------------------------------------------
 
 // mfaMailer sends the code through synchronous delivery and the
-// device-added notice asynchronously.
+// device-added notice asynchronously. A nil backoff uses the production
+// spacing of the send retries.
 type mfaMailer struct {
 	dispatcher  *email.Dispatcher
 	from        email.Email

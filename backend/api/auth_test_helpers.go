@@ -256,7 +256,14 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
+	mfa, err := newMFADependencies(codec, settings.Settings, mfaMailer{
+		dispatcher: dispatcher, from: defaultFrom, frontendURL: frontendURL, logger: logger, backoff: settingsOverrides.mfaBackoff,
+	}, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	mfa.DecorateRecords, mfa.Capability = settingsOverrides.mfaRecords, settingsOverrides.mfaCapability
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa}, AccountAuthenticationWiring{
 		Repos: sessionRepos, Codec: codec, Settings: settings.Settings, Audit: command, Logger: logger,
 		Operators: operators,
 		DemoAccess: &DemoAccessWiring{
@@ -266,13 +273,6 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
 		},
 		DemoStandingSchool: settingsOverrides.standingDemo,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: operatorAuditLog, Settings: settings.Settings,
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
-			JwtSecret: mfaTestSecret(), Logger: logger, Backoff: settingsOverrides.mfaBackoff,
-			Decorate: settingsOverrides.mfaRecords, Capability: settingsOverrides.mfaCapability,
-			Passkeys: &authTestRelyingParty,
-		},
 		Lifecycle: &LifecycleWiring{
 			Settings: settings.Settings, Audit: command,
 			Caregivers: CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
@@ -346,14 +346,15 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
+	mfa, err := newMFADependencies(codec, cfg.Settings, mfaMailer{
+		dispatcher: cfg.Dispatcher, from: cfg.DefaultFrom, frontendURL: cfg.FrontendURL, logger: logger,
+	}, NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
+	if err != nil {
+		return nil, err
+	}
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa}, AccountAuthenticationWiring{
 		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Settings: cfg.Settings,
 		Audit: cfg.Audit, Logger: logger,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), Settings: cfg.Settings,
-			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom, FrontendURL: cfg.FrontendURL,
-			JwtSecret: mfaTestSecret(), Logger: logger,
-		},
 		Lifecycle: &LifecycleWiring{Settings: cfg.Settings, Audit: cfg.Audit, Caregivers: caregivers},
 		Resets: &PasswordResetWiring{
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,

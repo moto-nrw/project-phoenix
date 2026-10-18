@@ -87,22 +87,22 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	if err != nil {
 		return IdentityComposition{}, nil, err
 	}
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: r.db.Pool()}, AccountAuthenticationWiring{
-		Repos:    SessionRepositoriesOf(identityChain, m.Organizations, m.AuthEvents, m.PushSubscriptions),
-		Codec:    r.tokens.SessionTokens,
-		Settings: m.Settings,
-		Audit:    m.Audit,
-		Logger:   authLogger,
-		observe:  m.Observe,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: m.OperatorAuditLog, Settings: m.Settings,
-			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, FrontendURL: m.FrontendURL,
-			JwtSecret: cfg.JWTSecret, Logger: authLogger,
-			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
-				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
-			},
-		},
+	mfa, err := newMFADependencies(r.tokens.SessionTokens, m.Settings, mfaMailer{
+		dispatcher: m.Dispatcher, from: m.DefaultFrom, frontendURL: m.FrontendURL, logger: authLogger,
+	}, m.OperatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
+		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+	}, authLogger)
+	if err != nil {
+		return IdentityComposition{}, nil, err
+	}
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: r.db.Pool(), MFA: mfa}, AccountAuthenticationWiring{
+		Repos:              SessionRepositoriesOf(identityChain, m.Organizations, m.AuthEvents, m.PushSubscriptions),
+		Codec:              r.tokens.SessionTokens,
+		Settings:           m.Settings,
+		Audit:              m.Audit,
+		Logger:             authLogger,
+		observe:            m.Observe,
 		Operators:          operators,
 		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), m.Dispatcher, m.DefaultFrom, m.FrontendURL, viper.GetInt("demo_max_active_schools"), r.tokens, authLogger),
 		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),

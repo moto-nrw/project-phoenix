@@ -60,23 +60,23 @@ func buildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
+	mfa, err := newMFADependencies(tokens.SessionTokens, settings, mfaMailer{
+		dispatcher: transport.Dispatcher, from: transport.DefaultFrom, frontendURL: links.FrontendURL, logger: authLogger,
+	}, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
+		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+	}, authLogger)
+	if err != nil {
+		return nil, nil, err
+	}
 	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
-		Repos:    SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, pushSubscriptions),
-		Codec:    tokens.SessionTokens,
-		Settings: settings,
-		Audit:    audit.Command,
-		Logger:   authLogger,
-		observe:  env.Observe.IdentityAccess,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: operatorAuditLog, Settings: settings,
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, FrontendURL: links.FrontendURL,
-			JwtSecret: cfg.JWTSecret, Logger: authLogger,
-			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
-				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
-			},
-		},
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa}, AccountAuthenticationWiring{
+		Repos:              SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, pushSubscriptions),
+		Codec:              tokens.SessionTokens,
+		Settings:           settings,
+		Audit:              audit.Command,
+		Logger:             authLogger,
+		observe:            env.Observe.IdentityAccess,
 		Operators:          operators,
 		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
 		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),

@@ -36,9 +36,6 @@ type AccountAuthenticationWiring struct {
 	Logger        *slog.Logger
 	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
-	// Mfa composes the second factor and the passkey ceremonies (#3331);
-	// nil composes the module without them.
-	Mfa *MfaWiring
 	// Operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
 	Operators *identityaccessCompose.OperatorDependencies
@@ -94,7 +91,7 @@ func SessionRepositoriesOf(people LifecycleRepositories, organizations organizat
 
 // NewIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound. base carries what the caller binds
-// (the database); the flows are bound here.
+// (the database and the second factor); the flows are bound here.
 func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiring AccountAuthenticationWiring) (*identityaccess.Module, error) {
 	if wiring.Repos.schools.schools == nil || wiring.Repos.persons == nil || wiring.Repos.authEvents == nil || wiring.Repos.pushSubscriptions == nil || wiring.Codec == nil || wiring.Audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
@@ -127,7 +124,6 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 	base.Lifecycle = lifecycle
 	base.Resets = resets
 	base.Invitations = invitations
-	base.MFA = mfaDependencies(wiring.Mfa, wiring.Codec)
 	base.OperatorProvisioning = operatorLinks
 	base.Observe = observe
 	base.Sessions = &identityaccessCompose.SessionDependencies{
