@@ -47,6 +47,22 @@ func TestTransferExport_ReadsTheSelectionFromTheBody(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "not_configured")
 }
 
+func TestTransferExport_DefersFileProductionToTheTransferCommand(t *testing.T) {
+	t.Parallel()
+	tc := setupStaffRoute(t)
+	transfer := &preparedExportTransfer{requests: make(chan ExportTransferRequest, 1)}
+	tc.resource.ExportTransfer = transfer
+	token := authToken(t, permissions.TimeTrackingManage)
+
+	rec := postTransfer(t, tc, token, `{"year":2026,"month":8,"format":"csv"}`)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+	request := <-transfer.requests
+	require.NotNil(t, request.PrepareFile)
+	assert.Empty(t, request.Filename)
+	assert.Empty(t, request.Data)
+}
+
 func TestTransferExport_RejectsARequestWithoutASelection(t *testing.T) {
 	t.Parallel()
 	tc := setupStaffRoute(t)

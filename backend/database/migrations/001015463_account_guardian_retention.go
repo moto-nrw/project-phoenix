@@ -86,10 +86,8 @@ const accountGuardianRetentionUpSQL = `
 							membership.status = 'active'
 							AND NOT EXISTS (
 								SELECT 1 FROM auth.account_roles AS grant_row
-								JOIN auth.roles AS granted ON granted.id = grant_row.role_id
 								WHERE grant_row.account_id = membership.account_id
 									AND grant_row.tenant_id = membership.tenant_id
-									AND LOWER(granted.name) = 'guardian'
 							)
 						)
 						OR (

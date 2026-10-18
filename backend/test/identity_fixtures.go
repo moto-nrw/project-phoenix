@@ -22,8 +22,6 @@ type AccountFixture struct {
 	MFAAttempts       int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil    *time.Time `bun:"mfa_locked_until" json:"-"`
 	CalendarFeedToken *string    `bun:"calendar_feed_token" json:"-"`
-	// ErasedAt is set once the hourly cleanup tombstoned the account (#4043).
-	ErasedAt *time.Time `bun:"personal_data_erased_at" json:"-"`
 }
 
 // RoleFixture holds a persisted role for test setup, not authorization policy.

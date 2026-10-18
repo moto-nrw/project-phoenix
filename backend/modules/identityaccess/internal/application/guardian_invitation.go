@@ -218,7 +218,7 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 // provisionGuardianAccount returns the account the address already owns —
 // with its credential untouched — or creates one from the registration.
 func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email string, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
-	account, found, _, err := l.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := l.logins.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
 	}

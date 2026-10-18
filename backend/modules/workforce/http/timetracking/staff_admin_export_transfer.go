@@ -1,6 +1,7 @@
 package timetracking
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,10 +14,9 @@ import (
 
 // Manual SFTP transfer of the cross-staff time export (#3050).
 //
-// The handler builds the file with the SAME Export() call the download uses
-// and hands the resulting bytes to the Export Transfer capability. That is why
-// the transferred file cannot drift from the downloaded one: there is one
-// file, produced once, either written to the response or sent onwards.
+// The handler gives the Export Transfer capability the SAME Export() call the
+// download uses. The capability runs it in its committed intent transaction,
+// so the transferred file and its access audit cannot diverge.
 
 // transferExportRequest is the POST body. The parameters travel in the body,
 // not the query: a POST proxy forwards the body, and relying on a forwarded
@@ -105,20 +105,18 @@ func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	file, err := rs.TimeExportService.ExportStaffTime(r.Context(), req, claims.AccountID, strings.Join(claims.Roles, ","))
-	if err != nil {
-		rs.logger.Error("failed to build time tracking export for transfer", "error", err.Error())
-		common.RenderError(w, r, common.RenderWithRules(err, timeExportErrorRules, common.ErrorInternalServer))
-		return
-	}
-
 	actorName := strings.TrimSpace(claims.DisplayName)
 
 	outcome, err := rs.ExportTransfer.Transfer(r.Context(), ExportTransferRequest{
-		Kind:           exportTransferKindStaffTimeTracking,
-		Format:         req.Format,
-		Filename:       file.Filename,
-		Data:           file.Data,
+		Kind:   exportTransferKindStaffTimeTracking,
+		Format: req.Format,
+		PrepareFile: func(ctx context.Context) (string, []byte, error) {
+			file, exportErr := rs.TimeExportService.ExportStaffTime(ctx, req, claims.AccountID, strings.Join(claims.Roles, ","))
+			if exportErr != nil {
+				return "", nil, exportErr
+			}
+			return file.Filename, file.Data, nil
+		},
 		ActorAccountID: claims.AccountID,
 		ActorName:      actorName,
 	})

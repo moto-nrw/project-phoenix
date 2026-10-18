@@ -12,6 +12,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
+func TestProvisionGuardianAccount_LocksExistingAccount(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	f.store.addAccount(40, "parent@example.test", "hash:secret", true)
+
+	account, err := f.lifecycle.provisionGuardianAccount(tenantContext(), "parent@example.test", domain.GuardianRegistration{})
+	require.NoError(t, err)
+	require.Equal(t, int64(40), account.ID)
+	require.Contains(t, f.store.recorded(), "LockLoginAccountByEmail",
+		"acceptance serializes with account retention before it grants access")
+}
+
 // The invitation reads serve the lists from the store alone, in the public
 // vocabulary, and report a failed read in the operation envelope the module
 // always answered with.

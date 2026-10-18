@@ -25,3 +25,14 @@ func (stubExportTransfer) Transfer(_ context.Context, request ExportTransferRequ
 		Reason:   exportTransferReasonNotConfigured,
 	}, nil
 }
+
+type preparedExportTransfer struct{ requests chan ExportTransferRequest }
+
+func (p *preparedExportTransfer) Status(context.Context) (ExportTransferStatus, error) {
+	return ExportTransferStatus{Ready: true}, nil
+}
+
+func (p *preparedExportTransfer) Transfer(_ context.Context, request ExportTransferRequest) (ExportTransferOutcome, error) {
+	p.requests <- request
+	return ExportTransferOutcome{}, nil
+}
