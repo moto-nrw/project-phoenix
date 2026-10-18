@@ -10,7 +10,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -98,14 +98,14 @@ type staffDirectory struct {
 	caregivers liveCaregiverProfile
 }
 
-func personRecord(person *userModels.Person) identityPorts.PersonRecord {
+func personRecord(person *peopledirectory.DirectoryPersonSnapshot) identityPorts.PersonRecord {
 	return identityPorts.PersonRecord{
 		ID: person.ID, TenantID: person.TenantID, AccountID: person.AccountID,
 		FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID, Deleted: person.DeletedAt != nil,
 	}
 }
 
-func staffMember(staff *userModels.Staff) identityPorts.StaffMember {
+func staffMember(staff *peopledirectory.Staff) identityPorts.StaffMember {
 	return identityPorts.StaffMember{ID: staff.ID, TenantID: staff.GetTenantID(), PersonID: staff.PersonID, Deleted: staff.DeletedAt != nil}
 }
 
@@ -123,7 +123,7 @@ func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identityP
 	return staffMember(staff), true, nil
 }
 
-func (d staffDirectory) findPerson(person *userModels.Person, err error) (identityPorts.PersonRecord, bool, error) {
+func (d staffDirectory) findPerson(person *peopledirectory.DirectoryPersonSnapshot, err error) (identityPorts.PersonRecord, bool, error) {
 	if err != nil {
 		if peoplePorts.RowMissing(err) {
 			return identityPorts.PersonRecord{}, false, nil
@@ -148,7 +148,7 @@ func (d staffDirectory) FindPersonByTag(ctx context.Context, tagID string) (iden
 	return d.findPerson(d.repos.Persons.FindByTagID(ctx, tagID))
 }
 
-func personNames(persons map[int64]*userModels.Person) map[int64]identityPorts.PersonName {
+func personNames(persons map[int64]*peopledirectory.DirectoryPersonSnapshot) map[int64]identityPorts.PersonName {
 	names := make(map[int64]identityPorts.PersonName, len(persons))
 	for id, person := range persons {
 		if person != nil {
@@ -300,7 +300,7 @@ func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int6
 
 type guardianDirectory struct{ repos LifecycleRepositories }
 
-func guardianProfile(profile *userModels.GuardianProfile) identityPorts.GuardianProfile {
+func guardianProfile(profile *peopledirectory.GuardianProfileSnapshot) identityPorts.GuardianProfile {
 	result := identityPorts.GuardianProfile{
 		ID: profile.ID, TenantID: profile.TenantID, FirstName: profile.FirstName, LastName: profile.LastName,
 		AccountID: profile.AccountID, HasAccount: profile.HasAccount,
@@ -311,7 +311,7 @@ func guardianProfile(profile *userModels.GuardianProfile) identityPorts.Guardian
 	return result
 }
 
-func studentGuardianLink(link *userModels.StudentGuardian) identityPorts.StudentGuardianLink {
+func studentGuardianLink(link *peopledirectory.GuardianRelationshipSnapshot) identityPorts.StudentGuardianLink {
 	return identityPorts.StudentGuardianLink{
 		ID: link.ID, TenantID: link.TenantID, StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID,
 		RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole, IsPrimary: link.IsPrimary,
@@ -319,7 +319,7 @@ func studentGuardianLink(link *userModels.StudentGuardian) identityPorts.Student
 	}
 }
 
-func (d guardianDirectory) findProfile(profile *userModels.GuardianProfile, err error) (identityPorts.GuardianProfile, bool, error) {
+func (d guardianDirectory) findProfile(profile *peopledirectory.GuardianProfileSnapshot, err error) (identityPorts.GuardianProfile, bool, error) {
 	if err != nil {
 		if peoplePorts.RowMissing(err) {
 			return identityPorts.GuardianProfile{}, false, nil
@@ -397,7 +397,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 	return d.repos.People.PromoteGuardianLinkToLegalGuardian(ctx, linkID)
 }
 
-func studentGuardianLinks(links []*userModels.StudentGuardian) []identityPorts.StudentGuardianLink {
+func studentGuardianLinks(links []*peopledirectory.GuardianRelationshipSnapshot) []identityPorts.StudentGuardianLink {
 	result := make([]identityPorts.StudentGuardianLink, 0, len(links))
 	for _, link := range links {
 		if link != nil {

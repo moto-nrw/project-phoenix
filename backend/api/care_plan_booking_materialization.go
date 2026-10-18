@@ -14,7 +14,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -479,7 +479,7 @@ func (s bookingStudents) LockStudents(ctx context.Context, studentIDs []int64) e
 }
 
 type bookingActorPersons interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 type bookingActorAccounts interface {

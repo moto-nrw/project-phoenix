@@ -91,7 +91,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -495,19 +495,18 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
 		activeGroupID := session1.ID
-		mirroredInstance := &scheduleModels.ActivityInstance{
-			Date:            scheduleModels.Date(calendar.TodayDate()),
-			ActivityGroupID: &activityGroup.ID,
-			Title:           "Force Transfer Activity",
-			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
-			EndTime:         time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
-			RoomID:          room1.ID,
-			Status:          scheduleModels.InstanceStatusActive,
-			ActiveGroupID:   &activeGroupID,
-			IsSpontaneous:   true,
-		}
-		mirroredInstance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance.Create(ctx, mirroredInstance))
+		mirroredInstance := api.NewAttendanceMirrorInstance()
+		mirroredInstance.Date = calendar.Date(calendar.TodayDate())
+		mirroredInstance.ActivityGroupID = &activityGroup.ID
+		mirroredInstance.Title = "Force Transfer Activity"
+		mirroredInstance.StartTime = time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
+		mirroredInstance.EndTime = time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
+		mirroredInstance.RoomID = room1.ID
+		mirroredInstance.Status = studentpresence.ActivitySessionActive
+		mirroredInstance.ActiveGroupID = &activeGroupID
+		mirroredInstance.IsSpontaneous = true
+		mirroredInstance.TenantID = testpkg.Tenant(t)
+		require.NoError(t, api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -531,9 +530,9 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
+		assert.Equal(t, studentpresence.ActivitySessionCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
 
 		oldActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session1.ID}, ActiveOn: new(calendar.TodayDate().String())})

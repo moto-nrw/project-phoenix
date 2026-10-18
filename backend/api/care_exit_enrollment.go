@@ -3,9 +3,10 @@ package api
 import (
 	"context"
 
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // careExitEnrollment serves the care lifecycle's Enrollment port: the
@@ -50,11 +51,11 @@ func (e careExitEnrollment) CareExitOfferingLinks(ctx context.Context, studentID
 	return result, nil
 }
 
-func (e careExitEnrollment) LockCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, from users.CalendarDate) error {
+func (e careExitEnrollment) LockCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, from owner0.Date) error {
 	return e.projection.LockCareExitOfferingLinks(ctx, requestChildIDs, enrollment.Date(from))
 }
 
-func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil users.CalendarDate, sourceRequestChildID *int64) ([]carePlanCompose.CareExitOfferingSnapshot, error) {
+func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil owner0.Date, sourceRequestChildID *int64) ([]carePlanCompose.CareExitOfferingSnapshot, error) {
 	snapshots, err := e.projection.CareExitOfferingSnapshots(ctx, studentIDs, enrollment.Date(validUntil), sourceRequestChildID)
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, stude
 	return result, nil
 }
 
-func (e careExitEnrollment) EndCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, sourceRequestChildID *int64, validUntil users.CalendarDate) (int64, error) {
+func (e careExitEnrollment) EndCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, sourceRequestChildID *int64, validUntil owner0.Date) (int64, error) {
 	return e.projection.EndCareExitOfferingLinks(ctx, requestChildIDs, sourceRequestChildID, enrollment.Date(validUntil))
 }
 
@@ -83,10 +84,10 @@ func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, re
 	return e.projection.RestoreCareExitOfferingLinks(ctx, values)
 }
 
-func enrollmentCareExitDay(value *enrollment.Date) *users.CalendarDate {
+func enrollmentCareExitDay(value *enrollment.Date) *owner0.Date {
 	if value == nil {
 		return nil
 	}
-	day := users.CalendarDate(*value)
+	day := owner0.Date(*value)
 	return &day
 }

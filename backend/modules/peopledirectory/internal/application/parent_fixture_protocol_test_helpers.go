@@ -3,7 +3,6 @@
 package application
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -11,20 +10,20 @@ import (
 // tests compare, without copying their values into the test or public DTO.
 func (Engine) ParentFixtureProtocol() peopledirectory.ParentFixtureProtocol {
 	return peopledirectory.ParentFixtureProtocol{
-		ParentRequestTypeExcusedAbsence:    usersModels.ParentRequestTypeExcusedAbsence,
-		ParentRequestEventSubmitted:        usersModels.ParentRequestEventSubmitted,
-		ParentRequestEventGuardianEdit:     usersModels.ParentRequestEventGuardianEdit,
-		ParentRequestEventDecided:          usersModels.ParentRequestEventDecided,
-		ParentRequestEventMarkedDone:       usersModels.ParentRequestEventMarkedDone,
-		ParentRequestEventCorrected:        usersModels.ParentRequestEventCorrected,
-		ParentMessageEventRequestCreated:   usersModels.ParentMessageEventRequestCreated,
-		ParentMessageEventRequestStatus:    usersModels.ParentMessageEventRequestStatus,
-		ParentMessageSenderGuardian:        usersModels.ParentMessageSenderGuardian,
-		ParentMessageSenderStaff:           usersModels.ParentMessageSenderStaff,
-		ParentMessageRequestStatusOpen:     usersModels.ParentMessageRequestStatusOpen,
-		ParentMessageRequestStatusDone:     usersModels.ParentMessageRequestStatusDone,
-		ParentMessageRequestStatusRejected: usersModels.ParentMessageRequestStatusRejected,
-		ParentMessageRequestExcusedAbsence: usersModels.ParentMessageRequestExcusedAbsence,
-		ParentMessageRequestSickAbsence:    usersModels.ParentMessageRequestSickAbsence,
+		ParentRequestTypeExcusedAbsence:    peopledirectory.ParentRequestTypeExcusedAbsence,
+		ParentRequestEventSubmitted:        peopledirectory.ParentRequestEventSubmitted,
+		ParentRequestEventGuardianEdit:     peopledirectory.ParentRequestEventGuardianEdit,
+		ParentRequestEventDecided:          peopledirectory.ParentRequestEventDecided,
+		ParentRequestEventMarkedDone:       peopledirectory.ParentRequestEventMarkedDone,
+		ParentRequestEventCorrected:        peopledirectory.ParentRequestEventCorrected,
+		ParentMessageEventRequestCreated:   peopledirectory.ParentMessageEventRequestCreated,
+		ParentMessageEventRequestStatus:    peopledirectory.ParentMessageEventRequestStatus,
+		ParentMessageSenderGuardian:        peopledirectory.ParentMessageSenderGuardian,
+		ParentMessageSenderStaff:           peopledirectory.ParentMessageSenderStaff,
+		ParentMessageRequestStatusOpen:     peopledirectory.ParentMessageRequestStatusOpen,
+		ParentMessageRequestStatusDone:     peopledirectory.ParentMessageRequestStatusDone,
+		ParentMessageRequestStatusRejected: peopledirectory.ParentMessageRequestStatusRejected,
+		ParentMessageRequestExcusedAbsence: peopledirectory.ParentMessageRequestExcusedAbsence,
+		ParentMessageRequestSickAbsence:    peopledirectory.ParentMessageRequestSickAbsence,
 	}
 }

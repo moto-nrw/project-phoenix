@@ -55,3 +55,27 @@ func (r StatusDayRetention) Days(ctx context.Context) (int, error) {
 func (r StatusDayRetention) SettingError(err error) error {
 	return fmt.Errorf("resolve %s: %w", configModel.KeyGDPRStatusDayRetentionDays, err)
 }
+
+// AttendanceRetention is the retention window of the daily attendance, the
+// tenant's GDPR attendance retention (#3957).
+type AttendanceRetention struct{ source StatisticsRetentionSource }
+
+// NewAttendanceRetention binds the window to the resolver.
+func NewAttendanceRetention(source StatisticsRetentionSource) AttendanceRetention {
+	return AttendanceRetention{source: source}
+}
+
+// Days resolves the window.
+func (r AttendanceRetention) Days(ctx context.Context) (int, error) {
+	days, err := r.source.ResolveInt(ctx, configModel.KeyGDPRAttendanceRetentionDays)
+	if err != nil {
+		return 0, r.SettingError(err)
+	}
+	return days, nil
+}
+
+// SettingError names the setting behind a window the deletion refused or
+// could not read.
+func (r AttendanceRetention) SettingError(err error) error {
+	return fmt.Errorf("resolve %s: %w", configModel.KeyGDPRAttendanceRetentionDays, err)
+}

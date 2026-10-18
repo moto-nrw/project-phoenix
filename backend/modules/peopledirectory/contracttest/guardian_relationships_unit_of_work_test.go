@@ -6,9 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -103,11 +104,11 @@ func linkHalves(t *testing.T, db *bun.DB, studentID, guardianID int64) (relation
 	return relationships, pickups, accesses
 }
 
-func newLink(studentID, guardianID int64) *userModels.StudentGuardian {
-	return &userModels.StudentGuardian{
+func newLink(studentID, guardianID int64) *peopleValues.GuardianRelationshipSnapshot {
+	return &peopleValues.GuardianRelationshipSnapshot{
 		StudentID: studentID, GuardianProfileID: guardianID, RelationshipType: "parent",
 		GuardianRole: "legal_guardian", IsPrimary: true, CanPickup: true, PickupNotes: textPointer("Mama"),
-		Permissions: map[string]interface{}{"parent_portal.access": true},
+		Permissions: []byte(`{"parent_portal.access": true}`),
 	}
 }
 
@@ -156,7 +157,7 @@ func TestGuardianRelationshipLinkRollsBackAfterEveryOwnerCommand(t *testing.T) {
 	require.Len(t, links, 1)
 	require.True(t, links[0].CanPickup)
 	require.Equal(t, "Mama", *links[0].PickupNotes)
-	require.Equal(t, true, links[0].Permissions["parent_portal.access"])
+	require.Equal(t, true, testpkg.GuardianPermissionValueJSON(links[0].Permissions, "parent_portal.access"))
 }
 
 func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T) {
@@ -181,7 +182,7 @@ func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T)
 		changed.IsEmergencyContact = true
 		changed.CanPickup = false
 		changed.PickupNotes = nil
-		changed.Permissions = map[string]interface{}{"parent_portal.access": false}
+		changed.Permissions = []byte(`{"parent_portal.access": false}`)
 		require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(ctx context.Context, _ testpkg.Tx) error {
 			require.ErrorIs(t, newRelationshipStore(db, owners).Update(ctx, &changed), errInjectedOwnerFailure)
 			return nil
@@ -197,12 +198,12 @@ func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T)
 
 	changed := *before
 	changed.CanPickup = false
-	changed.Permissions = map[string]interface{}{"parent_portal.access": false}
+	changed.Permissions = []byte(`{"parent_portal.access": false}`)
 	require.NoError(t, store.Update(ctx, &changed))
 	after, err := store.FindByID(ctx, link.ID)
 	require.NoError(t, err)
 	require.False(t, after.CanPickup)
-	require.Equal(t, false, after.Permissions["parent_portal.access"])
+	require.Equal(t, false, testpkg.GuardianPermissionValueJSON(after.Permissions, "parent_portal.access"))
 }
 
 func TestGuardianRelationshipPromotionDemotesThePreviousPrimary(t *testing.T) {
@@ -332,8 +333,8 @@ func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Default", "Role", "2a")
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Default", "Guardian", "default-role-link")
 	owners := &sqlGuardianOwners{db: db}
-	link := func() *userModels.StudentGuardian {
-		return &userModels.StudentGuardian{StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent"}
+	link := func() *peopleValues.GuardianRelationshipSnapshot {
+		return &peopleValues.GuardianRelationshipSnapshot{StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent"}
 	}
 
 	_, err := newRelationshipStore(db, owners).LinkIfNotExists(ctx, link())

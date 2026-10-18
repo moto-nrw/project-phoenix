@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -112,7 +114,7 @@ func approveAccompaniedTuesdayChild(
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	require.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
+	require.True(t, peopleValues.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[peopleValues.PickupDayTuesday],
 		"the approval must leave the child accompanied on Tuesday, or the link below has no basis")
 	return requestID, childID, student.ID
 }
@@ -143,8 +145,8 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	// the link to be the partner's only cover.
 	stored, err := env.repos.Student.FindByID(ctx, partner.ID)
 	require.NoError(t, err)
-	stored.AllowedDepartureModes = usersModels.AllowedDepartureModes{
-		usersModels.PickupDayTuesday: []usersModels.DepartureMode{usersModels.DepartureAccompanied},
+	stored.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
+		peopleValues.PickupDayTuesday: []peopleValues.DepartureMode{peopleValues.DepartureAccompanied},
 	}
 	stored.DepartureDays = nil
 	stored.BusDays = nil
@@ -156,7 +158,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
 	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(env.reposCare.CarePlan), studentID,
-		[]*usersModels.StudentCompanion{edge}))
+		[]*careplan.CompanionEdge{edge}))
 
 	if !withOwnNote {
 		// The link now covers the accompanied Tuesday, so the note can go — and
@@ -227,13 +229,13 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	err := syncApprovedChild(t, env, applier, reqID, childID)
 
 	require.Error(t, err, "a refused departure sync must not report success")
-	assert.ErrorIs(t, err, usersModels.ErrCompanionWouldLoseDeparture,
+	assert.ErrorIs(t, err, peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture),
 		"the refusal has to stay reachable so the handler can answer with the actionable 4xx")
 
 	// Nothing may have landed: the plan is unchanged and the link still exists.
 	student, ferr := env.repos.Student.FindByID(ctx, studentID)
 	require.NoError(t, ferr)
-	assert.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
+	assert.True(t, peopleValues.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[peopleValues.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
 	edges, eerr := api.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -70,8 +72,8 @@ func WithAccountLookup(lookup AccountLookup) PersonOption {
 	return func(r *personRepository) { r.accounts = lookup }
 }
 
-// NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(runtime Runtime, options ...PersonOption) ports.PersonRepository {
+// newRawPersonRepository creates a new PersonRepository
+func newRawPersonRepository(runtime Runtime, options ...PersonOption) rawPersonRepository {
 	repository := &personRepository{runtime: requireRuntime(runtime)}
 	for _, option := range options {
 		option(repository)
@@ -335,7 +337,7 @@ func (r *personRepository) Update(ctx context.Context, person *users.Person) err
 // AccountLookup resolves the login account behind a person. Identity &
 // Access owns auth.accounts, so the relation that used to be a LEFT JOIN is
 // injected as an owner lookup; a missing account resolves to nil.
-type AccountLookup func(ctx context.Context, accountID int64) (*users.PersonAccount, error)
+type AccountLookup func(ctx context.Context, accountID int64) (*directory.PersonAccountSnapshot, error)
 
 // FindWithAccount retrieves a person with their associated account. The
 // person row is read here; the account comes from the Identity & Access
@@ -369,7 +371,8 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		return nil, &ports.DatabaseError{Op: "find with account", Err: err}
 	}
 	if account != nil && account.ID != 0 {
-		person.Account = account
+		value := users.PersonAccount(*account)
+		person.Account = &value
 	}
 
 	return person, nil

@@ -46,6 +46,7 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -84,7 +85,11 @@ func workerRetentionOf(
 		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
 		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
 	)...)
-	return newWorkerRetention(audit, settings, students, staff, steps)
+	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: presenceCompose.FailureLogger()})
+	if err != nil {
+		return workerRetention{}, fmt.Errorf("compose worker attendance retention: %w", err)
+	}
+	return newWorkerRetention(audit, settings, students, staff, steps, attendance)
 }
 
 // workerDocumentSweeps build the Worker's recovery passes over the staff and
@@ -389,7 +394,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 			services = buildPeopleServices(db, env, persons, people, peopleIdentity, identity, schedules.Lifecycle, audit, tokens,
 				guardian, studentAudit, photoRuntime, NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
 				supervisions, substitutions, structure,
-				arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor}, settings.Service)
+				CaregiverPlannedSupervisionBlockers{Supervisors: timetableOwner}, settings.Service)
 			payroll = payrollStatus(settings.Service, people)
 			return nil
 		},

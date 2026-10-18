@@ -3,16 +3,17 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 type ReminderStudentReader struct {
 	Source interface {
-		FindReadScopeByIDs(context.Context, []int64) (map[int64]*users.Student, error)
+		FindReadScopeByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
 	}
 }
 
@@ -32,7 +33,7 @@ func (r ReminderStudentReader) FindReadScopeByIDs(ctx context.Context, ids []int
 
 type ReminderPersonReader struct {
 	Source interface {
-		FindByIDs(context.Context, []int64) (map[int64]*users.Person, error)
+		FindByIDs(context.Context, []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 	}
 }
 

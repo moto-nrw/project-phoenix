@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"testing"
 	"time"
 
@@ -13,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -168,8 +170,8 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
 	group := repositoryActivityGroup(t, ctx, env, "CourseCatalogBudget")
-	group.Type = activitiesModels.GroupTypeActivity
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, group))
+	group.Type = timetable.GroupTypeActivity
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, group))
 	zero := 0
 	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
@@ -442,17 +444,17 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	// The old group is capped at the switch date instead of deleted, the new one
 	// starts there — the whole point of the dated path.
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
-	byGroup := map[int64]activitiesModels.StudentEnrollment{}
+	byGroup := map[int64]timetable.StudentEnrollment{}
 	for _, enrollment := range rows {
 		byGroup[enrollment.ActivityGroupID] = enrollment
 	}
 	oldRow, ok := byGroup[fx.oldGroupID]
 	require.True(t, ok, "the attended group must survive as history")
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(fx.switchDate), *oldRow.ValidUntil)
+	assert.Equal(t, string(fx.switchDate), *oldRow.ValidUntil)
 	newRow, ok := byGroup[fx.newGroupID]
 	require.True(t, ok, "the requested group must be materialized")
-	assert.Equal(t, activitiesModels.Date(fx.switchDate), newRow.ValidFrom)
+	assert.Equal(t, string(fx.switchDate), newRow.ValidFrom)
 
 	// The queue is empty afterwards.
 	pending, _, err := offeringReviewQueueForTest(t, env).ListPending(ctx, careplan.RequestQueueFilter{})
@@ -515,7 +517,7 @@ func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *te
 			continue
 		}
 		require.NotNil(t, enrollment.ValidUntil)
-		assert.False(t, enrollment.ValidUntil.After(exclusiveEnd), "derived booking must not be recreated past care end")
+		assert.False(t, calendar.Date(*enrollment.ValidUntil).After(exclusiveEnd), "derived booking must not be recreated past care end")
 	}
 }
 
@@ -530,9 +532,9 @@ func TestOfferingChangeRequestService_Decide_RebookingObsoletesWithdrawalWithout
 	studentID := fx.studentID
 	actorID := env.creatorID
 	repo := env.reposPeople.CareWithdrawal
-	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &careplan.WithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: fx.switchDate,
-		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		Trigger:               careplan.WithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",
 		WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -974,17 +976,17 @@ func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.
 		"the request must record the date the office confirmed, not the parents' wish")
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
-	byGroup := map[int64]activitiesModels.StudentEnrollment{}
+	byGroup := map[int64]timetable.StudentEnrollment{}
 	for _, enrollment := range rows {
 		byGroup[enrollment.ActivityGroupID] = enrollment
 	}
 	oldRow, ok := byGroup[fx.oldGroupID]
 	require.True(t, ok, "the attended group must survive as history")
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(confirmed), *oldRow.ValidUntil)
+	assert.Equal(t, string(confirmed), *oldRow.ValidUntil)
 	newRow, ok := byGroup[fx.newGroupID]
 	require.True(t, ok, "the requested group must be materialized")
-	assert.Equal(t, activitiesModels.Date(confirmed), newRow.ValidFrom)
+	assert.Equal(t, string(confirmed), newRow.ValidFrom)
 }
 
 // A confirmed date before today would rewrite weeks that already happened.
@@ -1173,7 +1175,7 @@ func createPlanningOccurrence(
 	t.Helper()
 	status := opts.status
 	if status == "" {
-		status = scheduleModels.InstanceStatusPlanned
+		status = timetable.InstanceStatusPlanned
 	}
 	var calendarPeriodID *int64
 	if opts.materialized {
@@ -1226,28 +1228,28 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	require.NoError(t, err)
 
 	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualPlanningPreview")
-	manualGroup.Type = activitiesModels.GroupTypeCare
+	manualGroup.Type = timetable.GroupTypeCare
 	manualGroup.IsTemplate = true
-	manualGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, manualGroup))
+	manualGroup.TargetGroupType = timetable.TargetGroupTypeOffering
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, manualGroup))
 
 	sourcedGroup := repositoryActivityGroup(t, ctx, env, "OfferingPlanningPreview")
-	sourcedGroup.Type = activitiesModels.GroupTypeCare
+	sourcedGroup.Type = timetable.GroupTypeCare
 	sourcedGroup.IsTemplate = true
-	sourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
+	sourcedGroup.TargetGroupType = timetable.TargetGroupTypeOffering
 	sourcedGroup.SourceCareOfferingIDs = []int64{fx.newOffering.ID}
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, sourcedGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, sourcedGroup))
 
-	legacySourcedGroup, err := env.timetable.ActivityGroup.FindByID(ctx, fx.oldGroupID)
+	legacySourcedGroup, err := timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).FindByID(ctx, fx.oldGroupID)
 	require.NoError(t, err)
-	legacySourcedGroup.Type = activitiesModels.GroupTypeCare
+	legacySourcedGroup.Type = timetable.GroupTypeCare
 	legacySourcedGroup.IsTemplate = true
-	legacySourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeNone
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, legacySourcedGroup))
+	legacySourcedGroup.TargetGroupType = timetable.TargetGroupTypeNone
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, legacySourcedGroup))
 	parentChoiceGroup := repositoryActivityGroup(t, ctx, env, "EmptyParentChoicePlanning")
-	parentChoiceGroup.Type = activitiesModels.GroupTypeCare
+	parentChoiceGroup.Type = timetable.GroupTypeCare
 	parentChoiceGroup.IsTemplate = true
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, parentChoiceGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, parentChoiceGroup))
 	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
@@ -1307,7 +1309,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Thursday).AddDays(14), "Abgesagt", planningOccurrenceOpts{
 			materialized: true,
-			status:       scheduleModels.InstanceStatusCancelled,
+			status:       timetable.InstanceStatusCancelled,
 		})
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Thursday).AddDays(21), "Ungeplant", planningOccurrenceOpts{materialized: true, unplanned: true})
@@ -1369,8 +1371,8 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFu
 	require.NoError(t, err)
 
 	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualFullWithdrawal")
-	manualGroup.Type, manualGroup.IsTemplate = activitiesModels.GroupTypeCare, true
-	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, manualGroup))
+	manualGroup.Type, manualGroup.IsTemplate = timetable.GroupTypeCare, true
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, manualGroup))
 	period := testpkg.CreateTestCalendarPeriod(
 		t, env.db, "Manual full withdrawal "+t.Name(), calendar.Date(env.sourcePhase.ServiceStartDate), calendar.Date(env.sourcePhase.ServiceEndDate),
 	)
@@ -1503,9 +1505,9 @@ func offeringChangePayload(t *testing.T, row *careplan.OfferingChangeRequest) ma
 
 // repositoryActivityGroup creates an activity fixture and reads it back as the
 // owner row the activity repository updates.
-func repositoryActivityGroup(t *testing.T, ctx context.Context, env *decisionTestEnv, name string) *activitiesModels.Group {
+func repositoryActivityGroup(t *testing.T, ctx context.Context, env *decisionTestEnv, name string) *timetable.Group {
 	t.Helper()
-	group, err := env.timetable.ActivityGroup.FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
+	group, err := timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
 	require.NoError(t, err)
 	return group
 }

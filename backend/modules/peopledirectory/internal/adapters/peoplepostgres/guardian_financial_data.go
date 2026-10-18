@@ -22,7 +22,7 @@ type GuardianFinancialDataRepository struct {
 }
 
 // NewGuardianFinancialDataRepository creates the 1:1 guardian bank repository.
-func NewGuardianFinancialDataRepository(runtime Runtime) users.GuardianFinancialDataRepository {
+func newRawGuardianFinancialDataRepository(runtime Runtime) *GuardianFinancialDataRepository {
 	return &GuardianFinancialDataRepository{runtime: requireRuntime(runtime)}
 }
 

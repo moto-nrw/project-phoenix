@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -29,7 +31,7 @@ type Person struct {
 // because the two sides that need it — the People Directory composition seam
 // that observes the owner's not-found, and the retained person service that
 // maps it onto its own sentinel — may not import each other (#3349).
-var ErrPersonRowMissing = errors.New("person row not found")
+var ErrPersonRowMissing = contact.ErrPersonRowMissing
 
 func (p *Person) Validate() error {
 	if p.FirstName == "" {

@@ -4,9 +4,10 @@ import (
 	"context"
 	"log/slog"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -35,12 +36,12 @@ func NewGuardianProfileLoader(repo peoplePorts.GuardianProfileRepository, db *bu
 // scopes the join. Returns (nil, nil) when the account has no
 // profile in this tenant — callers fall through to their default
 // (claims-derived) response.
-func (s *GuardianProfileLoader) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error) {
+func (s *GuardianProfileLoader) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*peopleValues.GuardianProfileWithChildren, error) {
 	if accountID <= 0 || tenantID <= 0 {
 		return nil, nil
 	}
 
-	var result *usersModels.GuardianProfileWithChildren
+	var result *peopleValues.GuardianProfileWithChildren
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		loaded, loadErr := s.repo.LoadProfileWithChildren(txCtx, accountID)
 		if loadErr != nil {

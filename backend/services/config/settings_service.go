@@ -661,7 +661,7 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if tenantID <= 0 {
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
-	if isOverviewScopeKey(key) || isParentReportSettingKey(key) {
+	if isOverviewScopeKey(key) || isParentReportSettingKey(key) || isAttendanceWindowKey(key) {
 		if s.runtime == nil {
 			return &SettingsError{Op: "set_value", Err: ErrRuntimeUnavailable}
 		}
@@ -769,7 +769,7 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	if parentReportApprovalKey(key) != "" && ctx.Value(parentReportResetContextKey{}) != true {
 		return s.resetParentReportMode(ctx, key, changedBy, userPermissions)
 	}
-	if isOverviewScopeKey(key) || isParentReportSettingKey(key) {
+	if isOverviewScopeKey(key) || isParentReportSettingKey(key) || isAttendanceWindowKey(key) {
 		if s.runtime == nil {
 			return &SettingsError{Op: "reset_value", Err: ErrRuntimeUnavailable}
 		}
@@ -949,6 +949,8 @@ func (s *settingsService) validateCrossField(ctx context.Context, key string, va
 		return s.validateClassCollectionGuard(ctx, key, value)
 	case config.KeyEnrollmentGradeLevelMax:
 		return s.validateGradeLevelCapGuard(ctx, key, value)
+	case config.KeyAttendanceVisibleDays, config.KeyGDPRAttendanceRetentionDays:
+		return s.validateAttendanceWindows(ctx, key, value)
 	}
 	return nil
 }

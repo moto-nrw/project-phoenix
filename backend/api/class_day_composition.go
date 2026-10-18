@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -118,13 +118,13 @@ type classDaySheetStudents struct {
 // People Directory rows the class day reads.
 type (
 	classDayStudentRows interface {
-		FindByID(ctx context.Context, id any) (*userModels.Student, error)
+		FindByID(ctx context.Context, id any) (*peopledirectory.StudentState, error)
 	}
 	classDayPersonRows interface {
-		FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
+		FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 	}
 	classDayContactRows interface {
-		ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModels.GuardianEmergencyContactRow, error)
+		ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianEmergencyContactRow, error)
 	}
 )
 

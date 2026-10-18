@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -22,8 +24,8 @@ type EducationStaff struct{ staff educationStaffRows }
 
 // educationStaffRows are the staff reads the staff check and lock take.
 type educationStaffRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Staff, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.Staff, error)
 }
 
 // NewEducationStaff binds the staff check to the staff repository.
@@ -53,19 +55,19 @@ func (s EducationStaff) LockStaff(ctx context.Context, id int64) error {
 // the staff and guest repositories.
 type EducationExternalCaregivers struct {
 	staff interface {
-		ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+		ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
 	}
 	guests interface {
-		ActiveGuests(ctx context.Context) ([]*userModels.Guest, error)
+		ActiveGuests(ctx context.Context) ([]*peopleValues.Guest, error)
 	}
 }
 
 // NewEducationExternalCaregivers binds the external-caregiver directory to
 // the staff and guest repositories.
 func NewEducationExternalCaregivers(staff interface {
-	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
 }, guests interface {
-	ActiveGuests(ctx context.Context) ([]*userModels.Guest, error)
+	ActiveGuests(ctx context.Context) ([]*peopleValues.Guest, error)
 }) EducationExternalCaregivers {
 	return EducationExternalCaregivers{staff: staff, guests: guests}
 }
@@ -114,8 +116,8 @@ type EducationCaregivers struct{ teachers caregiverRows }
 
 // caregiverRows are the active caregivers the substitution module offers.
 type caregiverRows interface {
-	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error)
-	ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error)
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*peopleValues.ActiveCaregiver, error)
+	ListActiveCaregivers(ctx context.Context) ([]*peopleValues.ActiveCaregiver, error)
 }
 
 // NewEducationCaregivers binds the caregiver directory to the teacher
@@ -150,7 +152,7 @@ func (c EducationCaregivers) ListActiveCaregivers(ctx context.Context) ([]*educa
 	return result, nil
 }
 
-func educationCaregiver(caregiver *userModels.ActiveCaregiver) *educationRepo.Caregiver {
+func educationCaregiver(caregiver *peopleValues.ActiveCaregiver) *educationRepo.Caregiver {
 	return &educationRepo.Caregiver{StaffID: caregiver.StaffID, TeacherID: caregiver.TeacherID, FullName: caregiver.FullName()}
 }
 

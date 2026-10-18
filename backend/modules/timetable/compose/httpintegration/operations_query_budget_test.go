@@ -91,15 +91,15 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		InstanceStaff:   timetableRepos.InstanceStaff,
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
-		Students:        repos.Student,
+		Students:        api.NewTimetableRosterStudents(repos.Student),
 		EducationGroups: api.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           api.NewTimetableRoomNames(rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances, rows.InstanceStaff, rows.Participants
-	deps.Templates, deps.Students = templates, api.NewTimetableOperationStudents(rows.Students)
-	deps.EducationGroups, deps.Rooms = rows.EducationGroupNames(), rows.RoomNames()
+	deps.Templates, deps.Students = templates, rows.Students
+	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	operations, err := compose.NewOperations(deps)
 	require.NoError(t, err)
 	return operations

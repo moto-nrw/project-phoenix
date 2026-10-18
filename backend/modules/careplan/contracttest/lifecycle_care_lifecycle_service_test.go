@@ -11,6 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
@@ -18,9 +23,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -97,7 +100,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("status = ?", string(userModels.StudentStatusActive)).
+		Set("status = ?", string(peopledirectory.StudentStatusActive)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -128,7 +131,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 	assert.Equal(t, peopledirectory.StudentFieldCareEnd, edits[0].FieldName)
 }
 
-func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {
+func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *peopledirectory.StudentState {
 	t.Helper()
 	student, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID(ctx, id)
 	require.NoError(t, err)
@@ -270,7 +273,7 @@ func TestCareLifecycle_BlockedChildStopsTheWholeAction(t *testing.T) {
 	graduated := testpkg.CreateTestStudent(t, db, "Ben", "Wirth", "4b")
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("status = ?", string(userModels.StudentStatusAlumnus)).
+		Set("status = ?", string(peopledirectory.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", graduated.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -337,13 +340,13 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "Fußball")
 	today := calendar.TodayDate()
 
-	booking := &activityModels.StudentEnrollment{
+	booking := &timetable.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       activityModels.Date(today.AddDays(-30)),
+		ValidFrom:       string(today.AddDays(-30)),
 	}
-	booking.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, booking))
+	booking.TenantID = testpkg.Tenant(t)
+	require.NoError(t, timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).Create(ctx, booking))
 
 	preview, err := svc.Preview(ctx, careplan.CareExitInput{
 		StudentIDs:  []int64{student.ID},
@@ -365,11 +368,11 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 
 	// valid_until is an EXCLUSIVE bound, so the booking still counts on the
 	// last care day and stops the day after.
-	stillToday, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, activityModels.Date(today))
+	stillToday, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindActiveByStudentIDs(ctx, []int64{student.ID}, string(today))
 	require.NoError(t, err)
 	assert.Len(t, stillToday, 1, "the booking still counts on the last care day")
 
-	tomorrow, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, activityModels.Date(today.AddDays(1)))
+	tomorrow, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindActiveByStudentIDs(ctx, []int64{student.ID}, string(today.AddDays(1)))
 	require.NoError(t, err)
 	assert.Empty(t, tomorrow, "the booking has ended the day after")
 }
@@ -493,7 +496,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", yesterday).
-		Set("status = ?", string(userModels.StudentStatusInactive)).
+		Set("status = ?", string(peopledirectory.StudentStatusInactive)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -535,7 +538,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 		assert.Nil(t, stored.EnrolledUntil, "the end of care is gone")
 		require.NotNil(t, stored.EnrolledFrom)
 		assert.Equal(t, calendar.NewDate(2026, 8, 24), *stored.EnrolledFrom)
-		assert.Equal(t, userModels.StudentStatusActive, stored.Status,
+		assert.Equal(t, peopledirectory.StudentStatusActive, stored.Status,
 			"a child resumed for today is active right away")
 	})
 
@@ -555,7 +558,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 		_, err := db.NewUpdate().
 			TableExpr("users.student_school_memberships").
 			Set("enrolled_until = ?", yesterday).
-			Set("status = ?", string(userModels.StudentStatusInactive)).
+			Set("status = ?", string(peopledirectory.StudentStatusInactive)).
 			Where("student_profile_id = ? AND deleted_at IS NULL", naturalEnd.ID).
 			Exec(context.Background())
 		require.NoError(t, err)
@@ -582,7 +585,7 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", calendar.TodayDate().AddDays(-3)).
-		Set("status = ?", string(userModels.StudentStatusInactive)).
+		Set("status = ?", string(peopledirectory.StudentStatusInactive)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -601,7 +604,7 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 	}))
 
 	stored := loadStudent(t, db, ctx, student.ID)
-	assert.Equal(t, userModels.StudentStatusPending, stored.Status,
+	assert.Equal(t, peopledirectory.StudentStatusPending, stored.Status,
 		"a future start waits for the activate-students tick, like any other")
 }
 
@@ -666,7 +669,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	today := calendar.NewDate(2030, 8, 26)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	actorID := careActor(t, db)
-	repos := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")
@@ -680,7 +683,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	instance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(30), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
 	roster := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
-		scheduleModels.AttendanceStatusAbsent,
+		studentpresence.SessionAttendanceAbsent,
 		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
 	testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "15:30")
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, 1, staff.ID, "08:00")
@@ -695,22 +698,22 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 
 	// One open-ended booking (gets capped) and one starting after the exit
 	// (gets deleted outright).
-	openEnded := &activityModels.StudentEnrollment{
+	openEnded := &timetable.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       activityModels.Date(today.AddDays(-30)),
+		ValidFrom:       string(today.AddDays(-30)),
 	}
-	openEnded.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, openEnded))
+	openEnded.TenantID = testpkg.Tenant(t)
+	require.NoError(t, timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).Create(ctx, openEnded))
 
-	futureOnly := &activityModels.StudentEnrollment{
+	futureOnly := &timetable.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       activityModels.Date(today.AddDays(40)),
+		ValidFrom:       string(today.AddDays(40)),
 		Weekday:         testpkg.IntPtr(3),
 	}
-	futureOnly.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, futureOnly))
+	futureOnly.TenantID = testpkg.Tenant(t)
+	require.NoError(t, timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).Create(ctx, futureOnly))
 	futureOnlyID := futureOnly.ID
 
 	endCare(t, ctx, svc, actorID, careplan.CareExitInput{
@@ -723,10 +726,10 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	rows, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
 	require.NoError(t, err)
 	require.Empty(t, rows, "the exit removed the roster row")
-	pickupSchedules, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+	pickupSchedules, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	assert.Len(t, pickupSchedules, 1, "the weekly pickup plan remains until the exit takes effect")
-	arrivalSchedules, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	arrivalSchedules, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	assert.Len(t, arrivalSchedules, 1, "the weekly arrival plan remains until the exit takes effect")
 
@@ -739,7 +742,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, restored, 1)
 		assert.Equal(t, student.ID, restored[0].StudentID)
-		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restored[0].Status,
+		assert.Equal(t, studentpresence.SessionAttendanceAbsent, restored[0].Status,
 			"a restore is the inverse of the deletion, not a rebuild from enrollments")
 		assert.NotNil(t, restored[0].ManualStatusAt)
 		require.NotNil(t, restored[0].PickupExceptionID)
@@ -748,32 +751,32 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	})
 
 	t.Run("the weekly arrival and pickup plans are back", func(t *testing.T) {
-		pickupSchedules, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+		pickupSchedules, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
 		require.Len(t, pickupSchedules, 1)
-		arrivalSchedules, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+		arrivalSchedules, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
 		require.Len(t, arrivalSchedules, 1)
-		pickupExceptions, err := repos.StudentPickupException.FindByStudentID(ctx, student.ID)
+		pickupExceptions, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupException.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
 		require.Len(t, pickupExceptions, 1)
-		arrivalExceptions, err := repos.StudentArrivalException.FindByStudentID(ctx, student.ID)
+		arrivalExceptions, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalException.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
 		require.Len(t, arrivalExceptions, 1)
 	})
 
 	t.Run("the capped booking is open-ended again", func(t *testing.T) {
-		active, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(
-			ctx, []int64{student.ID}, activityModels.Date(today.AddDays(200)))
+		active, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindActiveByStudentIDs(
+			ctx, []int64{student.ID}, string(today.AddDays(200)))
 		require.NoError(t, err)
 		require.NotEmpty(t, active, "the offering runs on as if nothing happened")
 	})
 
 	t.Run("the deleted booking is back under its own id", func(t *testing.T) {
-		restored, err := timetableRepos.StudentEnrollment.FindByID(ctx, futureOnlyID)
+		restored, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindByID(ctx, futureOnlyID)
 		require.NoError(t, err)
 		require.NotNil(t, restored)
-		assert.Equal(t, activityModels.Date(today.AddDays(40)), restored.ValidFrom)
+		assert.Equal(t, string(today.AddDays(40)), restored.ValidFrom)
 		assert.Nil(t, restored.ValidUntil)
 	})
 }
@@ -800,8 +803,8 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
 	late := testpkg.CreateTestActivityInstance(t, db, today.AddDays(40), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
-	testpkg.CreateTestInstanceStudent(t, db, early.ID, student.ID, scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, late.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, early.ID, student.ID, studentpresence.SessionAttendanceExpected)
+	testpkg.CreateTestInstanceStudent(t, db, late.ID, student.ID, studentpresence.SessionAttendanceExpected)
 
 	// First decision: the child leaves in five days. Both blocks go.
 	endCare(t, ctx, svc, actorID, careplan.CareExitInput{
@@ -866,7 +869,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 
 	instance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(30), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
-	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, studentpresence.SessionAttendanceExpected)
 
 	endCare(t, ctx, svc, actorID, careplan.CareExitInput{
 		StudentIDs:  []int64{student.ID},

@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -102,10 +102,10 @@ type calendarStaffPort struct{ source calendarStaffRows }
 
 // calendarStaffRows are the retained staff reads of the calendar.
 type calendarStaffRows interface {
-	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*peopledirectory.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
-	FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
 }
 
 func (p calendarStaffPort) ListAllWithPerson(ctx context.Context) ([]*calendarCompose.Staff, error) {
@@ -129,14 +129,14 @@ type calendarStudentPort struct{ source calendarStudentRows }
 
 // calendarStudentRows are the retained student reads of the calendar.
 type calendarStudentRows interface {
-	List(ctx context.Context, filters map[string]any) ([]*userModels.Student, error)
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	List(ctx context.Context, filters map[string]any) ([]*peopledirectory.StudentState, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopledirectory.StudentState, error)
 	ListSchoolClasses(ctx context.Context) ([]string, error)
-	FindAllWithGroups(ctx context.Context) ([]*userModels.StudentWithGroupInfo, error)
+	FindAllWithGroups(ctx context.Context) ([]*peopledirectory.StudentRosterEntry, error)
 }
 
 func (p calendarStudentPort) ListActive(ctx context.Context) ([]*calendarCompose.Student, error) {
-	value, err := p.source.List(ctx, map[string]any{"status": string(userModels.StudentStatusActive)})
+	value, err := p.source.List(ctx, map[string]any{"status": string(peopledirectory.StudentStatusActive)})
 	return calendarMapSlice(value, calendarStudent), err
 }
 func (p calendarStudentPort) FindByGroupIDs(ctx context.Context, ids []int64) ([]*calendarCompose.Student, error) {
@@ -149,8 +149,8 @@ func (p calendarStudentPort) ListSchoolClasses(ctx context.Context) ([]string, e
 }
 func (p calendarStudentPort) FindAllWithGroups(ctx context.Context) ([]*calendarCompose.Student, error) {
 	value, err := p.source.FindAllWithGroups(ctx)
-	return calendarMapSlice(value, func(row *userModels.StudentWithGroupInfo) *calendarCompose.Student {
-		return calendarStudent(row.Student)
+	return calendarMapSlice(value, func(row *peopledirectory.StudentRosterEntry) *calendarCompose.Student {
+		return calendarStudent(row.Record)
 	}), err
 }
 
@@ -162,9 +162,9 @@ type calendarGuardianPort struct {
 // calendarGuardianProfiles are the guardian profile reads of the calendar's
 // recipient search.
 type calendarGuardianProfiles interface {
-	SearchByText(ctx context.Context, searchText string, limit int) ([]*userModels.GuardianProfile, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
-	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
+	SearchByText(ctx context.Context, searchText string, limit int) ([]*peopledirectory.GuardianProfileSnapshot, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
 }
 
 // NewCalendarGuardianDirectory binds the existing profile reads and the native
@@ -231,10 +231,10 @@ type calendarRelationshipPort struct {
 // and the persons the calendar reads.
 type (
 	calendarRelationshipRows interface {
-		FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*userModels.StudentGuardian, error)
+		FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 	}
 	calendarPersonRows interface {
-		FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
+		FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 	}
 )
 
@@ -346,35 +346,35 @@ func (p calendarShiftTypePort) ListAll(ctx context.Context) ([]*calendarCompose.
 	}), err
 }
 
-func calendarPerson(value *userModels.Person) *calendarCompose.Person {
+func calendarPerson(value *peopledirectory.DirectoryPersonSnapshot) *calendarCompose.Person {
 	if value == nil {
 		return nil
 	}
 	return &calendarCompose.Person{ID: value.ID, FirstName: value.FirstName, LastName: value.LastName}
 }
-func calendarStaff(value *userModels.Staff) *calendarCompose.Staff {
+func calendarStaff(value *peopledirectory.Staff) *calendarCompose.Staff {
 	if value == nil {
 		return nil
 	}
 	return &calendarCompose.Staff{ID: value.ID, Person: calendarPerson(value.Person)}
 }
-func calendarStudent(value *userModels.Student) *calendarCompose.Student {
+func calendarStudent(value *peopledirectory.StudentState) *calendarCompose.Student {
 	if value == nil {
 		return nil
 	}
 	return &calendarCompose.Student{ID: value.ID, Person: calendarPerson(value.Person), Status: string(value.Status), SchoolClass: value.SchoolClass, GroupID: value.GroupID}
 }
-func calendarGuardian(value *userModels.GuardianProfile) *calendarCompose.GuardianProfile {
+func calendarGuardian(value *peopledirectory.GuardianProfileSnapshot) *calendarCompose.GuardianProfile {
 	if value == nil {
 		return nil
 	}
 	return &calendarCompose.GuardianProfile{ID: value.ID, AccountID: value.AccountID, Email: value.Email, FirstName: value.FirstName, LastName: value.LastName, PortalLocale: value.PortalLocale}
 }
-func calendarRelationship(value *userModels.StudentGuardian) *calendarCompose.StudentGuardian {
+func calendarRelationship(value *peopledirectory.GuardianRelationshipSnapshot) *calendarCompose.StudentGuardian {
 	if value == nil {
 		return nil
 	}
-	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: securityruntime.GuardianPermissionGranted(value.Permissions[peopledirectory.GuardianPermissionPortalAccess])}
+	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: securityruntime.GuardianPermissionGrantedJSON(value.Permissions, peopledirectory.GuardianPermissionPortalAccess)}
 }
 func calendarAccount(value identityaccess.ParentCalendarFeedAccount) *calendarCompose.Account {
 	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.Active, CalendarFeedToken: &value.TokenHash}

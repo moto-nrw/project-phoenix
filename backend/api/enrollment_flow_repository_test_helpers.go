@@ -9,7 +9,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -27,7 +27,7 @@ type EnrollmentFlowTestRepositories struct {
 	StudentGuardian     peoplePorts.StudentGuardianRepository
 	GuardianProfile     peoplePorts.GuardianProfileRepository
 	GuardianPhoneNumber peoplePorts.GuardianPhoneNumberRepository
-	CareWithdrawal      usersModels.CareWithdrawalCompletionRepository
+	CareWithdrawal      CareWithdrawalTestRows
 }
 
 // Enrollment is the Enrollment booking projection the flows read and write.

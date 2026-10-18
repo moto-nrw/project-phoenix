@@ -4,7 +4,7 @@ package api
 
 import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -14,7 +14,7 @@ import (
 // NewTestAuditPersistence.
 type GuardianTestRepositories struct {
 	Phone     peoplePorts.GuardianPhoneNumberRepository
-	Financial usersModels.GuardianFinancialDataRepository
+	Financial peoplePorts.GuardianFinancialDataRepository
 }
 
 func NewGuardianTestRepositoriesWithoutAudit(db transactionruntime.Database) GuardianTestRepositories {

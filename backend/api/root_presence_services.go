@@ -42,7 +42,7 @@ func buildTimetableDays(owner TimetableOwner, people PeopleRows, rooms facilitie
 	repos := owner.Repositories
 	rows := arrivalTimetable.OwnerRows{
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, Participants: repos.InstanceStudent,
-		Templates: repos.ActivityGroup, Categories: repos.ActivityCategory, Students: people.Students,
+		Templates: repos.ActivityGroup, Categories: repos.ActivityCategory, Students: NewTimetableRosterStudents(people.Students),
 		EducationGroups:  owner.EducationGroupNames,
 		Rooms:            facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRecords(rooms)),
 		PickupExceptions: careRows.PickupExceptions, ArrivalExceptions: careRows.ArrivalExceptions,

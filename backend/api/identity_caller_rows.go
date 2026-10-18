@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -270,7 +272,7 @@ func (r *CallerRows) SessionRows(ctx context.Context, ids []int64) (any, error) 
 // StudentRows returns the students the /api/me/groups/{id}/students route
 // renders.
 func (r *CallerRows) StudentRows(ctx context.Context, ids []int64) (any, error) {
-	result := make([]*userModels.Student, 0, len(ids))
+	result := make([]*peopleValues.StudentState, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}

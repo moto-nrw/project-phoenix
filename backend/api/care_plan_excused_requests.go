@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -28,7 +30,7 @@ type CarePlanObserver func(carePlanCompose.Observation)
 func NewExcusedAbsenceRequestService(
 	carePlan careplan.Capability, students ExcusedRequestStudentRows, persons ExcusedRequestPersonRows,
 	scope carePlanCompose.ReviewScopeResolver, emitter *communicationCompose.ParentEventEmitter,
-	broadcaster realtime.Broadcaster, events ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
+	broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
 	shares carePlanCompose.ShareVisibility, observe CarePlanObserver, logger *slog.Logger, today func() timezone.Date,
 ) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger

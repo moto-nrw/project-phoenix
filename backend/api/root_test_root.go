@@ -240,7 +240,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			services = buildPeopleServices(db, env, persons, people, peopleIdentity, identity, schedules.Lifecycle, audit, tokens,
 				guardian, studentAudit, photoRuntime, NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
 				supervisions, substitutions, structure,
-				arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor}, settings.Service)
+				CaregiverPlannedSupervisionBlockers{Supervisors: timetableOwner}, settings.Service)
 			payroll = payrollStatus(settings.Service, people)
 			return nil
 		},

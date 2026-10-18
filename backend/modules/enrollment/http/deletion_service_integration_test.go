@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -17,7 +19,7 @@ import (
 	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -230,7 +232,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	f := newDeletionTestFixture(t, db, "request")
 	guardianAccount := testpkg.CreateTestAccount(t, db, "preserved-parent")
 	email := fmt.Sprintf("guardian-%d@example.invalid", f.scope.TenantID)
-	profile := &userModels.GuardianProfile{FirstName: "Preserved", LastName: "Guardian", Email: &email, AccountID: &guardianAccount.ID, HasAccount: true, PreferredContactMethod: "email", LanguagePreference: "de"}
+	profile := &peopleValues.GuardianProfileSnapshot{FirstName: "Preserved", LastName: "Guardian", Email: &email, AccountID: &guardianAccount.ID, HasAccount: true, PreferredContactMethod: "email", LanguagePreference: "de"}
 	profile.SetTenantID(f.scope.TenantID)
 	require.NoError(t, f.repos.GuardianProfile.Create(f.scope.Context(), profile))
 	request := f.request("whole", &guardianAccount.ID)

@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -37,8 +38,8 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 2, "arrival": "07:30"},
 	))
 	// Withdrawal is retired (#2267); the status stays valid for historic rows.
-	err = f.repos.CareScheduleChangeRequest.Decide(
-		f.staffCtx(f.chain.AccountID), second.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	err = careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), second.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)
 
@@ -60,7 +61,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	require.Contains(t, byID, second.ID)
 
 	rejected := byID[first.ID]
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, rejected.Request.Status)
+	assert.Equal(t, carerequests.StatusRejected, rejected.Request.Status)
 	assert.Equal(t, "Felix", rejected.FirstName)
 	assert.Equal(t, "Schneider", rejected.LastName)
 	assert.Equal(t, "Clara Confirm", rejected.ReviewerName)
@@ -73,7 +74,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	}
 
 	withdrawn := byID[second.ID]
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Request.Status)
+	assert.Equal(t, carerequests.StatusWithdrawn, withdrawn.Request.Status)
 	assert.Empty(t, withdrawn.ReviewerName, "withdrawals carry no reviewer")
 
 	// Keyset pagination: page size 1 → disjoint pages.
@@ -115,7 +116,7 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 		}
 	}
 	require.NotNil(t, got)
-	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, got.Request.RequestKind)
+	assert.Equal(t, carerequests.KindPickupChange, got.Request.RequestKind)
 	require.Equal(t, []carerequests.DiffEntry{{
 		Label: date.Format("02.01.2006") + " · Abholzeit", New: "15:30", CareKind: carerequests.KindPickup,
 	}}, got.Requested)

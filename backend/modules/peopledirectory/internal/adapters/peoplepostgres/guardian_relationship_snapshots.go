@@ -20,7 +20,7 @@ func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.Guardia
 		}
 		value.Permissions = raw
 	}
-	value.Student = NativeStudentSnapshot(row.Student)
+	value.Student = NativeStudentState(row.Student)
 	return value, nil
 }
 func nativeGuardianRelationships(rows []*models.StudentGuardian, err error) ([]*directory.GuardianRelationshipSnapshot, error) {

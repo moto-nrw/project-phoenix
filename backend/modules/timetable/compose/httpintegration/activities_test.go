@@ -62,7 +62,7 @@ func setupActivitiesRoute(t *testing.T) *testContext {
 	resource := activitiesAPI.NewResource(
 		svc.Activities,
 		svc.Timetable,
-		people.Users,
+		rootAPI.NewTimetableSupervisorDirectory(people.Users),
 		caller,
 		db,
 	)

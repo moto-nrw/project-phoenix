@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -545,7 +547,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
-	profile := &usersModels.GuardianProfile{
+	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              "Opa",
 		LastName:               "Schmidt",
 		PreferredContactMethod: "phone",

@@ -8,6 +8,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,7 +44,9 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	staff, err := newStaffRetention(db, audit, settings, nil)
 	require.NoError(t, err)
-	retention, err := newWorkerRetention(audit, settings, students, staff, steps)
+	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: admin, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	retention, err := newWorkerRetention(audit, settings, students, staff, steps, attendance)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -120,6 +123,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{
 		settingsModule.KeyGDPRStatusDayRetentionDays,
+		settingsModule.KeyGDPRAttendanceRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
@@ -209,6 +213,63 @@ func TestNightlyRetentionFollowsTheSchoolsRecordedStatusDayWindow(t *testing.T) 
 
 	assert.True(t, suite.exists(t, "active.student_status_days", kept), "a longer contractual window keeps the day")
 	assert.False(t, suite.exists(t, "active.student_status_days", expired))
+}
+
+// insertAttendance stores a closed attendance daysAgo Berlin calendar days
+// back, checked in on the device.
+func (s retentionSuite) insertAttendance(t *testing.T, tenantID, studentID, deviceID int64, daysAgo int) int64 {
+	t.Helper()
+	return s.insertID(t, `INSERT INTO active.attendance (tenant_id, student_id, date, check_in_time, check_out_time, device_id)
+		VALUES (?, ?, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - ?,
+			CURRENT_TIMESTAMP - make_interval(days => ?, hours => 2), CURRENT_TIMESTAMP - make_interval(days => ?), ?)
+		RETURNING id`, tenantID, studentID, daysAgo, daysAgo, daysAgo, deviceID)
+}
+
+func TestNightlyRetentionDeletesAttendanceAfterItsWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Anwesenheit", "Frist", "2a")
+	otherChild := testpkg.CreateTestStudentForTenant(t, suite.admin, otherSchool, "Andere", "Schule", "2a")
+	device := testpkg.CreateTestDevice(t, suite.admin, "attendance-retention")
+	otherDevice := testpkg.CreateTestDeviceForTenant(t, suite.admin, otherSchool, "attendance-retention-other")
+
+	expired := suite.insertAttendance(t, school, child.ID, device.ID, 366)
+	expiredLong := suite.insertAttendance(t, school, child.ID, device.ID, 900)
+	keptOnCutoff := suite.insertAttendance(t, school, child.ID, device.ID, 365)
+	kept := suite.insertAttendance(t, school, child.ID, device.ID, 10)
+	otherExpired := suite.insertAttendance(t, otherSchool, otherChild.ID, otherDevice.ID, 400)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "active.attendance", expired), "attendance older than 365 days is deleted")
+	assert.False(t, suite.exists(t, "active.attendance", expiredLong))
+	assert.True(t, suite.exists(t, "active.attendance", keptOnCutoff), "the day exactly 365 days back is still inside the window")
+	assert.True(t, suite.exists(t, "active.attendance", kept))
+	assert.True(t, suite.exists(t, "active.attendance", otherExpired), "the run of one school never touches another")
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAttendanceRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeAttendanceRetention))
+}
+
+func TestNightlyRetentionFollowsTheSchoolsRecordedAttendanceWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Kurze", "Frist", "3b")
+	device := testpkg.CreateTestDevice(t, suite.admin, "attendance-retention-window")
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.attendance_retention_days', '30'::jsonb)`, school)
+	require.NoError(t, err)
+
+	kept := suite.insertAttendance(t, school, child.ID, device.ID, 30)
+	expired := suite.insertAttendance(t, school, child.ID, device.ID, 31)
+
+	suite.run(t, school)
+
+	assert.True(t, suite.exists(t, "active.attendance", kept))
+	assert.False(t, suite.exists(t, "active.attendance", expired), "a shorter contractual window deletes earlier")
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAttendanceRetention))
 }
 
 type parentThreadFixture struct {

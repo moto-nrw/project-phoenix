@@ -84,6 +84,8 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "settings.invalid_value",
   "settings.presence_mode_switch_blocked",
   "settings.booking_authority_blocked",
+  "settings.attendance_visible_exceeds_retention",
+  "settings.attendance_retention_below_visible",
   // Announcements, unregistered RFID scans, billing.
   "communication.announcement_not_found",
   "devices.tag_scan_not_found",

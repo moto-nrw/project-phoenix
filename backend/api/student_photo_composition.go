@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -29,7 +29,7 @@ var ErrPhotoNoTenant = errors.New("no tenant context")
 type StudentPhotoConsentRecorder interface {
 	RecordTransitions(
 		ctx context.Context,
-		before, after *userModels.Student,
+		before, after *peopleModule.StudentState,
 		source string,
 		actorAccountID *int64,
 		changedAt time.Time,
@@ -101,9 +101,9 @@ func (r studentPhotoRuntime) RecordPhotoConsent(
 	if r.consents == nil {
 		return nil
 	}
-	beforeRow := &userModels.Student{PhotoConsentGivenAt: before.PhotoConsentGivenAt}
+	beforeRow := &peopleModule.StudentState{PhotoConsentGivenAt: before.PhotoConsentGivenAt}
 	beforeRow.ID = before.StudentID
-	afterRow := &userModels.Student{PhotoConsentGivenAt: after.PhotoConsentGivenAt}
+	afterRow := &peopleModule.StudentState{PhotoConsentGivenAt: after.PhotoConsentGivenAt}
 	afterRow.ID = after.StudentID
 	return r.consents.RecordTransitions(
 		ctx, beforeRow, afterRow, auditModels.StudentConsentSourceTenantPortal, actorAccountID, changedAt)
@@ -188,7 +188,7 @@ func (s studentPhotos) afterPhotoFeatureChange(tenantID int64, detached []string
 
 // ApplyConsentTransition reconciles the requested consent on the row the
 // caller holds; the caller persists it with its own write.
-func (s studentPhotos) ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *userModels.Student) {
+func (s studentPhotos) ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleModule.StudentState) {
 	if fresh == nil {
 		return
 	}

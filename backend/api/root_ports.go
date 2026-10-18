@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -256,7 +255,7 @@ type GroupTeacherRepository interface {
 	education.GroupTeacherStore
 	// ListGroupTeacherBlockers returns group assignments as
 	// caregiver-capability blocker rows.
-	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
+	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]peopledirectory.BlockerGroup, error)
 }
 
 // ClassTeacherRepository is the retained contract of the staff-to-school-class
@@ -282,8 +281,8 @@ type GroupRoster interface {
 // StudentConsentRecords resolves and records a child's consent states over the
 // People Directory and the Audit Platform trail.
 type StudentConsentRecords interface {
-	CurrentStates(ctx context.Context, student *userModels.Student, canManagePhoto bool) ([]userModels.StudentConsentState, error)
-	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
+	CurrentStates(ctx context.Context, student *peopledirectory.StudentState, canManagePhoto bool) ([]peopledirectory.StudentConsentState, error)
+	RecordTransitions(ctx context.Context, before, after *peopledirectory.StudentState, source string, actorAccountID *int64, changedAt time.Time) error
 	CurrentStudentConsents(ctx context.Context, snapshot peopledirectory.StudentConsentSnapshot, canManagePhoto bool) ([]peopledirectory.StudentConsentState, error)
 	RecordStudentConsentTransitions(ctx context.Context, before, after peopledirectory.StudentConsentSnapshot, source string, actorAccountID *int64, changedAt time.Time) error
 }

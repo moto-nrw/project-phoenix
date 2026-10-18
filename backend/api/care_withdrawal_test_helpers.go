@@ -4,12 +4,10 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // SeedPendingCareWithdrawal stores completion as the child's one pending
@@ -18,11 +16,11 @@ import (
 // retained contract's UpsertPending served the suites with; production
 // creates the task inside Care Plan's withdrawal flow (#4082).
 func SeedPendingCareWithdrawal(
-	ctx context.Context, repo userModels.CareWithdrawalCompletionRepository, completion *userModels.CareWithdrawalCompletion,
+	ctx context.Context, repo CareWithdrawalTestRows, completion *careplan.WithdrawalCompletion,
 ) error {
-	adapter, ok := repo.(careWithdrawalCompletionRepository)
+	adapter, ok := repo.(CareWithdrawalRecords)
 	if !ok {
-		return fmt.Errorf("seed pending care withdrawal: %T is not the Care Plan adapter", repo)
+		return errors.New("care withdrawal completions are not served by the Care Plan owner")
 	}
 	if completion.StudentID == nil || *completion.StudentID <= 0 {
 		return errors.New("care withdrawal completion requires a student")
@@ -31,21 +29,17 @@ func SeedPendingCareWithdrawal(
 	if err != nil {
 		return err
 	}
-	completion.State = userModels.CareWithdrawalStatePending
+	completion.State = careplan.WithdrawalStatePending
 	if completion.SourceOfferings == nil {
-		completion.SourceOfferings = []userModels.CareExitSourceOffering{}
-	}
-	offerings, err := json.Marshal(completion.SourceOfferings)
-	if err != nil {
-		return fmt.Errorf("encode care withdrawal source offerings: %w", err)
+		completion.SourceOfferings = []careplan.CareExitSourceOffering{}
 	}
 	stored, err := carePlan.UpsertPendingWithdrawal(ctx, careplan.WithdrawalCompletion{
 		ID: completion.ID, TenantID: completion.TenantID, CreatedAt: completion.CreatedAt, UpdatedAt: completion.UpdatedAt,
-		StudentID: completion.StudentID, FirstBookinglessDay: careplan.Date(completion.FirstBookinglessDay),
+		StudentID: completion.StudentID, FirstBookinglessDay: completion.FirstBookinglessDay,
 		Trigger: completion.Trigger, SourceAdjustmentID: completion.SourceAdjustmentID,
 		SourceRequestChildID: completion.SourceRequestChildID, WithdrawalConfirmedBy: completion.WithdrawalConfirmedBy,
 		WithdrawalConfirmedRole: completion.WithdrawalConfirmedRole, WithdrawalConfirmedAt: completion.WithdrawalConfirmedAt,
-		SourceOfferings: offerings, State: completion.State, Outcome: completion.Outcome,
+		SourceOfferings: completion.SourceOfferings, State: completion.State, Outcome: completion.Outcome,
 		ObsoleteReason: completion.ObsoleteReason, ResolvedBy: completion.ResolvedBy, ResolvedAt: completion.ResolvedAt,
 	})
 	if err != nil {

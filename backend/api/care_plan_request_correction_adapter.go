@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,26 +24,27 @@ func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, appr
 	return legacyEditError(err)
 }
 
-// requestCorrectionEffects reads a request's decision history from the
+// CorrectionHistory reads a request's decision history from the
 // People Directory ledger; Care Plan's effects record and announce the
 // correction.
-type requestCorrectionEffects struct {
-	compose.CareRequestEffects
-	ledger *ParentRequestLedger
-}
-
-func (e requestCorrectionEffects) CorrectionHistory(ctx context.Context, request *carerequests.Request) ([]compose.RequestCorrectionEvent, error) {
-	if e.ledger == nil {
+func (l *ParentRequestLedger) CorrectionHistory(ctx context.Context, request *carerequests.Request) ([]compose.RequestCorrectionEvent, error) {
+	if l == nil {
 		return nil, nil
 	}
-	events, err := e.ledger.ListForRequest(ctx, carerequests.LedgerRequestType(request.RequestKind), request.ID)
+	events, err := l.ListForRequest(ctx, carerequests.LedgerRequestType(request.RequestKind), request.ID)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]compose.RequestCorrectionEvent, 0, len(events))
 	for _, event := range events {
 		if event != nil {
-			result = append(result, compose.RequestCorrectionEvent{Type: event.EventType, Payload: event.Payload})
+			var payload map[string]any
+			if event.Payload != nil {
+				if err := json.Unmarshal(event.Payload, &payload); err != nil {
+					return nil, err
+				}
+			}
+			result = append(result, compose.RequestCorrectionEvent{Type: event.EventType, Payload: payload})
 		}
 	}
 	return result, nil

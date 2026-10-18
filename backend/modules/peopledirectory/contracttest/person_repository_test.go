@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +23,7 @@ func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
 	ctx := testpkg.Ctx(t)
 	for _, id := range ids {
 		_, err := db.NewDelete().
-			Model((*userModels.Person)(nil)).
+			Model((*peopleValues.DirectoryPersonSnapshot)(nil)).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, id).
 			Exec(ctx)
@@ -48,7 +49,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	defer func() { cleanupPersonRecords(t, db, createdIDs...) }()
 
 	t.Run("create valid person", func(t *testing.T) {
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Test",
 			LastName:  "Person",
 		}
@@ -64,7 +65,7 @@ func TestPersonRepository_Create(t *testing.T) {
 
 	t.Run("create person with birthday", func(t *testing.T) {
 		birthday := calendar.NewDate(2010, 5, 15)
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Birthday",
 			LastName:  "Test",
 			Birthday:  &birthday,
@@ -86,7 +87,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with empty first name should fail validation", func(t *testing.T) {
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "",
 			LastName:  "Test",
 		}
@@ -96,7 +97,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with empty last name should fail validation", func(t *testing.T) {
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Test",
 			LastName:  "",
 		}
@@ -631,7 +632,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create person with unicode names", func(t *testing.T) {
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Müller",
 			LastName:  "Über",
 		}
@@ -647,7 +648,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 	t.Run("create person with long names", func(t *testing.T) {
 		longName := "VeryLongFirstNameThatExceedsNormalLengthButShouldStillWork"
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: longName,
 			LastName:  "Test",
 		}

@@ -25,7 +25,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -164,7 +164,7 @@ func NewPersonRepository(db transactionruntime.Database) peoplePorts.PersonRepos
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
 func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.AccountLookup {
-	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
+	return func(ctx context.Context, accountID int64) (*peopledirectory.PersonAccountSnapshot, error) {
 		account, err := accounts.FindAccountMetadata(ctx, accountID)
 		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil, nil
@@ -172,7 +172,7 @@ func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.Accoun
 		if err != nil {
 			return nil, err
 		}
-		result := userModels.PersonAccount(account)
+		result := peopledirectory.PersonAccountSnapshot(account)
 		return &result, nil
 	}
 }

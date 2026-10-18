@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -826,7 +827,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 
 		_, err = db.NewUpdate().
 			TableExpr("users.student_school_memberships").
-			Set("status = ?", string(usermodels.StudentStatusAlumnus)).
+			Set("status = ?", string(peopleValues.StudentStatusAlumnus)).
 			Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
@@ -1620,7 +1621,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "+49 123 456789", result.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType)
 		assert.True(t, result.IsPrimary, "First phone should be primary")
 		assert.Equal(t, 1, result.Priority)
 	})
@@ -1705,7 +1706,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType, "Should default to mobile")
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType, "Should default to mobile")
 	})
 }
 
@@ -1775,7 +1776,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newNumber, updated.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeWork, updated.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeWork, updated.PhoneType)
 		assert.Equal(t, &newLabel, updated.Label)
 	})
 
@@ -2178,7 +2179,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, phone.ID, result.ID)
 		assert.Equal(t, "+49 444 444444", result.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType)
 		assert.Equal(t, &label, result.Label)
 	})
 }

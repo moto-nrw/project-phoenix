@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,7 +34,7 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 		"Anna", "Gezählt", "gezaehlt@example.com", "Lina", "Gezählt", int16(1))
 	heldSource, uncounted := seedApprovedChildWithStudent(t, env,
 		"Berta", "Inaktiv", "inaktiv@example.com", "Mia", "Inaktiv", int16(1))
-	uncounted.Status = usersModels.StudentStatusInactive
+	uncounted.Status = peopleValues.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, uncounted))
 	_, err := env.db.NewUpdate().TableExpr("platform.schools").
 		Set("child_quota_bundles = 1").Set("child_quota_bundle_size = 1").
@@ -82,10 +84,10 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 
 	refreshed, err := env.repos.Student.FindByID(ctx, uncounted.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusInactive, refreshed.Status, "the held child is not brought back")
+	assert.Equal(t, peopleValues.StudentStatusInactive, refreshed.Status, "the held child is not brought back")
 	stillCounted, err := env.repos.Student.FindByID(ctx, counted.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, stillCounted.Status)
+	assert.Equal(t, peopleValues.StudentStatusActive, stillCounted.Status)
 
 	// A later tick leaves the held renewal to the school instead of
 	// approving it once a place frees up.

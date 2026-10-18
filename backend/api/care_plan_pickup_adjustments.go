@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -37,8 +39,8 @@ type pickupAdjustmentStudents struct{ students PickupAdjustmentStudentRows }
 // PickupAdjustmentStudentRows are the People Directory child rows a pickup
 // adjustment locks.
 type PickupAdjustmentStudentRows interface {
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error)
-	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*usersModels.Student, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
+	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
 }
 
 func (s pickupAdjustmentStudents) LockStudent(ctx context.Context, id int64) (*careplan.ScheduleStudent, error) {

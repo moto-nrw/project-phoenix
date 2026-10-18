@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceStaffRecords interface {
-	FindByID(context.Context, any) (*users.Staff, error)
-	FindByIDForUpdate(context.Context, int64) (*users.Staff, error)
-	FindByIDs(context.Context, []int64) (map[int64]*users.Staff, error)
+	FindByID(context.Context, any) (*peopleValues.Staff, error)
+	FindByIDForUpdate(context.Context, int64) (*peopleValues.Staff, error)
+	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 type attendanceStaffDirectory struct{ source attendanceStaffRecords }

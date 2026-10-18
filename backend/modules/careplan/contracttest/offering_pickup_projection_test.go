@@ -3,6 +3,9 @@ package contracttest_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -13,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -101,15 +104,15 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	assert.Nil(t, rangeData.EffectiveSchedules[7].Schedule,
 		"an empty projected date must be explicit so clients cannot fall back to today's row")
 
-	stored, err := env.reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "approval must not materialize an undated offering row")
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Geschützt")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	err = pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, effectiveFrom)
 	require.ErrorIs(t, err, careplan.ErrPickupResetNoOffering)
-	stored, err = env.reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err = careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
 	assert.Equal(t, "15:15", stored[0].PickupTime.Format("15:04"),
@@ -172,10 +175,10 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
 	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*careplan.PickupSchedule{{
-		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
+		StudentID: studentID, Weekday: timetable.WeekdayMonday,
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))
-	stored, err := env.reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "a future offering value must not be saved as a staff override")
 }
@@ -194,7 +197,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 		t, env, offering.ID, "gehzeit-manual@example.com", "Override", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Manuell")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	offering.PickupTimes = map[string]string{"mon": "16:00"}
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, offering))
 
@@ -205,7 +208,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	assert.Equal(t, "15:15", actual.PickupTime.Format("15:04"))
 
 	require.NoError(t, pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, monday))
-	stored, err := env.reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "reset must delete the manual row when an offering pickup replaces it")
 	reset, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(ctx, studentID, monday)
@@ -227,7 +230,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 		t, env, offering.ID, "gehzeit-reset-extension@example.com", "Aufgabe", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aufgabe")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "16:00")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "16:00")
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	var clearedStudentID int64
@@ -241,7 +244,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 	).Bookings
 	require.NoError(t, reset.ResetStudentPickupDayToOffering(ctx, studentID, monday))
 	assert.Equal(t, studentID, clearedStudentID)
-	assert.Equal(t, scheduleModels.WeekdayMonday, clearedWeekday)
+	assert.Equal(t, timetable.WeekdayMonday, clearedWeekday)
 }
 
 func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
@@ -303,7 +306,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 		t, env, offering.ID, "gehzeit-reset-gate@example.com", "Sperre", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Sperre")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	resetter := newBookingsForTest(env, nil, func(ctx context.Context) error {
@@ -315,7 +318,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	close(releaseHolder)
 	require.NoError(t, <-holderDone)
 	require.NoError(t, <-resetDone)
-	stored, err := env.reposSchedules.StudentPickupSchedule.FindByStudentID(testpkg.Ctx(t), studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(testpkg.Ctx(t), studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored)
 }

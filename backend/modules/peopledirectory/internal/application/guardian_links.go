@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -62,7 +63,7 @@ func (s *RetainedGuardianService) GetStudentGuardians(ctx context.Context, stude
 // WITH an account can still have an open invitation — a pending-approval
 // role-upgrade request (#2172) — but only one anchored to this child counts,
 // so a sibling's invite never marks an unrelated row as pending.
-func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []peoplePorts.GuardianInvitationRecord) bool {
+func invitationPendingForStudent(profile *peopleValues.GuardianProfileSnapshot, studentID int64, invitations []peoplePorts.GuardianInvitationRecord) bool {
 	for _, inv := range invitations {
 		if profile.HasAccount && (inv.StudentID == nil || *inv.StudentID != studentID) {
 			continue
@@ -120,12 +121,12 @@ func (s *RetainedGuardianService) GetGuardianStudents(ctx context.Context, guard
 
 // applyRolePreset sets the relationship's role to the preset and its
 // parent-portal permissions to exactly the ones the preset grants.
-func (s *RetainedGuardianService) applyRolePreset(relationship *users.StudentGuardian, role string) {
+func (s *RetainedGuardianService) applyRolePreset(relationship *peopleValues.GuardianRelationshipSnapshot, role string) {
 	ApplyGuardianRolePreset(s.RolePresets, relationship, role)
 }
 
 // LinkGuardianToStudent creates a relationship between guardian and student
-func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopleValues.GuardianRelationshipSnapshot, error) {
 	// Validate guardian profile exists
 	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
@@ -145,7 +146,7 @@ func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req
 	}
 
 	// Build the new relationship.
-	relationship := &users.StudentGuardian{
+	relationship := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:          req.StudentID,
 		GuardianProfileID:  req.GuardianProfileID,
 		RelationshipType:   req.RelationshipType,
@@ -183,7 +184,7 @@ func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req
 }
 
 // existingGuardianLink returns the stored link of the guardian to the student.
-func (s *RetainedGuardianService) existingGuardianLink(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) existingGuardianLink(ctx context.Context, studentID, guardianProfileID int64) (*peopleValues.GuardianRelationshipSnapshot, error) {
 	existingLinks, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing guardian link: %w", err)
@@ -198,7 +199,7 @@ func (s *RetainedGuardianService) existingGuardianLink(ctx context.Context, stud
 }
 
 // GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
-func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error) {
 	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
 		return nil, fmt.Errorf("relationship not found: %w", err)
@@ -305,7 +306,7 @@ func (s *RetainedGuardianService) removeGuardianFromStudent(ctx context.Context,
 
 // deleteGuardianLink removes one link. Clearing the payer mark with it needs
 // the financial permission and writes the payer audit row first.
-func (s *RetainedGuardianService) deleteGuardianLink(ctx context.Context, rel *users.StudentGuardian, changedByAccountID int64, mayClearPayer bool) error {
+func (s *RetainedGuardianService) deleteGuardianLink(ctx context.Context, rel *peopleValues.GuardianRelationshipSnapshot, changedByAccountID int64, mayClearPayer bool) error {
 	if rel.IsPayer {
 		if !mayClearPayer {
 			return peoplePorts.ErrPayerRemovalRequiresFinancial

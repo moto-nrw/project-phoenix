@@ -3,7 +3,8 @@
 package compose
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/uptrace/bun"
@@ -76,6 +77,6 @@ func RetainedWithGuardianRelationshipOwners(pickup RetainedGuardianPickupCommand
 
 // RetainedWithGuardianDefaultRole binds the given default role preset, as the
 // composition root binds the authorization policy's.
-func RetainedWithGuardianDefaultRole(apply func(*usersModels.StudentGuardian)) RetainedGuardianRelationshipOption {
+func RetainedWithGuardianDefaultRole(apply func(*peopleValues.GuardianRelationshipSnapshot)) RetainedGuardianRelationshipOption {
 	return usersRepo.WithGuardianDefaultRole(apply)
 }

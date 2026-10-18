@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Context, request *carerequests.Request, actorID int64) (bool, error) {
@@ -40,7 +39,7 @@ type weeklyApprovalAdapter struct {
 }
 
 func (*weeklyApprovalAdapter) TrackCompanionChanges(ctx context.Context) (context.Context, func() bool) {
-	ctx, recorder := usersModels.ContextWithCompanionChangeRecorder(ctx)
+	ctx, recorder := peopledirectory.ContextWithCompanionChangeRecorder(ctx)
 	return ctx, recorder.Changed
 }
 func (a *weeklyApprovalAdapter) CurrentStaffID(ctx context.Context) (int64, bool, error) {
@@ -68,11 +67,11 @@ func (a *weeklyApprovalAdapter) SaveDepartureModes(ctx context.Context, id int64
 	if a.student.ID == 0 || a.student.ID != id {
 		return fmt.Errorf("schedule: departure modes not locked for student %d", id)
 	}
-	merged := usersModels.AllowedDepartureModes{}
+	merged := peopledirectory.AllowedDepartureModes{}
 	for day, values := range modes {
 		merged[day] = nil
 		for _, value := range values {
-			merged[day] = append(merged[day], usersModels.DepartureMode(value))
+			merged[day] = append(merged[day], peopledirectory.DepartureMode(value))
 		}
 	}
 	updated, err := a.people.UpdateStudent(ctx, peopledirectory.StudentWrite{

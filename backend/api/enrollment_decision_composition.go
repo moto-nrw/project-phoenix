@@ -5,11 +5,14 @@ import (
 	"strings"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
@@ -29,9 +32,9 @@ import (
 // state of the queue (#3778).
 func NewEnrollmentDecisions(deps enrollmentCompose.DecisionDependencies) *enrollmentCompose.Decisions {
 	deps.People.Rules = enrollmentPeopleRules{}
-	deps.People.ErrGuardianLinkNotFound = userModels.ErrStudentGuardianNotFound
-	deps.People.ErrCompanionWouldLoseDeparture = userModels.ErrCompanionWouldLoseDeparture
-	deps.People.ErrCompanionLockBusy = userModels.ErrCompanionLockBusy
+	deps.People.ErrGuardianLinkNotFound = peopleValues.ErrStudentGuardianNotFound
+	deps.People.ErrCompanionWouldLoseDeparture = peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture)
+	deps.People.ErrCompanionLockBusy = peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionLockBusy)
 	deps.People.IsLockNotAvailable = isPostgresLockNotAvailable
 	if reads, ok := deps.Requests.(enrollmentOwner.RequestReads); ok {
 		deps.Reads = reads
@@ -276,19 +279,19 @@ type EnrollmentDecisionSettings interface {
 // EnrollmentStudentAuditor records tracked profile changes made while
 // approving or synchronizing enrollment data for an existing student.
 type EnrollmentStudentAuditor interface {
-	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
-	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
+	RecordChangesForActor(ctx context.Context, before, after *peopleValues.StudentState, editedBy int64) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 }
 
 // EnrollmentConsentAuditor records effective consent transitions made while an
 // enrollment submission is applied to a student.
 type EnrollmentConsentAuditor interface {
-	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
+	RecordTransitions(ctx context.Context, before, after *peopleValues.StudentState, source string, actorAccountID *int64, changedAt time.Time) error
 }
 
 // EnrollmentDepartureCompanions reads Care Plan's "läuft mit" edges of a
 // student.
 type EnrollmentDepartureCompanions interface {
-	ListForStudent(context.Context, int64) ([]*userModels.StudentCompanion, error)
+	ListForStudent(context.Context, int64) ([]*careplan.CompanionEdge, error)
 	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
 }

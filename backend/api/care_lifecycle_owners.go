@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -52,10 +54,10 @@ func NewCareEndRecorder(audit StudentChangeAudit) carePlanCompose.CareEndRecorde
 	return careEndRecorder{audit: audit}
 }
 
-func (r careEndRecorder) RecordCareEndChange(ctx context.Context, studentID int64, before, after *users.CalendarDate, actorAccountID int64) error {
-	previous := &users.Student{EnrolledUntil: before}
+func (r careEndRecorder) RecordCareEndChange(ctx context.Context, studentID int64, before, after *owner0.Date, actorAccountID int64) error {
+	previous := &peopledirectory.StudentState{EnrolledUntil: before}
 	previous.ID = studentID
-	next := &users.Student{EnrolledUntil: after}
+	next := &peopledirectory.StudentState{EnrolledUntil: after}
 	next.ID = studentID
 	return r.audit.RecordChangesForActor(ctx, previous, next, actorAccountID)
 }
@@ -64,11 +66,11 @@ func (r careEndRecorder) RecordCareEndChange(ctx context.Context, studentID int6
 // owner.
 type careExitBookings struct{ capability timetable.Capability }
 
-func (b careExitBookings) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil users.CalendarDate) error {
+func (b careExitBookings) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil owner0.Date) error {
 	return b.capability.LockStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil.String())
 }
 
-func (b careExitBookings) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil users.CalendarDate) (carePlanCompose.CareExitBookingChanges, error) {
+func (b careExitBookings) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil owner0.Date) (carePlanCompose.CareExitBookingChanges, error) {
 	changes, err := b.capability.EndStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil.String())
 	if err != nil {
 		return carePlanCompose.CareExitBookingChanges{}, err
@@ -92,14 +94,14 @@ func (b careExitBookings) RestoreStudentEnrollmentsForCareExit(ctx context.Conte
 	return b.capability.RestoreStudentEnrollmentsForCareExit(ctx, studentIDs, calendarPeriodIDs, careExitEnrollmentRemovals(removals))
 }
 
-func (b careExitBookings) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil users.CalendarDate, restorable []carePlanCompose.CareExitBookingRestore) (map[int64]int, error) {
+func (b careExitBookings) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil owner0.Date, restorable []carePlanCompose.CareExitBookingRestore) (map[int64]int, error) {
 	return b.capability.CountRunningEnrollmentsForCareExit(ctx, studentIDs, validUntil.String(), careExitEnrollmentRemovals(restorable))
 }
 
 func careExitBooking(value timetable.CareExitEnrollment) carePlanCompose.CareExitBooking {
 	return carePlanCompose.CareExitBooking{
 		ID: value.ID, TenantID: value.TenantID, StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
-		ValidFrom: users.CalendarDate(value.ValidFrom), ValidUntil: careExitDay(value.ValidUntil),
+		ValidFrom: owner0.Date(value.ValidFrom), ValidUntil: careExitDay(value.ValidUntil),
 		CalendarPeriodID: value.CalendarPeriodID, EnrollmentRequestChildID: value.EnrollmentRequestChildID,
 		SelectedWeekdays: value.SelectedWeekdays, AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday,
 	}
@@ -136,7 +138,7 @@ func (p careExitPresence) ListOpenPresence(ctx context.Context, studentIDs []int
 	return p.presence.ListOpenPresence(ctx, studentIDs)
 }
 
-func (p careExitPresence) LatestPresenceDate(ctx context.Context, studentID int64) (*users.CalendarDate, error) {
+func (p careExitPresence) LatestPresenceDate(ctx context.Context, studentID int64) (*owner0.Date, error) {
 	value, err := p.presence.LatestPresenceDate(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -152,7 +154,7 @@ func (p careExitPresence) CloseOpenPresence(ctx context.Context, studentIDs []in
 	return p.presence.CloseOpenPresence(ctx, studentIDs, at)
 }
 
-func parseCareExitDay(value *string) (*users.CalendarDate, error) {
+func parseCareExitDay(value *string) (*owner0.Date, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -163,15 +165,15 @@ func parseCareExitDay(value *string) (*users.CalendarDate, error) {
 	return day, nil
 }
 
-func careExitDay(value *string) *users.CalendarDate {
+func careExitDay(value *string) *owner0.Date {
 	if value == nil {
 		return nil
 	}
-	day := users.CalendarDate(*value)
+	day := owner0.Date(*value)
 	return &day
 }
 
-func careExitDayString(value *users.CalendarDate) *string {
+func careExitDayString(value *owner0.Date) *string {
 	if value == nil {
 		return nil
 	}

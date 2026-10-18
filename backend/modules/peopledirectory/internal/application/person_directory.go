@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -66,7 +67,7 @@ func (s *RetainedPersonDirectory) WithCareParticipation(resolve peoplePorts.Care
 }
 
 // Get retrieves a person by their ID
-func (s *RetainedPersonDirectory) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
+func (s *RetainedPersonDirectory) Get(ctx context.Context, id interface{}) (*peopleValues.DirectoryPersonSnapshot, error) {
 	// Convert id to int64
 	var personID int64
 	switch v := id.(type) {
@@ -89,9 +90,9 @@ func (s *RetainedPersonDirectory) Get(ctx context.Context, id interface{}) (*use
 }
 
 // GetByIDs retrieves multiple persons by their IDs in a single query
-func (s *RetainedPersonDirectory) GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error) {
+func (s *RetainedPersonDirectory) GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error) {
 	if len(ids) == 0 {
-		return make(map[int64]*userModels.Person), nil
+		return make(map[int64]*peopleValues.DirectoryPersonSnapshot), nil
 	}
 
 	persons, err := s.deps.PersonRepo.FindByIDs(ctx, ids)
@@ -103,7 +104,7 @@ func (s *RetainedPersonDirectory) GetByIDs(ctx context.Context, ids []int64) (ma
 }
 
 // Create creates a new person
-func (s *RetainedPersonDirectory) Create(ctx context.Context, person *userModels.Person) error {
+func (s *RetainedPersonDirectory) Create(ctx context.Context, person *peopleValues.DirectoryPersonSnapshot) error {
 	// Apply business rules and validation
 	if err := person.Validate(); err != nil {
 		return &userscontract.UsersError{Op: opCreatePerson, Err: err}
@@ -145,7 +146,7 @@ func (s *RetainedPersonDirectory) Create(ctx context.Context, person *userModels
 }
 
 // Update updates an existing person
-func (s *RetainedPersonDirectory) Update(ctx context.Context, person *userModels.Person) error {
+func (s *RetainedPersonDirectory) Update(ctx context.Context, person *peopleValues.DirectoryPersonSnapshot) error {
 	if person.Validate() != nil {
 		return &userscontract.UsersError{Op: opUpdatePerson, Err: person.Validate()}
 	}
@@ -200,13 +201,13 @@ func validateChangedRef[T comparable](ctx context.Context, newID, oldID *T, find
 }
 
 // validateAccountIfChanged validates account exists if AccountID is being changed
-func (s *RetainedPersonDirectory) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
+func (s *RetainedPersonDirectory) validateAccountIfChanged(ctx context.Context, person, existingPerson *peopleValues.DirectoryPersonSnapshot) error {
 	return validateChangedRef(ctx, person.AccountID, existingPerson.AccountID,
 		s.deps.AccountExists, userscontract.ErrAccountNotFound)
 }
 
 // validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
-func (s *RetainedPersonDirectory) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
+func (s *RetainedPersonDirectory) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *peopleValues.DirectoryPersonSnapshot) error {
 	return validateChangedRef(ctx, person.TagID, existingPerson.TagID,
 		func(ctx context.Context, id string) (bool, error) {
 			_, _, found, err := s.deps.RFIDRepo.LookupRFIDCard(ctx, id)
@@ -243,14 +244,14 @@ var errPersonDirectoryUnwired = errors.New("person directory is not configured")
 // sentinel, so a row that disappeared between the existence check and the
 // write is reported exactly as one that was never there.
 func translateMissingPerson(err error) error {
-	if errors.Is(err, userModels.ErrPersonRowMissing) {
+	if errors.Is(err, peopleValues.ErrPersonRowMissing) {
 		return userscontract.ErrPersonNotFound
 	}
 	return err
 }
 
 // FindByTagID finds a person by their RFID tag ID
-func (s *RetainedPersonDirectory) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
+func (s *RetainedPersonDirectory) FindByTagID(ctx context.Context, tagID string) (*peopleValues.DirectoryPersonSnapshot, error) {
 	person, err := s.deps.PersonRepo.FindByTagID(ctx, tagID)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: "find person by tag ID", Err: err}
@@ -262,7 +263,7 @@ func (s *RetainedPersonDirectory) FindByTagID(ctx context.Context, tagID string)
 }
 
 // FindByAccountID finds a person by their account ID
-func (s *RetainedPersonDirectory) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
+func (s *RetainedPersonDirectory) FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error) {
 	person, err := s.deps.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: "find person by account ID", Err: err}
@@ -360,7 +361,7 @@ func (s *RetainedPersonDirectory) LinkStudentToRFIDCard(ctx context.Context, stu
 		}
 		return &userscontract.UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
-	if student.Status == userModels.StudentStatusAlumnus {
+	if student.Status == peopleValues.StudentStatusAlumnus {
 		return &userscontract.UsersError{Op: opLinkToRFIDCard, Err: userscontract.ErrStudentGraduated}
 	}
 
@@ -381,7 +382,7 @@ func (s *RetainedPersonDirectory) UnlinkFromRFIDCard(ctx context.Context, person
 // error bodies.
 
 // GetStudentByID retrieves a student by ID.
-func (s *RetainedPersonDirectory) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentByID(ctx context.Context, id int64) (*peopleValues.StudentState, error) {
 	return s.deps.StudentRepo.FindByID(ctx, id)
 }
 
@@ -389,7 +390,7 @@ func (s *RetainedPersonDirectory) GetStudentByID(ctx context.Context, id int64) 
 // the caller's transaction ends. Callers that validate the status before writing
 // a row that references the student need it: an unlocked read can be obsolete
 // the moment a grade transition commits.
-func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error) {
 	if s.deps.StudentDirectory == nil {
 		return nil, &userscontract.UsersError{Op: opLockStudent, Err: errStudentDirectoryUnwired}
 	}
@@ -403,31 +404,31 @@ func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, i
 var errStudentDirectoryUnwired = errors.New("student directory is not configured")
 
 // GetStudentByPersonID retrieves the student record belonging to a person.
-func (s *RetainedPersonDirectory) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentByPersonID(ctx context.Context, personID int64) (*peopleValues.StudentState, error) {
 	return s.deps.StudentRepo.FindByPersonID(ctx, personID)
 }
 
 // GetStudentsByIDs retrieves multiple students by ID.
-func (s *RetainedPersonDirectory) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error) {
 	return s.deps.StudentRepo.FindByIDs(ctx, ids)
 }
 
 // GetStudentsByGroupID retrieves the students of a group.
-func (s *RetainedPersonDirectory) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*peopleValues.StudentState, error) {
 	return s.deps.StudentRepo.FindByGroupID(ctx, groupID)
 }
 
 // GetStudentsByGroupIDs retrieves the students of multiple groups.
-func (s *RetainedPersonDirectory) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error) {
 	return s.deps.StudentRepo.FindByGroupIDs(ctx, groupIDs)
 }
 
 // GetParticipationCandidatesByGroupIDs includes alumni so the shared dated
 // participation rule, including its actual-presence exception, gets the full
 // candidate set. Administrative group readers keep the legacy method above.
-func (s *RetainedPersonDirectory) GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error) {
 	if len(groupIDs) == 0 {
-		return []*userModels.Student{}, nil
+		return []*peopleValues.StudentState{}, nil
 	}
 	return s.deps.StudentRepo.ListByGroupIDsIncludingAlumni(ctx, groupIDs)
 }
@@ -441,7 +442,7 @@ func (s *RetainedPersonDirectory) GetParticipationCandidatesByGroupIDs(ctx conte
 // notion of "today": re-reading the process clock here could validate one day
 // and then build the roster for another, dropping a child who was activated
 // immediately and is deliberately part of the current day.
-func (s *RetainedPersonDirectory) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]*userModels.Student, error) {
+func (s *RetainedPersonDirectory) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]*peopleValues.StudentState, error) {
 	students, err := s.GetParticipationCandidatesByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
@@ -461,7 +462,7 @@ func (s *RetainedPersonDirectory) GetEligibleStudentsByGroupIDsOnDate(ctx contex
 		return nil, err
 	}
 	started := filterStudentsStartedOnDate(students, date, today)
-	kept := make([]*userModels.Student, 0, len(started))
+	kept := make([]*peopleValues.StudentState, 0, len(started))
 	for _, student := range started {
 		if participating[student.ID] {
 			kept = append(kept, student)
@@ -482,12 +483,12 @@ func (s *RetainedPersonDirectory) GetEligibleStudentsByGroupIDsOnDate(ctx contex
 // is REPORTED for the day is a separate question the day log answers on its
 // own — being on the roster only means their records count.
 //
-// This is deliberately NOT userModels.EnrolledOn (#1565, #2606): that rule also
+// This is deliberately NOT peopleValues.EnrolledOn (#1565, #2606): that rule also
 // applies the enrolled_until upper bound, which would undo the resolver's
 // actual-presence exception for a child who is still there after their planned
 // care ended. Keep the lower-bound half in step with EnrolledOn.
-func filterStudentsStartedOnDate(students []*userModels.Student, date, today calendar.Date) []*userModels.Student {
-	eligible := make([]*userModels.Student, 0, len(students))
+func filterStudentsStartedOnDate(students []*peopleValues.StudentState, date, today calendar.Date) []*peopleValues.StudentState {
+	eligible := make([]*peopleValues.StudentState, 0, len(students))
 	for _, student := range students {
 		if student == nil {
 			continue
@@ -503,10 +504,10 @@ func filterStudentsStartedOnDate(students []*userModels.Student, date, today cal
 // fields it reads.
 func studentStartedOnDate(enrolledFrom, enrolledUntil *calendar.Date, status string, date, today calendar.Date) bool {
 	if enrolledFrom != nil && date.Before(*enrolledFrom) &&
-		(status != string(userModels.StudentStatusActive) || date.Before(today)) {
+		(status != string(peopleValues.StudentStatusActive) || date.Before(today)) {
 		return false
 	}
-	if enrolledFrom == nil && enrolledUntil == nil && status == string(userModels.StudentStatusInactive) {
+	if enrolledFrom == nil && enrolledUntil == nil && status == string(peopleValues.StudentStatusInactive) {
 		return false
 	}
 	return true
@@ -518,16 +519,16 @@ func (s *RetainedPersonDirectory) CountStudentsByGroupIDs(ctx context.Context, g
 }
 
 // GetAllStudentsWithGroups retrieves all students with their group info
-func (s *RetainedPersonDirectory) GetAllStudentsWithGroups(ctx context.Context) ([]userModels.StudentWithGroupInfo, error) {
+func (s *RetainedPersonDirectory) GetAllStudentsWithGroups(ctx context.Context) ([]peopleValues.StudentRosterEntry, error) {
 	studentsWithGroups, err := s.deps.StudentRepo.FindAllWithGroups(ctx)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: "get all students with groups", Err: err}
 	}
 
-	results := make([]userModels.StudentWithGroupInfo, 0, len(studentsWithGroups))
+	results := make([]peopleValues.StudentRosterEntry, 0, len(studentsWithGroups))
 	for _, swg := range studentsWithGroups {
-		results = append(results, userModels.StudentWithGroupInfo{
-			Student:   swg.Student,
+		results = append(results, peopleValues.StudentRosterEntry{
+			Record:    swg.Record,
 			GroupName: swg.GroupName,
 		})
 	}
@@ -536,7 +537,7 @@ func (s *RetainedPersonDirectory) GetAllStudentsWithGroups(ctx context.Context) 
 }
 
 // GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
-func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]userModels.StudentWithGroupInfo, error) {
+func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]peopleValues.StudentRosterEntry, error) {
 	// First verify the teacher exists
 	teacher, err := s.deps.TeacherRepo.FindByID(ctx, teacherID)
 	if err != nil {
@@ -553,10 +554,10 @@ func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacher(ctx context.Con
 	}
 
 	// Convert to service layer struct
-	results := make([]userModels.StudentWithGroupInfo, 0, len(studentsWithGroups))
+	results := make([]peopleValues.StudentRosterEntry, 0, len(studentsWithGroups))
 	for _, swg := range studentsWithGroups {
-		result := userModels.StudentWithGroupInfo{
-			Student:   swg.Student,
+		result := peopleValues.StudentRosterEntry{
+			Record:    swg.Record,
 			GroupName: swg.GroupName,
 		}
 		results = append(results, result)
@@ -567,17 +568,17 @@ func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacher(ctx context.Con
 
 // GetStudentsWithGroupsByTeacherStaffIDs retrieves the union of students
 // supervised by teachers belonging to any supplied staff ID.
-func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]userModels.StudentWithGroupInfo, error) {
+func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopleValues.StudentRosterEntry, error) {
 	if len(staffIDs) == 0 {
-		return []userModels.StudentWithGroupInfo{}, nil
+		return []peopleValues.StudentRosterEntry{}, nil
 	}
 	rows, err := s.deps.StudentRepo.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
-	results := make([]userModels.StudentWithGroupInfo, 0, len(rows))
+	results := make([]peopleValues.StudentRosterEntry, 0, len(rows))
 	for _, row := range rows {
-		results = append(results, userModels.StudentWithGroupInfo{Student: row.Student, GroupName: row.GroupName})
+		results = append(results, peopleValues.StudentRosterEntry{Record: row.Record, GroupName: row.GroupName})
 	}
 	return results, nil
 }
@@ -597,7 +598,7 @@ func (s *RetainedPersonDirectory) ResolveStaffIDByAccountID(ctx context.Context,
 }
 
 // ListActiveCaregivers is the canonical operational caregiver lookup.
-func (s *RetainedPersonDirectory) ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error) {
+func (s *RetainedPersonDirectory) ListActiveCaregivers(ctx context.Context) ([]*peopleValues.ActiveCaregiver, error) {
 	caregivers, err := s.deps.TeacherRepo.ListActiveCaregivers(ctx)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: "list active caregivers", Err: err}
@@ -607,7 +608,7 @@ func (s *RetainedPersonDirectory) ListActiveCaregivers(ctx context.Context) ([]*
 
 // FindActiveCaregiverByAccountID returns the active caregiver bound to the
 // account.
-func (s *RetainedPersonDirectory) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error) {
+func (s *RetainedPersonDirectory) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*peopleValues.ActiveCaregiver, error) {
 	caregiver, err := s.deps.TeacherRepo.FindActiveCaregiverByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, &userscontract.UsersError{Op: "find active caregiver by account ID", Err: err}
@@ -619,7 +620,7 @@ func (s *RetainedPersonDirectory) FindActiveCaregiverByAccountID(ctx context.Con
 // the retained callers branch on: a DatabaseError wrapping base.ErrNotFound and
 // sql.ErrNoRows (usersRepo.MissingStudentError).
 func translateMissingStudent(op string, err error) error {
-	if !errors.Is(err, userModels.ErrStudentRowMissing) {
+	if !errors.Is(err, peopleValues.ErrStudentRowMissing) {
 		return err
 	}
 	return peoplePorts.MissingStudentError(op)

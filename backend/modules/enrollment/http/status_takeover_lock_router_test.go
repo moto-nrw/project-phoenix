@@ -10,13 +10,15 @@ import (
 	"strings"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -122,13 +124,13 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 	settings := stubTakeoverSettings{}
 
 	account := testpkg.CreateTestAccount(t, db, "takeover-lock")
-	person := &usersModels.Person{
+	person := &peopleValues.DirectoryPersonSnapshot{
 		FirstName: "Takeover",
 		LastName:  "Tester",
 		AccountID: &account.ID,
 	}
 	person.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Scan(ctx))
+	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Column("tenant_id", "first_name", "last_name", "account_id").Returning("*").Scan(ctx))
 	schemaSvc := NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
@@ -419,7 +421,7 @@ func assertParentPortalAccess(t *testing.T, status parentAccountEnvelope, hasAcc
 // account when accountID is set.
 func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email string, accountID *int64) {
 	t.Helper()
-	profile := &usersModels.GuardianProfile{
+	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              "Anna",
 		LastName:               "Beispiel",
 		Email:                  &email,
@@ -432,6 +434,7 @@ func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email strin
 	require.NoError(t, db.NewInsert().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles`).
+		ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").
 		Scan(testpkg.TenantContext(tenantID)))
 }
 

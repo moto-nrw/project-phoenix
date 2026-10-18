@@ -168,6 +168,7 @@ type Command interface {
 }
 
 type Capability interface {
+	StudentTagRelease
 	Query
 	Command
 }

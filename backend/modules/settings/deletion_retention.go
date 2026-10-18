@@ -11,6 +11,7 @@ import (
 func RetentionWindowKeys() []string {
 	return []string{
 		configModel.KeyGDPRStatusDayRetentionDays,
+		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,

@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -46,7 +48,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	require.NoError(t, err)
 	// Not cared for right now, so the approval writes the class at once; an
 	// active child would keep its class until the phase starts (#3917).
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopleValues.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 	requestID, childID := submitOneChild(t, env, account.Email, "Existing", "Child")
 	matchChildToExistingStudent(t, env, childID, existing.ID)

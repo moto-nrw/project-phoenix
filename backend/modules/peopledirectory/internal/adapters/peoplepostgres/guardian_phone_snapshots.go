@@ -38,7 +38,7 @@ func (*guardianPhoneNumberRepository) NormalizeGuardianPhone(value *directory.Gu
 	row.Priority = value.Priority
 
 	err := row.Validate()
-	*value = *guardianPhoneSnapshot(row)
+	*value = *NativeGuardianPhone(row)
 	return err
 }
 func (*guardianPhoneNumberRepository) GuardianPhoneTypeOrMobile(input string) string {
@@ -54,11 +54,11 @@ func guardianPhoneSnapshots(rows []*models.GuardianPhoneNumber) []*directory.Gua
 	}
 	result := make([]*directory.GuardianProfilePhoneSnapshot, len(rows))
 	for i, row := range rows {
-		result[i] = guardianPhoneSnapshot(row)
+		result[i] = NativeGuardianPhone(row)
 	}
 	return result
 }
-func guardianPhoneSnapshot(row *models.GuardianPhoneNumber) *directory.GuardianProfilePhoneSnapshot {
+func NativeGuardianPhone(row *models.GuardianPhoneNumber) *directory.GuardianProfilePhoneSnapshot {
 	if row == nil {
 		return nil
 	}

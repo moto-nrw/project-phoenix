@@ -876,7 +876,7 @@ func mountSchoolRoutes(
 		ListExport: renderer,
 	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, transactionFailures.IsConstraintViolation).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
-	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, users, caller, pool).Router(ProtectedTenantRoutes))
+	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// Info-point displays (#1325). One Device Fleet owner serves every entry

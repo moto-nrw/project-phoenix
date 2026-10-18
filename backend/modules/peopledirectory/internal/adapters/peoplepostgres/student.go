@@ -19,8 +19,8 @@ type studentRepository struct {
 	students StudentDirectoryRows
 }
 
-// NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) ports.StudentRepository {
+// newRawStudentRepository creates a new StudentRepository
+func newRawStudentRepository(runtime Runtime, students StudentDirectoryRows) rawStudentRepository {
 	return &studentRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students)}
 }
 

@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -21,7 +23,7 @@ type timeTrackingStaffRecords interface {
 // timeTrackingStaffLookup resolves the staff record a schedule update is
 // written for.
 type timeTrackingStaffLookup interface {
-	GetStaffByID(ctx context.Context, id int64) (*users.Staff, error)
+	GetStaffByID(ctx context.Context, id int64) (*peopleValues.Staff, error)
 }
 
 // timeTrackingSettings is the tenant-settings surface the time-tracking

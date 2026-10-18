@@ -31,13 +31,17 @@ func MonthDayOf(d calendar.Date) MonthDay { return MonthDay{Month: d.Month(), Da
 // Birthday carries the full stored date because the age is derived from it for
 // children; staff-facing consumers drop the year before it reaches a screen.
 type BirthdayEntry struct {
-	Kind        BirthdayKind
-	ID          int64
-	FirstName   string
-	LastName    string
-	Birthday    calendar.Date
-	GroupName   string
-	SchoolClass string
+	Kind      BirthdayKind  `json:"kind"`
+	ID        int64         `json:"id"`
+	FirstName string        `json:"first_name"`
+	LastName  string        `json:"last_name"`
+	Birthday  calendar.Date `json:"birthday"`
+	// GroupID is the child's education group. Nil for staff and for children
+	// without a group. No longer drives visibility (#2329) — kept because the
+	// repository scan populates it alongside GroupName.
+	GroupID     *int64 `json:"-"`
+	GroupName   string `json:"group_name,omitempty"`
+	SchoolClass string `json:"school_class,omitempty"`
 }
 
 func (e BirthdayEntry) FullName() string {

@@ -219,7 +219,7 @@ func (s *StudentStore) ListRosterByGroups(
 	records, stats, err := s.reads.ListRosterByGroups(ctx, groupIDs, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -231,7 +231,7 @@ func (s *StudentStore) ListRoster(
 	records, stats, err := s.reads.ListRoster(ctx, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -243,7 +243,7 @@ func (s *StudentStore) ListRosterOverlapping(
 	records, stats, err := s.reads.ListRosterOverlapping(ctx, from, to, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -256,4 +256,15 @@ func projectionError(err error) error {
 		return domain.ErrStudentNotFound
 	}
 	return err
+}
+
+func toDomainRosterEntry(row directory.StudentRosterEntry) domain.StudentRosterEntry {
+	// DirectoryRecord is write-oriented; roster reads also retain the stored
+	// timestamps and the hydrated departure plan.
+	record := domain.StudentRecord(row.Record.DirectoryRecord())
+	record.CreatedAt, record.UpdatedAt = row.Record.CreatedAt, row.Record.UpdatedAt
+	record.DepartureDays = row.Record.DepartureDays
+	record.AllowedDepartureModes = row.Record.AllowedDepartureModes
+	record.PickupDays, record.BusDays = row.Record.PickupDays, row.Record.BusDays
+	return domain.StudentRosterEntry{Record: record, FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID}
 }

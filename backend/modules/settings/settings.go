@@ -47,6 +47,7 @@ const (
 	KeyGDPRParentMessageRetentionDays        = configModel.KeyGDPRParentMessageRetentionDays
 	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
+	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
 	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
 	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
 	KeyGDPRTimeTrackingRetentionDays         = configModel.KeyGDPRTimeTrackingRetentionDays
@@ -186,6 +187,10 @@ type (
 	InvalidValueError       = configSvc.InvalidValueError
 	PermissionDeniedError   = configSvc.PermissionDeniedError
 )
+
+// AttendanceWindowError rejects a visible attendance window longer than the
+// attendance retention window (#3957).
+type AttendanceWindowError = configSvc.AttendanceWindowError
 
 // ErrPresenceModeSwitchBlocked reports a presence-mode switch while
 // attendance of the day is still open.

@@ -2,7 +2,6 @@ package careplan
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -30,22 +29,21 @@ var ErrInvalidWithdrawal = errors.New("invalid care withdrawal completion")
 
 // WithdrawalCompletion is the owner view of one withdrawal task. The name and
 // class fields are filled only by the list queries, from the named student
-// directory projection. SourceOfferings stays raw JSON so the capability does not
-// leak a model package's types.
+// directory projection. SourceOfferings uses Care Plan's existing native values.
 type WithdrawalCompletion struct {
 	ID                      int64
 	TenantID                int64
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 	StudentID               *int64
-	FirstBookinglessDay     Date
+	FirstBookinglessDay     calendar.Date
 	Trigger                 string
 	SourceAdjustmentID      *int64
 	SourceRequestChildID    *int64
 	WithdrawalConfirmedBy   *int64
 	WithdrawalConfirmedRole string
 	WithdrawalConfirmedAt   time.Time
-	SourceOfferings         json.RawMessage
+	SourceOfferings         []CareExitSourceOffering
 	State                   string
 	Outcome                 *string
 	ObsoleteReason          *string

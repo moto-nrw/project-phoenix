@@ -26,7 +26,7 @@ import (
 
 // TimetableOwnerRows are the retained rows the Timetable owner's reads run
 // over (#3551), named for the suites of other owners that bind them.
-type TimetableOwnerRows = timetableCompose.OwnerRows
+type TimetableOwnerRows = timetableCompose.NativeMirrorRows
 
 // TimetableTestRepositories are the Timetable owner's retained rows and
 // capability over the test database. The rows of the other owners the
@@ -108,7 +108,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		},
 		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
 		calendarPeriodUsage:      usage,
-		rosterStudents:           members.Student, educationGroups: structure.Group,
+		rosterStudents:           NewTimetableRosterStudents(members.Student), educationGroups: structure.Group,
 		educationGroupNames: TimetableEducationGroupNames(structure.Group),
 		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records),
 	}

@@ -2,53 +2,52 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
-// careWithdrawalCompletionRepository preserves the retained users model
+// CareWithdrawalRecords preserves the retained users model
 // contract over the Care Plan owner, which persists
 // users.care_withdrawal_completions (#3221). The owner's list queries join
 // the children's names and classes from the named student directory
 // projection. It contains no persistence of its own.
-type careWithdrawalCompletionRepository struct {
+type CareWithdrawalRecords struct {
 	carePlan careplan.Capability
 }
 
-var _ userModels.CareWithdrawalCompletionRepository = careWithdrawalCompletionRepository{}
-
 // NewCareWithdrawalCompletionRepository adapts the Care Plan owner to the
 // retained care withdrawal completion contract. The owner is required.
-func NewCareWithdrawalCompletionRepository(carePlan careplan.Capability) userModels.CareWithdrawalCompletionRepository {
+func NewCareWithdrawalCompletionRepository(carePlan careplan.Capability) CareWithdrawalRecords {
 	if carePlan == nil {
 		panic("care withdrawal repository: Care Plan binding is required")
 	}
-	return careWithdrawalCompletionRepository{carePlan: carePlan}
+	return CareWithdrawalRecords{carePlan: carePlan}
 }
 
-func (r careWithdrawalCompletionRepository) owner() (careplan.Capability, error) {
+func (r CareWithdrawalRecords) owner() (careplan.Capability, error) {
 	return r.carePlan, nil
 }
 
 // FindByID preserves this contract's nil-on-not-found behavior.
-func (r careWithdrawalCompletionRepository) FindByID(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {
+func (r CareWithdrawalRecords) FindByID(ctx context.Context, id int64) (*careplan.WithdrawalCompletion, error) {
 	return r.find(ctx, id, false)
 }
 
 // FindByIDForUpdate locks the task and returns nil for a stale task id so
 // concurrent completions can return a stable conflict.
-func (r careWithdrawalCompletionRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {
+func (r CareWithdrawalRecords) FindByIDForUpdate(ctx context.Context, id int64) (*careplan.WithdrawalCompletion, error) {
 	return r.find(ctx, id, true)
 }
 
-func (r careWithdrawalCompletionRepository) find(ctx context.Context, id int64, lock bool) (*userModels.CareWithdrawalCompletion, error) {
+func (r CareWithdrawalRecords) find(ctx context.Context, id int64, lock bool) (*careplan.WithdrawalCompletion, error) {
 	carePlan, err := r.owner()
 	if err != nil {
 		return nil, err
@@ -60,25 +59,25 @@ func (r careWithdrawalCompletionRepository) find(ctx context.Context, id int64, 
 	if err != nil {
 		return nil, fmt.Errorf("find care withdrawal completion: %w", err)
 	}
-	return withdrawalCompletionToLegacy(value)
+	return nativeWithdrawalCompletion(value)
 }
 
-func (r careWithdrawalCompletionRepository) ListPending(
-	ctx context.Context, filter userModels.CareWithdrawalCompletionFilter,
-) ([]*userModels.CareWithdrawalCompletion, int, error) {
+func (r CareWithdrawalRecords) ListPending(
+	ctx context.Context, filter careplan.WithdrawalListFilter,
+) ([]*careplan.WithdrawalCompletion, int, error) {
 	return r.list(ctx, careplan.WithdrawalStatePending, filter, "list pending care withdrawal completions")
 }
 
 // ListResolved keeps deleted completions visible without retaining child PII.
-func (r careWithdrawalCompletionRepository) ListResolved(
-	ctx context.Context, filter userModels.CareWithdrawalCompletionFilter,
-) ([]*userModels.CareWithdrawalCompletion, int, error) {
+func (r CareWithdrawalRecords) ListResolved(
+	ctx context.Context, filter careplan.WithdrawalListFilter,
+) ([]*careplan.WithdrawalCompletion, int, error) {
 	return r.list(ctx, careplan.WithdrawalStateResolved, filter, "list resolved care withdrawal completions")
 }
 
-func (r careWithdrawalCompletionRepository) list(
-	ctx context.Context, state string, filter userModels.CareWithdrawalCompletionFilter, operation string,
-) ([]*userModels.CareWithdrawalCompletion, int, error) {
+func (r CareWithdrawalRecords) list(
+	ctx context.Context, state string, filter careplan.WithdrawalListFilter, operation string,
+) ([]*careplan.WithdrawalCompletion, int, error) {
 	carePlan, err := r.owner()
 	if err != nil {
 		return nil, 0, err
@@ -96,9 +95,9 @@ func (r careWithdrawalCompletionRepository) list(
 	if err != nil {
 		return nil, 0, fmt.Errorf("%s: %w", operation, err)
 	}
-	var rows []*userModels.CareWithdrawalCompletion
+	var rows []*careplan.WithdrawalCompletion
 	for _, value := range values {
-		row, convertErr := withdrawalCompletionToLegacy(value)
+		row, convertErr := nativeWithdrawalCompletion(value)
 		if convertErr != nil {
 			return nil, 0, fmt.Errorf("%s: %w", operation, convertErr)
 		}
@@ -107,10 +106,10 @@ func (r careWithdrawalCompletionRepository) list(
 	return rows, total, nil
 }
 
-func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
+func (r CareWithdrawalRecords) ListPendingByStudentIDs(
 	ctx context.Context, studentIDs []int64,
-) (map[int64]*userModels.CareWithdrawalCompletion, error) {
-	result := make(map[int64]*userModels.CareWithdrawalCompletion)
+) (map[int64]*careplan.WithdrawalCompletion, error) {
+	result := make(map[int64]*careplan.WithdrawalCompletion)
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
@@ -123,7 +122,7 @@ func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
 		return nil, fmt.Errorf("list pending care withdrawal completions by students: %w", err)
 	}
 	for studentID, value := range values {
-		row, convertErr := withdrawalCompletionToLegacy(value)
+		row, convertErr := nativeWithdrawalCompletion(value)
 		if convertErr != nil {
 			return nil, fmt.Errorf("list pending care withdrawal completions by students: %w", convertErr)
 		}
@@ -136,10 +135,10 @@ func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
 // students stops participating, as Care Plan defines it. Booking-led boundaries count only when includeBookingBoundaries is
 // set. The caller passes the student rows it already read, so the enrolment
 // end costs no extra statement.
-func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
-	ctx context.Context, students map[int64]*userModels.Student, includeBookingBoundaries bool,
-) (map[int64]userModels.CalendarDate, error) {
-	boundaries := make(map[int64]userModels.CalendarDate, len(students))
+func (r CareWithdrawalRecords) ListParticipationBoundaries(
+	ctx context.Context, students map[int64]*peopleValues.StudentState, includeBookingBoundaries bool,
+) (map[int64]owner0.Date, error) {
+	boundaries := make(map[int64]owner0.Date, len(students))
 	if len(students) == 0 {
 		return boundaries, nil
 	}
@@ -153,7 +152,7 @@ func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 		return nil, fmt.Errorf("list care participation boundaries: %w", err)
 	}
 	for _, studentID := range studentIDs {
-		var enrolledUntil userModels.CalendarDate
+		var enrolledUntil owner0.Date
 		if student := students[studentID]; student != nil && student.EnrolledUntil != nil {
 			enrolledUntil = *student.EnrolledUntil
 		}
@@ -168,7 +167,7 @@ func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 	return boundaries, nil
 }
 
-func (r careWithdrawalCompletionRepository) ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+func (r CareWithdrawalRecords) ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
 	if len(studentIDs) == 0 {
 		return make(map[int64]bool), nil
 	}
@@ -183,7 +182,7 @@ func (r careWithdrawalCompletionRepository) ListPendingStudentIDs(ctx context.Co
 	return result, nil
 }
 
-func (r careWithdrawalCompletionRepository) MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {
+func (r CareWithdrawalRecords) MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {
 	carePlan, err := r.owner()
 	if err != nil {
 		return false, err
@@ -198,7 +197,7 @@ func (r careWithdrawalCompletionRepository) MarkResolved(ctx context.Context, id
 // MarkDeleted resolves and redacts the completion before the student cascade.
 // Its caller owns the surrounding transaction, so a failed deletion restores
 // the pending task as well.
-func (r careWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {
+func (r CareWithdrawalRecords) MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {
 	carePlan, err := r.owner()
 	if err != nil {
 		return false, err
@@ -211,8 +210,8 @@ func (r careWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id,
 }
 
 // MarkObsoleteForRebooking atomically applies the no-gap domain predicate.
-func (r careWithdrawalCompletionRepository) MarkObsoleteForRebooking(
-	ctx context.Context, studentID int64, careStartsOn userModels.CalendarDate, at time.Time,
+func (r CareWithdrawalRecords) MarkObsoleteForRebooking(
+	ctx context.Context, studentID int64, careStartsOn owner0.Date, at time.Time,
 ) (bool, error) {
 	carePlan, err := r.owner()
 	if err != nil {
@@ -227,7 +226,7 @@ func (r careWithdrawalCompletionRepository) MarkObsoleteForRebooking(
 
 // MarkPendingObsoleteForWeeklyPlans closes booking-derived tasks when the
 // school switches back to weekly-plan-driven care. Confirmed withdrawals stay.
-func (r careWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {
+func (r CareWithdrawalRecords) MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {
 	carePlan, err := r.owner()
 	if err != nil {
 		return 0, err
@@ -241,7 +240,7 @@ func (r careWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(ct
 
 // ReopenAfterCancelledExit copies one exact resolved event into a new event;
 // the historical outcome is never mutated in place.
-func (r careWithdrawalCompletionRepository) ReopenAfterCancelledExit(
+func (r CareWithdrawalRecords) ReopenAfterCancelledExit(
 	ctx context.Context, completionID, studentID int64, at time.Time,
 ) (bool, error) {
 	carePlan, err := r.owner()
@@ -255,21 +254,6 @@ func (r careWithdrawalCompletionRepository) ReopenAfterCancelledExit(
 	return changed, nil
 }
 
-func withdrawalCompletionToLegacy(value careplan.WithdrawalCompletion) (*userModels.CareWithdrawalCompletion, error) {
-	row := &userModels.CareWithdrawalCompletion{
-		StudentID: value.StudentID, FirstBookinglessDay: userModels.CalendarDate(value.FirstBookinglessDay),
-		Trigger: value.Trigger, SourceAdjustmentID: value.SourceAdjustmentID,
-		SourceRequestChildID: value.SourceRequestChildID, WithdrawalConfirmedBy: value.WithdrawalConfirmedBy,
-		WithdrawalConfirmedRole: value.WithdrawalConfirmedRole, WithdrawalConfirmedAt: value.WithdrawalConfirmedAt,
-		State: value.State, Outcome: value.Outcome, ObsoleteReason: value.ObsoleteReason,
-		ResolvedBy: value.ResolvedBy, ResolvedAt: value.ResolvedAt,
-		FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass,
-	}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	if len(value.SourceOfferings) > 0 {
-		if err := json.Unmarshal(value.SourceOfferings, &row.SourceOfferings); err != nil {
-			return nil, fmt.Errorf("decode care withdrawal source offerings: %w", err)
-		}
-	}
-	return row, nil
+func nativeWithdrawalCompletion(value careplan.WithdrawalCompletion) (*careplan.WithdrawalCompletion, error) {
+	return &value, nil
 }

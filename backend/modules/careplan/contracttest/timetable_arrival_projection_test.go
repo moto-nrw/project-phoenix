@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -16,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -187,7 +188,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 
 	// The row on Thursday survived the Abmeldung, the booking covers Monday.
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Wochenansicht")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
@@ -206,7 +207,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 		require.NoError(t, err)
 		source := projection.ForDate(studentID, monday)
 		require.NotNil(t, source)
-		assert.Equal(t, scheduleModels.ArrivalScheduleSourceClassSchedule, source.Source)
+		assert.Equal(t, careplan.ScheduleSourceClassSchedule, source.Source)
 
 		assert.False(t, week.ArrivalByDate[thursday.String()].HasSchedule,
 			"a stale row on an unbooked weekday must not plan anything")
@@ -256,17 +257,17 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	instance := testpkg.CreateTestActivityInstance(t, env.db, monday, room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &activity.ID,
 	})
-	testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, studentpresence.SessionAttendanceExpected)
 	reason := "Fällt aus"
-	exception := &scheduleModels.ActivityException{
+	exception := &timetable.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.Date(monday),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+		ExceptionDate:   string(careplan.Date(monday)),
+		ExceptionType:   timetable.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
-	exception.SetTenantID(testpkg.Tenant(t))
+	exception.TenantID = testpkg.Tenant(t)
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.timetable.ActivityException.Create(ctx, exception))
+	require.NoError(t, arrivalTimetable.NativeExceptionRecords(env.timetable.ActivityException).Create(ctx, exception))
 
 	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).DetectExceptionConflicts(ctx, monday, monday)
 	require.NoError(t, err)
@@ -298,7 +299,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 
 	// The Thursday row survived the Abmeldung; the booking covers Monday only.
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Konflikt")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
@@ -311,7 +312,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 		instance := testpkg.CreateTestActivityInstance(t, env.db, date, room.ID, testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activity.ID,
 		})
-		testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+		testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, studentpresence.SessionAttendanceExpected)
 		createModifiedException(t, env, activity.ID, date, staff.ID, movedStart)
 	}
 
@@ -338,15 +339,15 @@ func createModifiedException(
 ) {
 	t.Helper()
 	reason := "Verlegt"
-	exception := &scheduleModels.ActivityException{
+	exception := &timetable.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   scheduleModels.Date(date),
-		ExceptionType:   scheduleModels.ActivityExceptionModified,
-		StartTime:       &startTime,
+		ExceptionDate:   string(careplan.Date(date)),
+		ExceptionType:   timetable.ActivityExceptionModified,
+		StartTime:       activityClockPtr(&startTime),
 		Reason:          &reason,
 		CreatedBy:       &staffID,
 	}
-	exception.SetTenantID(testpkg.Tenant(t))
+	exception.TenantID = testpkg.Tenant(t)
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.timetable.ActivityException.Create(testpkg.Ctx(t), exception))
+	require.NoError(t, arrivalTimetable.NativeExceptionRecords(env.timetable.ActivityException).Create(testpkg.Ctx(t), exception))
 }

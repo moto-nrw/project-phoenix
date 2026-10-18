@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,7 +25,7 @@ func TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty(t *testing.T) {
 
 	class := "List behavior"
 	person := testpkg.CreateTestPerson(t, db, "Student list", "Hydrated")
-	hydrated := &userModels.Student{
+	hydrated := &peopledirectory.StudentState{
 		PersonID:    person.ID,
 		SchoolClass: class,
 		BusDays:     peopledirectory.BusDaysFromLegacyFlag(true),

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -16,36 +18,34 @@ import (
 
 type CompanionRepository struct{ Capability careplan.Capability }
 
-var _ peoplePorts.StudentCompanionRepository = CompanionRepository{}
-
 // NewStudentCompanionRepository serves the companion edge contract over the
 // Care Plan owner capability.
-func NewStudentCompanionRepository(capability careplan.Capability) peoplePorts.StudentCompanionRepository {
+func NewStudentCompanionRepository(capability careplan.Capability) CompanionRepository {
 	return CompanionRepository{Capability: capability}
 }
 
-func (r CompanionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*userModels.StudentCompanion, error) {
+func (r CompanionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*careplan.CompanionEdge, error) {
 	values, err := r.Capability.ListCompanionEdges(ctx, studentID)
 	if err != nil {
 		return nil, WrapRetainedError("list student companions", err)
 	}
-	result := make([]*userModels.StudentCompanion, 0, len(values))
+	result := make([]*careplan.CompanionEdge, 0, len(values))
 	for _, value := range values {
-		result = append(result, companionToLegacy(value))
+		result = append(result, &value)
 	}
 	return result, nil
 }
 
-func (r CompanionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+func (r CompanionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]departure.CompanionLink, error) {
 	values, err := r.Capability.ListCompanionLinks(ctx, studentIDs)
 	if err != nil {
 		return nil, WrapRetainedError("list student companions", err)
 	}
-	result := make(map[int64][]userModels.CompanionLink, len(values))
+	result := make(map[int64][]departure.CompanionLink, len(values))
 	for studentID, links := range values {
-		converted := make([]userModels.CompanionLink, 0, len(links))
+		converted := make([]departure.CompanionLink, 0, len(links))
 		for _, link := range links {
-			converted = append(converted, userModels.CompanionLink{CompanionStudentID: link.CompanionStudentID, FirstName: link.FirstName, LastName: link.LastName, Weekdays: link.Weekdays})
+			converted = append(converted, departure.CompanionLink{CompanionStudentID: link.CompanionStudentID, FirstName: link.FirstName, LastName: link.LastName, Weekdays: link.Weekdays})
 		}
 		result[studentID] = converted
 	}
@@ -57,7 +57,7 @@ func (r CompanionRepository) ListLinksForStudents(ctx context.Context, studentID
 func (r CompanionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	values, err := r.Capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 	if errors.Is(err, careplan.ErrInvalidCompanion) {
-		return nil, userModels.ErrCompanionInvalidWeekday
+		return nil, departure.ErrCompanionInvalidWeekday
 	}
 	return values, WrapRetainedError("list companions for weekday", err)
 }
@@ -81,32 +81,26 @@ func (r CompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []int64) e
 	return WrapRetainedError("delete student companion edges", r.Capability.DeleteCompanionEdges(ctx, edgeIDs))
 }
 
-func companionToLegacy(value careplan.CompanionEdge) *userModels.StudentCompanion {
-	result := &userModels.StudentCompanion{StudentLowID: value.StudentLowID, StudentHighID: value.StudentHighID, Weekday: value.Weekday}
-	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	return result
-}
-
 // studentLifecycle maps the owner's lifecycle status onto the three states the
 // presence flows branch on. Every other status, today only "pending", is
 // StudentLifecycleOther and is treated as not-yet-active, which is what the
 // enrollment filter and the check-in guards already did for it.
-func studentLifecycle(status userModels.StudentStatus) studentpresence.StudentLifecycle {
+func studentLifecycle(status string) studentpresence.StudentLifecycle {
 	switch status {
-	case userModels.StudentStatusActive:
+	case peopleValues.StudentStatusActive:
 		return studentpresence.StudentLifecycleActive
-	case userModels.StudentStatusInactive:
+	case peopleValues.StudentStatusInactive:
 		return studentpresence.StudentLifecycleInactive
-	case userModels.StudentStatusAlumnus:
+	case peopleValues.StudentStatusAlumnus:
 		return studentpresence.StudentLifecycleAlumnus
-	case userModels.StudentStatusPending:
+	case peopleValues.StudentStatusPending:
 		return studentpresence.StudentLifecycleOther
 	default:
 		return studentpresence.StudentLifecycleOther
 	}
 }
 
-func StudentRecord(row *userModels.Student) *studentpresence.StudentRecord {
+func StudentRecord(row *peopleValues.StudentState) *studentpresence.StudentRecord {
 	if row == nil {
 		return nil
 	}

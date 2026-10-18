@@ -12,7 +12,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -33,7 +33,7 @@ func offeringChangeOwners(
 	carePlan careplan.Capability, catalog carePlanCompose.OfferingChangeCatalog, enrollment OfferingChangeEnrollmentReads,
 	students offeringChangeStudentRows, withdrawals offeringChangeWithdrawalRows, settings OfferingChangeSettingsReads,
 	reviews OfferingChangeReviewPolicy, permissions func(context.Context) []string,
-	emitter *communicationCompose.ParentEventEmitter, events ParentRequestEvents,
+	emitter *communicationCompose.ParentEventEmitter, events peopledirectory.ParentRequestEvents,
 ) (carePlanCompose.OfferingChangeDependencies, error) {
 	if carePlan == nil || enrollment == nil || students == nil || reviews == nil || permissions == nil {
 		return carePlanCompose.OfferingChangeDependencies{}, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
@@ -393,14 +393,14 @@ func (s offeringChangeStudents) HasPendingWithdrawalCompletion(ctx context.Conte
 	if s.withdrawals == nil {
 		return false, nil
 	}
-	_, total, err := s.withdrawals.ListPending(ctx, usersModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+	_, total, err := s.withdrawals.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	if err != nil {
 		return false, err
 	}
 	return total > 0, nil
 }
 
-func offeringReviewStudent(row *usersModels.Student) *carePlanCompose.ReviewStudent {
+func offeringReviewStudent(row *peopledirectory.StudentState) *carePlanCompose.ReviewStudent {
 	if row == nil {
 		return nil
 	}
@@ -429,14 +429,7 @@ func offeringChangeDatabaseError(op string, err error) error {
 //
 // A nil ledger records nothing, which is what graphs without a ledger need.
 type ParentRequestLedger struct {
-	repo ParentRequestEvents
-}
-
-// ParentRequestEvents is People Directory's users.parent_request_events
-// trail the ledger appends to and reads a request's history from.
-type ParentRequestEvents interface {
-	Create(ctx context.Context, event *usersModels.ParentRequestEvent) error
-	ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*usersModels.ParentRequestEvent, error)
+	repo peopledirectory.ParentRequestEvents
 }
 
 var _ carePlanCompose.RequestLedger = (*ParentRequestLedger)(nil)
@@ -451,32 +444,38 @@ func (l *ParentRequestLedger) Record(ctx context.Context, entry carePlanCompose.
 	if err := peopledirectory.ValidateParentRequestEvent(entry.StudentID, entry.RequestType, entry.RequestID, entry.EventType); err != nil {
 		return err
 	}
-	event := &usersModels.ParentRequestEvent{
+	event := &peopledirectory.ParentRequestEventSnapshot{
 		StudentID:   entry.StudentID,
 		RequestType: entry.RequestType,
 		RequestID:   entry.RequestID,
 		EventType:   entry.EventType,
 		Version:     careplan.ParentRequestVersion(entry.UpdatedAt),
-		Payload:     entry.Payload,
+	}
+	if entry.Payload != nil {
+		payload, err := json.Marshal(entry.Payload)
+		if err != nil {
+			return repositoryError("create parent request event", err)
+		}
+		event.Payload = payload
 	}
 	if entry.ActorAccountID > 0 {
 		actor := entry.ActorAccountID
 		event.ActorAccountID = &actor
 	}
-	return l.repo.Create(ctx, event)
+	return l.repo.AppendParentRequestEvent(ctx, event)
 }
 
 // ListForRequest returns one request's history oldest first.
-func (l *ParentRequestLedger) ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*usersModels.ParentRequestEvent, error) {
+func (l *ParentRequestLedger) ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*peopledirectory.ParentRequestEventSnapshot, error) {
 	if l == nil {
 		return nil, nil
 	}
-	return l.repo.ListForRequest(ctx, requestType, requestID)
+	return l.repo.ParentRequestEventsForRequest(ctx, requestType, requestID)
 }
 
 // NewParentRequestLedger is the request ledger over repo; a nil repo
 // records nothing.
-func NewParentRequestLedger(repo ParentRequestEvents) *ParentRequestLedger {
+func NewParentRequestLedger(repo peopledirectory.ParentRequestEvents) *ParentRequestLedger {
 	if repo == nil {
 		return nil
 	}

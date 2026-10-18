@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -33,7 +34,7 @@ type payrollScenario struct {
 	ctx                   context.Context
 	// updateStaff runs the staff directory's directory-field update without a
 	// teacher-record change.
-	updateStaff func(context.Context, *userModels.Staff) error
+	updateStaff func(context.Context, *peopleValues.Staff) error
 }
 
 type serializingStaffRepo struct {
@@ -45,7 +46,7 @@ type serializingStaffRepo struct {
 	releaseFirst    chan struct{}
 }
 
-func (r *serializingStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error) {
+func (r *serializingStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.Staff, error) {
 	call := r.calls.Add(1)
 	if call == 2 {
 		close(r.secondAttempted)
@@ -80,7 +81,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 		MayManageStaff: api.StaffAdministrationPermitted,
 	})
 
-	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {
+	updateStaff := func(ctx context.Context, staff *peopleValues.Staff) error {
 		_, _, err := dir.UpdateStaffWithTeacher(ctx, staff, false, "", "", "")
 		return err
 	}
@@ -173,7 +174,7 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	// The number can be reassigned after the holder is offboarded (partial
 	// index skips soft-deleted rows).
 	_, err = s.db.NewUpdate().
-		Model((*userModels.Staff)(nil)).
+		Model((*peopleValues.Staff)(nil)).
 		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set("deleted_at = NOW()").
 		Where(`"staff".id = ?`, first.ID).

@@ -7,7 +7,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -24,14 +24,14 @@ import (
 // staffAdminStaffRows are the retained staff rows the administration reads
 // and locks. The employment-only writes go through School Membership.
 type staffAdminStaffRows interface {
-	FindWithPerson(context.Context, int64) (*userModels.Staff, error)
-	FindByID(context.Context, any) (*userModels.Staff, error)
-	FindByIDForUpdate(context.Context, int64) (*userModels.Staff, error)
+	FindWithPerson(context.Context, int64) (*peopledirectory.Staff, error)
+	FindByID(context.Context, any) (*peopledirectory.Staff, error)
+	FindByIDForUpdate(context.Context, int64) (*peopledirectory.Staff, error)
 }
 
 // staffAdminPersonRows are the retained person rows behind a staff member.
 type staffAdminPersonRows interface {
-	FindByIDForUpdate(context.Context, int64) (*userModels.Person, error)
+	FindByIDForUpdate(context.Context, int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // staffAdminPersonDetails writes the names and the birthday of the person

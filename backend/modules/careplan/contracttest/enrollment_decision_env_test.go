@@ -7,13 +7,16 @@ import (
 	"sync"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -660,9 +663,9 @@ func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func
 	}
 }
 
-func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []activitiesModels.StudentEnrollment {
+func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []timetable.StudentEnrollment {
 	t.Helper()
-	var rows []activitiesModels.StudentEnrollment
+	var rows []timetable.StudentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -693,7 +696,7 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 
 type offeringStudentTestDirectory struct {
 	students interface {
-		FindByIDs(context.Context, []int64) (map[int64]*usersModels.Student, error)
+		FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
 	}
 }
 

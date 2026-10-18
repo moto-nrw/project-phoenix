@@ -1,7 +1,7 @@
 package ports
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // GuardianCreateRequest represents data for creating a new guardian
@@ -95,8 +95,8 @@ type NewStudentGuardian struct {
 // children onto the wire — address, notes, language, and contact method never
 // leave the server, and child names are never exposed (only the count).
 type GuardianPickerMatch struct {
-	Profile  *users.GuardianProfile
-	Children []*users.GuardianLinkedChild
+	Profile  *peopleValues.GuardianProfileSnapshot
+	Children []*peopleValues.GuardianLinkedChildSnapshot
 }
 
 // GuardianDeleteImpact is the exact current blast radius of a full guardian
@@ -109,14 +109,14 @@ type GuardianDeleteImpact struct {
 
 // StudentWithRelationship represents a student with guardian relationship details
 type StudentWithRelationship struct {
-	Student      *users.Student
-	Relationship *users.StudentGuardian
+	Student      *peopleValues.StudentState
+	Relationship *peopleValues.GuardianRelationshipSnapshot
 }
 
 // GuardianWithRelationship represents a guardian with student relationship details
 type GuardianWithRelationship struct {
-	Profile      *users.GuardianProfile
-	Relationship *users.StudentGuardian
+	Profile      *peopleValues.GuardianProfileSnapshot
+	Relationship *peopleValues.GuardianRelationshipSnapshot
 	// InvitationPending is true when an open (not accepted, not expired, not
 	// rejected) invitation exists: profile-wide for guardians without a portal
 	// account, and anchored to this child for guardians WITH an account (a

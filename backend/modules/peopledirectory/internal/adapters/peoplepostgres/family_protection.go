@@ -17,7 +17,7 @@ type FamilyProtectionEventRepository struct {
 }
 
 func NewFamilyProtectionEventRepository(runtime Runtime) ports.FamilyProtectionRecords {
-	return &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}
+	return nativeFamilyProtectionRecords{FamilyProtectionEventRepository: &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}}
 }
 
 // Create overrides the generic insert so created_at uses clock_timestamp().

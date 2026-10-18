@@ -7,16 +7,36 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
+
+// CareWithdrawalTestRows are the care-withdrawal completions the suites read
+// back and resolve over the Care Plan owner (NewCareWithdrawalCompletionRepository).
+type CareWithdrawalTestRows interface {
+	FindByID(ctx context.Context, id int64) (*careplan.WithdrawalCompletion, error)
+	ListPending(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
+	ListResolved(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
+	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
+	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn owner0.Date, at time.Time) (bool, error)
+	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
+	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
+	ListParticipationBoundaries(
+		ctx context.Context, students map[int64]*peopleValues.StudentState, includeBookingBoundaries bool,
+	) (map[int64]owner0.Date, error)
+}
 
 // CareLifecycleTestRepositories are the Care Plan rows the care-lifecycle
 // suites run on, with the lifecycle's owners bound the way the production
@@ -31,7 +51,7 @@ type CareLifecycleTestRepositories struct {
 
 // CareWithdrawal is the People Directory's withdrawal completion port over
 // the Care Plan rows.
-func (r CareLifecycleTestRepositories) CareWithdrawal() usersModels.CareWithdrawalCompletionRepository {
+func (r CareLifecycleTestRepositories) CareWithdrawal() CareWithdrawalRecords {
 	return NewCareWithdrawalCompletionRepository(r.carePlan)
 }
 
@@ -76,7 +96,7 @@ type CareLifecycleTestConfig struct {
 	// LockCareBookingWrites is the booking-write gate. nil takes none.
 	LockCareBookingWrites func(context.Context) error
 	// Today defaults to the Berlin calendar day.
-	Today func() usersModels.CalendarDate
+	Today func() owner0.Date
 }
 
 // NewCareLifecycle composes the native Care Plan lifecycle over these
@@ -110,11 +130,8 @@ func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.
 // NewStudentCompanionRepository. It stages departure-companion fixtures for
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
-func ReplaceStudentCompanions(ctx context.Context, links peoplePorts.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
-	repository, ok := links.(CompanionRepository)
-	if !ok {
-		return errors.New("companion links are not served by the Care Plan owner")
-	}
+func ReplaceStudentCompanions(ctx context.Context, links CompanionRepository, studentID int64, edges []*careplan.CompanionEdge) error {
+	repository := links
 	values := make([]careplan.CompanionEdge, 0, len(edges))
 	for _, edge := range edges {
 		if edge == nil {
@@ -132,19 +149,19 @@ func ReplaceStudentCompanions(ctx context.Context, links peoplePorts.StudentComp
 // children on one weekday, normalized into the low/high order the DB CHECK
 // requires, for suites that stage companion fixtures through
 // ReplaceStudentCompanions. Production edges come from Care Plan's domain.
-func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
+func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*careplan.CompanionEdge, error) {
 	if studentID <= 0 || companionID <= 0 {
-		return nil, usersModels.ErrCompanionStudentIDRequired
+		return nil, departure.ErrCompanionStudentIDRequired
 	}
 	if studentID == companionID {
-		return nil, usersModels.ErrCompanionSelfLink
+		return nil, departure.ErrCompanionSelfLink
 	}
-	if _, ok := usersModels.CompanionWeekdayKeys[weekday]; !ok {
-		return nil, fmt.Errorf("%w: got %d", usersModels.ErrCompanionInvalidWeekday, weekday)
+	if _, ok := peopleValues.CompanionWeekdayKeys[weekday]; !ok {
+		return nil, fmt.Errorf("%w: got %d", departure.ErrCompanionInvalidWeekday, weekday)
 	}
 	low, high := studentID, companionID
 	if low > high {
 		low, high = high, low
 	}
-	return &usersModels.StudentCompanion{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
+	return &careplan.CompanionEdge{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
 }

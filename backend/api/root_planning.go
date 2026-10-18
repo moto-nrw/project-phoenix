@@ -28,7 +28,7 @@ func buildActivities(owner TimetableOwner, timetableOwner timetable.Capability, 
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
 		timetableOwner, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
-		sessions, NewTimetableStaff(people.Staff), people.Students,
+		sessions, NewTimetableStaff(people.Staff), NewTimetableRosterStudents(people.Students),
 	)
 }
 

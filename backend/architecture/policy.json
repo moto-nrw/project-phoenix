@@ -1815,13 +1815,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/peopledirectory/compose/vocabulary",
-      "owner": "people-directory",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/peopledirectory/contracttest",
       "owner": "people-directory",
       "role": "test-support",
@@ -8908,17 +8901,6 @@
       "same_owner": true
     },
     {
-      "id": "people-directory.port.legacy-model",
-      "description": "People Directory ports name the person, student, staff and guardian rows of the owner's legacy model in the repository contracts (ADR 0058 addendum point 5, #4084); #4004 dissolves models/users and with it this rule. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "port",
-      "target_owner": "people-directory",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "people-directory.postgres.port",
       "description": "The retained People Directory repositories implement the repository contracts and read the query vocabulary of the owner's ports (#4084).",
       "scopes": [
@@ -11201,28 +11183,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.student-deletion.public",
-      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "student-deletion",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.student-deletion.compose",
-      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "student-deletion",
-      "target_role": "compose"
     },
     {
       "id": "student-deletion.compose.database-binding",

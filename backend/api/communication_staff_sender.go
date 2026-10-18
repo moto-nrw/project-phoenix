@@ -3,8 +3,9 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	people "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 type staffSenderNames func(context.Context, int64) (*communication.StaffSenderName, error)
@@ -16,7 +17,7 @@ func (read staffSenderNames) FindStaffSenderName(ctx context.Context, id int64) 
 // BindStaffSenderNames retains the same person read and original name parts.
 // The workflow still owns its exact whitespace/fallback behavior.
 func BindStaffSenderNames(source interface {
-	FindByAccountID(context.Context, int64) (*people.Person, error)
+	FindByAccountID(context.Context, int64) (*peopleValues.DirectoryPersonSnapshot, error)
 }) communication.StaffSenderNames {
 	if source == nil {
 		return nil

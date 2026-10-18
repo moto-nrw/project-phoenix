@@ -10,7 +10,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // ExcusedRequestWiring is the service graph's contribution to the Care Plan
@@ -58,15 +57,15 @@ func NewExcusedAbsenceRequests(wiring ExcusedRequestWiring) (*carePlanCompose.Ex
 // ExcusedRequestStudentRows are the People Directory child rows the
 // excused-absence workflow reads, locks and flags.
 type ExcusedRequestStudentRows interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error)
-	Update(ctx context.Context, student *usersModels.Student) error
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
+	Update(ctx context.Context, student *peopledirectory.StudentState) error
 }
 
 // ExcusedRequestPersonRows names the children and the reviewers.
 type ExcusedRequestPersonRows interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Person, error)
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*usersModels.Person, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // excusedRequestStudentDirectory answers the workflow's People Directory port
@@ -127,7 +126,7 @@ func (d excusedRequestStudentDirectory) SetLiveAbsenceFlags(ctx context.Context,
 	return d.writes.SetLiveAbsenceFlags(ctx, studentID, peopledirectory.LiveAbsenceFlags{Sick: flags.Sick, ClearExcused: flags.ClearExcused}, at)
 }
 
-func reviewStudent(row *usersModels.Student) carePlanCompose.ReviewStudent {
+func reviewStudent(row *peopledirectory.StudentState) carePlanCompose.ReviewStudent {
 	student := carePlanCompose.ReviewStudent{ID: row.ID, PersonID: row.PersonID, GroupID: row.GroupID, Alumnus: row.IsAlumnus()}
 	if row.EnrolledUntil != nil {
 		student.EnrolledUntil = careplan.Date(*row.EnrolledUntil)
@@ -135,7 +134,7 @@ func reviewStudent(row *usersModels.Student) carePlanCompose.ReviewStudent {
 	return student
 }
 
-func carePlanPersonNames(rows map[int64]*usersModels.Person) map[int64]carePlanCompose.PersonName {
+func carePlanPersonNames(rows map[int64]*peopledirectory.DirectoryPersonSnapshot) map[int64]carePlanCompose.PersonName {
 	result := make(map[int64]carePlanCompose.PersonName, len(rows))
 	for id, row := range rows {
 		if row == nil {

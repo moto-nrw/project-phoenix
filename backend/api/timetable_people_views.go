@@ -3,7 +3,8 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -16,11 +17,11 @@ import (
 // repository not-found.
 
 type timetableStaffRows interface {
-	FindByID(ctx context.Context, id any) (*users.Staff, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
-	FindWithPerson(ctx context.Context, id int64) (*users.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*users.Staff, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Staff, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
+	FindWithPerson(ctx context.Context, id int64) (*peopleValues.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
 }
 
 // TimetableStaff serves the timetable's staff ports.
@@ -58,7 +59,7 @@ func (s TimetableStaff) ListAllWithPerson(ctx context.Context) ([]*timetable.Sta
 }
 
 type timetablePersonRows interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 // timetableCorrectionPeople serves the attendance correction's person port.
@@ -70,9 +71,9 @@ func (p timetableCorrectionPeople) FindByAccountID(ctx context.Context, accountI
 
 type timetableOperationPeopleRows interface {
 	timetablePersonRows
-	GetByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*users.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 // timetableOperationPeople serves the timetable operations' person port.
@@ -111,59 +112,43 @@ func NewTimetableLifecycleStudents(rows timetableCompose.RosterStudents) timetab
 }
 
 func (s timetableLifecycleStudents) FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error) {
-	return mapRowsByID(timetableLifecycleStudent)(s.rows.FindByIDs(ctx, ids))
+	return mapRowsByID(timetableRosterLifecycleStudent)(s.rows.FindByIDs(ctx, ids))
 }
 
 func (s timetableLifecycleStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error) {
-	return mapRowsByID(timetableLifecycleStudent)(s.rows.FindByIDsForUpdate(ctx, ids))
+	return mapRowsByID(timetableRosterLifecycleStudent)(s.rows.FindByIDsForUpdate(ctx, ids))
 }
 
 func (s timetableLifecycleStudents) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error) {
-	return mapRowsByID(timetableLifecycleStudent)(s.rows.FindReadScopeByIDs(ctx, ids))
+	return mapRowsByID(timetableRosterLifecycleStudent)(s.rows.FindReadScopeByIDs(ctx, ids))
 }
 
-// timetableOperationStudents serves the operational day's student port from
-// the roster's People Directory child rows.
-type timetableOperationStudents struct {
-	rows timetableCompose.RosterStudents
-}
-
-// NewTimetableOperationStudents binds the operational day's student port to
-// the People Directory child rows.
-func NewTimetableOperationStudents(rows timetableCompose.RosterStudents) timetablePorts.OperationStudents {
-	return timetableOperationStudents{rows: rows}
-}
-
-func (s timetableOperationStudents) FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
-	return mapRowsByID(timetableOperationStudent)(s.rows.FindByIDs(ctx, ids))
-}
-
-func timetableStaffMember(row *users.Staff) *timetable.StaffMember {
+func timetableStaffMember(row *peopleValues.Staff) *timetable.StaffMember {
 	if row == nil {
 		return nil
 	}
 	return &timetable.StaffMember{ID: row.ID, PersonID: row.PersonID, IsGuest: row.IsGuest, Person: timetablePerson(row.Person)}
 }
 
-func timetablePerson(row *users.Person) *timetable.Person {
+func timetablePerson(row *peopleValues.DirectoryPersonSnapshot) *timetable.Person {
 	if row == nil {
 		return nil
 	}
 	return &timetable.Person{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, AccountID: row.AccountID}
 }
 
-func timetableLifecycleStudent(row *users.Student) *timetable.LifecycleStudent {
+func timetableLifecycleStudent(row *peopleValues.StudentState) *timetable.LifecycleStudent {
 	if row == nil {
 		return nil
 	}
 	return &timetable.LifecycleStudent{ID: row.ID, GroupID: row.GroupID, Alumnus: row.IsAlumnus(), EnrolledUntil: row.EnrolledUntil}
 }
 
-func timetableOperationStudent(row *users.Student) *timetable.OperationStudent {
+func timetableOperationStudent(row *peopleValues.StudentState) *timetable.OperationStudent {
 	if row == nil {
 		return nil
 	}
-	return &timetable.OperationStudent{LifecycleStudent: *timetableLifecycleStudent(row), PersonID: row.PersonID, SchoolClass: row.SchoolClass}
+	return &timetable.OperationStudent{LifecycleStudent: *timetableLifecycleStudent(row), PersonID: row.PersonID, SchoolClass: row.SchoolClass, Person: timetablePerson(row.Person)}
 }
 
 // mapRow maps the row of a read; an error passes through.
@@ -188,4 +173,88 @@ func mapRowsByID[R, V any](convert func(R) *V) func(map[int64]R, error) (map[int
 		}
 		return result, nil
 	}
+}
+
+// timetableStudentRows is the existing Directory read and mutation-lock source.
+type timetableStudentRows interface {
+	FindByID(context.Context, any) (*peopleValues.StudentState, error)
+	FindByIDForUpdate(context.Context, int64) (*peopleValues.StudentState, error)
+	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
+	FindByIDsForUpdate(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
+	FindReadScopeByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
+}
+
+// TimetableRosterStudents binds the activity roster to the existing Directory rows.
+type TimetableRosterStudents struct{ rows timetableStudentRows }
+
+func NewTimetableRosterStudents(rows timetableStudentRows) TimetableRosterStudents {
+	return TimetableRosterStudents{rows: rows}
+}
+func (s TimetableRosterStudents) FindByID(ctx context.Context, id any) (*timetable.OperationStudent, error) {
+	return mapRow(timetableOperationStudent)(s.rows.FindByID(ctx, id))
+}
+func (s TimetableRosterStudents) FindByIDForUpdate(ctx context.Context, id int64) (*timetable.OperationStudent, error) {
+	return mapRow(timetableOperationStudent)(s.rows.FindByIDForUpdate(ctx, id))
+}
+func (s TimetableRosterStudents) FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	return mapRowsByID(timetableOperationStudent)(s.rows.FindByIDs(ctx, ids))
+}
+func (s TimetableRosterStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	return mapRowsByID(timetableOperationStudent)(s.rows.FindByIDsForUpdate(ctx, ids))
+}
+func (s TimetableRosterStudents) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	return mapRowsByID(timetableOperationStudent)(s.rows.FindReadScopeByIDs(ctx, ids))
+}
+
+func timetableRosterLifecycleStudent(row *timetable.OperationStudent) *timetable.LifecycleStudent {
+	if row == nil {
+		return nil
+	}
+	return &row.LifecycleStudent
+}
+
+// TimetableSupervisorDirectory binds the activity transport's native staff reads.
+type TimetableSupervisorDirectory struct {
+	rows interface {
+		GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
+		ListStaffWithPerson(context.Context) ([]*peopleValues.Staff, error)
+	}
+	teachers interface {
+		GetTeachersBySpecialization(context.Context, string) ([]*peopleValues.Teacher, error)
+	}
+}
+
+func NewTimetableSupervisorDirectory(rows interface {
+	GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
+	ListStaffWithPerson(context.Context) ([]*peopleValues.Staff, error)
+	GetTeachersBySpecialization(context.Context, string) ([]*peopleValues.Teacher, error)
+}) TimetableSupervisorDirectory {
+	return TimetableSupervisorDirectory{rows: rows, teachers: rows}
+}
+func (d TimetableSupervisorDirectory) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*timetable.SupervisorTeacher, error) {
+	rows, err := d.teachers.GetTeachersBySpecialization(ctx, specialization)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*timetable.SupervisorTeacher, len(rows))
+	for i, row := range rows {
+		if row != nil {
+			result[i] = &timetable.SupervisorTeacher{StaffID: row.StaffID}
+		}
+	}
+	return result, nil
+}
+func (d TimetableSupervisorDirectory) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error) {
+	return mapRowsByID(timetableStaffMember)(d.rows.GetStaffWithPersonByIDs(ctx, ids))
+}
+func (d TimetableSupervisorDirectory) ListStaffWithPerson(ctx context.Context) ([]*timetable.StaffMember, error) {
+	rows, err := d.rows.ListStaffWithPerson(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*timetable.StaffMember, len(rows))
+	for i, row := range rows {
+		result[i] = timetableStaffMember(row)
+	}
+	return result, nil
 }

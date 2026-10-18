@@ -9,11 +9,13 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,7 +156,7 @@ func TestPersonService_Create(t *testing.T) {
 
 	t.Run("returns error for invalid person data", func(t *testing.T) {
 		// ARRANGE - empty names should fail validation
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "",
 			LastName:  "",
 		}
@@ -170,7 +172,7 @@ func TestPersonService_Create(t *testing.T) {
 		// ARRANGE
 		account := testpkg.CreateTestAccount(t, db, "create-with-account")
 
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "WithAccount",
 			LastName:  "Test",
 			AccountID: &account.ID,
@@ -187,7 +189,7 @@ func TestPersonService_Create(t *testing.T) {
 	t.Run("returns error when account not found", func(t *testing.T) {
 		// ARRANGE
 		nonExistentAccountID := int64(99999999)
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Invalid",
 			LastName:  "Account",
 			AccountID: &nonExistentAccountID,
@@ -237,7 +239,7 @@ func TestPersonService_Update(t *testing.T) {
 
 	t.Run("returns error when person not found", func(t *testing.T) {
 		// ARRANGE
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "NonExistent",
 			LastName:  "Person",
 		}
@@ -590,7 +592,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 
 		_, err := db.NewUpdate().
 			TableExpr(`users.student_school_memberships`).
-			Set("status = ?", string(userModels.StudentStatusAlumnus)).
+			Set("status = ?", string(peopleValues.StudentStatusAlumnus)).
 			Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").
 			Exec(ctx)
 		require.NoError(t, err)
@@ -751,7 +753,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 		// Both students should be in results
 		ids := make(map[int64]bool)
 		for _, r := range result {
-			ids[r.ID] = true
+			ids[r.Record.ID] = true
 		}
 		assert.True(t, ids[studentWithGroup.ID], "student with group should be present")
 		assert.True(t, ids[studentNoGroup.ID], "student without group should be present")
@@ -837,7 +839,7 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ARRANGE
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Test",
 			LastName:  "Person",
 		}
@@ -861,7 +863,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 
 	t.Run("returns error for invalid person", func(t *testing.T) {
 		// ARRANGE - empty names should fail validation
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "",
 			LastName:  "",
 		}
@@ -892,7 +894,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 		// ARRANGE
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "CREATEWITHCARD")
 
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "WithRFID",
 			LastName:  "Card",
 			TagID:     &rfidCard.ID,
@@ -914,7 +916,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 	t.Run("returns error when RFID card not found", func(t *testing.T) {
 		// ARRANGE
 		nonExistentTagID := "NONEXISTENT999"
-		person := &userModels.Person{
+		person := &peopleValues.DirectoryPersonSnapshot{
 			FirstName: "Invalid",
 			LastName:  "RFID",
 			TagID:     &nonExistentTagID,

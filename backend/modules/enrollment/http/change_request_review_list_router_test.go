@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -17,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -61,13 +63,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		OrderExpr("id").
 		Limit(1).
 		Scan(ctx, &accountID))
-	reviewer := &usersModels.Person{
+	reviewer := &peopleValues.DirectoryPersonSnapshot{
 		FirstName: "Rita",
 		LastName:  "Ruecksicht",
 		AccountID: &accountID,
 	}
 	reviewer.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Scan(ctx))
+	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Column("tenant_id", "first_name", "last_name", "account_id").Returning("*").Scan(ctx))
 
 	schemaSvc := NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{

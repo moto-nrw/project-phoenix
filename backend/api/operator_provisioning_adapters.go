@@ -11,7 +11,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -34,7 +34,7 @@ type operatorPersonStudents func(ctx context.Context, personIDs []int64) (map[in
 
 // provisioningPersonRows reads the person a deletion removes.
 type provisioningPersonRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Person, error)
+	FindByID(ctx context.Context, id any) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // ProvisioningPersonDirectory is the People Directory the operator person
@@ -48,7 +48,7 @@ type ProvisioningPersonDirectory interface {
 
 // provisioningStaffRows reads the staff row of a person.
 type provisioningStaffRows interface {
-	FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
 }
 
 // OperatorProvisioningAdapters bind the provisioning seams to the retained

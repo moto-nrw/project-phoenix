@@ -12,6 +12,10 @@ const (
 	SessionAttendancePresent  = "present"
 	SessionAttendanceAbsent   = "absent"
 
+	SessionAttendanceSubstatusLate    = "late"
+	SessionAttendanceSubstatusExcused = "excused"
+	SessionAttendanceSubstatusSick    = "sick"
+
 	SessionAttendanceNoteMaxLength = 500
 )
 

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
 
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID: staff.ID,
 		}
 
@@ -55,7 +56,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	t.Run("creates teacher with specialization", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher")
 
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID:        staff.ID,
 			Specialization: "Mathematics",
 		}
@@ -80,7 +81,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with missing staff ID", func(t *testing.T) {
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID: 0, // Invalid
 		}
 
@@ -413,7 +414,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find our teacher
-		var found *userModels.Teacher
+		var found *peopleValues.Teacher
 		for _, tr := range results {
 			if tr.ID == teacher.ID {
 				found = tr

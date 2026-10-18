@@ -1,8 +1,6 @@
 package users
 
 import (
-	"time"
-
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -42,37 +40,7 @@ type StudentDirectoryFilter struct {
 	PageSize int
 }
 
-// OptionalCalendarDate reads a calendar day the owner rendered, or nil when it
-// is unset. A value the owner cannot have produced becomes unset rather than a
-// wrong day.
-func OptionalCalendarDate(value string) *calendar.Date {
-	if value == "" {
-		return nil
-	}
-	parsed, err := calendar.ParseDate(value)
-	if err != nil {
-		return nil
-	}
-	return &parsed
-}
-
 // CalendarDate is the calendar-day value the retained models carry, named here
 // so a composition seam can pass one across without reaching for the shared
 // date package itself.
 type CalendarDate = calendar.Date
-
-// RenderCalendarDate is the inverse of OptionalCalendarDate: the owner's wire
-// form of a day, empty when there is none.
-func RenderCalendarDate(value *CalendarDate) string {
-	if value == nil {
-		return ""
-	}
-	return value.String()
-}
-
-// TodayCalendarDate is the current Berlin calendar day. The live rosters
-// compare the care window against it.
-func TodayCalendarDate() CalendarDate { return calendar.TodayDate() }
-
-// CalendarDateOf is the calendar day an instant falls on in Berlin.
-func CalendarDateOf(value time.Time) CalendarDate { return calendar.DateFromTime(value) }

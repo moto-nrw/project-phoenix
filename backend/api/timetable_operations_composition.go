@@ -36,13 +36,13 @@ func NewTimetableOperations(
 	}
 	deps.Instances, deps.InstanceStaff, deps.Participants, deps.Templates = rows.Instances, rows.InstanceStaff, rows.Participants, templates
 	deps.Attendance = timetableOperationAttendance{presence: presence}
-	deps.Students = NewTimetableOperationStudents(rows.Students)
-	deps.EducationGroups, deps.Rooms = rows.EducationGroupNames(), rows.RoomNames()
+	deps.Students = rows.Students
+	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	deps.Settings = timetableOperationSettings{settings: settings}
 	deps.CareDays = newTimetableCareDays(careDays)
 	deps.Arrivals, deps.Pickups = timetableEffectiveArrivals{times: arrivals}, timetableEffectivePickups{times: pickups}
 	deps.Session = TimetableRequestSession{}
-	deps.Locks = rows.AttendanceLocks()
+	deps.Locks = rows.Locks
 	deps.Announcer = newTimetableAttendanceAnnouncer(broadcaster)
 	deps.NormalizeSchoolClass = schoolStructure.NormalizeClass
 	return timetableCompose.NewOperations(deps)

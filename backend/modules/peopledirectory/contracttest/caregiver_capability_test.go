@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,7 +44,7 @@ func createTestTeacherWithAccountForTenant(
 	tenantID int64,
 	firstName string,
 	lastName string,
-) (*userModels.Teacher, *testpkg.AccountFixture) {
+) (*peopleValues.Teacher, *testpkg.AccountFixture) {
 	t.Helper()
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -59,7 +61,7 @@ func createTestTeacherWithAccountForTenant(
 	)
 	require.NoError(t, err)
 
-	staff := &userModels.Staff{PersonID: person.ID}
+	staff := &peopleValues.Staff{PersonID: person.ID}
 	staff.SetTenantID(tenantID)
 	err = db.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id)
 		VALUES (?, ?) RETURNING id, created_at, updated_at`,
@@ -69,15 +71,16 @@ func createTestTeacherWithAccountForTenant(
 	_, err = db.NewRaw(`INSERT INTO users.staff_employment_profiles (membership_id, tenant_id)
 		VALUES (?, ?)`, staff.ID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
-	staff.Person = &userModels.Person{FirstName: person.FirstName, LastName: person.LastName, AccountID: person.AccountID}
+	staff.Person = &peopleValues.DirectoryPersonSnapshot{FirstName: person.FirstName, LastName: person.LastName, AccountID: person.AccountID}
 	staff.Person.ID = person.ID
 	staff.Person.SetTenantID(person.TenantID)
 
-	teacher := &userModels.Teacher{StaffID: staff.ID}
+	teacher := &peopleValues.Teacher{StaffID: staff.ID}
 	teacher.SetTenantID(tenantID)
 	err = db.NewInsert().
 		Model(teacher).
 		ModelTableExpr(`users.teachers`).
+		Column("tenant_id", "staff_id", "specialization", "role", "qualifications").Returning("*").
 		Scan(context.Background())
 	require.NoError(t, err)
 	teacher.Staff = staff
@@ -274,7 +277,7 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	state, err := factory.CaregiverCapability.EnableCaregiverCapability(
 		ctx,
 		account.ID,
-		userModels.EnableCaregiverCapabilityInput{
+		peopleValues.EnableCaregiverCapabilityInput{
 			FirstName: " Ada ",
 			LastName:  " Lovelace ",
 			Position:  " Betreuungskraft ",
@@ -456,16 +459,16 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	assert.Contains(
 		t,
 		state.DisableBlockers,
-		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+		peopleValues.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
-	var blockedErr *userModels.CaregiverCapabilityBlockedError
+	var blockedErr *peopleValues.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Contains(
 		t,
 		blockedErr.Reasons,
-		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+		peopleValues.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 }
 
@@ -511,7 +514,7 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	assert.NotContains(
 		t,
 		state.DisableBlockers,
-		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+		peopleValues.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
 	state, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
@@ -593,7 +596,7 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		state.GroupAssignments[0].TeacherIDs,
 	)
 
-	var blockedErr *userModels.CaregiverCapabilityBlockedError
+	var blockedErr *peopleValues.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Equal(t, state.DisableBlockers, blockedErr.Reasons)
@@ -641,11 +644,11 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 
 	require.NoError(t, tx.Commit())
 
-	var blockedErr *userModels.CaregiverCapabilityBlockedError
+	var blockedErr *peopleValues.CaregiverCapabilityBlockedError
 	err = <-resultCh
 	require.ErrorAs(t, err, &blockedErr)
 	require.Len(t, blockedErr.Reasons, 1)
-	assert.Equal(t, userModels.CaregiverCapabilityBlockerGroupAssignments, blockedErr.Reasons[0])
+	assert.Equal(t, peopleValues.CaregiverCapabilityBlockerGroupAssignments, blockedErr.Reasons[0])
 
 	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
 	require.NoError(t, err)
@@ -669,7 +672,7 @@ func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
 
 	testpkg.EnsureAccountTenant(t, db, account.ID, mappedTenantID)
 
-	var mappingErr *userModels.AccountNotAssignedToTenantError
+	var mappingErr *peopleValues.AccountNotAssignedToTenantError
 	_, err = factory.CaregiverCapability.GetCaregiverCapability(
 		testpkg.TenantContext(requestedTenantID),
 		account.ID,
@@ -688,7 +691,7 @@ func TestCaregiverCapability_RejectsInvalidAccountIDs(t *testing.T) {
 	_, err := factory.CaregiverCapability.EnableCaregiverCapability(
 		ctx,
 		0,
-		userModels.EnableCaregiverCapabilityInput{},
+		peopleValues.EnableCaregiverCapabilityInput{},
 	)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "account ID is required")
@@ -710,7 +713,7 @@ func TestCaregiverCapability_EnableRequiresNamesWhenProfileDoesNotExist(t *testi
 	_, err := factory.CaregiverCapability.EnableCaregiverCapability(
 		ctx,
 		account.ID,
-		userModels.EnableCaregiverCapabilityInput{FirstName: "Ada"},
+		peopleValues.EnableCaregiverCapabilityInput{FirstName: "Ada"},
 	)
 
 	require.Error(t, err)
@@ -810,16 +813,16 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	assert.Contains(
 		t,
 		state.DisableBlockers,
-		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+		peopleValues.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
-	var blockedErr *userModels.CaregiverCapabilityBlockedError
+	var blockedErr *peopleValues.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Contains(
 		t,
 		blockedErr.Reasons,
-		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+		peopleValues.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 	assert.True(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "teacher"))
 }

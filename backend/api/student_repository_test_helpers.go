@@ -6,8 +6,9 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -32,7 +33,7 @@ func (r StudentTestRepositories) CareScheduleChangeRequest() timetablePorts.Care
 
 // StudentDataChangeRequest is the retained student data change request rows
 // over the Care Plan owner.
-func (r StudentTestRepositories) StudentDataChangeRequest() peoplePorts.StudentDataChangeRequestRepository {
+func (r StudentTestRepositories) StudentDataChangeRequest() studentDataRequestRepository {
 	return NewStudentDataChangeRequestRepository(r.CarePlan)
 }
 
@@ -62,9 +63,9 @@ func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, membe
 // arrange and read back.
 type StudentPeopleRows struct {
 	ParentRequestShare peoplePorts.ParentRequestShareRecords
-	ParentRequestEvent usersModels.ParentRequestEventRepository
+	ParentRequestEvent owner0.ParentRequestEvents
 	FamilyProtection   peoplePorts.FamilyProtectionRecords
-	CareWithdrawal     usersModels.CareWithdrawalCompletionRepository
+	CareWithdrawal     CareWithdrawalTestRows
 }
 
 // NewStudentPeopleRows composes the People Directory rows over db, with the

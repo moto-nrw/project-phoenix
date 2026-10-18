@@ -2,13 +2,13 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -20,25 +20,25 @@ import (
 const tableExprWithdrawalCompletions = `users.care_withdrawal_completions AS "care_withdrawal_completion"`
 
 type withdrawalCompletionRow struct {
-	bun.BaseModel           `bun:"table:care_withdrawal_completions,alias:care_withdrawal_completion"`
-	ID                      int64           `bun:"id,pk,autoincrement"`
-	CreatedAt               time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt               time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	TenantID                int64           `bun:"tenant_id,notnull"`
-	StudentID               *int64          `bun:"student_id"`
-	FirstBookinglessDay     calendarDate    `bun:"first_bookingless_day,type:date,notnull"`
-	Trigger                 string          `bun:"trigger,notnull"`
-	SourceAdjustmentID      *int64          `bun:"source_adjustment_id"`
-	SourceRequestChildID    *int64          `bun:"source_request_child_id"`
-	WithdrawalConfirmedBy   *int64          `bun:"withdrawal_confirmed_by"`
-	WithdrawalConfirmedRole string          `bun:"withdrawal_confirmed_role,notnull"`
-	WithdrawalConfirmedAt   time.Time       `bun:"withdrawal_confirmed_at,notnull"`
-	SourceOfferings         json.RawMessage `bun:"source_offerings,type:jsonb,notnull"`
-	State                   string          `bun:"state,notnull"`
-	Outcome                 *string         `bun:"outcome"`
-	ObsoleteReason          *string         `bun:"obsolete_reason"`
-	ResolvedBy              *int64          `bun:"resolved_by"`
-	ResolvedAt              *time.Time      `bun:"resolved_at"`
+	bun.BaseModel           `bun:"table:users.care_withdrawal_completions,alias:care_withdrawal_completion"`
+	ID                      int64                             `bun:"id,pk,autoincrement"`
+	CreatedAt               time.Time                         `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt               time.Time                         `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID                int64                             `bun:"tenant_id,notnull"`
+	StudentID               *int64                            `bun:"student_id"`
+	FirstBookinglessDay     calendarDate                      `bun:"first_bookingless_day,type:date,notnull"`
+	Trigger                 string                            `bun:"trigger,notnull"`
+	SourceAdjustmentID      *int64                            `bun:"source_adjustment_id"`
+	SourceRequestChildID    *int64                            `bun:"source_request_child_id"`
+	WithdrawalConfirmedBy   *int64                            `bun:"withdrawal_confirmed_by"`
+	WithdrawalConfirmedRole string                            `bun:"withdrawal_confirmed_role,notnull"`
+	WithdrawalConfirmedAt   time.Time                         `bun:"withdrawal_confirmed_at,notnull"`
+	SourceOfferings         []careplan.CareExitSourceOffering `bun:"source_offerings,type:jsonb,notnull"`
+	State                   string                            `bun:"state,notnull"`
+	Outcome                 *string                           `bun:"outcome"`
+	ObsoleteReason          *string                           `bun:"obsolete_reason"`
+	ResolvedBy              *int64                            `bun:"resolved_by"`
+	ResolvedAt              *time.Time                        `bun:"resolved_at"`
 
 	FirstName   string `bun:"first_name,scanonly"`
 	LastName    string `bun:"last_name,scanonly"`
@@ -48,7 +48,7 @@ type withdrawalCompletionRow struct {
 func withdrawalCompletionToDomain(row withdrawalCompletionRow) domain.WithdrawalCompletion {
 	return domain.WithdrawalCompletion{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		StudentID: row.StudentID, FirstBookinglessDay: careplan.Date(row.FirstBookinglessDay), Trigger: row.Trigger,
+		StudentID: row.StudentID, FirstBookinglessDay: calendar.Date(row.FirstBookinglessDay), Trigger: row.Trigger,
 		SourceAdjustmentID: row.SourceAdjustmentID, SourceRequestChildID: row.SourceRequestChildID,
 		WithdrawalConfirmedBy: row.WithdrawalConfirmedBy, WithdrawalConfirmedRole: row.WithdrawalConfirmedRole,
 		WithdrawalConfirmedAt: row.WithdrawalConfirmedAt, SourceOfferings: row.SourceOfferings,
@@ -113,7 +113,7 @@ func (s *Store) UpsertPendingWithdrawal(ctx context.Context, value domain.Withdr
 		row.TenantID = tenantID
 	}
 	if len(row.SourceOfferings) == 0 {
-		row.SourceOfferings = json.RawMessage(`[]`)
+		row.SourceOfferings = []careplan.CareExitSourceOffering{}
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()

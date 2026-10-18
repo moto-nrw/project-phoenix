@@ -80,6 +80,7 @@ type LifecycleStudent struct {
 // filters: the person, the school class and the lifecycle facts.
 type OperationStudent struct {
 	LifecycleStudent
+	Person      *Person
 	PersonID    int64
 	SchoolClass string
 }
@@ -93,3 +94,9 @@ func (s *LifecycleStudent) IsAlumnus() bool {
 func (s *LifecycleStudent) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
+
+// IsAuthorizationStudent identifies a loaded child for the existing access gate.
+func (s *OperationStudent) IsAuthorizationStudent() bool { return s != nil }
+
+// SupervisorTeacher identifies a teacher's staff profile for supervisor selection.
+type SupervisorTeacher struct{ StaffID int64 }

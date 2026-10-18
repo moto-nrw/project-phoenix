@@ -117,7 +117,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, activeStudent.ID)
 		assert.NotContains(t, ids, alumnusStudent.ID)
@@ -128,7 +128,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, activeStudent.ID)
 		assert.NotContains(t, ids, alumnusStudent.ID)

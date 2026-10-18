@@ -43,7 +43,7 @@ func NewTimetableLifecycle(
 	}
 	deps.InstanceRepo, deps.InstanceStaffRepo, deps.InstanceStudents = rows.Instances, rows.InstanceStaff, rows.Participants
 	deps.RecoveryRepo, deps.ActivityGroupRepo, deps.StudentRepo = rows.Locks, rows.Templates, NewTimetableLifecycleStudents(rows.Students)
-	deps.Rooms = rows.LifecycleRooms()
+	deps.Rooms = rows.Rooms
 	deps.CareDays = newTimetableCareDays(careDays)
 	deps.Protocol = rows.Deviations
 	deps.GuardianNotices = newTimetableGuardianNotices(guardianNotices)

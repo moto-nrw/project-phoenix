@@ -10,13 +10,15 @@ import (
 	"log/slog"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -78,11 +80,11 @@ func (s *careScheduleRequestService) todayDate() timezone.Date {
 // requestStudentAudit is the People Directory audit a weekly approval
 // records its departure-mode change through.
 type requestStudentAudit interface {
-	RecordChangesForActor(ctx context.Context, before, after *usersModels.Student, editedBy int64) error
+	RecordChangesForActor(ctx context.Context, before, after *peopleValues.StudentState, editedBy int64) error
 }
 
 type RequestReviewPolicy interface {
-	Allows(context.Context, []string, *usersModels.Student) (bool, error)
+	Allows(context.Context, []string, *peopleValues.StudentState) (bool, error)
 }
 
 // NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
@@ -101,7 +103,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	permissions func(context.Context) []string,
-	events ParentRequestEvents,
+	events peopleValues.ParentRequestEvents,
 	logger *slog.Logger,
 	studentAudit peoplePorts.StudentChangeRecorder,
 	options ...CareRequestOption,
@@ -130,7 +132,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	if err != nil {
 		panic(fmt.Errorf("care request effects: %w", err))
 	}
-	requests, err := newRequestCapabilities(svc, messenger, effects, ledger)
+	requests, err := newRequestCapabilities(svc, messenger, effects)
 	if err != nil {
 		panic(err)
 	}
@@ -152,7 +154,7 @@ type requestCapabilities struct {
 // dependency order, so a wiring gap fails at startup and not on a request.
 // The messenger, when parent messaging exists, also answers a decision's
 // guardian check; the ledger serves a correction's decision history.
-func newRequestCapabilities(s *careScheduleRequestService, messenger compose.RequestMessenger, effects compose.CareRequestEffects, ledger *ParentRequestLedger) (requestCapabilities, error) {
+func newRequestCapabilities(s *careScheduleRequestService, messenger compose.RequestMessenger, effects compose.CareRequestEffects) (requestCapabilities, error) {
 	var c requestCapabilities
 	var err error
 	diffAdapter := requestDiffAdapter{s}
@@ -176,7 +178,7 @@ func newRequestCapabilities(s *careScheduleRequestService, messenger compose.Req
 		return c, fmt.Errorf("care request decisions: %w", err)
 	}
 	if c.corrections, err = compose.NewRequestCorrections(compose.RequestCorrectionDependencies{Records: s.requestRecords, People: decisionAdapter,
-		Plans: decisionAdapter, Effects: requestCorrectionEffects{CareRequestEffects: effects, ledger: ledger}}); err != nil {
+		Plans: decisionAdapter, Effects: effects}); err != nil {
 		return c, fmt.Errorf("care request corrections: %w", err)
 	}
 	if c.conflicts, err = compose.NewRequestConflicts(s.requestRecords, requestConflictPlans{s}, c.decisions, s.todayDate); err != nil {
@@ -265,7 +267,7 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input carereque
 	return item, nil
 }
 
-func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, student *peopleValues.StudentState) (bool, error) {
 	if s.reviewPolicy == nil {
 		return false, errors.New("care request review policy is required")
 	}

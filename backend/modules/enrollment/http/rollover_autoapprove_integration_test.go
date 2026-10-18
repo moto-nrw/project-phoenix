@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -94,7 +94,7 @@ func seedApprovedChildWithStudent(
 	guardianFirst, guardianLast, guardianEmail string,
 	childFirst, childLast string,
 	grade int16,
-) (sourceChild *enrollmentAPI.RequestChild, existingStudent *usersModels.Student) {
+) (sourceChild *enrollmentAPI.RequestChild, existingStudent *peopledirectory.StudentState) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 
@@ -125,7 +125,7 @@ func seedApprovedChildWithStudent(
 	sourceChildID := res.Children[0].ID
 
 	// 2. Create a real Person + Student that mirror the child.
-	person := &usersModels.Person{
+	person := &peopledirectory.DirectoryPersonSnapshot{
 		FirstName: childFirst,
 		LastName:  childLast,
 	}
@@ -137,10 +137,10 @@ func seedApprovedChildWithStudent(
 	startDate := calendar.Date(env.sourcePhase.ServiceStartDate)
 	endDate := calendar.Date(env.sourcePhase.ServiceEndDate)
 	classFromGrade := classForGrade(grade)
-	student := &usersModels.Student{
+	student := &peopledirectory.StudentState{
 		PersonID:      person.ID,
 		SchoolClass:   classFromGrade,
-		Status:        usersModels.StudentStatusActive,
+		Status:        peopledirectory.StudentStatusActive,
 		EnrolledFrom:  &startDate,
 		EnrolledUntil: &endDate,
 	}
@@ -246,7 +246,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// rather than trusting the in-memory copy.
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status,
+	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status,
 		"already-active rollover students must stay active even for a future phase")
 	assert.Equal(t, classForGrade(1), refreshed.SchoolClass,
 		"the class must not change before the new school year starts")
@@ -340,7 +340,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 		"Lina", "Inactive",
 		int16(1),
 	)
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -366,7 +366,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
+	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status)
 }
 
 func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
@@ -384,7 +384,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 		"Lina", "Audit",
 		int16(1),
 	)
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -420,7 +420,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 		"Lina", "Inactive",
 		int16(1),
 	)
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -437,7 +437,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusPending, refreshed.Status)
+	assert.Equal(t, peopledirectory.StudentStatusPending, refreshed.Status)
 
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
@@ -463,7 +463,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 		"Lina", "Inactive",
 		int16(1),
 	)
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -483,7 +483,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
+	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status)
 
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,

@@ -4,8 +4,10 @@ import (
 	"context"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 
@@ -17,40 +19,40 @@ import (
 // operations a seam calls.
 
 type personRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Person, error)
-	List(ctx context.Context, filters map[string]any) ([]*userModels.Person, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
-	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
-	FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.DirectoryPersonSnapshot, error)
+	List(ctx context.Context, filters map[string]any) ([]*peopleValues.DirectoryPersonSnapshot, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
+	FindByTagID(ctx context.Context, tagID string) (*peopleValues.DirectoryPersonSnapshot, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error)
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 type staffRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
-	FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Staff, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
 }
 
 type teacherRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Teacher, error)
-	FindByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Teacher, error)
+	FindByStaffID(ctx context.Context, staffID int64) (*peopleValues.Teacher, error)
 }
 
 type studentRows interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
-	FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
+	FindByPersonID(ctx context.Context, personID int64) (*peopleValues.StudentState, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 }
 
 type guardianProfileRows interface {
-	FindByID(ctx context.Context, id int64) (*userModels.GuardianProfile, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
-	FindByEmail(ctx context.Context, email string) (*userModels.GuardianProfile, error)
+	FindByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.GuardianProfileSnapshot, error)
+	FindByEmail(ctx context.Context, email string) (*peopleValues.GuardianProfileSnapshot, error)
 }
 
 type studentGuardianRows interface {
-	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*userModels.StudentGuardian, error)
-	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*userModels.StudentGuardian, error)
-	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*userModels.StudentGuardian, error)
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*peopleValues.GuardianRelationshipSnapshot, error)
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopleValues.GuardianRelationshipSnapshot, error)
+	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*peopleValues.GuardianRelationshipSnapshot, error)
 }
 
 type groupRows interface {

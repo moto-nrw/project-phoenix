@@ -7,7 +7,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // This file is the composition seam of the consent story (#3349): People
@@ -71,9 +70,9 @@ func NewStudentConsentsFor(directory StudentConsentCapability, trail StudentCons
 // already read.
 func (s *StudentConsents) CurrentStates(
 	ctx context.Context,
-	student *userModels.Student,
+	student *peopleModule.StudentState,
 	canManagePhoto bool,
-) ([]userModels.StudentConsentState, error) {
+) ([]peopleModule.StudentConsentState, error) {
 	if student == nil || student.ID <= 0 {
 		return nil, fmt.Errorf("student consent reader: persisted student is required")
 	}
@@ -81,9 +80,9 @@ func (s *StudentConsents) CurrentStates(
 	if err != nil {
 		return nil, err
 	}
-	result := make([]userModels.StudentConsentState, 0, len(states))
+	result := make([]peopleModule.StudentConsentState, 0, len(states))
 	for _, state := range states {
-		result = append(result, userModels.StudentConsentState{
+		result = append(result, peopleModule.StudentConsentState{
 			Key: state.Key, State: state.State, ChangedAt: state.ChangedAt,
 			CanWithdraw: state.CanWithdraw, CanGrant: state.CanGrant,
 		})
@@ -95,7 +94,7 @@ func (s *StudentConsents) CurrentStates(
 // four consent timestamps. A field that did not move records nothing.
 func (s studentConsentTrail) RecordTransitions(
 	ctx context.Context,
-	before, after *userModels.Student,
+	before, after *peopleModule.StudentState,
 	source string,
 	actorAccountID *int64,
 	changedAt time.Time,
@@ -166,7 +165,7 @@ func (s studentConsentTrail) RecordStudentConsentTransitions(
 	return nil
 }
 
-func studentConsentSnapshot(student *userModels.Student) peopleModule.StudentConsentSnapshot {
+func studentConsentSnapshot(student *peopleModule.StudentState) peopleModule.StudentConsentSnapshot {
 	return peopleModule.StudentConsentSnapshot{
 		StudentID:                student.ID,
 		AGBAcceptedAt:            student.AGBAcceptedAt,

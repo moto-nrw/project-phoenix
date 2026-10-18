@@ -3,7 +3,8 @@ package api
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -75,9 +76,9 @@ type staffDirectoryCapability struct {
 // staffRecordPeople are the retained person service's staff lookups the
 // personnel-record contract serves.
 type staffRecordPeople interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
-	GetStaffByID(ctx context.Context, staffID int64) (*userModels.Staff, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
+	GetStaffByID(ctx context.Context, staffID int64) (*peopleValues.Staff, error)
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
@@ -118,7 +119,7 @@ func (c staffDirectoryCapability) ResolveStaffIDByAccountID(ctx context.Context,
 	return c.people.ResolveStaffIDByAccountID(ctx, accountID)
 }
 
-func publicPerson(entity *userModels.Person) *workforceModule.Person {
+func publicPerson(entity *peopleValues.DirectoryPersonSnapshot) *workforceModule.Person {
 	if entity == nil {
 		return nil
 	}
@@ -129,7 +130,7 @@ func publicPerson(entity *userModels.Person) *workforceModule.Person {
 
 // publicStaffProfile is the public staff profile of a retained row, with the
 // person's fields when the row was read with it.
-func publicStaffProfile(entity *userModels.Staff) *workforceModule.StaffProfile {
+func publicStaffProfile(entity *peopleValues.Staff) *workforceModule.StaffProfile {
 	if entity == nil {
 		return nil
 	}

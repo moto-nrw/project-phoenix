@@ -3,9 +3,10 @@ package compose
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -78,11 +79,11 @@ func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelation
 
 // defaultGuardianRole applies the default preset, or nothing without a
 // policy.
-func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*userModels.StudentGuardian) {
+func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*peopleValues.GuardianRelationshipSnapshot) {
 	if presets == nil {
 		return nil
 	}
-	return func(link *userModels.StudentGuardian) { ApplyDefaultGuardianRole(presets, link) }
+	return func(link *peopleValues.GuardianRelationshipSnapshot) { ApplyDefaultGuardianRole(presets, link) }
 }
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.
@@ -108,7 +109,7 @@ func NewParentRequestEventRepository(db *bun.DB) peoplePorts.ParentRequestEventR
 
 // NewGuardianFinancialDataRepository is the guardian payment data repository
 // (#2608).
-func NewGuardianFinancialDataRepository(db *bun.DB) userModels.GuardianFinancialDataRepository {
+func NewGuardianFinancialDataRepository(db *bun.DB) peoplePorts.GuardianFinancialDataRepository {
 	return usersRepo.NewGuardianFinancialDataRepository(NewLegacyRepositoryRuntime(db))
 }
 

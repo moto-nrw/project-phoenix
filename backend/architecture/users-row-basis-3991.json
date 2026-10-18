@@ -35,9 +35,9 @@
     "sources": [
       "backend/models/users/model.go",
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/repository_vocabulary.go",
-      "backend/models/users/care_withdrawal_completion_test.go",
+      "backend/modules/careplan/withdrawal_record_test.go",
       "https://github.com/moto-nrw/project-phoenix/blob/eeed4921619960c7a951fe7e5e3d45fec2229234/backend/models/users/parent_message_read_receipts_test.go",
-      "backend/models/users/student_data_change_request_test.go",
+      "backend/modules/careplan/masterdatarequests/request_record_test.go",
       "backend/workflows/parentportal/http/master_data_handlers_test.go",
       "https://github.com/moto-nrw/project-phoenix/actions/runs/38454973960/job/115495291785"
     ],
