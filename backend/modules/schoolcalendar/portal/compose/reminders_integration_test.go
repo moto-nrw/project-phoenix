@@ -246,7 +246,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	assert.Len(t, notifier.events, 1, "the overlapping scheduler scan must not repeat the push")
 }
 
-func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
+func TestCalendarServiceIntegration_AppointmentReminderKeepsTransportFailureTerminal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -295,10 +295,9 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 
 	notifier.err = nil
 	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "temporary notification failure")
 	assert.Zero(t, queued)
-	require.Len(t, notifier.events, 1, "the next scan must retry the unclaimed push")
-	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
+	assert.Empty(t, notifier.events, "a terminal transport failure must not send again on the next scan")
 }
 
 // E-mail and push are separate channels. An installation without an e-mail

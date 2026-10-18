@@ -95,10 +95,9 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	}, nil
 }
 
-// CreateInvitation stores the invitation and queues its mail. The mail is
-// queued for after the caller's transaction commits: the staff import
-// creates invitations mid-transaction, and a rolled-back link must never
-// reach an inbox.
+// CreateInvitation stores the invitation and its mail in the same transaction.
+// The worker sends only committed entries: staff import may create invitations
+// mid-transaction, and a rolled-back link must never reach an inbox.
 func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.SchoolInvitationRequest) (result domain.SchoolInvitation, err error) {
 	email, role, err := s.validateRequest(ctx, request)
 	if err != nil {
