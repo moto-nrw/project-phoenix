@@ -14,7 +14,13 @@ import (
 type statusStudentDirectory struct {
 	students peopledirectory.Capability
 	flags    peopledirectory.StudentStatusFlagCapability
-	care     careplan.StudentProfileCommands
+	care     statusFlagClearer
+}
+
+// statusFlagClearer is Care Plan's student profile command the status
+// directory clears flags through.
+type statusFlagClearer interface {
+	ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error)
 }
 
 // CarePlanStatusStudents binds the Care Plan status directory to the People
