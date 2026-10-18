@@ -8,6 +8,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	staffCalendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -497,6 +498,8 @@ func (r StaffMembershipRepository) ListStaffWithPermission(ctx context.Context, 
 	return result, nil
 }
 
+// FindReachableCalendarStaffIDs keeps the staff members whose account holds
+// the permission School Calendar invites by.
 func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
 	const op = "find reachable calendar staff"
 	links, names, err := r.permittedStaffLinks(ctx, schoolmembership.StaffFilter{IDs: ids}, op)
@@ -505,7 +508,7 @@ func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 	}
 	result := make(map[int64]bool, len(links))
 	for _, link := range links {
-		if securityruntime.HasPermission(securityruntime.PermissionCalendarOwn, names[link.accountID]) {
+		if securityruntime.HasPermission(staffCalendarHTTP.StaffInvitePermission, names[link.accountID]) {
 			result[link.staff.ID] = true
 		}
 	}
