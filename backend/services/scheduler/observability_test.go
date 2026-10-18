@@ -170,9 +170,10 @@ func TestIntervalPollingKeepsTickingAfterPanic(t *testing.T) {
 			panic("boom")
 		}
 	}
-	scheduler.wg.Add(1)
-	go scheduler.runIntervalPolling(&ScheduledTask{Name: "panic-job"}, "interval panic", "interval start", 0,
-		func() time.Duration { return time.Millisecond }, check)
+	scheduler.wg.Go(func() {
+		scheduler.runIntervalPolling(&ScheduledTask{Name: "panic-job"}, "interval panic", "interval start", 0,
+			func() time.Duration { return time.Millisecond }, check)
+	})
 
 	for i := range 2 {
 		select {
@@ -245,8 +246,10 @@ func testPollingPanicAndDrain(t *testing.T, run func(*Scheduler, *ScheduledTask,
 		failure <- operation + ":" + outcome
 	}
 	task := &ScheduledTask{Name: "panic-job"}
-	scheduler.wg.Add(1)
-	go run(scheduler, task, func(context.Context, *ScheduledTask) { panic("boom") })
+	scheduler.wg.Go(func() {
+		run(scheduler, task, func(context.Context, *ScheduledTask) { panic("boom") })
+	})
+
 	select {
 	case got := <-failure:
 		if got != "panic-job:panic" {

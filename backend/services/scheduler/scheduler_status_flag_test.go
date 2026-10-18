@@ -220,8 +220,10 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 			settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
 
 		task := &ScheduledTask{Name: "status-flag-clear"}
-		s.wg.Add(1)
-		go s.runStatusFlagClearTaskPolling(task)
+		s.wg.Go(func() {
+			s.runStatusFlagClearTaskPolling(task)
+		})
+
 		// Let the goroutine settle past the immediate-run branch.
 		synctest.Wait()
 		close(s.done)

@@ -183,7 +183,10 @@ type fakeMFAMail struct {
 	err     error
 }
 
-func (m *fakeMFAMail) DeliverCode(_ context.Context, message domain.MFACodeMail) error {
+func (m *fakeMFAMail) EnqueueCode(_ context.Context, message domain.MFACodeMail, _ int64, _ time.Time) (func(context.Context) error, error) {
+	return func(context.Context) error { return m.deliverCode(message) }, nil
+}
+func (m *fakeMFAMail) deliverCode(message domain.MFACodeMail) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -191,8 +194,9 @@ func (m *fakeMFAMail) DeliverCode(_ context.Context, message domain.MFACodeMail)
 	return nil
 }
 
-func (m *fakeMFAMail) NotifyTrustedDeviceAdded(_ context.Context, message domain.TrustedDeviceMail) {
+func (m *fakeMFAMail) NotifyTrustedDeviceAdded(_ context.Context, message domain.TrustedDeviceMail, _ int64) error {
 	m.devices = append(m.devices, message)
+	return nil
 }
 
 // fakeMFAAudit records the ledger entries the flows append.
@@ -206,8 +210,9 @@ func (a *fakeMFAAudit) RecordAuthEvent(_ context.Context, event domain.AuthEvent
 	return nil
 }
 
-func (a *fakeMFAAudit) RecordOperatorActionAsync(entry domain.OperatorAuditEntry) {
+func (a *fakeMFAAudit) RecordOperatorAction(_ context.Context, entry domain.OperatorAuditEntry) error {
 	a.operators = append(a.operators, entry)
+	return nil
 }
 
 func (a *fakeMFAAudit) operatorActions() []string {
@@ -479,6 +484,8 @@ func TestOperatorMFADisableRollsBackOnPartialFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 
+	// Enrollment now owns a transaction too; measure only the disable cascade.
+	fixture.runtime.adminTxCount = 0
 	require.ErrorIs(t, fixture.flows.Disable(ctx, operator.ID), revokeErr,
 		"the disable must surface the failing step")
 	assert.Equal(t, 1, fixture.store.deleteCredCalls, "the delete ran before the failing revoke")

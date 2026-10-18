@@ -351,6 +351,7 @@ func (rs *SettingsResource) prepareEnrollmentLegalAGBDocumentCleanup(ctx context
 		rs.runtime.LegalDocumentReferenced,
 		rs.runtime.ResolveStoredPath,
 		rs.runtime.RemoveFile,
+		rs.runtime.QueueDocumentCleanup,
 	)
 }
 
@@ -362,6 +363,7 @@ func prepareEnrollmentLegalAGBDocumentCleanup(
 	isReferenced legalAGBDocumentReferenceFunc,
 	resolvePath legalAGBDocumentPathResolver,
 	removeFile legalAGBDocumentRemover,
+	queue ...func(context.Context, string) error,
 ) (func(), error) {
 	if oldURL == "" || oldURL == newURL {
 		return nil, nil
@@ -379,6 +381,11 @@ func prepareEnrollmentLegalAGBDocumentCleanup(
 	}
 	if referenced {
 		return nil, nil
+	}
+	if len(queue) > 0 {
+		if err := queue[0](ctx, oldURL); err != nil {
+			return nil, err
+		}
 	}
 	return func() {
 		removeFile(oldPath)

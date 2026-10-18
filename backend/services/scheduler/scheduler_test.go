@@ -1622,8 +1622,9 @@ func TestRunSessionCleanupTask_StopsDuringStartupDelay(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		s := &Scheduler{schedulerLifecycle: schedulerLifecycle{done: make(chan struct{})}}
-		s.wg.Add(1)
-		go s.runSessionCleanupTaskPolling(&ScheduledTask{Name: "session-cleanup"})
+		s.wg.Go(func() {
+			s.runSessionCleanupTaskPolling(&ScheduledTask{Name: "session-cleanup"})
+		})
 
 		synctest.Wait()
 		close(s.done)
@@ -2471,11 +2472,10 @@ func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {
 	task := &ScheduledTask{Name: "timetable-materialization"}
 
 	finished := make(chan struct{})
-	s.wg.Add(1)
-	go func() {
+	s.wg.Go(func() {
 		s.runMaterializationTaskPolling(task)
 		close(finished)
-	}()
+	})
 
 	select {
 	case <-finished:
@@ -2505,8 +2505,9 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 
 		task := &ScheduledTask{Name: "timetable-materialization"}
 
-		s.wg.Add(1)
-		go s.runMaterializationTaskPolling(task)
+		s.wg.Go(func() {
+			s.runMaterializationTaskPolling(task)
+		})
 
 		// Advance fake time past waitUntilNextMinute (up to 1 min) plus a
 		// couple of ticker intervals so the ticker.C branch executes.

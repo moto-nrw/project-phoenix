@@ -173,7 +173,7 @@ type Profile struct {
 // StudentPhotoUnlinker is the part of the photo lifecycle a photo-consent
 // withdrawal needs: the stored file goes once the withdrawal commits.
 type StudentPhotoUnlinker interface {
-	ScheduleUnlinkAfterCommit(ctx context.Context, path string)
+	ScheduleUnlinkAfterCommit(ctx context.Context, path string) error
 }
 
 func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {

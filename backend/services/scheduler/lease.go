@@ -31,6 +31,7 @@ const leaseReleaseTimeout = 5 * time.Second
 // leadership elects this process as the single Worker leader. Job runs ask
 // current() and run under the term's context, which ends when the term ends.
 type leadership struct {
+	tasks  sync.WaitGroup
 	config ports.WorkerLease
 	logger *slog.Logger
 	parent context.Context
@@ -70,10 +71,10 @@ func newLeadership(config ports.WorkerLease, logger *slog.Logger, parent context
 func (l *leadership) start() {
 	wait := l.step(l.runCtx)
 	l.loopStarted.Store(true)
-	go func() {
+	l.tasks.Go(func() {
 		defer close(l.stopped)
 		l.run(l.runCtx, wait)
-	}()
+	})
 }
 
 // stop releases the lease and waits until the background loop ended.
@@ -81,6 +82,7 @@ func (l *leadership) stop() {
 	l.stopRun()
 	if l.loopStarted.Load() {
 		<-l.stopped
+		l.tasks.Wait()
 	}
 }
 

@@ -86,6 +86,7 @@ const (
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
 type Runtime struct {
+	httpTasks      sync.WaitGroup
 	server         *http.Server
 	handler        http.Handler
 	db             transactionruntime.Database
@@ -364,7 +365,7 @@ func newWorker(
 		CleanupRuns:               retention.runs,
 		StaffDocumentCleaner:      staffDocuments,
 		StudentDocumentCleaner:    studentDocuments,
-		FileStoreCleaner:          fileStore,
+		FileStoreCleaner:          newFileStoreCleaner(db, fileStore, logger),
 		Active:                    newSchedulerSessionMaintenance(active),
 		ActiveCleanup:             newSchedulerPresenceCleanup(reports.ActiveCleanup),
 		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
@@ -492,10 +493,10 @@ func (runtime *Runtime) startHTTP(ctx context.Context) (<-chan error, error) {
 	}
 	serveErr := make(chan error, 1)
 	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
-	go func() {
+	runtime.httpTasks.Go(func() {
 		runtime.logger.Info("server listening", slog.String("addr", runtime.server.Addr))
 		serveErr <- runtime.server.Serve(servingListener)
-	}()
+	})
 	select {
 	case <-servingListener.started:
 	case err := <-serveErr:
@@ -544,10 +545,11 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 	// alive until they stop, while giving HTTP requests their own full drain
 	// deadline.
 	workerStopped := make(chan struct{})
-	go func() {
+	var workerTask sync.WaitGroup
+	workerTask.Go(func() {
 		runtime.stopWorker()
 		close(workerStopped)
-	}()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -559,8 +561,10 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 			closeErr,
 		)
 	}
+	runtime.httpTasks.Wait()
 	select {
 	case <-workerStopped:
+		workerTask.Wait()
 		return nil
 	case <-ctx.Done():
 		runtime.resourcesUnsafe = true

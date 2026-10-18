@@ -35,7 +35,7 @@ func buildIdentityAccess(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, tokens TokenAdapter,
 	organizations organizationtenancy.Capability, persons peopledirectory.Capability, membership schoolmembership.Capability,
 	settings settingsCompose.BatchSettingsService, audit AuditOwner, operatorAuditLog operatorAuditEntries,
-	transport MailTransport, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
+	transport MailTransport, deliveryRuntime *deliveryCompose.Runtime, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRepository, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
 	sessions *presenceCompose.SessionRecords, presence *studentpresence.Module,
@@ -64,9 +64,11 @@ func buildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	mfa, err := newMFADependencies(tokens.SessionTokens, settings, mfaMailer{
-		dispatcher: transport.Dispatcher, from: transport.DefaultFrom, frontendURL: links.FrontendURL, logger: authLogger,
-	}, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+	mfaMail, err := newMFAMailer(db, deliveryRuntime, transport.Mailer, transport.DefaultFrom, links.FrontendURL, authLogger, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	mfa, err := newMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
 		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
 		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 	}, authLogger)

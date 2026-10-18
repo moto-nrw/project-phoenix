@@ -150,7 +150,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		func() (err error) { guardian, err = buildGuardianService(db, people, audit); return },
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
-			photoRuntime = buildStudentPhotoRuntime(env, settings.Service, transport, audit, unlinker, actingAccountID)
+			photoRuntime = buildStudentPhotoRuntime(db, env, settings.Service, transport, audit, unlinker, actingAccountID)
 			return nil
 		},
 		func() (err error) {
@@ -204,7 +204,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			mailIdentity = tenantMailIdentity(organizations, settings.Service, env)
 			portalReads = NewParentPortalReads(db, persons, peopleIdentity, enrollmentCompose.New(), organizations)
 			identity, caller, err = buildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
-				audit, operatorAuditLog, transport, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
+				audit, operatorAuditLog, transport, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
 				presence.SessionRecords, presence.Presence)
 			return

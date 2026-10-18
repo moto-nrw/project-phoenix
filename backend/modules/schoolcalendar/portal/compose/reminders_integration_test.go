@@ -29,14 +29,15 @@ type reminderCaptureNotifier struct {
 }
 
 func (n *reminderCaptureNotifier) Notify(_ context.Context, event calendarCompose.Notification) error {
-	if n.err != nil {
-		return n.err
-	}
 	n.events = append(n.events, event)
 	return nil
 }
 
 func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event calendarCompose.Notification) error {
+	// Transport failure belongs to synchronous delivery, not lifecycle enqueue.
+	if n.err != nil {
+		return n.err
+	}
 	return n.Notify(ctx, event)
 }
 

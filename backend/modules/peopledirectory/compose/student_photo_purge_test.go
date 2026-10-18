@@ -17,6 +17,8 @@ import (
 // on, and nothing else about it is under test here.
 type enabledPhotoRuntime struct{ unlinked []string }
 
+func (r *enabledPhotoRuntime) QueueUnlinkStoredPhoto(context.Context, string) error { return nil }
+
 func (r *enabledPhotoRuntime) PhotoFeatureEnabled(context.Context) (bool, error) { return true, nil }
 func (r *enabledPhotoRuntime) ActingAccountID(context.Context) int64             { return 0 }
 func (r *enabledPhotoRuntime) UnlinkStoredPhoto(storedURL string) {

@@ -176,7 +176,6 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 // passed verbatim so the per-task log output stays byte-identical (Loki
 // dashboards match on it).
 func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg string, check func(context.Context, *ScheduledTask)) {
-	defer s.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%s: %v", panicName, r)
@@ -227,7 +226,6 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 // labels only panics outside a job run. startupMsg and startupAttrs are
 // passed verbatim so log output stays byte-identical.
 func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMsg string, startupDelay time.Duration, interval func() time.Duration, check func(context.Context, *ScheduledTask), startupAttrs ...any) {
-	defer s.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%s: %v", panicName, r)

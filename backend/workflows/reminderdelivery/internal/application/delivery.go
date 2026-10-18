@@ -519,6 +519,9 @@ func NewPreparation(deps ports.DeliveryDependencies, runtime ports.CommandRuntim
 	if deps.Appointments == nil || deps.Audiences == nil || deps.Brand == nil || deps.WhenText == nil || deps.NoDelivery == nil {
 		panic("reminder preparation: required inputs missing")
 	}
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}

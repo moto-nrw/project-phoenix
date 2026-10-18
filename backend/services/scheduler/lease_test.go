@@ -627,16 +627,16 @@ func TestGracefulStopDrainsRunningJobsBeforeReleasingTheLease(t *testing.T) {
 	worker.Start()
 
 	running := make(chan struct{})
-	worker.wg.Add(1)
-	go func() {
-		defer worker.wg.Done()
+	worker.wg.Go(func() {
+
 		probeRun(worker, func(ctx context.Context) {
 			close(running)
 			<-ctx.Done()
 			time.Sleep(2 * testLeaseRenew) // finishing work while the term stays renewed
 			drained.Store(true)
 		})
-	}()
+	})
+
 	<-running
 
 	worker.Stop()

@@ -1,6 +1,8 @@
 package messaging
 
 import (
+	"context"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -9,11 +11,11 @@ import (
 // tenant.RegisterAfterCommit callback: the emitter opens its own detached
 // tenant transaction and is best-effort, so a pill failure can never roll
 // back the sick note / pickup change (nor vice versa).
-func (s *Service) EmitSelfServicePill(tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64) {
+func (s *Service) EmitSelfServicePill(ctx context.Context, tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64) error {
 	if s.Emitter == nil {
-		return
+		return nil
 	}
-	s.Emitter.EmitChildEvent(tenantID, studentID, accountID, care.ChildEvent{
+	return s.Emitter.EmitChildEvent(ctx, tenantID, studentID, accountID, care.ChildEvent{
 		EventType:      eventType,
 		ActorKind:      ParentMessageSenderGuardian,
 		ActorAccountID: accountID,

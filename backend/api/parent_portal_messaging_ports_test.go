@@ -17,8 +17,9 @@ type parentEventCapture struct {
 	wakeTenant, wakeStudent         int64
 }
 
-func (c *parentEventCapture) EmitParentChildEvent(tenantID, studentID, guardianID int64, event communication.ParentChildEvent) {
+func (c *parentEventCapture) EmitParentChildEvent(_ context.Context, tenantID, studentID, guardianID int64, event communication.ParentChildEvent) error {
 	c.tenantID, c.studentID, c.guardianID, c.event = tenantID, studentID, guardianID, event
+	return nil
 }
 
 func (c *parentEventCapture) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
@@ -31,7 +32,7 @@ func TestParentChildEventsKeepRecipientAndActorSeparate(t *testing.T) {
 	owner := &parentEventCapture{}
 	bound := BindParentChildEvents(owner)
 	refID := int64(57)
-	bound.EmitChildEvent(11, 23, 31, parentChildEvent{
+	_ = bound.EmitChildEvent(context.Background(), 11, 23, 31, parentChildEvent{
 		EventType: "request_created", ActorKind: "guardian", ActorAccountID: 43,
 		Body: "request", RequestType: "master_data", RequestStatus: "offen",
 		RefTable: "users.student_data_change_requests", RefID: &refID,

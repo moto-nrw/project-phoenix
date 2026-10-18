@@ -40,7 +40,11 @@ func (*CommunicationEventRuntime) InTransaction(ctx context.Context) bool {
 }
 
 func (r *CommunicationEventRuntime) WithinTenant(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, r.configured, schoolID, transactionruntimeCompose.TenantCallback(fn))
+	return tenant.WithTenantTx(tenant.WithUnitOfWork(ctx, r.unit), r.configured, schoolID, transactionruntimeCompose.TenantCallback(fn))
 }
 
 func (r *CommunicationEventRuntime) Configured() bool { return r != nil && r.configured }
+
+func (*CommunicationEventRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
+}

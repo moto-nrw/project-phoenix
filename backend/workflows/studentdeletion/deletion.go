@@ -215,7 +215,7 @@ type Dependencies struct {
 	// and a concurrent grade-transition apply cannot deadlock.
 	LockCareBookingWrites func(context.Context) error
 	AppendAudit           func(context.Context, Actor, Result) error
-	PhotoRemoved          func(context.Context, Actor, string)
+	PhotoRemoved          func(context.Context, Actor, string) error
 	CompanionsChanged     func(context.Context, Actor, int64)
 	Observe               func(Observation)
 }
@@ -768,7 +768,9 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 		return result, err
 	}
 	if result.PhotoPath != "" {
-		w.deps.PhotoRemoved(ctx, actor, result.PhotoPath)
+		if err := w.deps.PhotoRemoved(ctx, actor, result.PhotoPath); err != nil {
+			return result, err
+		}
 	}
 	if len(result.CompanionIDs) > 0 {
 		w.deps.CompanionsChanged(ctx, actor, result.StudentID)

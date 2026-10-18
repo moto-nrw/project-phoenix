@@ -46,11 +46,6 @@ func (r *TenantRuntime) WithinAdmin(ctx context.Context, command func(context.Co
 	return tenant.WithAdminTx(ctx, r.db, func(txCtx context.Context, _ bun.Tx) error { return command(txCtx) })
 }
 
-// AfterCommit runs fn once the surrounding transaction commits.
-func (r *TenantRuntime) AfterCommit(ctx context.Context, fn func()) {
-	tenant.RegisterAfterCommit(ctx, fn)
-}
-
 // WithoutTransactionAndHooks detaches ctx from the transaction and its
 // commit hooks.
 func (r *TenantRuntime) WithoutTransactionAndHooks(ctx context.Context) context.Context {

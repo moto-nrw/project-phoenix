@@ -115,10 +115,6 @@ func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage
 	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Observe == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
-	now := dependencies.Now
-	if now == nil {
-		now = time.Now
-	}
 	runtime := databaseRuntime(dependencies.DB)
 	return application.NewPublicPurger(application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
 		Attachments:        postgres.NewAttachmentStore(runtime),
@@ -126,7 +122,7 @@ func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage
 		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
 		Tx:                 transaction{},
 		Observe:            observer(dependencies.Observe),
-		Now:                now,
+		Now:                dependencies.Now,
 	})), nil
 }
 
@@ -137,10 +133,6 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil ||
 		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
-	}
-	now := dependencies.Now
-	if now == nil {
-		now = time.Now
 	}
 	runtime := databaseRuntime(dependencies.DB)
 	service := application.New(application.Dependencies{
@@ -161,7 +153,7 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		StoredNames:        apiDocuments.NewStoredName,
 		Observe:            observer(dependencies.Observe),
 		Logger:             dependencies.Logger,
-		Now:                now,
+		Now:                dependencies.Now,
 	})
 	return filestorage.NewModule(application.NewPublicEngine(service, dependencies.HasPermission)), nil
 }
@@ -311,4 +303,10 @@ func (p people) PersonNames(ctx context.Context, accountIDs []int64) (map[int64]
 		result[accountID] = ports.PersonName{FirstName: person.FirstName, LastName: person.LastName}
 	}
 	return result, nil
+}
+
+// NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
+func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
+	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(databaseRuntime(db), string(kind)), transaction{}, string(kind))
+	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
 }

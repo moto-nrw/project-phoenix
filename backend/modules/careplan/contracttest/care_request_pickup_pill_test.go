@@ -34,10 +34,11 @@ type recordingParentEvents struct {
 	guardians []parentmessaging.PortalGuardian
 }
 
-func (r *recordingParentEvents) EmitChildEvent(_, _, _ int64, ev parentmessaging.ChildEvent) {
+func (r *recordingParentEvents) EmitChildEvent(_ context.Context, _, _, _ int64, ev parentmessaging.ChildEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.emitted = append(r.emitted, ev)
+	return nil
 }
 func (r *recordingParentEvents) WakeChildGuardians(_, _ int64) {}
 func (r *recordingParentEvents) PortalGuardians(context.Context, int64) ([]parentmessaging.PortalGuardian, error) {

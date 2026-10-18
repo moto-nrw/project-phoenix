@@ -456,9 +456,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 			return ctx.Err()
 		}
 
-		wg.Add(1)
-		go func(sub *deliveryModels.PushSubscription) {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() { <-c.sendSlots }()
 			if err := c.sendOneSynchronously(ctx, event, wire, sub, ttl, urgency); err != nil {
 				resultsMu.Lock()
@@ -469,7 +467,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 			resultsMu.Lock()
 			succeeded = true
 			resultsMu.Unlock()
-		}(sub)
+		})
 	}
 	wg.Wait()
 	if succeeded {

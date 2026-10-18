@@ -46,11 +46,11 @@ func (d *stubPhotoDirectory) PurgeStudentPhotos(context.Context) ([]string, erro
 
 func (*stubPhotoDirectory) ApplyStudentPhotoConsent(
 	_ context.Context, current peopleModule.StudentPhotoState, _ *bool,
-) peopleModule.StudentPhotoState {
-	return current
+) (peopleModule.StudentPhotoState, error) {
+	return current, nil
 }
 
-func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) {}
+func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) error { return nil }
 
 type stubPhotoUnlinker struct{ urls []string }
 

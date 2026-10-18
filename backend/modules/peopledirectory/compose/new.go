@@ -130,11 +130,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		auditLog = application.NewStudentFieldAuditLog(dependencies.StudentFieldAudit)
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
-	var consentHistory internalports.StudentConsentHistory
-	if dependencies.StudentConsentHistory != nil {
-		consentHistory = dependencies.StudentConsentHistory
-	}
-	studentConsents := application.NewStudentConsents(consentHistory, observe)
+	studentConsents := application.NewStudentConsents(dependencies.StudentConsentHistory, observe)
 	photoRuntime := studentPhotoPort(dependencies.StudentPhotos)
 	now := dependencies.Now
 	if now == nil {

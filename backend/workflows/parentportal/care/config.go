@@ -106,7 +106,7 @@ type EnrollmentSettings interface {
 // SelfServiceEvents is the port to the parent-OGS conversation: the chat pill
 // a self-service action posts and the wake-up of every guardian's open tab.
 type SelfServiceEvents interface {
-	EmitSelfServicePill(tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64)
+	EmitSelfServicePill(ctx context.Context, tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64) error
 	WakeChildGuardians(tenantID, studentID int64)
 }
 

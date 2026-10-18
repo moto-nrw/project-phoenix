@@ -1,7 +1,9 @@
 package care
 
+import "context"
+
 // ChildEvent is a parent-authored timeline pill. The referenced row remains
-// the source of truth; this best-effort event carries no write authority.
+// the source of truth; this durable event carries no write authority.
 type ChildEvent struct {
 	EventType      string
 	ActorKind      string
@@ -13,9 +15,9 @@ type ChildEvent struct {
 	RefID          *int64
 }
 
-// ChildEvents runs after commit, in the event owner's detached tenant scope.
-// A nil port omits these best-effort notifications.
+// ChildEvents appends timeline pills in the caller's transaction. Only its
+// realtime broadcasts run after commit. A nil port omits timeline integration.
 type ChildEvents interface {
-	EmitChildEvent(tenantID, studentID, guardianAccountID int64, event ChildEvent)
+	EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, event ChildEvent) error
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }

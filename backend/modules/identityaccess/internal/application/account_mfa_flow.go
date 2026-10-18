@@ -241,34 +241,31 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 	// the enrollment-confirm and passkey-registration paths look a code up
 	// by account, and only these columns keep that lookup inside its portal.
 	createdAt := f.now()
-	challenge, err := f.records.CreateChallenge(ctx, domain.AccountMFAChallenge{
+	enabled, days := f.trustedDeviceHint(ctx, tenantID)
+	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
 		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
 		CreatedAt: createdAt, UpdatedAt: createdAt,
-	})
-	if err != nil {
-		return "", fmt.Errorf("persist email challenge: %w", err)
-	}
-
-	enabled, days := f.trustedDeviceHint(ctx, tenantID)
-	if err := f.mail.DeliverCode(ctx, domain.MFACodeMailFor(
+	}, domain.MFACodeMailFor(
 		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	)); err != nil {
+	))
+	if err != nil {
+		return "", fmt.Errorf("prepare email challenge: %w", err)
+	}
+	if err := send(f.runtime.Detach(ctx)); err != nil {
 		f.logger.Warn("mfa challenge delivery failed",
 			slog.Int64("account_id", account.ID),
-			slog.String("error", err.Error()))
+			slog.String("error", err.Error()),
+		)
 		return "", domain.ErrMFAStatusUnavailable
 	}
-	if err := f.records.ActivateChallenge(ctx, challenge.ID); err != nil {
+	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
 		f.logger.Error("failed to activate delivered mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
-			slog.String("error", err.Error()))
+			slog.String("error", err.Error()),
+		)
 		return "", domain.ErrMFAStatusUnavailable
 	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFAEmailSent, Success: true,
-		IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID},
-	})
 
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
 		AccountID: accountID, Scope: scope, TenantID: tenantID, ChallengeID: challenge.ID,
@@ -470,7 +467,9 @@ func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domai
 	threshold := f.lockoutThreshold(ctx, tenantID)
 	result, err := f.records.IncrementMFAAttempts(ctx, account.ID, threshold, f.lockoutDuration(ctx, tenantID))
 	if err != nil {
-		f.logger.Warn("failed to persist MFA attempt counter", slog.String("error", err.Error()))
+		f.logger.Warn("failed to persist MFA attempt counter",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 	// result.Attempts == threshold means this increment was the N-th, and
@@ -598,18 +597,21 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		label := userAgent
 		device.UserAgent = &label
 	}
-	stored, err := f.records.CreateTrustedDevice(ctx, device)
+	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		stored, err := f.records.CreateTrustedDevice(txCtx, device)
+		if err != nil {
+			return fmt.Errorf("persist trusted device: %w", err)
+		}
+		f.recordAuthEvent(txCtx, domain.AuthEvent{
+			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
+			Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
+		})
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days)
+	})
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("persist trusted device: %w", err)
+		return "", time.Time{}, err
 	}
 	signed := domain.SignTrustedDeviceToken(rawToken, f.secret)
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
-		Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
-	})
-	// Fire-and-forget: remembering a device must never happen silently, but
-	// a failed notification must not break the login either.
-	f.notifyTrustedDeviceAdded(ctx, accountID, userAgent, ip, days)
 	return signed, expiresAt, nil
 }
 
@@ -655,19 +657,19 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return true, f.TrustedDeviceDays(ctx, tenantID)
 }
 
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID int64, userAgent string, ip net.IP, days int) {
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
 			slog.Int64("account_id", accountID),
 			slog.Any("error", err))
-		return
+		return errors.New("could not load account for trusted-device-added mail")
 	}
-	f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
+	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
 		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
-	})
+	}, deviceID)
 }
 
 // ===== Audit =====
@@ -713,4 +715,29 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 			slog.String("event_type", event.Type),
 			slog.String("error", err.Error()))
 	}
+}
+
+func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {
+	var challenge domain.AccountMFAChallenge
+	var send func(context.Context) error
+	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		var err error
+		challenge, err = f.records.CreateChallenge(txCtx, input)
+		if err != nil {
+			return fmt.Errorf("persist email challenge: %w", err)
+		}
+		send, err = f.mail.EnqueueCode(txCtx, message, challenge.ID, challenge.ExpiresAt)
+		return err
+	})
+	return challenge, send, err
+}
+
+func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) error {
+	return f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
+			return err
+		}
+		f.recordAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
+		return nil
+	})
 }

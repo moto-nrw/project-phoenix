@@ -127,7 +127,9 @@ func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDat
 		created = append(created, row)
 	}
 	if len(created) > 0 {
-		s.emitMasterDataRequestPills(ctx, submission, created)
+		if err := s.emitMasterDataRequestPills(ctx, submission, created); err != nil {
+			return nil, err
+		}
 	}
 	return created, nil
 }
@@ -189,29 +191,30 @@ func (s *Service) submitMasterDataField(ctx context.Context, submission masterDa
 // created↔decision ref paired: the thread timeline and the deep-link into the
 // Änderungsanfragen queue resolve the exact row for any field, not just
 // created[0]. Best-effort, after commit.
-func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission masterDataSubmission, created []*StudentDataChangeRequest) {
+func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission masterDataSubmission, created []*StudentDataChangeRequest) error {
 	refIDs := make([]int64, len(created))
 	for i, row := range created {
 		refIDs[i] = row.ID
 	}
-	s.Runtime.RegisterAfterCommit(ctx, func() {
-		if s.Emitter == nil {
-			return
+	if s.Emitter == nil {
+		return nil
+	}
+	for i := range refIDs {
+		refID := refIDs[i]
+		if err := s.Emitter.EmitChildEvent(ctx, submission.tenantID, submission.studentID, submission.accountID, ChildEvent{
+			EventType:      "request_created",
+			ActorKind:      ParentMessageSenderGuardian,
+			ActorAccountID: submission.accountID,
+			Body:           "Anfrage: Stammdaten ändern",
+			RequestType:    ParentMessageRequestMasterData,
+			RequestStatus:  ParentMessageRequestStatusOpen,
+			RefTable:       "users.student_data_change_requests",
+			RefID:          &refID,
+		}); err != nil {
+			return err
 		}
-		for i := range refIDs {
-			refID := refIDs[i]
-			s.Emitter.EmitChildEvent(submission.tenantID, submission.studentID, submission.accountID, ChildEvent{
-				EventType:      "request_created",
-				ActorKind:      ParentMessageSenderGuardian,
-				ActorAccountID: submission.accountID,
-				Body:           "Anfrage: Stammdaten ändern",
-				RequestType:    ParentMessageRequestMasterData,
-				RequestStatus:  ParentMessageRequestStatusOpen,
-				RefTable:       "users.student_data_change_requests",
-				RefID:          &refID,
-			})
-		}
-	})
+	}
+	return nil
 }
 
 // ListMyMasterDataRequests returns child-level Track B change requests,

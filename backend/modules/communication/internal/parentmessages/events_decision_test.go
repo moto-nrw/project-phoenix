@@ -102,7 +102,7 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 
 	ev := staffDecision(chain.AccountID, 301)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 	require.Len(t, notifier.events, 1)
 	event := notifier.events[0]
@@ -146,7 +146,7 @@ func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 
 	ev := staffDecision(chain.AccountID, 309)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 	assert.Empty(t, notifier.events,
 		"an account the parent APIs now hide must not be told about the child on a lock screen")
@@ -171,7 +171,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 		ev := staffDecision(chain.AccountID, 302)
 		require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 		assert.Empty(t, notifier.events)
 		_, msgs := threadPills(t, db, reposMessages, chain)
@@ -191,7 +191,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 		withdrawn.ActorKind = messaging.ParentMessageSenderGuardian
 		withdrawn.RequestStatus = messaging.ParentMessageRequestStatusWithdrawn
 		require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, withdrawn))
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, withdrawn)
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, withdrawn)
 
 		assert.Empty(t, notifier.events)
 	})
@@ -202,7 +202,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 304))
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 304))
 
 		_, msgs := threadPills(t, db, reposMessages, chain)
 		assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
@@ -226,7 +226,7 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 		ev := staffDecision(chain.AccountID, refID)
 		err := enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev)
 		if err == nil {
-			emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+			_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 		}
 
 		_, msgs := threadPills(t, db, reposMessages, chain)

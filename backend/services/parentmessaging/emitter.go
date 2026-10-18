@@ -72,7 +72,7 @@ type PortalGuardian struct {
 type Events interface {
 	// EmitChildEvent appends one pill to the (student, guardian) thread in a
 	// detached tenant transaction and fires the parent-message wake-up.
-	EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev ChildEvent)
+	EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev ChildEvent) error
 	// WakeChildGuardians wakes every portal guardian of the child with a
 	// message-independent care-state invalidation.
 	WakeChildGuardians(tenantID, studentID int64)
@@ -111,14 +111,14 @@ func NewEmitterWithDecisions(events Events, notifier DecisionNotifier) *Emitter 
 // staff decisions it is the request's SUBMITTING guardian, not the acting
 // staffer. The gating and reconcile rules are Communication's; see the owner
 // implementation.
-func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev ChildEvent) {
+func (e *Emitter) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev ChildEvent) error {
 	if e == nil || e.events == nil {
-		return
+		return nil
 	}
 	if tenantID <= 0 || studentID <= 0 || guardianAccountID <= 0 {
-		return
+		return nil
 	}
-	e.events.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
+	return e.events.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ev)
 }
 
 // isStaffDecisionPill reports whether a pill is the OGS deciding a parent's
@@ -250,8 +250,8 @@ func (e *Emitter) GuardianHasChildAccess(ctx context.Context, studentID, guardia
 
 // EmitParentChildEvent is the public parent-authored event capability. The
 // retained emitter keeps the richer staff-decision vocabulary until #4074.
-func (e *Emitter) EmitParentChildEvent(tenantID, studentID, guardianAccountID int64, event communication.ParentChildEvent) {
-	e.EmitChildEvent(tenantID, studentID, guardianAccountID, ChildEvent{
+func (e *Emitter) EmitParentChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, event communication.ParentChildEvent) error {
+	return e.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ChildEvent{
 		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID,
 		Body: event.Body, RequestType: event.RequestType, RequestStatus: event.RequestStatus,
 		RefTable: event.RefTable, RefID: event.RefID,
