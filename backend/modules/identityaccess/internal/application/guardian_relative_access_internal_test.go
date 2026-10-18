@@ -100,6 +100,7 @@ func TestInviteToStudent_NewEmailCreatesProfileLinkAndInvitation(t *testing.T) {
 	assert.Equal(t, domain.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
 	assert.True(t, invitation.ProfileCreatedForInvitation)
 	assert.WithinDuration(t, before.Add(48*time.Hour), invitation.ExpiresAt, 5*time.Second)
+	assert.Contains(t, f.store.recorded(), "LockLoginAccountByEmail", "the invitation write serializes with account retention")
 	require.Len(t, f.delivery.emails, 1, "the invitation e-mail is enqueued")
 }
 

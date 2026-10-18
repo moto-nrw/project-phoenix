@@ -165,6 +165,43 @@ func TestCreateInvitationInvalidatesThePreviousInvitationOfTheSchool(t *testing.
 	assert.False(t, env.storedInvitation(t, elsewhere.ID).IsUsed(), "another school's invitation is not spent")
 }
 
+// Account retention locks an unused account before it decides whether an
+// invitation keeps it. Creating an invitation must take that same lock, so
+// one of the two transactions sees the other's final state.
+func TestCreateInvitationWaitsForUnusedAccountLock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	env := newInvitationEnv(t, db)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "invite-lock-creator")
+	role := testpkg.CreateTestRole(t, db, "invite-lock-role")
+	unused := testpkg.CreateTestAccount(t, db, "invite-lock-unused")
+	testpkg.UnclaimTestAccount(t, db, unused.ID)
+
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, unused.ID)
+	require.NoError(t, err)
+
+	created := make(chan error, 1)
+	go func() {
+		_, createErr := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+			Email: unused.Email, RoleID: role.ID, CreatedBy: creator.ID,
+			ActorPermissions: []string{usersManagePermission},
+		})
+		created <- createErr
+	}()
+
+	select {
+	case createErr := <-created:
+		t.Fatalf("invitation creation did not wait for the account lock: %v", createErr)
+	case <-time.After(500 * time.Millisecond):
+	}
+	require.NoError(t, tx.Commit())
+	require.NoError(t, <-created)
+}
+
 // The inviting account may not hand out a role beyond its own authority, and
 // a Lehrkraft is never combined with the caregiver upgrade (#1772).
 func TestCreateInvitationRefusesRolesTheInviterMayNotGrant(t *testing.T) {

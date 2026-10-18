@@ -41,18 +41,32 @@ const loginAccountColumns = `"account".id, "account".email, "account".username, 
 // FindLoginAccountByEmail matches case-insensitively, as the retained
 // repository did.
 func (s *Store) FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	return s.findLoginAccountByEmail(ctx, email, false)
+}
+
+// LockLoginAccountByEmail serializes an invitation for an existing address
+// with the account-retention workflow, which locks the same account row
+// before its final eligibility check.
+func (s *Store) LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	return s.findLoginAccountByEmail(ctx, email, true)
+}
+
+func (s *Store) findLoginAccountByEmail(ctx context.Context, email string, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.LoginAccount{}, false, domain.OperationStats{}, err
 	}
 	var rows []loginAccountRow
 	started := time.Now()
-	err = db.NewSelect().
+	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(loginAccountColumns).
 		Where(`LOWER("account".email) = LOWER(?)`, email).
-		Limit(1).
-		Scan(ctx, &rows)
+		Limit(1)
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
+	err = query.Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return domain.LoginAccount{}, false, stats, fmt.Errorf("identity access postgres: find login account by email: %w", err)

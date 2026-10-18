@@ -129,6 +129,13 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 	// Spending the address's previous invitations and storing the new one
 	// commit together, so a failed insert never burns the last usable link.
 	err = s.runtime.RunInTx(s.runtime.WithTenantID(ctx, tenantID), func(txCtx context.Context) error {
+		// Account retention takes the same row lock before its final check.
+		// Re-checking after this lock makes one of the two writes happen first:
+		// an invitation already committed keeps the account, while an invitation
+		// created after erasure correctly targets a new account.
+		if targetErr := s.ensureTargetAllowed(txCtx, email, request); targetErr != nil {
+			return targetErr
+		}
 		if _, _, revokeErr := s.store.RevokeSchoolInvitationsForEmail(txCtx, email); revokeErr != nil {
 			return failed("invalidate invitations", revokeErr)
 		}
@@ -215,9 +222,6 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 	}
 	email = parsed.Address
 
-	if err := s.ensureTargetAllowed(ctx, email, request); err != nil {
-		return "", domain.ManagedRole{}, err
-	}
 	role, err := s.ensureRoleAssignable(ctx, request)
 	if err != nil {
 		return "", domain.ManagedRole{}, err
@@ -228,7 +232,7 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 // ensureTargetAllowed refuses an address that already signs in at the school
 // the invitation is for.
 func (s *SchoolInvitation) ensureTargetAllowed(ctx context.Context, email string, request domain.SchoolInvitationRequest) error {
-	account, found, _, err := s.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := s.logins.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return failed(opCreateInvitation, err)
 	}

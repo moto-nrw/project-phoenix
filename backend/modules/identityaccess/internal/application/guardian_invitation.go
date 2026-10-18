@@ -35,31 +35,45 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	if request.CreatedBy <= 0 {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("created_by is required"))
 	}
-	profile, found, err := l.guardians.FindGuardianProfile(ctx, request.GuardianProfileID)
-	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
-	}
-	if !found {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
-	}
-	if strings.TrimSpace(profile.Email) == "" {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian has no email on file"))
-	}
-	if profile.HasAccount {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian already has an account"))
-	}
-
-	tenantID := l.runtime.TenantID(ctx)
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
-		TenantID:          tenantID,
-		Token:             uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID: profile.ID,
-		CreatedBy:         request.CreatedBy,
-		ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(ctx)),
-		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+	var (
+		invitation domain.GuardianInvitation
+		profile    domain.GuardianProfile
+	)
+	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		var found bool
+		var findErr error
+		profile, found, findErr = l.guardians.FindGuardianProfile(txCtx, request.GuardianProfileID)
+		if findErr != nil {
+			return failed(opGuardianInviteCreate, findErr)
+		}
+		if !found {
+			return failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
+		}
+		if strings.TrimSpace(profile.Email) == "" {
+			return failed(opGuardianInviteCreate, fmt.Errorf("guardian has no email on file"))
+		}
+		if profile.HasAccount {
+			return failed(opGuardianInviteCreate, fmt.Errorf("guardian already has an account"))
+		}
+		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
+			return failed(opGuardianInviteCreate, lockErr)
+		}
+		var insertErr error
+		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
+			TenantID:          l.runtime.TenantID(txCtx),
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			GuardianProfileID: profile.ID,
+			CreatedBy:         request.CreatedBy,
+			ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(txCtx)),
+			ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+		})
+		if insertErr != nil {
+			return failed(opGuardianInviteCreate, insertErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+		return domain.GuardianInvitation{}, err
 	}
 
 	l.logger.Info("guardian invitation created",
