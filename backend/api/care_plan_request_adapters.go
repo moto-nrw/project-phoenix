@@ -79,7 +79,7 @@ func (r ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Contex
 }
 
 func (r ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
-	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{absencerecords.ExcusedRequestStatusApproved, absencerecords.ExcusedRequestStatusRejected, absencerecords.ExcusedRequestStatusWithdrawn}, Queue: publicQueueFilter(filters)})
+	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: careplan.DecidedExcusedRequestStatuses(), Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
 

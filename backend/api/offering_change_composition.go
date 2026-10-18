@@ -226,30 +226,11 @@ func (r offeringChangeRows) list(ctx context.Context, filter careplan.OfferingCh
 		return nil, err
 	}
 	for _, row := range rows {
-		if err := decodableOfferingChange(row); err != nil {
+		if err := row.CheckStoredJSON(); err != nil {
 			return nil, err
 		}
 	}
 	return rows, nil
-}
-
-func decodableOfferingChange(row careplan.OfferingChangeRequest) error {
-	var payload map[string]any
-	if err := unmarshalOptionalOfferingJSON(row.Payload, &payload); err != nil {
-		return fmt.Errorf("decode offering change payload: %w", err)
-	}
-	var snapshot map[string]any
-	if err := unmarshalOptionalOfferingJSON(row.DecisionSnapshot, &snapshot); err != nil {
-		return fmt.Errorf("decode offering change decision snapshot: %w", err)
-	}
-	return nil
-}
-
-func unmarshalOptionalOfferingJSON(data json.RawMessage, target any) error {
-	if len(data) == 0 || string(data) == "null" {
-		return nil
-	}
-	return json.Unmarshal(data, target)
 }
 
 func (r offeringChangeRows) UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom calendar.Date) error {

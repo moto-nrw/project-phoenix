@@ -66,6 +66,12 @@ const (
 	ParentMessageRequestSick         = excusedrequests.ParentMessageRequestSick
 )
 
+// DecidedExcusedRequestStatuses are the statuses of the decided excused
+// requests a review history lists: approved, rejected and withdrawn.
+func DecidedExcusedRequestStatuses() []string {
+	return []string{ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn}
+}
+
 var (
 	ErrExcusedRequestForbidden             = excusedrequests.ErrExcusedRequestForbidden
 	ErrExcusedRequestGuardianAccessRevoked = excusedrequests.ErrExcusedRequestGuardianAccessRevoked
