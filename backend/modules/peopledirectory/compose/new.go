@@ -52,17 +52,10 @@ type Dependencies struct {
 	// photo consent then reports that the trail is not configured rather than
 	// rendering a withdrawal as "never granted".
 	StudentConsentHistory StudentConsentHistory
-	// StudentPhotoRuntime resolves the surfaces the photo lifecycle needs
-	// beyond the directory's own rows. It is a resolver, not a value, because
-	// the file cleanup, the live refresh and the caller-access gates only
-	// exist once the HTTP layer is up. Optional, and a resolver may return
-	// nil: every photo route then reports the feature as disabled, which is
-	// what graphs that never serve a photo (CLI roots, repository tests)
-	// need.
-	StudentPhotoRuntime func() StudentPhotoRuntime
-	// StudentPhotos is the photo runtime as a value, for a root that builds it
-	// before the directory; DisabledStudentPhotos serves a root without
-	// photos. It replaces StudentPhotoRuntime, which must then be unset.
+	// StudentPhotos are the surfaces the photo lifecycle needs beyond the
+	// directory's own rows. Optional: without them every photo route reports
+	// the feature as disabled, which is what graphs that never serve a photo
+	// (CLI roots, repository tests) need.
 	StudentPhotos StudentPhotoRuntime
 	// StudentCompanions is the Care Plan seam the student write path needs:
 	// narrowing a departure plan drops the "läuft mit" links it no longer
@@ -82,8 +75,9 @@ type Dependencies struct {
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
-	// GuardianProvider serves the guardian, phone-number and link capability
-	// from construction on, in place of BindGuardianDirectory afterwards.
+	// GuardianProvider serves the guardian, phone-number and link
+	// capability. Optional: without it those flows refuse with
+	// peopledirectory.ErrGuardianProviderUnbound.
 	GuardianProvider *GuardianDirectoryProvider
 }
 
@@ -100,8 +94,8 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 // Dependencies field: only the guardian reachability read needs it, while
 // all other People Directory graphs stay independent of Identity & Access.
 func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
-	if err := checkDependencies(dependencies); err != nil {
-		return nil, err
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
+		return nil, errors.New("people directory compose: all dependencies are required")
 	}
 	database := func(ctx context.Context) (bun.IDB, int64, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
@@ -141,7 +135,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		consentHistory = dependencies.StudentConsentHistory
 	}
 	studentConsents := application.NewStudentConsents(consentHistory, observe)
-	photoRuntime := studentPhotoPort(dependencies)
+	photoRuntime := studentPhotoPort(dependencies.StudentPhotos)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -158,16 +152,6 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
 	}), dependencies.GuardianProvider)
-}
-
-func checkDependencies(dependencies Dependencies) error {
-	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
-		return errors.New("people directory compose: all dependencies are required")
-	}
-	if dependencies.StudentPhotos != nil && dependencies.StudentPhotoRuntime != nil {
-		return errors.New("people directory compose: the student photo runtime and its resolver are exclusive")
-	}
-	return nil
 }
 
 type transaction struct{}

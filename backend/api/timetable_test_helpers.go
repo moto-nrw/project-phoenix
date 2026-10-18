@@ -98,15 +98,17 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	careDay := careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
-		ArrivalBaselines: arrival, Records: carePlan,
-		PickupBaselines: pickup,
-	})
 	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
+	careDay, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{
+		ArrivalBaselines: arrival, Records: carePlan,
+		PickupBaselines: pickup, CareParticipation: care.CareLifecycle,
+	})
+	if err != nil {
+		return TimetableTestModule{}, nil, nil, err
+	}
 	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err

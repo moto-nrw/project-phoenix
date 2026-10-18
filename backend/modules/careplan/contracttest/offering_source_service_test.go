@@ -1430,7 +1430,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		Records:                repoFactoryEnrollment.Enrollment(),
 		Offerings:              phaseOfferings{carePlan: repoFactory.CarePlan()},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		SourcedTemplates:       func() enrollmentTest.SourcedTemplateResyncer { return sourcedResyncer },
+		Resyncer:               sourcedResyncer,
 		Today:                  func() calendar.Date { return offeringResyncToday },
 	})
 

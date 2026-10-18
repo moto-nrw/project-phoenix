@@ -31,10 +31,10 @@ type careOfferingCatalogInputs struct {
 	Timetable careOfferingTimetableReads
 	Calendar  careOfferingCalendarReads
 	Settings  careOfferingSettingsReads
-	// SourcedTemplates and Pickup resolve Enrollment's decision service,
-	// which is composed after the catalog; they return nil until then.
-	SourcedTemplates func() careplanCompose.SourcedTemplateResyncer
-	Pickup           func() careplanCompose.PickupResyncer
+	// SourcedTemplates and Pickup resync the sourced rosters and the pickup
+	// projection after an offering edit.
+	SourcedTemplates careplanCompose.SourcedTemplateResyncer
+	Pickup           careplanCompose.PickupResyncer
 	LockRecurrence   func(context.Context) error
 	Today            func() calendar.Date
 	Logger           *slog.Logger

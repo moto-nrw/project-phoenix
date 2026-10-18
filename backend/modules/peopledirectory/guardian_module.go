@@ -14,7 +14,7 @@ import (
 func guardianQuery[T any](m *Module, operation string, fn func(GuardianProvider) (T, error)) (T, error) {
 	var result T
 	err := m.observed(operation, func() error {
-		provider, err := m.guardians.Load()
+		provider, err := m.guardianProvider()
 		if err != nil {
 			return err
 		}
@@ -27,7 +27,7 @@ func guardianQuery[T any](m *Module, operation string, fn func(GuardianProvider)
 // guardianCommand runs one provider-backed write.
 func guardianCommand(m *Module, operation string, fn func(GuardianProvider) error) error {
 	return m.observed(operation, func() error {
-		provider, err := m.guardians.Load()
+		provider, err := m.guardianProvider()
 		if err != nil {
 			return err
 		}

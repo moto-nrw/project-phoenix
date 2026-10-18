@@ -23,8 +23,8 @@ func resyncingPhaseDependencies() PhaseDependencies {
 	}
 }
 
-// The phase administration built over the resyncer value resyncs through it
-// without a late resolver; a missing collaborator of the resync and detach
+// The phase administration built over the resyncer value resyncs through
+// it; a missing collaborator of the resync and detach
 // paths is a construction error instead of a logged, saved edit.
 func TestNewResyncingPhases_RequiresTheResyncer(t *testing.T) {
 	t.Parallel()
@@ -32,7 +32,7 @@ func TestNewResyncingPhases_RequiresTheResyncer(t *testing.T) {
 	deps := resyncingPhaseDependencies()
 	phases, err := NewResyncingPhases(deps)
 	require.NoError(t, err)
-	require.Equal(t, deps.Resyncer, phases.sourcedTemplates())
+	require.Equal(t, deps.Resyncer, phases.deps.Resyncer)
 
 	for name, change := range map[string]func(*PhaseDependencies){
 		"resyncer":  func(d *PhaseDependencies) { d.Resyncer = nil },
@@ -45,9 +45,4 @@ func TestNewResyncingPhases_RequiresTheResyncer(t *testing.T) {
 		_, err := NewResyncingPhases(deps)
 		require.ErrorContains(t, err, "are required", name)
 	}
-
-	late := resyncingPhaseDependencies()
-	late.SourcedTemplates = func() enrollment.SourcedTemplateResyncer { return nil }
-	_, err = NewResyncingPhases(late)
-	require.ErrorContains(t, err, "must be unset")
 }

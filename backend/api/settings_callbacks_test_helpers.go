@@ -36,19 +36,19 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		return SettingsCallbacksTestModule{}, nil, err
 	}
 	hub := deliveryCompose.NewRealtimeHub(slog.Default())
-	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	photoDeps := StudentPhotoRuntimeDependencies{
+		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
+		ActingAccount: actingAccountID,
+	}
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), Observe: func(peopleCompose.Observation) {},
-		StudentPhotoRuntime: func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+		StudentPhotos: NewStudentPhotoRuntime(photoDeps),
 	})
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
-	photos := NewStudentPhotos(directory, photoRuntime, StudentPhotoRuntimeDependencies{
-		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
-		ActingAccount: actingAccountID,
-	})
+	photos := NewStudentPhotos(directory, photoDeps)
 	RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
 	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
 		module.SettingsSideEffects.Dispatch,

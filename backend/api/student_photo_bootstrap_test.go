@@ -15,7 +15,7 @@ func TestStudentPhotosRegisterTheFeatureToggle(t *testing.T) {
 	t.Parallel()
 
 	registry := settingsCompose.NewSideEffectRegistry()
-	photos := NewStudentPhotos(nil, nil, StudentPhotoRuntimeDependencies{Logger: slog.Default()})
+	photos := NewStudentPhotos(nil, StudentPhotoRuntimeDependencies{Logger: slog.Default()})
 	RegisterStudentPhotoSettingsSideEffects(registry, photos)
 	post, err := registry.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")
 	require.NoError(t, err)

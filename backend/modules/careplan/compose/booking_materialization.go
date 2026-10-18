@@ -34,20 +34,11 @@ type BookingPickup = ports.BookingPickup
 // BookingRowNotFound marks an owner's not-found error for the booking
 // materialization: a request, request child, phase or student that does not
 // exist in the tenant. The error keeps its text.
-func BookingRowNotFound(err error) error {
-	return &bookingRowNotFound{err: err}
-}
-
-type bookingRowNotFound struct{ err error }
-
-func (e *bookingRowNotFound) Error() string { return e.err.Error() }
-
-func (e *bookingRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrBookingRowNotFound} }
+func BookingRowNotFound(err error) error { return ports.BookingRowNotFound(err) }
 
 // BookingMaterializationDependencies bind the booking materialization (#3560)
-// to its owners. Catalog is the care-offering catalog composed by
-// NewCareOfferingCatalog, unset for NewCareOfferingCatalogWithBookings; the
-// hooks are nil-safe.
+// to its owners. Catalog comes from NewCareOfferingCatalog, unset for
+// NewCareOfferingCatalogWithBookings; the hooks are nil-safe.
 type BookingMaterializationDependencies struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Rosters     BookingRosters

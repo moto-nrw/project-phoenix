@@ -17,11 +17,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -49,10 +51,6 @@ type StudentTestModule struct {
 	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	MasterDataReview  masterdatarequests.Decisions
 	ParentRequests    parentrequests.Coordinator
-	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
-	// and file cleanup. Adapter tests assert on both, and the stored files are
-	// an api-layer concern this graph cannot supply.
-	NewStudentPhotos func(PhotoBroadcaster, peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -100,6 +98,20 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 // services, the Audit command it records into, the Enrollment decisions and
 // the OGS group live projection.
 func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, ActiveTestModule, StudentTestPeople, auditModels.Command, enrollmentOwner.Decisions, grouplive.Query, error) {
+	return newStudentTestModule(db, unit, feedbackCounter, nil, nil, clocks...)
+}
+
+// NewStudentHTTPTestModule is NewStudentTestModule with the photo lifecycle
+// on the caller's broadcaster and the stored-file cleanup, which the student
+// route tests assert on.
+func NewStudentHTTPTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, broadcaster PhotoBroadcaster, clocks ...func() time.Time) (StudentTestModule, ActiveTestModule, StudentTestPeople, auditModels.Command, enrollmentOwner.Decisions, grouplive.Query, error) {
+	return newStudentTestModule(db, unit, feedbackCounter, broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}), clocks...)
+}
+
+// newStudentTestModule composes the graph with the photo lifecycle on
+// photoBroadcaster (the graph's realtime hub when nil) and photoUnlinker
+// (no file cleanup when nil).
+func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, photoBroadcaster PhotoBroadcaster, photoUnlinker peoplePorts.PhotoUnlinker, clocks ...func() time.Time) (StudentTestModule, ActiveTestModule, StudentTestPeople, auditModels.Command, enrollmentOwner.Decisions, grouplive.Query, error) {
 	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -138,7 +150,18 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	guardian, err := NewGuardianTestModule(db, unit)
+	logger := slog.Default()
+	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
+	studentConsentService := NewStudentConsents(db)
+	if photoBroadcaster == nil {
+		photoBroadcaster = realtimeHub
+	}
+	photoDeps := StudentPhotoRuntimeDependencies{
+		Settings: liveSettings.Settings, Broadcaster: photoBroadcaster, Unlinker: photoUnlinker,
+		Consents: studentConsentService, Logger: logger,
+		ActingAccount: actingAccountID,
+	}
+	guardian, err := newGuardianTestModule(db, unit, NewStudentPhotoRuntime(photoDeps))
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
@@ -147,10 +170,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	logger := slog.Default()
 	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
-	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	settingsService := liveSettings.Settings
 	// Care Plan is composed after the live graph's person directory; the
 	// module hands out the copy that reaches it.
@@ -170,18 +191,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := CurrentServiceConfig().FrontendURL
 	parentsURL := CurrentServiceConfig().ParentsURL
-	studentConsentService := NewStudentConsents(db)
-	// The stored files live in the API layer, so a services-only graph binds
-	// no unlinker: the runtime skips the cleanup instead of guessing a path.
-	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService {
-		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
-			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
-			Consents: studentConsentService, Logger: logger,
-			ActingAccount: actingAccountID,
-		})
-	}
-	studentPhotoService := newStudentPhotos(realtimeHub, nil)
-	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
+	studentPhotoService := NewStudentPhotos(persons, photoDeps)
 	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(students.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
@@ -405,8 +415,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
 	return StudentTestModule{
-			NewStudentPhotos: newStudentPhotos, NewPickupAdjustments: newPickupAdjustmentsFor,
-			CareLifecycle: careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
+			NewPickupAdjustments: newPickupAdjustmentsFor,
+			CareLifecycle:        careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
 			OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
 			MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator,
 		}, live, StudentTestPeople{PeopleDirectory: persons, StudentAudit: studentAuditService, StudentPhotos: studentPhotoService},

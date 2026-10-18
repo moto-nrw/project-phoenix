@@ -120,37 +120,18 @@ type StaffDayStatus interface {
 	GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error)
 }
 
-// NewTimeTracking composes the time-tracking services over the Workforce
-// capability rows and the root's ports, and binds the public contracts; staff
-// resolves the record a schedule update is written for. A nil
-// ports.ShiftPlanSync leaves the shift plans untouched.
-func NewTimeTracking(capability workforce.Capability, ports TimeTrackingPorts, staff StaffScheduleBindingLookup) (*TimeTracking, error) {
-	cascade := ports.ShiftPlanSync
-	ports.ShiftPlanSync = nil
-	side, err := NewWorkSessionSide(capability, ports, staff)
-	if err != nil {
-		return nil, err
-	}
-	return side.complete(cascade), nil
-}
-
-// WorkSessionSide is the time tracking before its absence lifecycle, whose
-// sick cascade (#1843) reaches Student Presence, which stamps through
-// AutoCheckIn. The root builds this side, then the cascade, then calls
-// WithSickCascade once; the result carries the same AutoCheckIn.
+// WorkSessionSide is the time tracking before the absence lifecycle; the root
+// builds the sick cascade (#1843) after it and passes it to WithSickCascade.
 type WorkSessionSide struct {
 	AutoCheckIn AutoCheckIn
 	clock       *timetracking.Clock
 	staff       StaffScheduleBindingLookup
 }
 
-// NewWorkSessionSide composes every time-tracking service but the absence
-// lifecycle. ports.ShiftPlanSync must stay nil: WithSickCascade takes it.
+// NewWorkSessionSide composes every time-tracking service but the absences;
+// staff resolves the record a schedule update is written for.
 func NewWorkSessionSide(capability workforce.Capability, ports TimeTrackingPorts, staff StaffScheduleBindingLookup) (*WorkSessionSide, error) {
-	switch {
-	case ports.ShiftPlanSync != nil:
-		return nil, errors.New("time tracking: the sick cascade is passed to WithSickCascade, not in the ports")
-	case capability == nil || staff == nil:
+	if capability == nil || staff == nil {
 		return nil, errors.New("time tracking: the Workforce capability and the staff lookup are required")
 	}
 	clock, err := timetracking.NewClock(timetracking.Dependencies{Rows: timeTrackingRows(capability), Ports: ports})
@@ -160,16 +141,11 @@ func NewWorkSessionSide(capability workforce.Capability, ports TimeTrackingPorts
 	return &WorkSessionSide{AutoCheckIn: timetracking.AutoCheckInCapability(clock.Sessions()), clock: clock, staff: staff}, nil
 }
 
-// WithSickCascade composes the absence lifecycle over the required sick
-// cascade and returns the complete time tracking.
+// WithSickCascade adds the absences over the required sick cascade.
 func (s *WorkSessionSide) WithSickCascade(cascade ShiftPlanSyncer) (*TimeTracking, error) {
 	if cascade == nil {
 		return nil, errors.New("time tracking: the sick cascade is required")
 	}
-	return s.complete(cascade), nil
-}
-
-func (s *WorkSessionSide) complete(cascade ShiftPlanSyncer) *TimeTracking {
 	services := s.clock.WithAbsences(cascade)
 	return &TimeTracking{
 		WorkSessions:       timetracking.WorkSessionCapability(services.Sessions, s.staff),
@@ -186,7 +162,7 @@ func (s *WorkSessionSide) complete(cascade ShiftPlanSyncer) *TimeTracking {
 		AutoCheckIn:        s.AutoCheckIn,
 		Jobs:               services.Sessions,
 		StaffDay:           staffDay{WorkSessionService: services.Sessions, StaffAbsenceService: services.Absences},
-	}
+	}, nil
 }
 
 // staffDay serves today's staff status from the session and absence

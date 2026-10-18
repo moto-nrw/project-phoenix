@@ -229,21 +229,24 @@ func (s studentPhotos) deferTenantSettingsChanged(tenantID int64, key string) fu
 }
 
 // NewStudentPhotos binds the owner capability and the runtime it needs, and
-// returns the retained contract the handlers call.
-func NewStudentPhotos(
-	directory StudentPhotoCapability,
-	slot *peopleCompose.StudentPhotoRuntime,
-	deps StudentPhotoRuntimeDependencies,
-) peoplePorts.StudentPhotoService {
-	runtime := studentPhotoRuntime{
+// returns the retained contract the handlers call. The directory is composed
+// over NewStudentPhotoRuntime with the same dependencies.
+func NewStudentPhotos(directory StudentPhotoCapability, deps StudentPhotoRuntimeDependencies) peoplePorts.StudentPhotoService {
+	return studentPhotos{directory: directory, runtime: newStudentPhotoRuntime(deps)}
+}
+
+// NewStudentPhotoRuntime is the photo runtime a People Directory is composed
+// with (peopleCompose.Dependencies.StudentPhotos).
+func NewStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) peopleCompose.StudentPhotoRuntime {
+	return newStudentPhotoRuntime(deps)
+}
+
+func newStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) studentPhotoRuntime {
+	return studentPhotoRuntime{
 		settings: deps.Settings, broadcaster: deps.Broadcaster,
 		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
 		actor: deps.ActingAccount,
 	}
-	if slot != nil {
-		*slot = runtime
-	}
-	return studentPhotos{directory: directory, runtime: runtime}
 }
 
 // StudentPhotoRuntimeDependencies are the surfaces the photo lifecycle needs

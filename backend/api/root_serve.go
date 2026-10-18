@@ -99,6 +99,7 @@ func composeServeRoot(
 		groups           *schoolstructure.Module
 		rooms            *facilitiesModule.Rooms
 		membership       *schoolMembershipModule.Module
+		classListEntries *schoolMembershipModule.Module
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
 		calendar         *schoolcalendar.Records
@@ -225,6 +226,10 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			persons, err = buildPeopleDirectory(db, observePeopleDirectory, photoRuntime, guardianDirectoryProvider(db, guardian))
+			return
+		},
+		func() (err error) {
+			classListEntries, err = composeClassListEntries(db, persons, audit.Command)
 			return
 		},
 		func() (err error) { timetableOwner, err = buildServeTimetable(db, persons, rooms, membership); return },
@@ -546,7 +551,7 @@ func composeServeRoot(
 				enrollmentCompose.PublicDecisions(decisions), notices.Deletions, identity, guardianProfiles, organizations, renderer, persons, carePlan)
 			mountSchoolRoutes(tenant, db, logger, facilities, facilitiesRooms, settings.Service, caller, active, services.Users,
 				structureViews.Education, renderer, activities, timetableOwner, iot, calendarAdmin, planning, careOfferings, settingsWrites,
-				membership, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
+				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency)
 			mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication)

@@ -23,7 +23,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -101,21 +100,6 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	nonWorkingDayService := schoolCalendarCompose.NonWorkingDays{Calendar: calendar}
 	today := timezone.CalendarDateClock(OptionalClock(clocks))
-	var shiftPlanSyncer shiftplansync.SickCascade
-	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, members.Staff, presence, settingsService, timeTrackingTestGraph{
-		Audits: timeTrackingAudits{
-			WorkSessionEdit: NewTestAuditPersistence(db, nil).WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
-			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
-		},
-		People: usersService, Holidays: nonWorkingDayService,
-		Events:        timeTrackingEvents(realtimeHub),
-		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
-		Logger:        logger, Today: today,
-	})
-	if err != nil {
-		return WorkforceTestModule{}, nil, err
-	}
-
 	timetable, _, _, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
@@ -133,10 +117,23 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
+	shiftPlanSyncer, err := shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db.Pool()),
 		Deviations: timetable.TimetableData.Deviations, TimetableData: ttRows.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool())),
 		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(ttRows.InstanceStaff), Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, nil, err
+	}
+	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, members.Staff, presence, settingsService, timeTrackingTestGraph{
+		Audits: timeTrackingAudits{
+			WorkSessionEdit: NewTestAuditPersistence(db, nil).WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
+			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
+		},
+		People: usersService, Holidays: nonWorkingDayService,
+		Events:        timeTrackingEvents(realtimeHub),
+		ShiftPlanSync: shiftPlanSyncer,
+		Logger:        logger, Today: today,
 	})
 	if err != nil {
 		return WorkforceTestModule{}, nil, err

@@ -9,6 +9,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -45,15 +46,37 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		return nil, err
 	}
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
-	return newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
+	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
 		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
 		Staff:        WorkSessionStaff(staffRows, employment, membership),
 		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
-		Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync, Logger: graph.Logger, Today: graph.Today,
+		Events: graph.Events, Logger: graph.Logger, Today: graph.Today,
 	}, graph.Audits, staffRows, graph.People, employment, NewStaffWorkScheduleRepository(repos.Workforce), NewWorkTimeModelRepository(repos.Workforce),
 		settings, payroll, db,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return side.WithSickCascade(graph.ShiftPlanSync)
 }
+
+// noSickCascade is the sick cascade of a test graph that composes no shift
+// plans: a sick report leaves the plans untouched.
+type noSickCascade struct{}
+
+func (noSickCascade) MarkSickForRange(context.Context, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ClearSickForRange(context.Context, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ReconcileSickRange(context.Context, workforceModule.SickCascadeInput, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ReassignSickStamps(context.Context, int64, int64) error { return nil }
 
 // noHolidays is the calendar of a test graph that composes no School
 // Calendar: no day loses its Soll.

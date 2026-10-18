@@ -208,13 +208,15 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	careDay := careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{ArrivalBaselines: arrival, Records: carePlan,
-		PickupBaselines: pickup})
 	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return fail(err)
 	}
-	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
+	careDay, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{ArrivalBaselines: arrival, Records: carePlan,
+		PickupBaselines: pickup, CareParticipation: care.CareLifecycle})
+	if err != nil {
+		return fail(err)
+	}
 	bridge, err := NewTimetableEndedSessionCompletion(rt.OwnerRows(), careDay)
 	if err != nil {
 		return fail(err)

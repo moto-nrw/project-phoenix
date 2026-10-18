@@ -11,7 +11,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -50,7 +49,6 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	rCare := NewEnrollmentCarePlanRows(db)
 	rAudit := NewEnrollmentAuditRows(db, command)
 	rMembership := NewSchoolMembershipSuiteRepositories(db)
-	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	reports := NewEnrollmentReports(EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(rCare.CarePlan), AccessLog: rAudit.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,

@@ -582,3 +582,17 @@ func (l shareLedger) sharedRecipientAccountIDs(ctx context.Context, studentID in
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
 	return accountIDs, nil
 }
+
+// ChildFlowSharing serves the child flows' request-sharing port from this
+// ledger.
+func (s *Service) ChildFlowSharing() care.RequestSharer { return childFlowSharing{Service: s} }
+
+type childFlowSharing struct{ *Service }
+
+func (c childFlowSharing) LoadRequestShareVisibility(ctx context.Context, studentID int64) (care.RequestShareVisibility, error) {
+	visibility, err := c.Service.LoadRequestShareVisibility(ctx, studentID)
+	if err != nil || visibility == nil {
+		return nil, err
+	}
+	return visibility, nil
+}

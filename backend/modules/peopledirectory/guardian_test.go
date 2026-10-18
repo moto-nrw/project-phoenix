@@ -54,9 +54,8 @@ func TestGuardianCallsFailWhileNoProviderIsBound(t *testing.T) {
 func TestGuardianQueriesValidateBeforeDelegating(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := peopledirectory.NewModule(engine)
 	provider := &stubProvider{}
-	module.BindGuardianProvider(provider)
+	module := peopledirectory.NewModule(engine, provider)
 	ctx := context.Background()
 
 	if _, err := module.FindGuardian(ctx, 0); !errors.Is(err, peopledirectory.ErrInvalidGuardian) {
@@ -93,9 +92,8 @@ func TestGuardianQueriesValidateBeforeDelegating(t *testing.T) {
 func TestGuardianCallsAreObservedAndErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := peopledirectory.NewModule(engine)
 	provider := &stubProvider{found: peopledirectory.Guardian{ID: 9, FirstName: "Mia"}}
-	module.BindGuardianProvider(provider)
+	module := peopledirectory.NewModule(engine, provider)
 	ctx := context.Background()
 
 	guardian, err := module.FindGuardian(ctx, 9)
@@ -151,4 +149,17 @@ func TestGuardianLinkHasPermission(t *testing.T) {
 	if !(peopledirectory.NewStudentGuardian{}).CreatesProfile() {
 		t.Fatal("an entry without a profile id creates a profile")
 	}
+}
+
+// A guardian provider handed to the module is required to be one: a nil
+// provider is a composition error, not a module that answers unbound.
+func TestNewModuleRefusesANilGuardianProvider(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recovered := recover(); recovered != "people directory: guardian provider is required" {
+			t.Fatalf("expected the provider panic, got %v", recovered)
+		}
+	}()
+	peopledirectory.NewModule(&recordingEngine{}, nil)
 }

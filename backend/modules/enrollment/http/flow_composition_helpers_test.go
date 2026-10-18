@@ -75,6 +75,10 @@ func (s collectionSettings) LockClassCollectionPair(ctx context.Context) error {
 
 // phaseOfferings reads a phase's Care Plan offerings through the retained
 // offering rows, the way the root binds the phase administration.
+// unusedPhaseRecords stands in for the phase rows of a phase administration
+// whose flow under test never reads them.
+type unusedPhaseRecords struct{ TestPhaseRecords }
+
 type phaseOfferings struct {
 	rows interface {
 		ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
@@ -158,7 +162,10 @@ func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.Rol
 		src.Notifications = testNotifications(nil, nil, nil, nil)
 	}
 	if src.PhaseEligibility == nil && src.Settings != nil {
-		src.PhaseEligibility = NewTestPhases(TestPhaseDependencies{Settings: collectionSettings{settings: src.Settings}})
+		src.PhaseEligibility = NewTestPhases(TestPhaseDependencies{
+			Records: unusedPhaseRecords{}, Offerings: phaseOfferings{}, LockTemplateRecurrence: func(context.Context) error { return nil },
+			Resyncer: &recordingSourcedTemplateResyncer{}, Settings: collectionSettings{settings: src.Settings},
+		})
 	}
 	return enrollmentAPI.NewRolloverService(api.NewEnrollmentRollovers(src))
 }

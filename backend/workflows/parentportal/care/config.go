@@ -65,10 +65,8 @@ type Config struct {
 	StudentAudit        StudentChangeRecorder
 	StudentConsents     StudentConsentService
 	ParentRequestEvents RequestEventWriter
-	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
-	// The API bootstrap builds that service after this one, so the
-	// composition passes a resolver instead of setting it afterwards.
-	StudentPhotos func() StudentPhotoUnlinker
+	// StudentPhotos unlinks the stored photo a withdrawal leaves behind.
+	StudentPhotos StudentPhotoUnlinker
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory
