@@ -99,6 +99,14 @@ type Settings struct {
 
 func NewSettings() *Settings { return &Settings{} }
 
+// NewBoundSettings is NewSettings with the resolvers bound at construction.
+func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) (*Settings, error) {
+	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
+		return nil, errors.New("meal plan settings: resolvers are required")
+	}
+	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, mealRegistrationCutoff: mealRegistrationCutoff}, nil
+}
+
 func (s *Settings) Bind(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) {
 	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
 		panic("meal plan settings: resolvers are required")

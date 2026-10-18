@@ -125,6 +125,29 @@ func NewUsageService(
 	}
 }
 
+// NewTenantUsageService is NewUsageService over the root's tenant unit of
+// work, in place of SetTenantRuntime after construction (ADR 0059). A
+// missing collaborator is a construction error; the logger stays optional.
+func NewTenantUsageService(
+	runtime tenant.UnitOfWork,
+	db *bun.DB,
+	repo usageRepository,
+	summaries UsageCounts,
+	accountTenants GuardianSchools,
+	settings RetentionSettings,
+	logger *slog.Logger,
+) (UsageService, error) {
+	if runtime.IsZero() {
+		return nil, fmt.Errorf("pwa usage: %w", tenant.ErrRuntimeRequired)
+	}
+	if db == nil || repo == nil || summaries == nil || accountTenants == nil || settings == nil {
+		return nil, errors.New("pwa usage: all dependencies are required")
+	}
+	service := NewUsageService(db, repo, summaries, accountTenants, settings, logger).(*usageService)
+	service.tenantRuntime = &runtime
+	return service, nil
+}
+
 func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
 	if err := validateUsage(accountID, deliveryModels.PushPortalStaff); err != nil {
 		return err

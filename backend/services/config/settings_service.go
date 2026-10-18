@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -163,6 +164,43 @@ func NewSettingsServiceWithHomeLayouts(
 	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
 }
 
+// SettingsServiceDependencies are every collaborator of the settings service,
+// fixed at construction. Registry is optional and defaults to the global
+// registry; everything else is required.
+type SettingsServiceDependencies struct {
+	Values        config.SettingValueRepository
+	Audit         config.SettingAuditRepository
+	Schools       SchoolSettingsStore
+	Runtime       Runtime
+	Logger        *slog.Logger
+	HomeLayouts   *HomeLayoutService
+	ObserveLookup SettingsLookupObserver
+	// The Enrollment probes of the collection guards (#1663).
+	ClassRestrictionGuard func(ctx context.Context) (bool, error)
+	GradeRestrictionGuard func(ctx context.Context) (bool, error)
+	GradeCapGuard         func(ctx context.Context) (int, error)
+	Registry              *config.Registry
+}
+
+// NewSettingsServiceWithDependencies builds the settings service with its
+// runtime, lookup observer and collection guards at construction, in place
+// of SetRuntime, SetLookupObserver and the Set*Guard calls after it
+// (ADR 0059). A missing dependency is a construction error.
+func NewSettingsServiceWithDependencies(dependencies SettingsServiceDependencies) (BatchSettingsService, error) {
+	if dependencies.Values == nil || dependencies.Audit == nil || dependencies.Schools == nil || dependencies.Runtime == nil ||
+		dependencies.Logger == nil || dependencies.HomeLayouts == nil || dependencies.ObserveLookup == nil ||
+		dependencies.ClassRestrictionGuard == nil || dependencies.GradeRestrictionGuard == nil || dependencies.GradeCapGuard == nil {
+		return nil, errors.New("settings service: all dependencies are required")
+	}
+	service := newSettingsService(dependencies.Values, dependencies.Audit, dependencies.Schools, dependencies.Runtime,
+		dependencies.Logger, dependencies.HomeLayouts, dependencies.Registry)
+	service.observeLookup = dependencies.ObserveLookup
+	service.classRestrictionGuard = dependencies.ClassRestrictionGuard
+	service.gradeRestrictionGuard = dependencies.GradeRestrictionGuard
+	service.gradeCapGuard = dependencies.GradeCapGuard
+	return service, nil
+}
+
 func newSettingsService(
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,
@@ -171,7 +209,7 @@ func newSettingsService(
 	logger *slog.Logger,
 	homeLayouts *HomeLayoutService,
 	registries ...*config.Registry,
-) BatchSettingsService {
+) *settingsService {
 	registry := config.DefaultRegistry()
 	if len(registries) > 0 && registries[0] != nil {
 		registry = registries[0]
