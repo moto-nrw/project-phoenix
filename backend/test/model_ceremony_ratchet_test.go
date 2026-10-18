@@ -17,8 +17,7 @@ import (
 // PR A1 of the 2026-07-05 code-reduction audit deleted 255 shadow getters and
 // 117 TableName methods; this ratchet keeps them from growing back.
 //
-// Three patterns, scanned over models/ excluding models/base (which hosts the
-// canonical getter set; models/users keeps a local copy, see the M1 allowlist):
+// Three patterns, scanned over the remaining models/ packages:
 //
 //	M1 — GetID/GetCreatedAt/GetUpdatedAt method declarations. Zero tolerated;
 //	     conventional models embed a base shape, while audit models keep their
@@ -60,7 +59,7 @@ func TestModelCeremonyRatchet(t *testing.T) {
 		return
 	}
 
-	skipDirs := map[string]bool{"models/base": true}
+	skipDirs := map[string]bool{}
 	modelsRoot := filepath.Join(backendRoot, "models")
 
 	checks := []struct {

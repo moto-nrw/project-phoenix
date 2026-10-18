@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -20,7 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -134,7 +135,7 @@ func payloadRenderer(render func(context.Context, map[string]any) (*email.Messag
 // precedingMails reports Delivery's state of a queued mail in Identity's
 // terms (#4006).
 type precedingMails struct {
-	status func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error)
+	status func(ctx context.Context, tenantID, id int64) (deliveryContract.State, bool, error)
 }
 
 func (p precedingMails) PrecedingMailState(ctx context.Context, tenantID, outboxID int64) (identityaccessCompose.PrecedingMailState, bool, error) {
@@ -143,11 +144,11 @@ func (p precedingMails) PrecedingMailState(ctx context.Context, tenantID, outbox
 		return identityaccessCompose.PrecedingMailQueued, found, err
 	}
 	switch state {
-	case deliveryModule.StateSent:
+	case deliveryContract.StateSent:
 		return identityaccessCompose.PrecedingMailSent, true, nil
-	case deliveryModule.StateCancelled:
+	case deliveryContract.StateCancelled:
 		return identityaccessCompose.PrecedingMailCancelled, true, nil
-	case deliveryModule.StateDeadLetter:
+	case deliveryContract.StateDeadLetter:
 		return identityaccessCompose.PrecedingMailUndeliverable, true, nil
 	default:
 		return identityaccessCompose.PrecedingMailQueued, true, nil

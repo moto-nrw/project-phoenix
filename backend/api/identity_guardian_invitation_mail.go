@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
@@ -122,7 +123,7 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, delivery.ErrIdempotencyConflict):
+	case errors.Is(err, deliveryContract.ErrIdempotencyConflict):
 		// Welcomed before, with other details (a new name or new settings):
 		// the guardian already has the mail.
 		m.logger.Debug("guardian welcome email already queued",

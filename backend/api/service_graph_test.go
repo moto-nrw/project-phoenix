@@ -30,7 +30,7 @@ func TestServiceGraphComposesItsServices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	env, transport, identity, caller, settings, _, services, _, _, active, reports, _, planning, _, _, activities, structureViews, facilitiesRooms, deviceFleet, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
+	env, mailSender, _, mailFrom, _, hub, identity, caller, settings, _, services, _, _, active, reports, _, planning, _, _, activities, structureViews, facilitiesRooms, deviceFleet, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -52,12 +52,12 @@ func TestServiceGraphComposesItsServices(t *testing.T) {
 	})
 
 	t.Run("realtime hub", func(t *testing.T) {
-		assert.NotNil(t, transport.Hub)
+		assert.NotNil(t, hub)
 	})
 
 	t.Run("email configuration", func(t *testing.T) {
-		assert.NotNil(t, transport.Mailer)
-		assert.NotNil(t, transport.DefaultFrom)
+		assert.NotNil(t, mailSender)
+		assert.NotNil(t, mailFrom)
 	})
 
 	t.Run("configured values", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestServiceGraph_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, notices, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
+	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, notices, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 
 	_, err = notices.Deletions.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
@@ -87,7 +87,7 @@ func TestServiceGraph_RejectsPartialVAPIDConfig(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.VAPIDPublicKey = "configured-without-the-other-required-values"
 
-	_, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, identity)
 	assert.ErrorContains(t, err, "invalid VAPID configuration")
@@ -100,7 +100,7 @@ func TestServiceGraph_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := testServiceConfig()
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -114,7 +114,7 @@ func TestServiceGraph_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = 500
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -128,7 +128,7 @@ func TestServiceGraph_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = 72
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -140,7 +140,7 @@ func TestServiceGraph_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := testServiceConfig()
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -154,7 +154,7 @@ func TestServiceGraph_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = 2000
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -168,7 +168,7 @@ func TestServiceGraph_PasswordResetExpiry_ValidValue(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = 60
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -182,7 +182,7 @@ func TestServiceGraph_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.FrontendURL = "http://example.com/"
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -196,7 +196,7 @@ func TestServiceGraph_FrontendURL_Required(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.FrontendURL = ""
 
-	_, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, identity)
 	assert.Contains(t, err.Error(), "FRONTEND_URL")
@@ -209,7 +209,7 @@ func TestServiceGraph_PublicAPIURL_Required(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.PublicAPIURL = ""
 
-	_, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, identity)
 	assert.ErrorContains(t, err, "NEXT_PUBLIC_API_URL")
@@ -230,7 +230,7 @@ func TestServiceGraph_PortalURLs_Required(t *testing.T) {
 			cfg := testServiceConfig()
 			tc.clear(&cfg)
 
-			_, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+			_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 			require.Error(t, err)
 			require.Nil(t, identity)
 			assert.Contains(t, err.Error(), tc.want)
@@ -242,13 +242,13 @@ func TestServiceGraph_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	_, transport, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
+	_, _, _, mailFrom, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
 	// Default values when not configured
-	assert.Equal(t, "moto", transport.DefaultFrom.Name)
-	assert.Equal(t, "no-reply@moto.local", transport.DefaultFrom.Address)
+	assert.Equal(t, "moto", mailFrom.Name)
+	assert.Equal(t, "no-reply@moto.local", mailFrom.Address)
 }
 
 func TestServiceGraph_EmailFrom_WhenConfigured(t *testing.T) {
@@ -259,12 +259,12 @@ func TestServiceGraph_EmailFrom_WhenConfigured(t *testing.T) {
 	cfg.EmailFromName = "Test App"
 	cfg.EmailFromAddress = "test@example.com"
 
-	_, transport, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	_, _, _, mailFrom, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
-	assert.Equal(t, "Test App", transport.DefaultFrom.Name)
-	assert.Equal(t, "test@example.com", transport.DefaultFrom.Address)
+	assert.Equal(t, "Test App", mailFrom.Name)
+	assert.Equal(t, "test@example.com", mailFrom.Address)
 }
 
 func TestServiceGraph_NegativeInvitationExpiry(t *testing.T) {
@@ -274,7 +274,7 @@ func TestServiceGraph_NegativeInvitationExpiry(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = -10
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -288,7 +288,7 @@ func TestServiceGraph_NegativePasswordResetExpiry(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = -10
 
-	env, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	env, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 

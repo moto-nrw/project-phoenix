@@ -8,13 +8,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	"github.com/go-chi/chi/v5"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -80,7 +80,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
 	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)
 	calendarConfig.Outbox = newCalendarOutbox(delivery.EmailOutbox)
-	calendarConfig.PushOutbox = deliveryCompose.NewDurablePushOutbox(delivery.Delivery)
+	calendarConfig.PushOutbox = deliveryCompose.NewDurablePushOutbox(delivery.Runtime.Module)
 	calendarConfig.Settings = settings.Settings
 	calendarConfig.StaffFeedTombstoneRepo = NewCalendarFeedTestTombstones(db)
 	calendarConfig.ParentsURL = cfg.ParentsURL
@@ -118,7 +118,7 @@ func CalendarOutboxNotifierForTest(module DeliveryTestModule) fixtureCalendarNot
 		if err != nil {
 			return err
 		}
-		_, err = module.Delivery.EnqueueDeferredPush(ctx, delivery.DeferredPushIntent{TenantID: event.Audience.TenantID, Template: event.Type, IdempotencyKey: event.IdempotencyKey, Related: delivery.RelatedEntity{Type: event.RelatedType, ID: event.RelatedID}, Payload: payload})
+		_, err = module.Runtime.Module.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{TenantID: event.Audience.TenantID, Template: event.Type, IdempotencyKey: event.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: event.RelatedType, ID: event.RelatedID}, Payload: payload})
 		return err
 	}
 }

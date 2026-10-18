@@ -9,11 +9,12 @@ import (
 	"log/slog"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 const transactionalMailKind = "transactional_mail"
@@ -51,36 +52,35 @@ func (o OutboxEnqueuer) EnqueueTransactionalMail(ctx context.Context, mail Durab
 	return err
 }
 
-func (o OutboxEnqueuer) enqueueTransactionalMail(ctx context.Context, mail DurableMail) (delivery.Enqueued, error) {
-	if o.Module == nil {
-		return delivery.Enqueued{}, errors.New("transactional mail: delivery is not configured")
+func (o OutboxEnqueuer) enqueueTransactionalMail(ctx context.Context, mail DurableMail) (deliveryContract.Enqueued, error) {
+	if o.Runtime == nil || o.Runtime.Module == nil {
+		return deliveryContract.Enqueued{}, errors.New("transactional mail: delivery is not configured")
 	}
+	policy := email.WithInteractiveRetry(email.DeliveryRequest{}, mail.Backoff)
 	if mail.MaxAttempts == 0 {
-		mail.MaxAttempts = 3
+		mail.MaxAttempts = policy.MaxAttempts
 	}
-	if mail.Backoff == nil {
-		mail.Backoff = []time.Duration{time.Second, 5 * time.Second, 15 * time.Second}
-	}
+	mail.Backoff = policy.BackoffPolicy
 	payload, err := json.Marshal(transactionalMailPayload{
 		MaxAttempts: mail.MaxAttempts, Backoff: mail.Backoff,
 		Message: mail.Message, Type: mail.Type, ReferenceID: mail.ReferenceID,
 		BaseRetry: mail.BaseRetry, ExpiresAt: mail.ExpiresAt,
 	})
 	if err != nil {
-		return delivery.Enqueued{}, fmt.Errorf("encode transactional mail: %w", err)
+		return deliveryContract.Enqueued{}, fmt.Errorf("encode transactional mail: %w", err)
 	}
-	intent := delivery.EmailIntent{
+	intent := deliveryContract.EmailIntent{
 		TenantID: mail.TenantID, Template: transactionalMailKind, IdempotencyKey: mail.IdempotencyKey,
-		Recipient: delivery.EmailRecipient{Name: mail.Message.To.Name, Address: mail.Message.To.Address},
+		Recipient: deliveryContract.EmailRecipient{Name: mail.Message.To.Name, Address: mail.Message.To.Address},
 		Payload:   payload,
 	}
 	if mail.ReferenceID > 0 {
-		intent.Related = delivery.RelatedEntity{Type: mail.Type, ID: mail.ReferenceID}
+		intent.Related = deliveryContract.RelatedEntity{Type: mail.Type, ID: mail.ReferenceID}
 	}
 	if mail.TenantID > 0 {
-		return o.Module.EnqueueEmail(ctx, intent)
+		return o.Runtime.Module.EnqueueEmail(ctx, intent)
 	}
-	return o.Module.EnqueueSystemEmail(ctx, intent)
+	return o.Runtime.Module.EnqueueSystemEmail(ctx, intent)
 }
 
 func enqueueDurableMail(ctx context.Context, outbox DurableMailOutbox, mail DurableMail) error {

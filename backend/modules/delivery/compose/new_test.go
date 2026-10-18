@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,23 +19,23 @@ import (
 
 func TestProviderResultMapsPublicCancellationToDomainDecision(t *testing.T) {
 	t.Parallel()
-	_, err := providerResult(delivery.ProviderResult{}, fmt.Errorf("access revoked: %w", delivery.ErrCancelled))
+	_, err := providerResult(deliveryContract.ProviderResult{}, fmt.Errorf("access revoked: %w", deliveryContract.ErrCancelled))
 	assert.True(t, errors.Is(err, domain.ErrCancelled))
 }
 
 type acceptingProvider struct{}
 
-func (acceptingProvider) SendEmail(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
+func (acceptingProvider) SendEmail(context.Context, deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	return deliveryContract.ProviderResult{}, nil
 }
 
-func (acceptingProvider) SendPush(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
+func (acceptingProvider) SendPush(context.Context, deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	return deliveryContract.ProviderResult{}, nil
 }
 
 type noGuardians struct{}
 
-func (noGuardians) ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error) {
+func (noGuardians) ResolveGuardianDisplays(context.Context, []int64) ([]deliveryContract.GuardianDisplay, error) {
 	return nil, nil
 }
 
@@ -42,7 +43,7 @@ func TestNewModuleAndWorkerRequireTheirDependencies(t *testing.T) {
 	t.Parallel()
 	// The connector opens no connection until a query runs.
 	db := bun.NewDB(sql.OpenDB(pgdriver.NewConnector()), pgdialect.New())
-	observe := func(delivery.Observation) {}
+	observe := func(deliveryContract.Observation) {}
 
 	for name, dependencies := range map[string]ModuleDependencies{
 		"database": {People: noGuardians{}, Observe: observe},
@@ -71,7 +72,7 @@ func TestNewModuleAndWorkerRequireTheirDependencies(t *testing.T) {
 func TestNewComposesModuleAndWorker(t *testing.T) {
 	t.Parallel()
 	db := bun.NewDB(sql.OpenDB(pgdriver.NewConnector()), pgdialect.New())
-	runtime, err := NewModule(ModuleDependencies{DB: db, People: noGuardians{}, Observe: func(delivery.Observation) {}})
+	runtime, err := NewModule(ModuleDependencies{DB: db, People: noGuardians{}, Observe: func(deliveryContract.Observation) {}})
 	require.NoError(t, err)
 	_, err = NewWorker(runtime, nil)
 	require.Error(t, err, "the provider is required")
@@ -80,9 +81,9 @@ func TestNewComposesModuleAndWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, runtime.Module)
 	assert.NotNil(t, worker)
-	result, err := runtime.Module.EnqueueEmail(context.Background(), delivery.EmailIntent{})
+	result, err := runtime.Module.EnqueueEmail(context.Background(), deliveryContract.EmailIntent{})
 	require.EqualError(t, err, "delivery: tenant is required")
-	assert.Equal(t, delivery.Enqueued{}, result)
+	assert.Equal(t, deliveryContract.Enqueued{}, result)
 	processed, err := worker.RunOnce(context.Background(), 0, 3)
 	require.EqualError(t, err, "delivery worker: batch size must be positive")
 	assert.Zero(t, processed)

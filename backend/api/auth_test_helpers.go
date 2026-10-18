@@ -12,7 +12,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -220,12 +220,16 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	operatorAuditLog := NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
 	cfg := CurrentServiceConfig()
 	settingsOverrides := authTestSettings{rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
-	mail := authTestMail{mailer: email.NewMockMailer()}
+	fallbackMailer, err := deliveryCompose.NewMailTransport(email.MailerConfig{AppEnv: "test"})
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	mail := authTestMail{mailer: fallbackMailer}
 	for _, option := range options {
 		option(&settingsOverrides, &mail)
 	}
 	mailer := mail.mailer
-	dispatcher := email.NewDispatcher(mailer, logger)
+	dispatcher := deliveryCompose.NewMailDispatcher(mailer, logger)
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
 		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
@@ -256,7 +260,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	var identityAccess *identityaccess.Module
-	durable := newAuthFixtureOutbox(OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Module: deliveryModule.Delivery}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
+	durable := newAuthFixtureOutbox(OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Runtime: deliveryModule.Runtime}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
 	if mail.outbox != nil {
 		durable = mail.outbox
 	}

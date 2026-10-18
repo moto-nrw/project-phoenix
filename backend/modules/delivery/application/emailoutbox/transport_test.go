@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/require"
 )
 

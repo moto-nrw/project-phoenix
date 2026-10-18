@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

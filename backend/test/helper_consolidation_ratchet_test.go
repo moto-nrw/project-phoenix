@@ -15,14 +15,14 @@ import (
 // against regrowth (report §8.7). Three patterns, all shrink-only:
 //
 //  1. The PostgreSQL unique-violation code "23505" hard-coded outside
-//     models/base — use base.IsUniqueViolation / base.IsUniqueViolationOn.
+//     modules/transactionruntime/internal/adapters/postgres — use transactionruntime.IsUniqueViolation / transactionruntime.IsUniqueViolationOn.
 //  2. Hand-rolled strconv.ParseInt(chi.URLParam(...)) in api/ — use
 //     common.ParseInt64IDWithError / ParsePositiveInt64IDWithError.
 //  3. Multi-line nil-check getLogger bodies — use cmp.Or(logger, slog.Default()).
 //
 // Allowlists are shrink-only: never add an entry, never raise a count.
 var (
-	// Non-comment "23505" references outside models/base and migrations.
+	// Non-comment "23505" references outside modules/transactionruntime/internal/adapters/postgres and migrations.
 	uniqueViolationLiteralAllowlist = map[string]int{}
 
 	// strconv.ParseInt(chi.URLParam(...)) sites in api/ outside
@@ -72,13 +72,13 @@ func TestHelperConsolidationRatchet(t *testing.T) {
 	}
 
 	counts23505, err := scanRatchetPattern(backendRoot, ".", unique23505Pattern, func(rel string) bool {
-		return strings.HasPrefix(rel, "models/base/") || strings.HasPrefix(rel, "database/migrations/")
+		return strings.HasPrefix(rel, "modules/transactionruntime/internal/adapters/postgres/unique_violation.go") || strings.HasPrefix(rel, "database/migrations/")
 	})
 	if err != nil {
 		t.Fatalf("scanning for 23505 literals failed: %v", err)
 	}
 	check(counts23505, uniqueViolationLiteralAllowlist, `"23505" literal`,
-		"Use base.IsUniqueViolation / base.IsUniqueViolationOn (models/base/db_errors.go).")
+		"Use transactionruntime.IsUniqueViolation / transactionruntime.IsUniqueViolationOn (modules/transactionruntime/internal/adapters/postgres/unique_violation.go).")
 
 	countsParseInt, err := scanRatchetPattern(backendRoot, "api", parseIntURLPattern, func(rel string) bool {
 		return rel == "api/common/request.go"

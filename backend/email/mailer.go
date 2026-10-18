@@ -3,7 +3,6 @@ package email
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"html/template"
 	"os"
@@ -12,41 +11,20 @@ import (
 	"strings"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/k3a/html2text"
 	"github.com/vanng822/go-premailer/premailer"
 )
 
-type Mailer interface {
-	Send(Message) error
-}
-
-// ContextMailer is implemented by transports that report caller cancellation.
-// Mailer stays source-compatible for the durable outbox and existing adapters;
-// synchronous Delivery requires the production SMTP adapter to implement this
-// stronger contract.
-type ContextMailer interface {
-	SendContext(context.Context, Message) error
-}
-
-// Message struct holds all parts of a specific email Message.
-type Message struct {
-	From Email
-	To   Email
-	// ReplyTo is where answers go when that is not the sender. Tenant-bound
-	// mail (Eltern-Einladung, Anmeldung, Elternmitteilung) keeps the central
-	// authenticated From and points replies at the OGS instead, so a parent
-	// answering does not reach moto (#1936). The zero value emits no header,
-	// which is what every global system mail keeps.
-	ReplyTo  Email
-	Subject  string
-	Template string
-	Content  any
-	html     string
-	text     string
-}
-
 // parse parses the corrsponding template and content
-func (m *Message) parse(templates *template.Template) error {
+type renderedMessage struct {
+	mailcontract.Message
+	html string
+	text string
+}
+
+func (m *renderedMessage) parse(templates *template.Template) error {
 	if templates == nil {
 		return fmt.Errorf("email templates are not configured")
 	}
@@ -67,20 +45,6 @@ func (m *Message) parse(templates *template.Template) error {
 
 	m.text = html2text.HTML2Text(html)
 	return nil
-}
-
-// Email struct holds email address and recipient name.
-type Email struct {
-	Name    string
-	Address string
-}
-
-// NewEmail returns an email address.
-func NewEmail(name, address string) Email {
-	return Email{
-		Name:    name,
-		Address: address,
-	}
 }
 
 func parseTemplates(dir string) (*template.Template, error) {

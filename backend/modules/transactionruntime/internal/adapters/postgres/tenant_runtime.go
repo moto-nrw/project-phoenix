@@ -1,4 +1,4 @@
-package database
+package postgres
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
 )
 
@@ -29,22 +30,6 @@ func (r *PostgresUnitOfWork) ContextWithoutTransaction(ctx context.Context) cont
 	ctx = context.WithValue(ctx, databaseTransactionKey{}, nil)
 	return ctx
 }
-
-type transactionStartError struct{ err error }
-
-func (e *transactionStartError) Error() string {
-	return "unit of work: start transaction: " + e.err.Error()
-}
-func (e *transactionStartError) Unwrap() error          { return e.err }
-func (e *transactionStartError) TransactionNotStarted() {}
-
-type commitOutcomeUnknownError struct{ err error }
-
-func (e *commitOutcomeUnknownError) Error() string {
-	return "unit of work: commit outcome unknown: " + e.err.Error()
-}
-func (e *commitOutcomeUnknownError) Unwrap() error         { return e.err }
-func (e *commitOutcomeUnknownError) CommitOutcomeUnknown() {}
 
 // PostgresUnitOfWork is the PostgreSQL adapter for transaction execution.
 // Tenant validation, retry ownership, and context propagation stay behind the
@@ -142,13 +127,13 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 	conn, err := r.db.Conn(ctx)
 	r.observePoolWait(ctx, time.Since(started))
 	if err != nil {
-		return &transactionStartError{err: err}
+		return &protocol.TransactionStartError{Err: err}
 	}
 	defer func() { _ = conn.Close() }()
 
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return &transactionStartError{err: err}
+		return &protocol.TransactionStartError{Err: err}
 	}
 	finished := false
 	defer func() {
@@ -171,7 +156,7 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 	if commitErr == nil || IsRetryableTransactionError(commitErr) {
 		return commitErr
 	}
-	return &commitOutcomeUnknownError{err: commitErr}
+	return &protocol.CommitOutcomeUnknownError{Err: commitErr}
 }
 
 // The three savepoint methods implement tenant.SavepointController.

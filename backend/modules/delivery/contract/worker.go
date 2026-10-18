@@ -1,10 +1,10 @@
-package delivery
+// Package contract publishes Delivery's native intent and provider values.
+package contract
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -56,37 +56,7 @@ type WorkerStats struct {
 	LeaseLost    int
 }
 
-type workerEngine interface {
-	RunOnce(context.Context, int, int) (WorkerStats, error)
-	Backlog(context.Context) (int, error)
-}
-
 // ErrDeadLettered fails a run in which deliveries failed for good after all
 // their attempts. That is the end of a delivery's retries, so the worker's
 // caller reports it like any failed run (#3640).
 var ErrDeadLettered = errors.New("delivery worker: deliveries failed for good after all attempts")
-
-type Worker struct{ engine workerEngine }
-
-func NewWorker(engine workerEngine) *Worker {
-	if engine == nil {
-		panic("delivery worker: engine is required")
-	}
-	return &Worker{engine: engine}
-}
-
-func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error) {
-	if batchSize <= 0 {
-		return 0, errors.New("delivery worker: batch size must be positive")
-	}
-	if maxAttempts <= 0 {
-		return 0, errors.New("delivery worker: max attempts must be positive")
-	}
-	stats, err := w.engine.RunOnce(ctx, batchSize, maxAttempts)
-	if err == nil && stats.DeadLettered > 0 {
-		err = fmt.Errorf("%w: %d", ErrDeadLettered, stats.DeadLettered)
-	}
-	return stats.Claimed, err
-}
-
-func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.engine.Backlog(ctx) }

@@ -56,11 +56,14 @@ func (messageQueryHook) AfterQuery(ctx context.Context, event *bun.QueryEvent) {
 	stats.add(event)
 }
 
-// InstallMessageQueryInstrumentation registers the query hook used by the
-// public message facade. A per-event marker prevents duplicate registrations
-// from counting the same statement more than once.
-func InstallMessageQueryInstrumentation(db *bun.DB) {
-	db.AddQueryHook(messageQueryHook{}) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+// InstrumentMessageQueries preserves a shared handle's hook list by cloning it.
+// Dedicated roots attach in place before constructing their components.
+func InstrumentMessageQueries(db *bun.DB, shared bool) *bun.DB {
+	if shared {
+		return db.WithQueryHook(messageQueryHook{})
+	}
+	db.AddQueryHook(messageQueryHook{}) //nolint:staticcheck // SA1019: startup registration must reach every component holding the dedicated pool.
+	return db
 }
 
 func WithMessageQueryStats(ctx context.Context) (context.Context, *MessageQueryStats) {

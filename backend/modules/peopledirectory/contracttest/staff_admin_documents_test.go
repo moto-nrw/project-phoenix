@@ -71,7 +71,7 @@ func (s *staffDocumentScenario) create(t *testing.T, category string, actor work
 		StaffID:         s.staffID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
-		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, time.Now().UnixNano()),
+		FilenameStored:  fmt.Sprintf("%s-%d-%d.pdf", category, s.staffID, time.Now().UnixNano()),
 		SizeBytes:       42,
 		ContentType:     "application/pdf",
 	}, actor)

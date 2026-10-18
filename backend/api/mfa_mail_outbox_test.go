@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -108,7 +110,7 @@ func mfaLeasedMailFixture(t *testing.T, send mfaOutboxTransport) (*bun.DB, conte
 	testpkg.SetupIsolatedTestDB(t)
 	db, ctx, _ := mailTransactionFixture(t)
 	database := testpkg.NewDatabase(t, db)
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {}})
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	require.NoError(t, err)
 	provider := &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{transactionalMailKind: transactionalMailRenderer{logger: slog.Default()}}), Mailer: send, Logger: slog.Default(), Tenants: deliveryCompose.NewTenantTransactions(db)}
 	worker, err := deliveryCompose.NewWorker(runtime, provider)

@@ -1,8 +1,9 @@
-package delivery
+// Package contract publishes Delivery's native intent and provider values.
+package contract
 
-import "context"
-
-// Retention deletes the delivery data of the school in context after the
+import (
+	"context"
+) // Retention deletes the delivery data of the school in context after the
 // fixed window of the retention list (#3955): mail and push intents and the
 // mail delivery logs 30 days after the intent was sent, finally failed or
 // was cancelled. Intents still being tried stay. A guardian welcome keeps

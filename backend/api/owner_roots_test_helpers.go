@@ -6,7 +6,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -23,7 +24,7 @@ import (
 // reminder workflow without constructing a repository or service factory.
 func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarReminderSource) reminder.Command {
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {},
+		DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	if err != nil {
 		panic(err)
@@ -59,7 +60,7 @@ func NewSickCascadeTimetableRows(rows timetableCompose.OwnerRows, db transaction
 // NewCalendarReminderOutboxFixture exposes preparation and the real worker so
 // transaction and process-death tests can omit the post-commit continuation.
 func NewCalendarReminderOutboxFixture(db transactionruntime.Database, source CalendarReminderSource) (func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error) {
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {}})
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	if err != nil {
 		panic(err)
 	}

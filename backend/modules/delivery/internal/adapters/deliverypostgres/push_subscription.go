@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -20,14 +20,9 @@ const (
 	pushPortalFilter       = "portal = ?"
 )
 
-// PushSubscriptionRepository implements deliveryModels.PushSubscriptionRepository.
+// PushSubscriptionRepository implements deliveryPorts.PushSubscriptionRepository.
 type PushSubscriptionRepository struct {
 	DB *bun.DB
-}
-
-// NewPushSubscriptionRepository creates a new PushSubscriptionRepository.
-func NewPushSubscriptionRepository(db *bun.DB) deliveryModels.PushSubscriptionRepository {
-	return &PushSubscriptionRepository{DB: db}
 }
 
 // Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,

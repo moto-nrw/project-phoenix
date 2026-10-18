@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,7 +36,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 func newMockPushSubscriptionService(
 	t testing.TB,
 	db *bun.DB,
-	repo deliveryModels.PushSubscriptionRepository,
+	repo deliveryPorts.PushSubscriptionRepository,
 	accountTenants GuardianSchools,
 	vapid VAPIDConfig,
 	logger *slog.Logger,

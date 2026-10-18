@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )

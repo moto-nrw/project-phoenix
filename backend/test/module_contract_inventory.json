@@ -25,8 +25,8 @@
   },
   {
     "module": "delivery-platform",
-    "contract_package": "modules/delivery",
-    "test_file": "modules/delivery/public_contract_test.go",
+    "contract_package": "modules/delivery/contract",
+    "test_file": "modules/delivery/runtime/public_contract_test.go",
     "test": "TestPublicDeliveryContractDeduplicatesDurableIntent"
   },
   {

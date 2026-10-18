@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +16,7 @@ import (
 func TestNewEmail(t *testing.T) {
 	t.Parallel()
 
-	email := NewEmail("John Doe", "john@example.com")
+	email := mailcontract.NewEmail("John Doe", "john@example.com")
 
 	assert.Equal(t, "John Doe", email.Name)
 	assert.Equal(t, "john@example.com", email.Address)
@@ -23,7 +25,7 @@ func TestNewEmail(t *testing.T) {
 func TestNewEmail_EmptyValues(t *testing.T) {
 	t.Parallel()
 
-	email := NewEmail("", "")
+	email := mailcontract.NewEmail("", "")
 
 	assert.Empty(t, email.Name)
 	assert.Empty(t, email.Address)
@@ -32,7 +34,7 @@ func TestNewEmail_EmptyValues(t *testing.T) {
 func TestNewEmail_SpecialCharacters(t *testing.T) {
 	t.Parallel()
 
-	email := NewEmail("José O'Connor", "jose+tag@example.com")
+	email := mailcontract.NewEmail("José O'Connor", "jose+tag@example.com")
 
 	assert.Equal(t, "José O'Connor", email.Name)
 	assert.Equal(t, "jose+tag@example.com", email.Address)
@@ -150,15 +152,15 @@ func TestMockMailer_Send(t *testing.T) {
 
 	mailer := NewMockMailer()
 
-	msg := Message{
-		From:    Email{Name: "Sender", Address: "sender@example.com"},
-		To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+	msg := mailcontract.Message{
+		From:    mailcontract.Email{Name: "Sender", Address: "sender@example.com"},
+		To:      mailcontract.Email{Name: "Recipient", Address: "recipient@example.com"},
 		Subject: "Test Subject",
 	}
 
 	err := mailer.Send(msg)
 
-	assert.ErrorIs(t, err, ErrDeliveryUnavailable)
+	assert.ErrorIs(t, err, mailcontract.ErrDeliveryUnavailable)
 	assert.True(t, mailer.SendInvoked.Load())
 }
 
@@ -167,13 +169,13 @@ func TestMockMailer_CustomSendFn(t *testing.T) {
 
 	mailer := NewMockMailer()
 
-	var capturedMessage Message
-	mailer.SendFn = func(m Message) error {
+	var capturedMessage mailcontract.Message
+	mailer.SendFn = func(m mailcontract.Message) error {
 		capturedMessage = m
 		return nil
 	}
 
-	msg := Message{
+	msg := mailcontract.Message{
 		Subject: "Custom Test",
 	}
 
@@ -189,11 +191,11 @@ func TestMockMailer_SendFnReturnsError(t *testing.T) {
 	mailer := NewMockMailer()
 
 	expectedErr := assert.AnError
-	mailer.SendFn = func(_ Message) error {
+	mailer.SendFn = func(_ mailcontract.Message) error {
 		return expectedErr
 	}
 
-	err := mailer.Send(Message{})
+	err := mailer.Send(mailcontract.Message{})
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -207,9 +209,9 @@ func TestMockMailer_SendFnReturnsError(t *testing.T) {
 func TestMessage_Fields(t *testing.T) {
 	t.Parallel()
 
-	msg := Message{
-		From:     Email{Name: "From Name", Address: "from@example.com"},
-		To:       Email{Name: "To Name", Address: "to@example.com"},
+	msg := mailcontract.Message{
+		From:     mailcontract.Email{Name: "From Name", Address: "from@example.com"},
+		To:       mailcontract.Email{Name: "To Name", Address: "to@example.com"},
 		Subject:  "Test Subject",
 		Template: "test_template.html",
 		Content:  map[string]string{"key": "value"},
@@ -240,12 +242,12 @@ func TestFMap_Contains_FormatFunctions(t *testing.T) {
 
 func TestMailerInterface_MockMailerImplements(t *testing.T) {
 	t.Parallel()
-	var _ Mailer = &MockMailer{}
+	var _ mailcontract.Mailer = &MockMailer{}
 }
 
 func TestMailerInterface_SMTPMailerImplements(t *testing.T) {
 	t.Parallel()
-	var _ Mailer = &SMTPMailer{}
+	var _ mailcontract.Mailer = &SMTPMailer{}
 }
 
 // =============================================================================
@@ -257,8 +259,8 @@ func TestLogMessage_DoesNotPanic(t *testing.T) {
 
 	// logMessage should not panic with various inputs
 	assert.NotPanics(t, func() {
-		logMessage(Message{
-			To:       Email{Address: "test@example.com"},
+		logMessage(mailcontract.Message{
+			To:       mailcontract.Email{Address: "test@example.com"},
 			Subject:  "Test",
 			Template: "test.html",
 		})
@@ -270,6 +272,6 @@ func TestLogMessage_EmptyFields(t *testing.T) {
 
 	// Should not panic with empty fields
 	assert.NotPanics(t, func() {
-		logMessage(Message{})
+		logMessage(mailcontract.Message{})
 	})
 }

@@ -6,7 +6,7 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 // SchoolContact is the part of a school the reply address is resolved from.

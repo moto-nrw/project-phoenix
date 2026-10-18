@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,10 +24,10 @@ func mailTransactionFixture(t *testing.T) (*bun.DB, context.Context, OutboxEnque
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {},
+		DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	return db, ctx, OutboxEnqueuer{Module: runtime.Module, Outbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(runtime.Module))}
+	return db, ctx, OutboxEnqueuer{Runtime: runtime, Outbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(runtime.Module))}
 }
 
 func assertTransactionalMails(t *testing.T, db *bun.DB, ctx context.Context, admin bool, address string, kinds []string, trigger func(context.Context) error) {
@@ -133,19 +134,19 @@ func TestSystemEmailOutboxScopeIdempotencyAndRetention(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db, ctx, outbox := mailTransactionFixture(t)
 	key := "system-mail-" + strconv.FormatInt(testpkg.UniqueSuffix(), 10)
-	intent := delivery.EmailIntent{Template: "test_system_mail", Recipient: delivery.EmailRecipient{Address: key + "@example.test"}, Payload: []byte(`{"test":true}`), IdempotencyKey: key, DeliverAfter: time.Now().Add(time.Hour)}
+	intent := deliveryContract.EmailIntent{Template: "test_system_mail", Recipient: deliveryContract.EmailRecipient{Address: key + "@example.test"}, Payload: []byte(`{"test":true}`), IdempotencyKey: key, DeliverAfter: time.Now().Add(time.Hour)}
 	require.Error(t, tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		_, err := outbox.Module.EnqueueSystemEmail(txCtx, intent)
+		_, err := outbox.Runtime.Module.EnqueueSystemEmail(txCtx, intent)
 		return err
 	}))
-	var first, second delivery.Enqueued
+	var first, second deliveryContract.Enqueued
 	require.NoError(t, tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		first, err = outbox.Module.EnqueueSystemEmail(txCtx, intent)
+		first, err = outbox.Runtime.Module.EnqueueSystemEmail(txCtx, intent)
 		if err != nil {
 			return err
 		}
-		second, err = outbox.Module.EnqueueSystemEmail(txCtx, intent)
+		second, err = outbox.Runtime.Module.EnqueueSystemEmail(txCtx, intent)
 		return err
 	}))
 	require.Equal(t, first.ID, second.ID)
@@ -166,7 +167,7 @@ func TestSystemEmailOutboxScopeIdempotencyAndRetention(t *testing.T) {
 	// Pending entries remain durable even after the terminal retention cutoff.
 	_, err := db.NewRaw(`UPDATE platform.email_outbox SET created_at = ?, updated_at = ? WHERE id = ?`, time.Now().Add(-31*24*time.Hour), time.Now().Add(-31*24*time.Hour), first.ID).Exec(ctx)
 	require.NoError(t, err)
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {}})
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	require.NoError(t, err)
 	worker, err := deliveryCompose.NewWorker(runtime, reminderPushProvider{})
 	require.NoError(t, err)

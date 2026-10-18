@@ -28,7 +28,7 @@ func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	observedAppends := 0
 	observe := testRootObservers()
 	observe.AuditAppend = func(_ string, _ time.Duration, _ int, _ error) { observedAppends++ }
-	_, _, _, _, _, _, services, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRootWith(testpkg.NewDatabase(t, db), slog.Default(), cfg, observe)
+	_, _, _, _, _, _, _, _, _, _, services, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRootWith(testpkg.NewDatabase(t, db), slog.Default(), cfg, observe)
 	require.NoError(t, err)
 
 	fixture := testpkg.CreateTestStudent(t, db, "Audit", "Routing", "1a")

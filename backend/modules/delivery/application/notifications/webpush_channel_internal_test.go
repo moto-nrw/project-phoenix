@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	webpush "github.com/SherClockHolmes/webpush-go"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +26,7 @@ import (
 // fakePushRepo implements the subscription lookups the channel needs; the
 // embedded interface panics on anything else (nothing else may be called).
 type fakePushRepo struct {
-	deliveryModels.PushSubscriptionRepository
+	deliveryPorts.PushSubscriptionRepository
 	staff              []*deliveryModels.PushSubscription
 	admins             []*deliveryModels.PushSubscription
 	guardians          map[int64][]*deliveryModels.PushSubscription

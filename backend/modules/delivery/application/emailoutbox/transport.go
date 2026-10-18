@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 // IntentTransactions binds a render or delivery record to the intent's scope.

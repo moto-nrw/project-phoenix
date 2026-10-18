@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -17,17 +19,17 @@ import (
 // GuardianDisplayResolver names the guardians of the Delivery recipients.
 type GuardianDisplayResolver struct{ Query GuardianDisplayQuery }
 
-func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
+func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]deliveryContract.GuardianDisplay, error) {
 	if len(ids) == 0 {
-		return []delivery.GuardianDisplay{}, nil
+		return []deliveryContract.GuardianDisplay{}, nil
 	}
 	profiles, err := r.Query.GuardianDisplays(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("delivery: resolve guardian display data: %w", err)
 	}
-	result := make([]delivery.GuardianDisplay, 0, len(profiles))
+	result := make([]deliveryContract.GuardianDisplay, 0, len(profiles))
 	for _, profile := range profiles {
-		result = append(result, delivery.GuardianDisplay{
+		result = append(result, deliveryContract.GuardianDisplay{
 			GuardianProfileID: profile.GuardianProfileID, FirstName: profile.FirstName, LastName: profile.LastName,
 		})
 	}
@@ -37,22 +39,22 @@ func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, id
 type announcementDeliveryAdapter struct{ module *delivery.Module }
 
 func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
-	values := make([]delivery.EmailDelivery, 0, len(rows))
+	values := make([]deliveryContract.EmailDelivery, 0, len(rows))
 	for _, row := range rows {
-		values = append(values, delivery.EmailDelivery{
+		values = append(values, deliveryContract.EmailDelivery{
 			OutboxID: row.OutboxID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			RecipientEmail: row.RecipientEmail, Reachability: row.Reachability,
 		})
 	}
-	return a.module.ReplaceEmailDeliveries(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, values)
+	return a.module.ReplaceEmailDeliveries(ctx, tenantID, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, values)
 }
 
 func (a announcementDeliveryAdapter) DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error) {
-	return a.module.DeleteEmailDeliveries(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
+	return a.module.DeleteEmailDeliveries(ctx, tenantID, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 }
 
 func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]announcement.ParentAnnouncementEmailDeliveryStatus, error) {
-	rows, err := a.module.EmailDeliveryStatuses(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
+	rows, err := a.module.EmailDeliveryStatuses(ctx, tenantID, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +87,7 @@ func (a enrollmentDeliveryAdapter) CountRelatedEmails(ctx context.Context, relat
 	if err != nil {
 		return 0, err
 	}
-	rows, err := a.module.Statuses(ctx, tenantID.Int64(), delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
+	rows, err := a.module.Statuses(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	return len(rows), err
 }
 
@@ -94,5 +96,5 @@ func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, rela
 	if err != nil {
 		return 0, err
 	}
-	return a.module.Cancel(ctx, tenantID.Int64(), delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
+	return a.module.Cancel(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }

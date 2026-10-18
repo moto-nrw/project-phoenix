@@ -1,6 +1,102 @@
-# Final legacy cluster: round 4
+# Final legacy cluster: round 5
 
-Base: development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` after PR #4335. This section is the current result; the round-3 record below is historical.
+Base: fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee` after PR #4338. The earlier rounds below are historical.
+
+Integrated development: `10591926424937be480dd39ce3c54a44d97cad9a` after PR #4340, including PR #4337. Its architecture principles, export dispatch recovery, strict side-effect guard and budget reductions are preserved. Current before/after measurements use this integrated base.
+
+## Current result
+
+| Surface | Before | After |
+|---|---:|---:|
+| Legacy keys | 1 | 1 |
+| Foreign compose aliases | 23 | 0 |
+| Conventional carriers | 5 | 3 |
+| Compose LOC | 27,101 | 27,061 |
+| Legacy-prefixed LOC | 2,666 | 2,666 |
+| Rules | 926 | 928 |
+| Current composition field/setter targets | 0 | 0 |
+
+`models/base` and `models/delivery` are gone. Scheduler remains at its original path for the blocker below. `database/repositories/base` was already absent at the base; it still has no package or consumer. The remaining conventional carriers are `models/activities`, `models/schedule` and `services/scheduler`. The retained activity service and every `legacy_*.go` file are outside this round.
+
+The original Data Import authorization key and the zero-baseline regression test are unchanged. The separate zero-ratchet cutover follows #3021. Projection locations and grants are unchanged.
+
+## Native Delivery boundaries
+
+- `mail` defines the actual Message, address, Mailer, Dispatcher and result/error contracts. SMTP retains rendering and transport details; the rendered HTML/text are private adapter state. The existing `email/emailtest` doubles use the native mail values. No alias replaces any of the 23 deleted compose reexports.
+- The former root Delivery package mixed intent/provider records and the Module/Worker facade. Actual records move once into `contract`; the facade lives in `runtime`. Both keep their original methods, fields, errors and validation. Consumers name the native definitions, not DTO copies. This separates the public facade from its typed contract instead of reclassifying the old mixed package or granting adapter reach to another existing point.
+- `subscriptions` defines the actual tag-free registration value and validation. The persistence interface lives in `internal/ports`; the Postgres adapter still owns its row, ambient transaction, tenant filter and not-found translation. `subscriptiontest` constructs native fixtures for owner suites.
+- The root MailTransport aggregate is removed. Builders receive only their positional mail, sender, push and hub dependencies. Outbox bindings use the existing Delivery runtime; a duplicate Delivery test-helper field is deleted. No root field or composition allowance is added.
+- Audience selection moves from Delivery compose to its existing Notifications application, offsetting the mail factories. The redundant private subscription constructor and both unique-detector forwarding functions are removed. The Delivery compose cap falls from 774 to 770, its email subpackage cap of 36 disappears, and the total falls by 40. No pass-through budget rises.
+
+## One-to-one relocation proof
+
+| Old reference | New reference | Preserved count / behavior |
+|---|---|---|
+| Scheduler relocation probe | Reverted to `services/scheduler` | 66 Go files are byte-identical to integrated development; no relocation or notice allowance is added |
+| Scheduler discovery and contract inventory | Original paths retained | 27 job IDs and all 7 constructor callers remain unchanged, including the four Worker tests; fixed-commit evidence remains unchanged |
+| SQLSTATE skip prefix `models/base/` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | One prefix replaces one prefix and narrows to the canonical file; 4 non-comment SQLSTATE literal hits before and after; empty per-file allowance map stays empty |
+| `models/base/db_errors.go` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | Exact bytes after normalizing only `package base` to `package postgres` |
+| `database/tenant_runtime.go` | Transaction Runtime private Postgres adapter plus `protocol` errors | Same transaction context keys, role/tenant setup, commit/rollback/retry/savepoint behavior, error text and Unwrap/marker protocol |
+
+The Scheduler contract register and its registry assertions remain unchanged at the original path. The Delivery contract register points to the native intent contract imported by its original public-contract suite. The 28-owner register count is unchanged. These are evidence-target repairs, not checker logic changes.
+
+All route, middleware and IoT goldens, including the source of TestFullProductionRouterGolden, are byte-identical to the base. Test edits are imports, types, constructor calls and field-path repairs only. There is no test deletion or assertion change in this round.
+
+## Foreign importer inventory at the base
+
+The scoped mail/scheduler/base/subscription carriers have only one foreign consumer package: root `api` consumes the old email composition. The Scheduler, detector and subscription value/interface consumers are same-owner. The additional table rows record the existing Delivery facade/record consumers affected by the native contract split. Symbols are selected identifiers at the immutable base, grouped by owner and scope.
+
+| Scope | Consumer owner / package | Old boundary | Selected symbols |
+|---|---|---|---|
+| external_test | `enrollment` / `modules/enrollment/http` | `modules/delivery` | `EmailIntent`, `EmailRecipient`, `Enqueued`, `Module`, `RelatedEntity`, `TransportEmail` |
+| internal_test | `root-composition` / `api` | `modules/delivery` | `EmailIntent`, `EmailRecipient`, `Enqueued`, `Observation`, `RelatedEntity`, `Worker` |
+| internal_test | `root-composition` / `api` | `modules/delivery/compose/email` | `Email`, `Message`, `NewEmail`, `TemplateDemoAccess`, `TemplateDemoLead` |
+| production | `root-composition` / `api` | `modules/delivery` | `ClaimedIntent`, `DeferredPushIntent`, `EmailDelivery`, `EmailIntent`, `EmailRecipient`, `Enqueued`, `ErrCancelled`, `ErrDeferred`, `ErrIdempotencyConflict`, `GuardianDisplay`, `Module`, `Observation`, `ProviderAcceptedStatusCode`, `ProviderResult`, `PushDispatcher`, `RelatedEntity`, `Retention`, `SchoolSender`, `SenderOrDefault`, `StateCancelled`, `StateDeadLetter`, `StateSent`, `State`, `TransportEmail`, `TransportPush`, `WebPushConfig`, `Worker` |
+| production | `root-composition` / `api` | `modules/delivery/compose/email` | `DeliveryMetadata`, `DeliveryObserver`, `DeliveryRequest`, `DeliveryResult`, `DeliveryStatusFailed`, `DeliveryStatusSent`, `Dispatcher`, `Email`, `ErrDeliveryUnavailable`, `IsDemoEnvironment`, `MailerConfig`, `Mailer`, `Message`, `MockMailer`, `NewDispatcher`, `NewEmail`, `NewMailer`, `NewMockMailer`, `ReplyToResolver`, `ResolveReplyToIdentity` |
+
+
+## Rules
+
+Seven native successor rules are added and five stale legacy-model rules are removed. All new targets are native public contracts; no private reach, data grant, checker exception or increased budget is introduced.
+
+| Added rule | Native successor / precedent |
+|---|---|
+| `delivery.application.native-contracts` | `platform.application-legacy-model` and `delivery.application.same-owner-adapter`: native values replace old model/transport vocabulary. |
+| `delivery.port.native-subscriptions` | The consumer-owned persistence port names the actual native subscription value; ADR 0058 contract direction, no private target. |
+| `delivery.postgres.native-subscriptions` | `platform.postgres-legacy-model`: the same subscription values, now native and tag-free; persistence stays private. |
+| `delivery.public.native-contracts` | The public Delivery facade names the actual native intent/provider values split from its former mixed contract package. |
+| `delivery.test-support.native-contracts` | Existing `email/emailtest` mail doubles now use the actual native mail contract, not adapter aliases. |
+| `delivery.workflow-integration-test.native-contracts` | `delivery-platform.workflow-integration-test.delivery-platform-legacy-model`: the same owner fixtures, now native contracts. |
+| `transaction-runtime.postgres.native-protocol` | Native transaction-outcome errors replace adapter-local marker/error types; no driver in the contract. |
+
+Removed rules: `delivery-platform.workflow-integration-test.delivery-platform-legacy-model`, `delivery.adapter-test.legacy-model`, `owner-compose.platform.legacy-model`, `platform.application-legacy-model`, `platform.postgres-legacy-model`.
+
+## Verification and issue exits
+
+Architecture must pass with the single unchanged key and zero current composition targets. `validate-ticket --all --base-ref 10591926424937be480dd39ce3c54a44d97cad9a` must report zero removed keys and zero uncovered retirements. Historical evidence whose file moved is pinned to that immutable base URL. The full affected suite, lint, dead-code gates and hooks are required before the authorized corrective follow-up push; final outcomes and offline review are recorded in the PR.
+
+| Issue | Exit evidence |
+|---|---|
+| #4085 | The foreign compose alias register is empty and its total is 0; no vocabulary/retained alias package remains. |
+| #4086 | Not met: two Timetable model carriers, Scheduler and legacy-prefixed implementations remain. |
+| #4084 | Not met: retained composition/business and forwarding debt remains outside this round. |
+| #4004 | One original key remains by the agreed zero-ratchet sequence after #3021. |
+
+## Exact remaining blocker
+
+| Family | Observed blocker | Safe retained state |
+|---|---|---|
+| Scheduler internal relocation | PR #4337 introduced `sideEffectRegisterOnlyShrinks` / `sideEffectRegisterSubset` in `backend/test/side_effect_register.go`. Its exact origin/development subset comparison rejects the moved `Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` notice key, even with all 117 entries, fingerprints and reasons identical after one-to-one path normalization. ADR 0020 does not rename this JSON register. The authorized follow-up probe moved all 66 files and changed exactly one key prefix from `services/scheduler/tenant_runtime.go` to `modules/schedulerruntime/internal/application/tenant_runtime.go`. The 117 operations/reasons/fingerprints matched exactly after path normalization. `TestDurableSideEffectsRatchet` still rejected that key alone as an addition, not a changed body fingerprint; the user-directed fallback therefore applies. | The relocation is reverted; all 66 Scheduler files, its 7 constructor callers, 27 jobs and the 117-entry notice register match integrated development. No forwarding indirection, renamed hook, new allowance, checker edit or directory keep-alive is used. |
+
+The first publication also exposed three scanners walking the deleted `services/` root only in clean checkouts; an empty local directory had masked those failures. One-to-one root repairs were verified locally, including 7/7 normalized constructor records. Retaining Scheduler for the independent strict-register blocker restores its real directory, so those extra scanner repairs are reverted too. The canonical detector's file-literal repair remains. The last key and Timetable work are deferred by explicit scope.
+
+---
+
+## Historical round 4
+
+### Round-4 record
+
+Base: development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` after PR #4335. This section is historical; round 5 above is current.
 
 Integrated development: `25c8d7368021768e253e1091ad297f01287e494c` (PR #4336). Its durable timeline transaction context/error returns are preserved in the native event contract and the relocated implementation. The report's before column is the initial round-4 base above; pre-push architecture and ticket validation use this integrated development SHA.
 

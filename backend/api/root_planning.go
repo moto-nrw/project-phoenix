@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -52,7 +54,7 @@ func buildFacilitiesYard(env RootEnvironment, rooms FacilitiesRooms, activities 
 // arrive in the Timetable owner's public vocabulary (#3424); the shift_moved
 // Änderungsprotokoll entry (#1884) and the SSE invalidation are bound here.
 func buildShiftPlanning(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, workTime workforceModule.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, workTime workforceModule.Capability,
 	people PeopleRows, calendar schoolcalendar.Days, audit AuditOwner, owner TimetableOwner, rooms facilitiesModule.Catalog,
 	activities activityContract.ActivityService,
 ) (*workforceCompose.ShiftPlanning, error) {
@@ -67,7 +69,7 @@ func buildShiftPlanning(
 		WorkModels:     workTime,
 		Holidays:       schoolCalendarCompose.NonWorkingDays{Calendar: calendar}, NonWorkingDays: calendar,
 		CategoryLinker: arrivalTimetable.ShiftTypeCategoryLinker(activities.SetCategoryShiftTypeLinks),
-		DB:             db.Pool(), Broadcaster: transport.Hub, Logger: env.Logger.With("service", "shift_planning"),
+		DB:             db.Pool(), Broadcaster: hub, Logger: env.Logger.With("service", "shift_planning"),
 		Today: env.Today,
 	})
 }

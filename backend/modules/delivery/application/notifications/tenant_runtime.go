@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -39,7 +40,7 @@ func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadca
 // NewTenantDurableWebPushChannel is NewDurableWebPushChannel over the tenant
 // unit of work. An unconfigured VAPID key pair keeps the channel inert, as
 // there.
-func NewTenantDurableWebPushChannel(runtime tenant.UnitOfWork, db *bun.DB, repo deliveryModels.PushSubscriptionRepository, vapid VAPIDConfig, outbox PushOutbox, logger *slog.Logger) (Channel, error) {
+func NewTenantDurableWebPushChannel(runtime tenant.UnitOfWork, db *bun.DB, repo deliveryPorts.PushSubscriptionRepository, vapid VAPIDConfig, outbox PushOutbox, logger *slog.Logger) (Channel, error) {
 	if err := requireTenantRuntime("web push channel", runtime, db != nil && repo != nil && outbox != nil); err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func NewTenantPreferenceService(runtime tenant.UnitOfWork, consent ConsentStore,
 
 // NewTenantPushSubscriptionService is NewPushSubscriptionService over the
 // tenant unit of work.
-func NewTenantPushSubscriptionService(runtime tenant.UnitOfWork, db *bun.DB, repo deliveryModels.PushSubscriptionRepository, accountTenants GuardianSchools, vapid VAPIDConfig, logger *slog.Logger) (PushSubscriptionService, error) {
+func NewTenantPushSubscriptionService(runtime tenant.UnitOfWork, db *bun.DB, repo deliveryPorts.PushSubscriptionRepository, accountTenants GuardianSchools, vapid VAPIDConfig, logger *slog.Logger) (PushSubscriptionService, error) {
 	if err := requireTenantRuntime("push subscriptions", runtime, db != nil && repo != nil && accountTenants != nil); err != nil {
 		return nil, err
 	}

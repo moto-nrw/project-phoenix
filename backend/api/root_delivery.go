@@ -3,13 +3,17 @@ package api
 import (
 	"fmt"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -37,21 +41,21 @@ type DeliveryNotifications struct {
 // Consent rows back both the notification preferences and the opt-in "Neue
 // Anmeldung" mail of the intake.
 func buildDeliveryNotifications(
-	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport, module *deliveryModule.Module,
+	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module *deliveryModule.Module,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity *identityaccess.Module, people PeopleRows, structure StructureRows, workTime workforce.Capability,
 	messaging parentStore.MessagingRepositories,
 ) (DeliveryNotifications, error) {
 	logger := env.Logger
-	if !transport.VAPID.Configured() {
+	if !pushVAPID.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
-	sse, err := deliveryCompose.NewTenantSSEChannel(unit, transport.Hub, db.Pool(), people.StudentGuardians, logger.With("channel", "sse"))
+	sse, err := deliveryCompose.NewTenantSSEChannel(unit, hub, db.Pool(), people.StudentGuardians, logger.With("channel", "sse"))
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
 	push, err := deliveryCompose.NewTenantDurableWebPushChannel(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()),
-		transport.VAPID, deliveryCompose.NewDurablePushOutbox(module), logger.With("channel", "web_push"))
+		pushVAPID, deliveryCompose.NewDurablePushOutbox(module), logger.With("channel", "web_push"))
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
@@ -82,10 +86,10 @@ func buildDeliveryNotifications(
 // per kind so subjects and templates stay independent; calendar
 // appointments share one renderer for all four kinds.
 func buildDeliveryWorker(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, mailIdentity email.ReplyToResolver,
+	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
 ) (*deliveryModule.Worker, error) {
-	defaultFrom := transport.DefaultFrom
+	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
 		communication.MailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: communication.MailAddress(defaultFrom),
@@ -104,10 +108,10 @@ func buildDeliveryWorker(
 	}
 	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
 	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
-	vapid := transport.VAPID
+	vapid := pushVAPID
 	worker, err := deliveryCompose.NewWorker(delivery.Runtime, &deliveryCompose.MailPushProvider{
-		Registry: deliveryCompose.NewEmailTemplateRegistry(renderers), Mailer: transport.Mailer, MailIdentity: mailIdentity,
-		Push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
+		Registry: deliveryCompose.NewEmailTemplateRegistry(renderers), Mailer: mailSender, MailIdentity: mailIdentity,
+		Push: deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{
 			Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey,
 		}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, pushSubscriptions)),
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,

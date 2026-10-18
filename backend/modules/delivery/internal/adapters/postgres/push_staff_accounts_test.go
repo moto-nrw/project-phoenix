@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	deliveryRepo "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := deliveryRepo.NewPushSubscriptionRepository(db)
+	repo := &deliveryRepo.PushSubscriptionRepository{DB: db}
 	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()

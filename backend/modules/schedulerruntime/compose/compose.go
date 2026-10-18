@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/workerlease"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	scheduler "github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
