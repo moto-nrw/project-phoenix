@@ -1,0 +1,174 @@
+package api
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/spf13/viper"
+)
+
+// IdentityMailState reads Delivery's state of a queued mail; Identity's
+// welcome mails wait for the mail they follow (#4006).
+type IdentityMailState func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error)
+
+// buildIdentityAccess builds Identity & Access over the owners and the
+// values the root built before it (#4006): sessions, the account lifecycle,
+// the second factor and both portals' passkey ceremonies, the operator
+// flows, the demo access and the caller context. Delivery is built first,
+// so the guardian and staff mails enqueue into its outbox directly.
+func buildIdentityAccess(
+	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, tokens TokenAdapter,
+	organizations organizationtenancy.Capability, persons peopledirectory.Capability, membership schoolmembership.Capability,
+	settings settingsCompose.BatchSettingsService, audit AuditOwner, operatorAuditLog operatorAuditEntries,
+	transport MailTransport, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
+	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
+	groups EducationGroupRepository, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
+	sessions *presenceCompose.SessionRecords, presence *studentpresence.Module,
+) (*identityaccess.Module, *CallerRows, error) {
+	cfg, links := env.Config, env.Links
+	authLogger := env.Logger.With("service", "auth")
+	platformLogger := env.Logger.With("service", "platform")
+	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
+	if tenantDomain == "" {
+		return nil, nil, fmt.Errorf("TENANT_DOMAIN is required")
+	}
+	operatorFrontendURL, err := operatorFrontendURLOf(cfg.OperatorHostname, links.FrontendURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	identityChain := LifecycleRepositories{
+		Persons: people.Persons, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
+		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
+		People: persons, Membership: membership,
+	}
+	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
+		Repos:         OperatorRepositoriesOf(identityChain, operatorAuditLog),
+		Organizations: organizations, Persons: persons, Membership: membership, Logger: platformLogger,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
+		Repos:    SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, pushSubscriptions),
+		Codec:    tokens.SessionTokens,
+		Settings: settings,
+		Audit:    audit.Command,
+		Logger:   authLogger,
+		observe:  env.Observe.IdentityAccess,
+		Mfa: &MfaWiring{
+			OperatorAuditLog: operatorAuditLog, Settings: settings,
+			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, FrontendURL: links.FrontendURL,
+			JwtSecret: cfg.JWTSecret, Logger: authLogger,
+			Passkeys: &identityaccessCompose.PasskeyDependencies{
+				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
+				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+			},
+		},
+		Operators:          operators,
+		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
+		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),
+		operatorLinks: &operatorLinkWiring{
+			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
+			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
+			logger: platformLogger,
+		},
+		Resets: &PasswordResetWiring{
+			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom,
+			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
+			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
+		},
+		Invitations: &InvitationWiring{
+			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
+			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
+			Settings:     settings,
+			Outbox:       outbox,
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
+		},
+		// The lifecycle flows (#3225) read the role management of the module
+		// they are composed into.
+		Lifecycle: &LifecycleWiring{
+			Settings: settings, Audit: audit.Command,
+			Caregivers: CaregiverProfiles{Persons: persons, Membership: membership},
+			GuardianMail: &GuardianInvitationWiring{
+				Settings: settings, Schools: organizations,
+				Outbox:      outbox,
+				Enrollments: guardianEnrollments,
+				// The accept and login links go to the parents portal, never
+				// to the staff frontend.
+				ParentsURL: links.ParentsURL, FallbackExpiry: links.InvitationTokenExpiry,
+				Logger: authLogger.With("flow", "guardian_invitation"),
+			},
+		},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := module.SetTenantRuntime(unit); err != nil {
+		return nil, nil, err
+	}
+	// The caller context (#3501) resolves the caller's chain through the
+	// owners of each link; the rows serve the consumers that still speak the
+	// retained records.
+	usercontextLogger := env.Logger.With("service", "usercontext")
+	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
+		Accounts:             module,
+		Persons:              callerPersons{rows: people.Persons, people: persons},
+		Membership:           membership,
+		StaffGroups:          staffGroups,
+		SupervisedActivities: activityGroups.SupervisedActivityGroupIDs,
+		Presence:             presence,
+		Settings:             settings,
+		Logger:               usercontextLogger,
+		Tokens:               tokens,
+	}, CallerRowSources{
+		Groups: groups, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
+		Activities: activityGroups, Sessions: sessions, Logger: usercontextLogger,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return module, rows, nil
+}
+
+// guardianEnrollmentClaims are the enrollment requests an accepted guardian
+// invitation claims.
+type guardianEnrollmentClaims interface {
+	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
+}
+
+// identityDeliveryRenderers render the Identity & Access mail kinds of the
+// Delivery outbox: the guardian invitation, the guardian welcome and the
+// staff welcome.
+func identityDeliveryRenderers(module *identityaccess.Module, defaultFrom email.Email, mailIdentity email.ReplyToResolver, mailState IdentityMailState, env RootEnvironment) map[string]deliveryCompose.MailRenderer {
+	logger := env.Logger.With("service", "auth")
+	return map[string]deliveryCompose.MailRenderer{
+		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+		identityaccess.MailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
+			DefaultFrom:          defaultFrom,
+			PrecedingEmailStatus: identityaccessCompose.NewGuardianWelcomeOrder(precedingMails{status: mailState}),
+		})),
+		identityaccess.MailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
+			DefaultFrom: defaultFrom, MailIdentity: mailIdentity, Logger: logger,
+			InvitationDeliverySent: module.SchoolInvitationDeliverySent,
+		}),
+	}
+}

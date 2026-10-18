@@ -86,12 +86,15 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
-	return ComposePeopleDirectory(peopleCompose.Dependencies{
+	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	module, err := ComposePeopleDirectory(peopleCompose.Dependencies{
 		StudentClassWriteGateQuery: membershipCompose.StudentClassWriteGate(db.Pool()),
 		DB:                         db.Pool(),
 		Observe:                    observe,
+		StudentPhotoRuntime:        func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 	}, membership, careProfiles, companions, peopleDirectoryAudit(db), newGuardianLinkOwners(db),
 		NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships)
+	return module, photoRuntime, err
 }
 
 // NewPeopleIdentityAccess composes the Identity & Access module the People

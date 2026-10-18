@@ -50,14 +50,21 @@ type StudentConsentCapability interface {
 // legacy services still call, satisfied structurally so this seam does not
 // depend on them.
 type StudentConsents struct {
+	studentConsentTrail
 	directory StudentConsentCapability
-	trail     StudentConsentAppender
+}
+
+// studentConsentTrail records the consent transitions in the Audit Platform
+// trail; it needs no People Directory read, so the photo lifecycle records
+// through it before the directory exists.
+type studentConsentTrail struct {
+	trail StudentConsentAppender
 }
 
 // NewStudentConsentsFor binds an already composed owner, so the serve root
 // keeps one observed People Directory.
 func NewStudentConsentsFor(directory StudentConsentCapability, trail StudentConsentAppender) *StudentConsents {
-	return &StudentConsents{directory: directory, trail: trail}
+	return &StudentConsents{studentConsentTrail: studentConsentTrail{trail: trail}, directory: directory}
 }
 
 // CurrentStates resolves the four consent states of a student row the caller
@@ -86,7 +93,7 @@ func (s *StudentConsents) CurrentStates(
 
 // RecordTransitions appends one trail entry per effective change to one of the
 // four consent timestamps. A field that did not move records nothing.
-func (s *StudentConsents) RecordTransitions(
+func (s studentConsentTrail) RecordTransitions(
 	ctx context.Context,
 	before, after *userModels.Student,
 	source string,
@@ -122,7 +129,7 @@ func (s *StudentConsents) CurrentStudentConsents(
 // RecordStudentConsentTransitions is RecordTransitions over the owner's
 // consent snapshots: one trail entry per transition the People Directory
 // reads from them.
-func (s *StudentConsents) RecordStudentConsentTransitions(
+func (s studentConsentTrail) RecordStudentConsentTransitions(
 	ctx context.Context,
 	before, after peopleModule.StudentConsentSnapshot,
 	source string,
