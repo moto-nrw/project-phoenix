@@ -47,7 +47,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 		ActingAccount: actingAccountID,
 	})
-	registry, err := settingsCompose.NewSideEffects(func(string) {}, append(module.sideEffects,
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, append(operatorSettingSideEffects(module.ActiveTestModule, module.CareLifecycle),
 		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle})...)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err

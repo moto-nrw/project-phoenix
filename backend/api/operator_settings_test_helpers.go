@@ -28,8 +28,6 @@ type OperatorSettingsTestModule struct {
 	// Schools is the Organisation & Tenancy owner the slug lookup reads.
 	Schools organizationtenancy.Capability
 	db      transactionruntime.Database
-	// sideEffects are the effects SettingsSideEffects was built with.
-	sideEffects []settingsCompose.SettingSideEffect
 }
 
 func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (OperatorSettingsTestModule, error) {
@@ -49,19 +47,11 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	wc := facilitiesCompose.NewWCService(active.Facilities, FacilitiesActivityCatalog(active.Activities), slog.Default())
-	schulhof, wcSwitch := facilitiesLegacy.SettingHandlers(active.Schulhof, wc)
-	effects := []settingsCompose.SettingSideEffect{
-		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
-		{Key: configModels.KeyCheckoutWCEnabled, Handle: wcSwitch},
-		careWithdrawalSettingSideEffect(care.CareLifecycle),
-	}
-	registry, err := settingsCompose.NewSideEffects(func(string) {}, effects...)
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, operatorSettingSideEffects(active, care.CareLifecycle)...)
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
 	return OperatorSettingsTestModule{
-		sideEffects:         effects,
 		ActiveTestModule:    active,
 		CareLifecycle:       care.CareLifecycle,
 		SettingsSideEffects: registry,
@@ -104,4 +94,16 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 		OnValueSet:     opts.OnValueSet,
 	}
 	return settingsCompose.NewOperatorSchoolSettings(deps)
+}
+
+// operatorSettingSideEffects are the checkout switches of Facilities and the
+// booking authority of Care Plan, as the serving root binds them.
+func operatorSettingSideEffects(active ActiveTestModule, care careplan.BookingAuthority) []settingsCompose.SettingSideEffect {
+	wc := facilitiesCompose.NewWCService(active.Facilities, FacilitiesActivityCatalog(active.Activities), slog.Default())
+	schulhof, wcSwitch := facilitiesLegacy.SettingHandlers(active.Schulhof, wc)
+	return []settingsCompose.SettingSideEffect{
+		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
+		{Key: configModels.KeyCheckoutWCEnabled, Handle: wcSwitch},
+		careWithdrawalSettingSideEffect(care),
+	}
 }
