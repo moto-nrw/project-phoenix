@@ -75,7 +75,7 @@ func (m *Module) AddCalendarPeriod(ctx context.Context, input CreateCalendarPeri
 	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
 		return CalendarPeriod{}, err
 	}
-	return m.engine.AddCalendarPeriod(ctx, input)
+	return m.administration.AddCalendarPeriod(ctx, input)
 }
 
 func (m *Module) ChangeCalendarPeriod(ctx context.Context, input UpdateCalendarPeriod) (CalendarPeriod, error) {
@@ -85,18 +85,18 @@ func (m *Module) ChangeCalendarPeriod(ctx context.Context, input UpdateCalendarP
 	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
 		return CalendarPeriod{}, err
 	}
-	return m.engine.ChangeCalendarPeriod(ctx, input)
+	return m.administration.ChangeCalendarPeriod(ctx, input)
 }
 
 func (m *Module) RemoveCalendarPeriod(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return invalidPeriod("calendar period ID is required")
 	}
-	return m.engine.RemoveCalendarPeriod(ctx, id)
+	return m.administration.RemoveCalendarPeriod(ctx, id)
 }
 
 func (m *Module) EnsureDefaultSchoolYear(ctx context.Context) ([]CalendarPeriod, bool, error) {
-	return m.engine.EnsureDefaultSchoolYear(ctx)
+	return m.administration.EnsureDefaultSchoolYear(ctx)
 }
 
 // ListActiveOverlaps is advisory only: callers attach the result as a

@@ -13,3 +13,9 @@ func NewRoomRepository(rooms facilities.Capability) *repositoryadapter.Repositor
 	repository.Bind(rooms)
 	return repository
 }
+
+// NewRoomRecords serves the retained room rows over the Facilities queries
+// alone, for the readers a root builds before the room deletion (#4080).
+func NewRoomRecords(rooms facilities.Query) *repositoryadapter.Records {
+	return repositoryadapter.NewRecords(rooms)
+}

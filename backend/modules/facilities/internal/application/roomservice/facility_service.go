@@ -14,7 +14,9 @@ type OccupancyProjection func(context.Context, []facilitiesModule.Room) ([]RoomW
 type RoomHistoryProjection func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error)
 
 type ServiceConfig struct {
-	Rooms     facilitiesModule.Capability
+	// Rooms is the Facilities Catalog; the service deletes no room, so the
+	// Rooms a root builds before the deletion guard serve it (#4080).
+	Rooms     facilitiesModule.Catalog
 	Occupancy OccupancyProjection
 	History   RoomHistoryProjection
 }
@@ -85,10 +87,6 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilitiesModule.Room) e
 	}
 	*room = updated
 	return nil
-}
-
-func (s *service) DeleteRoom(ctx context.Context, id int64) error {
-	return wrap("delete room", s.config.Rooms.DeleteRoom(ctx, id))
 }
 
 func (s *service) ListRooms(ctx context.Context) ([]RoomWithOccupancy, error) {

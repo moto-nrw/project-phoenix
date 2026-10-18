@@ -77,3 +77,20 @@ func TestRepositoryDelegatesUpdateLockToOwner(t *testing.T) {
 	require.Equal(t, roomID, owner.locked)
 	require.Equal(t, roomID, room.ID)
 }
+
+func TestRecordsRequireTheOwnerQuery(t *testing.T) {
+	t.Parallel()
+	require.PanicsWithValue(t, "room records adapter: Facilities query is required", func() { NewRecords(nil) })
+}
+
+func TestRecordsDelegateLockToOwner(t *testing.T) {
+	t.Parallel()
+	roomID := time.Now().UnixNano()
+	owner := &roomCapabilityStub{room: facilities.Room{ID: roomID, Name: "Igelraum"}}
+
+	room, err := NewRecords(owner).FindByIDForUpdate(context.Background(), roomID)
+
+	require.NoError(t, err)
+	require.Equal(t, roomID, owner.locked)
+	require.Equal(t, roomID, room.ID)
+}

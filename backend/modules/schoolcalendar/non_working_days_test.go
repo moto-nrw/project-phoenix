@@ -252,3 +252,9 @@ func TestErrorCodeNamesTheAdministrationOutcomes(t *testing.T) {
 	assert.Equal(t, "calendar_period_care_offering_conflict", ErrorCode(ErrCalendarPeriodRequiredByCareOffering))
 	assert.Equal(t, "federal_state_unavailable", ErrorCode(ErrFederalStateUnavailable))
 }
+
+func TestNewRecordsAndAdministeredModuleRequireTheirParts(t *testing.T) {
+	t.Parallel()
+	assert.Panics(t, func() { NewRecords(nil) })
+	assert.Panics(t, func() { NewAdministeredModule(nil, nil) })
+}
