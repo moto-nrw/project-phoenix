@@ -58,9 +58,7 @@ type StatisticsReportPeriods struct {
 }
 
 func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, from, to timezone.Date) ([]presenceCompose.HolidayPeriod, error) {
-	values, err := a.Periods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
-		PeriodType: schoolcalendar.PeriodTypeHoliday, ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: to.String(),
-	})
+	values, err := a.Periods.ListCalendarPeriods(ctx, schoolcalendar.HolidaysOverlapping(from.String(), to.String()))
 	if err != nil {
 		return nil, err
 	}
