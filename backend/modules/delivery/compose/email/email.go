@@ -4,7 +4,6 @@ package email
 import upstream "github.com/moto-nrw/project-phoenix/email"
 
 type (
-	ContextMailer    = upstream.ContextMailer
 	DeliveryMetadata = upstream.DeliveryMetadata
 	DeliveryObserver = upstream.DeliveryObserver
 	DeliveryRequest  = upstream.DeliveryRequest
@@ -27,6 +26,7 @@ const (
 
 var (
 	ErrDeliveryUnavailable = upstream.ErrDeliveryUnavailable
+	WithInteractiveRetry   = upstream.WithInteractiveRetry
 	IsDemoEnvironment      = upstream.IsDemoEnvironment
 	NewDispatcher          = upstream.NewDispatcher
 	NewEmail               = upstream.NewEmail

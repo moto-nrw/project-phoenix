@@ -344,3 +344,19 @@ func backoffDuration(backoff []time.Duration, attempt int) time.Duration {
 	}
 	return backoff[index]
 }
+
+// interactiveBackoff spaces the retries of a mail a person is waiting for.
+var interactiveBackoff = []time.Duration{time.Second, 5 * time.Second, 15 * time.Second}
+
+// WithInteractiveRetry gives a mail a person is waiting for, such as an
+// invitation, a sign-in code or a password reset, its retry policy: three
+// attempts, one, five and fifteen seconds apart. A non-nil backoff replaces
+// the spacing, which tests use.
+func WithInteractiveRetry(request DeliveryRequest, backoff []time.Duration) DeliveryRequest {
+	if backoff == nil {
+		backoff = append([]time.Duration(nil), interactiveBackoff...)
+	}
+	request.MaxAttempts = 3
+	request.BackoffPolicy = backoff
+	return request
+}

@@ -23,13 +23,6 @@ import (
 // settings that parameterise the gate, the challenge JWT codec, the Argon2id
 // code hasher, the two mails and the operator action log.
 
-// mfaEmailBackoff spaces the retries of the MFA mails.
-var mfaEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
 // MfaWiring is the retained material the MFA seams bind to. A nil wiring
 // composes the module without MFA, which the cleanup and fixture roots do.
 type MfaWiring struct {
@@ -65,9 +58,6 @@ func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	if backoff == nil {
-		backoff = mfaEmailBackoff
-	}
 	return &identityaccessCompose.MFADependencies{
 		DecorateRecords: wiring.Decorate,
 		Settings:        mfaSettings{settings: wiring.Settings},
@@ -197,15 +187,13 @@ func (m mfaMailer) DeliverCode(ctx context.Context, message identityaccess.MFACo
 	if message.Operator {
 		deliveryType = "operator_mfa_email_code"
 	}
-	err := m.dispatcher.Deliver(ctx, email.DeliveryRequest{
+	err := m.dispatcher.Deliver(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
 		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
 			identityaccess.MFACodeMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
-		BackoffPolicy: m.backoff,
-		MaxAttempts:   3,
-	})
+	}, m.backoff))
 	if err != nil {
 		m.logger.Warn("mfa challenge delivery failed",
 			slog.Int64("reference_id", message.ReferenceID),
@@ -226,15 +214,13 @@ func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identit
 	if message.Operator {
 		deliveryType = "operator_mfa_trusted_device_added"
 	}
-	m.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	m.dispatcher.Dispatch(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
 		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
 			identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
-		BackoffPolicy: m.backoff,
-		MaxAttempts:   3,
-	})
+	}, m.backoff))
 }
 
 // --- the operator action log -------------------------------------------------
