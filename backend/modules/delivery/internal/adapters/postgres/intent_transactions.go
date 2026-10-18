@@ -20,6 +20,11 @@ func NewTenantTransactions(db *bun.DB) IntentTransactions {
 
 // WithinTenant runs fn in the tenant transaction of tenantID.
 func (t IntentTransactions) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	if tenantID == 0 {
+		return tenant.WithAdminTx(ctx, t.db, func(txCtx context.Context, _ bun.Tx) error {
+			return fn(txCtx)
+		})
+	}
 	return tenant.WithTenantTx(ctx, t.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	})

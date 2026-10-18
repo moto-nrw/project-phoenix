@@ -10,12 +10,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewCommand binds the independent tenant transaction and synchronous after-commit hooks.
+// NewCommand binds the independent tenant transaction and synchronous post-commit dispatch.
 func NewCommand(db *bun.DB, deps ports.DeliveryDependencies) reminder.Command {
 	if db == nil {
 		panic("reminder command: database is required")
 	}
-	runtime := ports.CommandRuntime{
+	runtime := commandRuntime(db)
+	return application.NewCommand(runtime, NewPreparation(db, deps))
+}
+
+func commandRuntime(db *bun.DB) ports.CommandRuntime {
+	return ports.CommandRuntime{
 		TenantID: tenant.FromContext,
 		Detached: func(ctx context.Context) context.Context {
 			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
@@ -23,7 +28,16 @@ func NewCommand(db *bun.DB, deps ports.DeliveryDependencies) reminder.Command {
 		WithinTenant: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 			return tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
 		},
-		AfterCommit: tenant.RegisterAfterCommit,
 	}
-	return application.NewCommand(runtime, application.NewPreparation(deps, runtime))
+}
+
+// NewPushDelivery binds reminder revalidation to the root's tenant runtime.
+func NewPushDelivery(db *bun.DB, deps ports.DeliveryDependencies) func(context.Context, []byte) error {
+	return application.NewPushDelivery(deps, commandRuntime(db))
+}
+
+// NewPreparation exposes the transactional half to roots that supply their
+// own commit boundary; its continuation still sends through the same outbox.
+func NewPreparation(db *bun.DB, deps ports.DeliveryDependencies) ports.GuardianPreparation {
+	return application.NewPreparation(deps, commandRuntime(db))
 }

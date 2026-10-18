@@ -246,7 +246,7 @@ func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testi
 				tt.staffRepo,
 			)
 
-			svc.notifyAbsenceRequested(context.Background(), absence)
+			_ = svc.notifyAbsenceRequested(context.Background(), absence)
 
 			assert.Empty(t, mailer.Messages())
 		})
@@ -278,7 +278,7 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 		staffRepo,
 	)
 
-	svc.notifyAbsenceRequested(
+	_ = svc.notifyAbsenceRequested(
 		context.Background(),
 		notificationTestAbsence(AbsenceStatusRequested),
 	)
@@ -320,7 +320,7 @@ func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
 	absence.Note = "Vertretung ist geklärt"
 	absence.DecisionNote = "Wer übernimmt die Frühschicht?"
 
-	svc.notifyAbsenceRequested(context.Background(), absence)
+	_ = svc.notifyAbsenceRequested(context.Background(), absence)
 
 	require.True(t, mailer.WaitForMessages(1, 2*time.Second))
 	messages := mailer.Messages()
@@ -351,7 +351,7 @@ func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
 	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
 
-	svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
+	_ = svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
 
 	assert.False(t, mailer.WaitForMessages(1, 100*time.Millisecond), "email must remain queued before commit")
 	commit()
@@ -378,7 +378,7 @@ func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
 	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 	ctx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
 
-	svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
+	_ = svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
 
 	assert.False(t, mailer.WaitForMessages(1, 150*time.Millisecond), "rollback must drop the queued email")
 	assert.Empty(t, mailer.Messages())
@@ -396,7 +396,7 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 		}
 		svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 
-		svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusRequested))
+		_ = svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusRequested))
 
 		assert.Empty(t, mailer.Messages())
 	})
@@ -409,7 +409,7 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 		}
 		svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 
-		svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusApproved))
+		_ = svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusApproved))
 
 		assert.Empty(t, mailer.Messages())
 	})
@@ -422,7 +422,7 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 		}
 		svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 
-		svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusDeclined))
+		_ = svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(AbsenceStatusDeclined))
 
 		assert.Empty(t, mailer.Messages())
 	})
@@ -455,7 +455,7 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 			}
 			svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
 
-			svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(tt.status))
+			_ = svc.notifyAbsenceDecision(context.Background(), notificationTestAbsence(tt.status))
 
 			require.True(t, mailer.WaitForMessages(1, 2*time.Second))
 			messages := mailer.Messages()

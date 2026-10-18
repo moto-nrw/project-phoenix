@@ -27,6 +27,7 @@ type MailPushProvider struct {
 	Logger         *slog.Logger
 	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
+	DeferredPush   func(context.Context, delivery.ClaimedIntent) error
 }
 
 // IntentTenantTransactions runs a provider step in the tenant transaction
@@ -160,7 +161,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	row := &emailoutbox.Intent{
 		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template,
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
-		Payload: payload, Attempts: intent.Attempts,
+		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts,
 	}
 	renderer, err := p.Registry.Lookup(intent.Template)
 	if err != nil {
@@ -184,8 +185,20 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent delivery.Claime
 		}
 		return delivery.ProviderResult{}, err
 	}
-	if err := sendRenderedEmail(ctx, p.Mailer, intent.EmailRecipient, message); err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send email: %w", err)
+	sendErr := sendRenderedEmail(ctx, p.Mailer, intent.EmailRecipient, message)
+	if reporter, ok := renderer.(interface {
+		RecordDelivery(context.Context, *emailoutbox.Intent, error) error
+	}); ok {
+		if err := p.Tenants.WithinTenant(ctx, intent.TenantID, func(recordCtx context.Context) error {
+			return reporter.RecordDelivery(recordCtx, row, sendErr)
+		}); err != nil {
+			p.Logger.Error("record email delivery failed",
+				slog.Int64("intent_id", intent.ID),
+				slog.String("error", err.Error()))
+		}
+	}
+	if sendErr != nil {
+		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send email: %w", sendErr)
 	}
 	return delivery.ProviderResult{StatusCode: delivery.ProviderAcceptedStatusCode}, nil
 }
@@ -206,7 +219,7 @@ func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient deliv
 }
 
 func (p *MailPushProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
-	if p.MailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
+	if intent.TenantID == 0 || p.MailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
 		return
 	}
 	identity, err := p.MailIdentity.ResolveReplyTo(ctx, intent.TenantID)
@@ -224,6 +237,13 @@ func (p *MailPushProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 
 // SendPush sends the claimed push when its subscription is still authorized.
 func (p *MailPushProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+	if intent.PushRecipient.Deferred {
+		if p.DeferredPush == nil {
+			return delivery.ProviderResult{}, errors.New("delivery: deferred push dispatcher is not configured")
+		}
+		err := p.DeferredPush(ctx, intent)
+		return delivery.ProviderResult{StatusCode: delivery.ProviderAcceptedStatusCode}, err
+	}
 	if p.PushAuthorized == nil {
 		return delivery.ProviderResult{}, errors.New("delivery provider: push authorization is not configured")
 	}

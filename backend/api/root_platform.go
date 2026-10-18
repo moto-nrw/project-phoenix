@@ -185,4 +185,6 @@ func buildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, g
 
 // Enqueuer serves the root's mail outbox contract over Delivery's enqueue
 // facade.
-func (r DeliveryRuntime) Enqueuer() OutboxEnqueuer { return OutboxEnqueuer{Outbox: r.Outbox} }
+func (r DeliveryRuntime) Enqueuer() OutboxEnqueuer {
+	return OutboxEnqueuer{Outbox: r.Outbox, Module: r.Runtime.Module}
+}

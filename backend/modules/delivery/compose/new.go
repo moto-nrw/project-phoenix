@@ -120,6 +120,20 @@ func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailInte
 	}, delivery.TransportEmail)
 }
 
+func (e moduleEngine) EnqueueDeferredPush(ctx context.Context, input delivery.DeferredPushIntent) (delivery.Enqueued, error) {
+	return e.enqueue(ctx, domain.EnqueueInput{
+		TenantID: input.TenantID, Transport: domain.TransportPush, Template: input.Template,
+		IdempotencyKey: input.IdempotencyKey, Related: domain.RelatedEntity(input.Related),
+		Recipient: json.RawMessage(`{"deferred":true}`), Payload: input.Payload,
+	}, delivery.TransportPush)
+}
+
+// NewPushDispatcher builds a targeted caller over the existing outbox store.
+func NewPushDispatcher(runtime *Runtime, provider Provider) *delivery.PushDispatcher {
+	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
+	return delivery.NewPushDispatcher(pushDispatchAdapter{worker: worker})
+}
+
 func (e moduleEngine) EnqueuePush(ctx context.Context, input delivery.PushIntent) (delivery.Enqueued, error) {
 	recipient, err := json.Marshal(input.Recipient)
 	if err != nil {
@@ -166,7 +180,7 @@ func (e moduleEngine) Statuses(ctx context.Context, tenantID int64, transport de
 			}
 		}
 		statuses = append(statuses, delivery.Status{
-			ID: row.ID, Transport: transport, State: delivery.State(row.Status), Attempts: row.Attempts,
+			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: delivery.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
 		})
@@ -255,6 +269,7 @@ func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain
 		if err := json.Unmarshal(intent.Recipient, &claimed.PushRecipient); err != nil {
 			return domain.ProviderResult{}, fmt.Errorf("delivery provider: decode push recipient: %w", err)
 		}
+		claimed.DeferredPayload = intent.Payload
 		if err := json.Unmarshal(intent.Payload, &claimed.PushPayload); err != nil {
 			return domain.ProviderResult{}, fmt.Errorf("delivery provider: decode push payload: %w", err)
 		}
@@ -286,6 +301,12 @@ func tenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB, error
 	if !ok {
 		return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", transaction)
 	}
+	if expectedTenantID == 0 {
+		if !tenant.IsAdminTx(ctx) {
+			return nil, errors.New("delivery postgres: system email requires an admin transaction")
+		}
+		return tx, nil
+	}
 	actualTenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("delivery postgres: tenant is required: %w", err)
@@ -294,4 +315,14 @@ func tenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB, error
 		return nil, fmt.Errorf("delivery postgres: intent tenant %d does not match transaction tenant %d", expectedTenantID, actualTenantID.Int64())
 	}
 	return tx, nil
+}
+
+type pushDispatchAdapter struct{ worker *application.Worker }
+
+func (a pushDispatchAdapter) DispatchPush(ctx context.Context, tenantID, id int64) error {
+	err := a.worker.DispatchPush(ctx, tenantID, id)
+	if errors.Is(err, domain.ErrCancelled) {
+		return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
+	}
+	return err
 }

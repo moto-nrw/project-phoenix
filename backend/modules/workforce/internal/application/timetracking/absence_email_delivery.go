@@ -17,7 +17,7 @@ type AbsenceEmailMessage struct {
 	Content               AbsenceEmailContent
 }
 type absenceEmailDispatcher interface {
-	Dispatch(context.Context, AbsenceEmailMessage)
+	Enqueue(context.Context, AbsenceEmailMessage) error
 }
 
 // absenceRequestReceivedTemplate is the mail an approver gets for a new

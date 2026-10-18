@@ -25,6 +25,7 @@ const cleanupResetExpiry = time.Hour
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type PasswordResetWiring struct {
 	Dispatcher       *email.Dispatcher
+	Durable          DurableMailOutbox
 	DefaultFrom      email.Email
 	StaffURL         string
 	ParentsURL       string
@@ -51,7 +52,7 @@ func passwordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger)
 	return &identityaccessCompose.PasswordResetDependencies{
 		DeliveryFor: func(records identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {
 			return passwordResetDelivery{
-				dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
+				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, records: records, logger: logger,
 				backoff: backoff,
 				host:    func(scope identityaccess.PasswordResetScope) string { return hosts[scope] },
 			}
@@ -72,6 +73,7 @@ type passwordResetRecords interface {
 // the module once the send settles.
 type passwordResetDelivery struct {
 	dispatcher *email.Dispatcher
+	durable    DurableMailOutbox
 	from       email.Email
 	// host is the portal origin of a reset scope.
 	host    func(identityaccess.PasswordResetScope) string
@@ -80,29 +82,15 @@ type passwordResetDelivery struct {
 	logger  *slog.Logger
 }
 
-func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration) {
+func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping password reset email",
-			slog.Int64("account_id", link.AccountID))
-		return
+		return nil
 	}
 	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.host(scope), expiry))
-	meta := email.DeliveryMetadata{
-		Type:        "password_reset",
-		ReferenceID: link.ID,
-		Token:       link.Token,
-		Recipient:   recipient,
-	}
-	baseRetry := link.Delivery.RetryCount
-	// Async delivery must outlive the HTTP request without retaining its tx.
-	detached := identityaccessCompose.DetachedMailContext(ctx)
-	d.dispatcher.Dispatch(detached, email.WithInteractiveRetry(email.DeliveryRequest{
-		Message:  message,
-		Metadata: meta,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
-			d.recordDelivery(cbCtx, meta, baseRetry, result)
-		},
-	}, d.backoff))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: message, Type: "password_reset", ReferenceID: link.ID,
+		Backoff: d.backoff, BaseRetry: link.Delivery.RetryCount, ExpiresAt: link.Expiry,
+	})
 }
 
 func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {

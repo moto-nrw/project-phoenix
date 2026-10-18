@@ -2,17 +2,16 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
-
-const maxConcurrentReminderPushDispatches = 8
 
 type reminderPushDelivery struct {
 	appointment *appointments.Appointment
@@ -44,9 +43,52 @@ func (s *preparation) PrepareAppointmentReminders(ctx context.Context, from, to 
 	if err != nil || len(deliveries) == 0 {
 		return queued, nil, err
 	}
+	if s.deps.Outbox == nil {
+		return queued, nil, errors.New("calendar: reminder push outbox is required")
+	}
+	ids := make([]int64, 0, len(deliveries))
+	tenantID := deliveries[0].appointment.TenantID
+	for _, delivery := range deliveries {
+		snapshot := delivery.snapshot()
+		slices.Sort(snapshot.ProfileIDs)
+		key := appointmentReminderKey(snapshot.Appointment.ID, snapshot.Appointment.Revision, snapshot.Occurrence, snapshot.ProfileIDs[0])
+		id, err := s.deps.Outbox.Enqueue(ctx, key, snapshot)
+		if err != nil {
+			return queued, nil, err
+		}
+		ids = append(ids, id)
+	}
 	return queued, func(dispatchCtx context.Context) error {
-		return s.dispatchReminderPushes(dispatchCtx, deliveries)
+		var failures []error
+		for _, id := range ids {
+			if err := s.deps.Outbox.Deliver(dispatchCtx, tenantID, id); err != nil {
+				failures = append(failures, err)
+			}
+		}
+		return errors.Join(failures...)
 	}, nil
+}
+
+func (d reminderPushDelivery) snapshot() ports.ReminderPushSnapshot {
+	return ports.ReminderPushSnapshot{Appointment: *d.appointment, Occurrence: d.occurrence,
+		AccountID: d.accountID, ProfileIDs: append([]int64(nil), d.profileIDs...), Locale: d.locale,
+		From: d.from, To: d.to, MaxAttempts: 1,
+	}
+}
+
+// NewPushDelivery restores and revalidates a committed reminder. Both targeted
+// synchronous dispatch and crash recovery call this same capability.
+func NewPushDelivery(deps ports.DeliveryDependencies, runtime ports.CommandRuntime) func(context.Context, []byte) error {
+	s := NewPreparation(deps, runtime).(*preparation)
+	return func(ctx context.Context, raw []byte) error {
+		var value ports.ReminderPushSnapshot
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return err
+		}
+		delivery := reminderPushDelivery{appointment: &value.Appointment, occurrence: value.Occurrence,
+			accountID: value.AccountID, profileIDs: value.ProfileIDs, locale: value.Locale, from: value.From, to: value.To}
+		return s.dispatchReminderPush(ctx, delivery)
+	}
 }
 
 func (s *preparation) enqueueDueAppointmentReminders(ctx context.Context, from, to time.Time, deliveries *[]reminderPushDelivery) (int, error) {
@@ -329,109 +371,43 @@ func (s *preparation) claimReminderPushAudience(
 	return nil
 }
 
-func (s *preparation) dispatchReminderPushes(ctx context.Context, deliveries []reminderPushDelivery) error {
-	sem := make(chan struct{}, maxConcurrentReminderPushDispatches)
-	// A failed preparation can report both the original failure and a failed
-	// claim release; cancellation can do the same for every pending delivery.
-	errs := make(chan error, len(deliveries)*2+1)
-	var wg sync.WaitGroup
-	for i, delivery := range deliveries {
-		if ctx.Err() != nil {
-			for _, pending := range deliveries[i:] {
-				if err := s.releaseReminderPushDelivery(ctx, pending); err != nil {
-					errs <- err
-				}
-			}
-			errs <- ctx.Err()
-			break
+func (s *preparation) dispatchReminderPush(ctx context.Context, delivery reminderPushDelivery) error {
+	appointment, profileIDs, studentIDs, err := s.prepareReminderPushDispatch(ctx, delivery)
+	if err != nil {
+		return errors.Join(err, s.releaseReminderPushDelivery(ctx, delivery))
+	}
+	if len(profileIDs) == 0 {
+		if err := s.releaseReminderPushDelivery(ctx, delivery); err != nil {
+			return err
 		}
-		wg.Add(1)
-		go func(delivery reminderPushDelivery) {
-			defer wg.Done()
-			select {
-			case sem <- struct{}{}:
-			case <-ctx.Done():
-				if err := s.releaseReminderPushDelivery(ctx, delivery); err != nil {
-					errs <- err
-				}
-				errs <- ctx.Err()
-				return
-			}
-			defer func() { <-sem }()
-			appointment, profileIDs, studentIDs, err := s.prepareReminderPushDispatch(ctx, delivery)
-			if err != nil {
-				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
-					errs <- releaseErr
-				}
-				errs <- fmt.Errorf("calendar: prepare appointment reminder push: %w", err)
-				return
-			}
-			if len(profileIDs) == 0 {
-				if err := s.releaseReminderPushDelivery(ctx, delivery); err != nil {
-					errs <- err
-				}
-				return
-			}
-			staleProfiles := withoutReminderProfiles(delivery.profileIDs, profileIDs)
-			if len(staleProfiles) > 0 {
-				staleDelivery := delivery
-				staleDelivery.profileIDs = staleProfiles
-				if err := s.releaseReminderPushDelivery(ctx, staleDelivery); err != nil {
-					errs <- err
-					return
-				}
-			}
-			// Claims are keyed by revision, and preparation may have re-taken them
-			// under a newer one. Every release from here on has to name the revision
-			// the claims are actually held at, not the one the scan started with.
-			delivery.appointment = appointment
-			delivery.profileIDs = profileIDs
-			dispatched, err := s.deps.Push(ctx, appointment.TenantID, []int64{delivery.accountID}, studentIDs, delivery.locale)
-			if err == nil && dispatched {
-				return
-			}
-			// None of these three delivered anything: no device was registered or
-			// no VAPID key was configured, the school switched notifications off,
-			// or the delivery window was closed. All three are states rather than
-			// failures, so the tick stays quiet and the scan window closes
-			// normally — a school's quiet hours drop a push here exactly as they
-			// do for every other producer, because the router itself never queues
-			// an event it may not deliver now. The reminder's primary channel is
-			// unaffected: the e-mail is already committed.
-			//
-			// The release is therefore not a deferral, it keeps the claim honest:
-			// a claim records that a push went out, so a window that gets scanned
-			// again anyway — an unrelated failure in the same tenant pass kept it
-			// open, or the school raised the lead time — can still deliver. A
-			// genuine dispatch failure below takes that path deliberately.
-			if s.deps.NoDelivery(err) {
-				if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
-					errs <- releaseErr
-				}
-				return
-			}
-			s.deps.Logger.Warn("calendar: appointment reminder push failed",
-				slog.Int64("appointment_id", delivery.appointment.ID),
-				slog.Int64("guardian_account_id", delivery.accountID),
-			)
-			if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
-				errs <- releaseErr
-				return
-			}
-			if err != nil {
-				errs <- fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
-			} else {
-				errs <- errors.New("calendar: appointment reminder push was not accepted")
-			}
-		}(delivery)
+		return ports.ErrReminderSkipped
 	}
-	wg.Wait()
-	close(errs)
-	var joined []error
-	for err := range errs {
-		joined = append(joined, err)
+	staleProfiles := withoutReminderProfiles(delivery.profileIDs, profileIDs)
+	if len(staleProfiles) > 0 {
+		stale := delivery
+		stale.profileIDs = staleProfiles
+		if err := s.releaseReminderPushDelivery(ctx, stale); err != nil {
+			return err
+		}
 	}
-	return errors.Join(joined...)
+	delivery.appointment, delivery.profileIDs = appointment, profileIDs
+	dispatched, err := s.deps.Push(ctx, appointment.TenantID, []int64{delivery.accountID}, studentIDs, delivery.locale)
+	if err == nil && dispatched {
+		return nil
+	}
+	if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
+		return errors.Join(err, releaseErr)
+	}
+	if s.deps.NoDelivery(err) {
+		return ports.ErrReminderAudienceUnavailable
+	}
+	s.deps.Logger.Warn("calendar: appointment reminder push failed",
+		slog.Int64("appointment_id", appointment.ID),
+		slog.Int64("guardian_account_id", delivery.accountID))
+	if err != nil {
+		return fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
+	}
+	return errors.New("calendar: appointment reminder push was not accepted")
 }
 
 // prepareReminderPushDispatch takes a short tenant transaction to ensure the
@@ -476,7 +452,7 @@ func withoutReminderProfiles(claimed, reachable []int64) []int64 {
 }
 
 // Reminder delivery claims are created in the same transaction as the e-mail
-// outbox row. The push is dispatched by an after-commit hook, so a durable
+// outbox row. The leased push is dispatched after commit, so a durable
 // claim can never outlive a rolled-back reminder.
 func (s *preparation) claimReminderPush(ctx context.Context, appointment *appointments.Appointment, occurrence appointments.Date, profileID int64) (bool, error) {
 	return s.deps.Appointments.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, occurrence, profileID)

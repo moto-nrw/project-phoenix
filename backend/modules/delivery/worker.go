@@ -41,6 +41,7 @@ type ClaimedIntent struct {
 	PushRecipient     PushRecipient
 	EmailPayload      json.RawMessage
 	PushPayload       PushPayload
+	DeferredPayload   json.RawMessage
 	Attempts          int
 	LeaseToken        string
 	LeaseExpiresAt    time.Time

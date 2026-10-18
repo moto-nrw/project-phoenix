@@ -48,6 +48,7 @@ func NewEnrollmentAdminSubscribersForTests(db transactionruntime.Database) (enro
 }
 
 type DeliveryTestModule struct {
+	Runtime                 *deliveryCompose.Runtime
 	Delivery                *deliveryModule.Module
 	EmailOutbox             *deliveryCompose.EmailOutbox
 	Notifications           deliveryCompose.Notifier
@@ -118,6 +119,6 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
+	return DeliveryTestModule{Runtime: delivery, Delivery: delivery.Module, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }

@@ -41,6 +41,16 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats
 	if maxAttempts <= 0 {
 		return stats, errors.New("delivery worker: max attempts must be positive")
 	}
+	// System identity mail has no school whose nightly retention can visit it.
+	if retention, ok := w.store.(interface {
+		DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)
+	}); ok && batchSize > 0 {
+		count, err := retention.DeleteExpiredSystemEmails(ctx, time.Now().Add(-domain.RetentionWindow), batchSize)
+		w.observe(domain.Observation{Operation: "system_email_retention", Count: count, Err: err})
+		if err != nil {
+			return stats, err
+		}
+	}
 	emailLimit := (batchSize + 1) / 2
 	pushLimit := batchSize / 2
 	if err := w.runTransport(ctx, domain.TransportEmail, emailLimit, maxAttempts, &stats); err != nil {
@@ -85,6 +95,12 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 }
 
 func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *domain.WorkerStats) {
+	var policy struct {
+		MaxAttempts int `json:"delivery_max_attempts"`
+	}
+	if json.Unmarshal(intent.Payload, &policy) == nil && policy.MaxAttempts > 0 {
+		maxAttempts = policy.MaxAttempts
+	}
 	started := time.Now()
 	dispatchToken, active, err := w.store.StartDelivery(ctx, intent.Transport, intent.ID, leaseToken(intent), time.Now().Add(w.leaseDuration))
 	if err != nil {
@@ -163,7 +179,15 @@ func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, tok
 
 func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, token string, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
 	attempts := intent.Attempts + 1
-	nextAttempt := time.Now().Add(backoff(attempts))
+	delay := backoff(attempts)
+	var policy struct {
+		Backoff []time.Duration `json:"delivery_backoff"`
+	}
+	if intent.Transport == domain.TransportEmail && json.Unmarshal(intent.Payload, &policy) == nil && len(policy.Backoff) > 0 {
+		index := min(attempts-1, len(policy.Backoff)-1)
+		delay = policy.Backoff[index]
+	}
+	nextAttempt := time.Now().Add(delay)
 	result, err := w.store.FinalizeFailure(ctx, intent.Transport, intent.ID, token, attempts, sendErr.Error(), nextAttempt, maxAttempts)
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})

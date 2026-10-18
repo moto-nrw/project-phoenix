@@ -38,7 +38,7 @@ const emailEnqueueSQL = `
 		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
 		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
 	FROM platform.email_outbox
-	WHERE ? IS NOT NULL AND tenant_id = ? AND idempotency_key = ?
+	WHERE ? IS NOT NULL AND COALESCE(tenant_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
 		AND NOT EXISTS (SELECT 1 FROM inserted)
 	LIMIT 1`
 
@@ -69,7 +69,7 @@ const emailExistingEnqueueSQL = `
 		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
 		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
 	FROM platform.email_outbox
-	WHERE tenant_id = ? AND idempotency_key = ?
+	WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
 	LIMIT 1`
 
 const pushExistingEnqueueSQL = `
@@ -263,6 +263,9 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
 		intent.IdempotencyKey, intent.TenantID, intent.IdempotencyKey,
 	}
+	if intent.Transport == domain.TransportEmail && intent.TenantID == 0 {
+		args[0], args[14] = nil, nil
+	}
 	switch intent.Transport {
 	case domain.TransportEmail:
 		err = db.NewRaw(emailEnqueueSQL, args...).Scan(ctx, &result)
@@ -278,6 +281,9 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 		existingArgs := []any{
 			intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
 			intent.TenantID, intent.IdempotencyKey,
+		}
+		if intent.Transport == domain.TransportEmail && intent.TenantID == 0 {
+			existingArgs[5] = nil
 		}
 		switch intent.Transport {
 		case domain.TransportEmail:

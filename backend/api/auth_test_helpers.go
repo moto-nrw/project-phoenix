@@ -93,6 +93,7 @@ type AuthTestOption func(*authTestSettings, *authTestMail)
 
 // authTestMail is the mail transport the composed module sends through.
 type authTestMail struct {
+	outbox DurableMailOutbox
 	mailer email.Mailer
 }
 
@@ -133,6 +134,12 @@ func WithStandingDemoSchool(slug string) AuthTestOption {
 // read the mails the flows send.
 func WithAuthTestMailer(mailer email.Mailer) AuthTestOption {
 	return func(_ *authTestSettings, mail *authTestMail) { mail.mailer = mailer }
+}
+
+// WithAuthTestTransactionalOutbox lets transaction tests drive the real
+// enqueuer without automatically running the fixture worker after commit.
+func WithAuthTestTransactionalOutbox(outbox DurableMailOutbox) AuthTestOption {
+	return func(_ *authTestSettings, mail *authTestMail) { mail.outbox = outbox }
 }
 
 // WithAuthTestPasswordResetRateLimit enables the per-address reset rate
@@ -248,6 +255,11 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	var identityAccess *identityaccess.Module
+	durable := newAuthFixtureOutbox(OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Module: deliveryModule.Delivery}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
+	if mail.outbox != nil {
+		durable = mail.outbox
+	}
 	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
@@ -293,7 +305,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	demo, err := demoDependencies(&DemoAccessWiring{
-		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, FrontendURL: frontendURL,
 		Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 		OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
 		NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
@@ -301,17 +313,17 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+	identityAccess, err = NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo, TenantRuntime: unit,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
+			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		}, logger),
 		Invitations: invitationDependencies(&InvitationWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
+			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
 			Outbox:       OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},

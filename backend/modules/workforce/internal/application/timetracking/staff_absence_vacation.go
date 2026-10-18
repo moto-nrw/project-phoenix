@@ -114,7 +114,9 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err := s.absenceRepo.Create(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
-	s.notifyAbsenceRequested(ctx, absence)
+	if err := s.notifyAbsenceRequested(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -159,7 +161,9 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -197,7 +201,9 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -234,7 +240,9 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence question: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -272,7 +280,9 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 		return nil, fmt.Errorf("failed to audit absence resubmit: %w", err)
 	}
 	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
-	s.notifyAbsenceRequested(ctx, absence)
+	if err := s.notifyAbsenceRequested(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }

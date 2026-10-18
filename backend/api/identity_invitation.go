@@ -27,6 +27,7 @@ import (
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type InvitationWiring struct {
 	Dispatcher  *email.Dispatcher
+	Durable     DurableMailOutbox
 	DefaultFrom email.Email
 	// StaffURL and schoolURL are the portal hosts an invitee accepts on.
 	StaffURL  string
@@ -59,7 +60,7 @@ func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 		Owners: owners,
 		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
 			return invitationDelivery{
-				dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
+				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
 				identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
 				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
 			}
@@ -93,6 +94,7 @@ type schoolInvitationRecords interface {
 // module once the send settles.
 type invitationDelivery struct {
 	dispatcher   *email.Dispatcher
+	durable      DurableMailOutbox
 	from         email.Email
 	staffURL     string
 	schoolURL    string
@@ -109,38 +111,22 @@ func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) st
 	return identityaccess.SchoolInvitationOrigin(portal, d.staffURL, d.schoolURL)
 }
 
-func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
-	d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry)
+func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) error {
+	return d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry)
 }
 
-func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
-			slog.Int64("invitation_id", invitation.ID))
-		return
+		return nil
 	}
 	mail := identityaccess.SchoolInvitationMail(invitation, schoolName, d.portalURL(portal), expiry)
-	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
-	// reach the OGS, not moto (#1936). The invitation names its school;
-	// create queues this after commit on a detached context that has no
-	// ambient tenant.
 	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, invitation.TenantID, d.logger)
 	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), mail)
 	message.ReplyTo = email.NewEmail(replyIdentity.Name, replyIdentity.Address)
-	meta := email.DeliveryMetadata{
-		Type:        "invitation",
-		ReferenceID: invitation.ID,
-		Token:       invitation.Token,
-		Recipient:   invitation.Email,
-	}
-	baseRetry := invitation.Delivery.RetryCount
-	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.WithInteractiveRetry(email.DeliveryRequest{
-		Message:  message,
-		Metadata: meta,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
-			d.recordDelivery(cbCtx, meta, baseRetry, result)
-		},
-	}, d.backoff))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		TenantID: invitation.TenantID, Message: message, Type: "invitation", ReferenceID: invitation.ID,
+		Backoff: d.backoff, BaseRetry: invitation.Delivery.RetryCount, ExpiresAt: invitation.ExpiresAt,
+	})
 }
 
 // QueueSchoolWelcome persists the welcome with the invitation. Its renderer
