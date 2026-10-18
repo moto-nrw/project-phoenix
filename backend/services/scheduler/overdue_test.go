@@ -227,15 +227,15 @@ func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 
 	// Seed: mark "yesterday" as the cache day, store one emitted key.
 	yesterday := calendar.NewDate(2026, 4, 19)
-	sched.overdueEmittedDay = yesterday
+	sched.overdueEmitted.day = yesterday
 	key := overdueKey{tenantID: 1, instanceID: 42}
-	sched.overdueEmitted.Store(key, yesterday.UTCMidnight().Add(14*time.Hour))
+	sched.overdueEmitted.emitted.Store(key, yesterday.UTCMidnight().Add(14*time.Hour))
 
 	// Rotate using "today" → cache must clear and the day must advance.
 	today := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
 	sched.rotateOverdueCacheIfNewDay(today)
 
-	_, present := sched.overdueEmitted.Load(key)
+	_, present := sched.overdueEmitted.emitted.Load(key)
 	assert.False(t, present, "entry from yesterday must be evicted on day rollover")
-	assert.Equal(t, calendar.NewDate(2026, 4, 20), sched.overdueEmittedDay)
+	assert.Equal(t, calendar.NewDate(2026, 4, 20), sched.overdueEmitted.day)
 }
