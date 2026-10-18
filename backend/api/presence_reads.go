@@ -10,6 +10,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 )
 
 // The reads below join the Timetable plan with the Student Presence
@@ -37,15 +38,9 @@ func (presenceProjectionReads) tenant(ctx context.Context) (int64, error) {
 	return tenantID.Int64(), nil
 }
 
-// openParticipant is a participant whose block presence is still open.
-type openParticipant struct {
-	ParticipantID int64
-	StudentID     int64
-}
-
-// openParticipants lists the participants of the students with an open
+// OpenParticipants lists the participants of the students with an open
 // block presence, ordered by participant id.
-func (r presenceProjectionReads) openParticipants(ctx context.Context, studentIDs []int64) ([]openParticipant, error) {
+func (r presenceProjectionReads) OpenParticipants(ctx context.Context, studentIDs []int64) ([]careexit.OpenParticipant, error) {
 	tenantID, err := r.tenant(ctx)
 	if err != nil {
 		return nil, err
@@ -54,26 +49,21 @@ func (r presenceProjectionReads) openParticipants(ctx context.Context, studentID
 	if err != nil {
 		return nil, err
 	}
-	result := make([]openParticipant, 0, len(rows))
+	result := make([]careexit.OpenParticipant, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, openParticipant(row))
+		result = append(result, careexit.OpenParticipant(row))
 	}
 	return result, nil
 }
 
-// latestAttendedBlockDate returns the ISO day of the last block the child
-// was checked in to, or nil.
-func (r presenceProjectionReads) latestAttendedBlockDate(ctx context.Context, studentID int64) (*string, error) {
+// LatestAttendedBlockDate returns the day of the last block the child was
+// checked in to, or nil.
+func (r presenceProjectionReads) LatestAttendedBlockDate(ctx context.Context, studentID int64) (*timezone.Date, error) {
 	tenantID, err := r.tenant(ctx)
 	if err != nil {
 		return nil, err
 	}
-	day, err := presenceProjection.Reader{}.LatestAttendedBlockDate(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentID)
-	if err != nil || day == nil {
-		return nil, err
-	}
-	text := day.String()
-	return &text, nil
+	return presenceProjection.Reader{}.LatestAttendedBlockDate(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentID)
 }
 
 // courseStatistics serves the Statistik report's course inputs.

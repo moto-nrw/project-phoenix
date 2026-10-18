@@ -108,6 +108,7 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
@@ -1661,7 +1662,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 // staff reach under /api (#2207, #2527).
 func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *studentpresence.Module, limiters authRateLimiters) error {
 	svc := in.modules.services
-	pickupExtensions, err := newPickupExtensions(in.modules.timetable, presence)
+	pickupExtensions, err := careexit.NewPickupExtensions(in.modules.timetable, presence)
 	if err != nil {
 		return err
 	}
