@@ -27,7 +27,7 @@
     "sources": [
       "backend/api/supervision_dashboard.go",
       "backend/api/supervision_dashboard_adapters_test.go",
-      "backend/modules/supervisiondashboard/legacy/legacy.go",
+      "backend/modules/supervisiondashboard/internal/adapters/nameorder/legacy.go",
       "backend/modules/supervisiondashboard/compose/compose.go"
     ],
     "workload": "Affected Go suites through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development against the local postgres-test server with per-test tenants.",

@@ -74,15 +74,15 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModuleComposeAliasRatchet (0.14s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (1 issue(s)):
-        
+
         [compose alias] modules/auditlog/compose: 8 alias(es) of foreign packages, budget says 16.
           Nice — lower the budget to 8 so the reduction cannot regress.
 --- FAIL: TestModuleFunctionLengthRatchet (0.79s)
     module_function_length_ratchet_test.go:247: Module function-length ratchet check failed (2 issue(s)):
-        
+
         [func-length] modules/auditlog/internal/adapters/auditpostgres/appender.go:appendQuery has a 77-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
-        
+
         [func-length] modules/auditlog/internal/adapters/auditpostgres/booking_consistency.go:(*bookingConsistencyRepository).Audit has a 191-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
 FAIL
@@ -100,17 +100,17 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModulePassthroughRatchet (0.28s)
     module_passthrough_ratchet_test.go:424: Module-passthrough ratchet check failed (1 issue(s)):
-        
+
         [module passthrough] modules/auditlog: 4 single-call delegation(s), budget 1.
           Delegations were added. A service method encapsulates (validation, orchestration, audit,
           tenant transaction, error mapping) or it does not exist (Rule 8). Never raise a budget.
-        
+
         These counts measure a shape (four AST conditions), not the worth of any single method —
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
 --- FAIL: TestModuleComposeAliasRatchet (0.04s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (1 issue(s)):
-        
+
         [compose alias] modules/auditlog/compose: 8 alias(es) of foreign packages, budget says 16.
           Nice — lower the budget to 8 so the reduction cannot regress.
 FAIL
@@ -256,17 +256,17 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModulePassthroughRatchet (0.29s)
     module_passthrough_ratchet_test.go:424: Module-passthrough ratchet check failed (1 issue(s)):
-        
+
         [module passthrough] modules/devicefleet: 76 single-call delegation(s), budget 58.
           Delegations were added. A service method encapsulates (validation, orchestration, audit,
           tenant transaction, error mapping) or it does not exist (Rule 8). Never raise a budget.
-        
+
         These counts measure a shape (four AST conditions), not the worth of any single method —
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
 --- FAIL: TestModuleComposeAliasRatchet (0.04s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (1 issue(s)):
-        
+
         [compose alias] modules/devicefleet/compose: budget 1, but no alias is left (deleted, moved or renamed?).
           Remove the entry.
 FAIL
@@ -335,19 +335,19 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModuleComposeAliasRatchet (0.10s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (2 issue(s)):
-        
+
         [compose alias] modules/facilities/compose/legacy: budget 1, but no alias is left (deleted, moved or renamed?).
           Remove the entry.
-        
+
         [compose alias] modules/facilities/compose: budget 11, but no alias is left (deleted, moved or renamed?).
           Remove the entry.
 --- FAIL: TestModulePassthroughRatchet (0.14s)
     module_passthrough_ratchet_test.go:424: Module-passthrough ratchet check failed (1 issue(s)):
-        
+
         [module passthrough] modules/facilities: 29 single-call delegation(s), budget 19.
           Delegations were added. A service method encapsulates (validation, orchestration, audit,
           tenant transaction, error mapping) or it does not exist (Rule 8). Never raise a budget.
-        
+
         These counts measure a shape (four AST conditions), not the worth of any single method —
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
@@ -390,51 +390,51 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModuleLegacyBudgetRatchet (0.16s)
     module_legacy_budget_ratchet_test.go:302: Module legacy LOC budget ratchet check failed (4 issue(s)):
-        
+
         [legacy_*.go LOC budget] database/repositories/users/legacy_composition_support.go: budget 25 LOC, but it holds no production .go code any more.
           Remove the entry.
-        
+
         [legacy_*.go LOC budget] database/repositories/users/legacy_types.go: budget 14 LOC, but it holds no production .go code any more.
           Remove the entry.
-        
+
         [legacy_*.go LOC budget] modules/peopledirectory/internal/adapters/peoplepostgres/legacy_composition_support.go: 25 LOC, but it has no budget entry.
           Code moved here from a counted place keeps counting; a new entry needs a justification and the total may not rise.
-        
+
         [legacy_*.go LOC budget] modules/peopledirectory/internal/adapters/peoplepostgres/legacy_types.go: 14 LOC, but it has no budget entry.
           Code moved here from a counted place keeps counting; a new entry needs a justification and the total may not rise.
 --- FAIL: TestModuleComposeAliasRatchet (0.05s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (1 issue(s)):
-        
+
         [compose alias] modules/peopledirectory/compose: budget 16, but no alias is left (deleted, moved or renamed?).
           Remove the entry.
 --- FAIL: TestModuleFileSizeRatchet (0.13s)
     module_file_size_ratchet_test.go:80: Module file-size ratchet check failed (1 issue(s)):
-        
+
         [file-size] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationships.go has 1010 lines (limit 800), and is not in the allowlist.
           Split the file along a real seam — a new file over the limit does not get an entry.
 --- FAIL: TestModuleComplexityRatchet (0.39s)
     module_complexity_ratchet_test.go:344: Module-complexity ratchet check failed (3 issue(s)):
-        
+
         [gocognit] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_profile.go:(*guardianProfileRepository).linkAccount scores 20 (limit 15), and is not in the allowlist.
           Move branching/orchestration behind a capability method (Rule 4) — do not add new entries.
-        
+
         [gocognit] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationships.go:(*GuardianRelationshipRepository).FilterAccountsWithStudentAccess scores 21 (limit 15), and is not in the allowlist.
           Move branching/orchestration behind a capability method (Rule 4) — do not add new entries.
-        
+
         [gocognit] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationships.go:(*GuardianRelationshipRepository).updateColumns scores 24 (limit 15), and is not in the allowlist.
           Move branching/orchestration behind a capability method (Rule 4) — do not add new entries.
 --- FAIL: TestModuleFunctionLengthRatchet (0.39s)
     module_function_length_ratchet_test.go:247: Module function-length ratchet check failed (4 issue(s)):
-        
+
         [func-length] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_profile.go:(*guardianProfileRepository).LoadProfileWithChildren has a 75-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
-        
+
         [func-length] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_profile.go:(*guardianProfileRepository).linkAccount has a 76-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
-        
+
         [func-length] modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationships.go:(*GuardianRelationshipRepository).FilterAccountsWithStudentAccess has a 68-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
-        
+
         [func-length] modules/peopledirectory/internal/adapters/peoplepostgres/student_snapshots.go:NativeStudentSnapshot has a 66-line body (limit 60), and is not in the allowlist.
           Split the function into named steps — do not add new entries.
 FAIL
@@ -615,16 +615,16 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModuleComposeAliasRatchet (0.04s)
     module_compose_alias_ratchet_test.go:122: Compose alias ratchet check failed (1 issue(s)):
-        
+
         [compose alias] workflows/staffclock/compose: budget 19, but no alias is left (deleted, moved or renamed?).
           Remove the entry.
 --- FAIL: TestModulePassthroughRatchet (0.19s)
     module_passthrough_ratchet_test.go:424: Module-passthrough ratchet check failed (1 issue(s)):
-        
+
         [module passthrough] workflows/staffclock: 2 single-call delegation(s), but the module has no budget.
           New application package or composition — a new application package gets an entry with today's count
           and shrinks from there (Rule 8); code moved out of a counted tree keeps its delegations counted.
-        
+
         These counts measure a shape (four AST conditions), not the worth of any single method —
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
@@ -759,10 +759,10 @@ Rejected attempt (reverted; output is from the unchanged check or ratchet):
 ```text
 --- FAIL: TestModuleComplexityRatchet (0.33s)
     module_complexity_ratchet_test.go:344: Module-complexity ratchet check failed (2 issue(s)):
-        
+
         [gocognit] modules/workforce/internal/adapters/substitutions/substitution_repository.go:(*groupSubstitutionRepository).List scores 18 (limit 15), and is not in the allowlist.
           Move branching/orchestration behind a capability method (Rule 4) — do not add new entries.
-        
+
         [gocognit] modules/workforce/legacy/substitution_repository.go:(*groupSubstitutionRepository).List is allowlisted at 18 but now scores ≤ 15 (or was deleted/renamed).
           Remove the entry.
 FAIL
