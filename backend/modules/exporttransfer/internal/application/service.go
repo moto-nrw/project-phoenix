@@ -61,18 +61,7 @@ func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.
 	}
 	// The command, not the response middleware, owns the commit boundary.
 	detached := s.runtime.Detached(ctx)
-	entry := domain.JournalEntry{
-		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
-		Kind: request.Kind, Format: request.Format, Filename: request.Filename,
-		ByteSize: int64(len(request.Data)), TargetHost: target.Host, TargetPort: target.Port,
-		TargetDirectory: target.RemoteDirectory, Reason: domain.ReasonInternal,
-	}
-	var id int64
-	err = s.runtime.WithinTenant(detached, func(txCtx context.Context) error {
-		var err error
-		id, err = s.journal.Begin(txCtx, entry)
-		return err
-	})
+	id, entry, err := s.beginIntent(detached, &request, target)
 	if err != nil {
 		return domain.Result{}, fmt.Errorf("%w: record intent: %w", ErrUnavailable, err)
 	}
@@ -137,4 +126,31 @@ func (s *Service) logTransferFailure(request domain.Request, result domain.Resul
 		"reason", result.Reason,
 		"error", err.Error(),
 	)
+}
+
+func transferIntent(request domain.Request, target domain.Target) domain.JournalEntry {
+	return domain.JournalEntry{
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		Kind: request.Kind, Format: request.Format, Filename: request.Filename,
+		ByteSize: int64(len(request.Data)), TargetHost: target.Host, TargetPort: target.Port,
+		TargetDirectory: target.RemoteDirectory, Reason: domain.ReasonInternal,
+	}
+}
+
+func (s *Service) beginIntent(ctx context.Context, request *domain.Request, target domain.Target) (int64, domain.JournalEntry, error) {
+	var entry domain.JournalEntry
+	var id int64
+	err := s.runtime.WithinTenant(ctx, func(txCtx context.Context) error {
+		var err error
+		if request.PrepareFile != nil {
+			request.Filename, request.Data, err = request.PrepareFile(txCtx)
+			if err != nil {
+				return err
+			}
+		}
+		entry = transferIntent(*request, target)
+		id, err = s.journal.Begin(txCtx, entry)
+		return err
+	})
+	return id, entry, err
 }

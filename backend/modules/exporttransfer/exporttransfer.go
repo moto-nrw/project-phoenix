@@ -51,6 +51,9 @@ type Request struct {
 	// download serves it.
 	Filename string
 	Data     []byte
+	// PrepareFile builds the file and records its access audit in the intent
+	// transaction. When set, it supplies Filename and Data before commit.
+	PrepareFile func(context.Context) (filename string, data []byte, err error)
 	// ActorAccountID is 0 for a system caller; ActorName is snapshotted into
 	// the journal so the entry still reads after a rename or deletion.
 	ActorAccountID int64

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
@@ -32,7 +33,7 @@ func TestTransferCommitsItsEvidenceBeforeTouchingTheCounterpart(t *testing.T) {
 	dir := t.TempDir()
 	server := sftptest.Start(t)
 	connections := 0
-	request := transferRequest()
+	request := auditedTransferRequest(t, db)
 	finalPath := filepath.Join(dir, request.Filename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("previous export"), 0600))
 	module, err := newModule(Dependencies{DB: db, Settings: staticSettings(server, dir), Keys: testSettingKeys()},
@@ -42,12 +43,13 @@ func TestTransferCommitsItsEvidenceBeforeTouchingTheCounterpart(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, []byte("previous export"), previous)
 			// A separate tenant transaction can only see committed evidence.
+			assert.Equal(t, 1, accessAuditCount(t, ctx, db), "access audit must commit before connecting")
 			rows := readTransferRows(t, ctx, db)
 			require.Len(t, rows, 1, "no remote operation may precede the durable intent and audit")
 			assert.Equal(t, "failed", rows[0].Status, "an unfinished attempt must never claim success")
 		}}))
 	require.NoError(t, err)
-	outcome, err := transferInTenantTx(t, ctx, module, transferRequest())
+	outcome, err := transferInTenantTx(t, ctx, module, request)
 	require.NoError(t, err)
 	require.True(t, outcome.Transferred)
 	assert.Equal(t, 1, connections)
@@ -66,7 +68,7 @@ func dispatchState(t *testing.T, ctx context.Context, db *bun.DB) (int64, string
 
 func TestFailedTransferIsTerminalAndNeverReplacesThePreviousFile(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	dir := t.TempDir()
 	server := sftptest.Start(t)
@@ -107,10 +109,11 @@ func TestFailedTransferIsTerminalAndNeverReplacesThePreviousFile(t *testing.T) {
 
 func TestCrashAfterCommitSettlesUnknownWithoutReupload(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
 	for _, where := range []string{"before_claim", "before_upload"} {
 		t.Run(where, func(t *testing.T) {
-			ctx := testpkg.OwnCtx(t)
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupIsolatedTestDB(t)
+			ctx := testpkg.Ctx(t)
 			dir := t.TempDir()
 			server := sftptest.Start(t)
 			request := transferRequest()
@@ -175,7 +178,7 @@ func TestAcceptedTransferSurvivesOuterResponseTransactionRollback(t *testing.T) 
 	dir := t.TempDir()
 	server := sftptest.Start(t)
 	module := buildModule(t, db, server, dir)
-	request := transferRequest()
+	request := auditedTransferRequest(t, db)
 	laterFailure := errors.New("response transaction failed after accepted command")
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		outcome, err := module.Transfer(txCtx, request)
@@ -190,4 +193,46 @@ func TestAcceptedTransferSurvivesOuterResponseTransactionRollback(t *testing.T) 
 	rows := readTransferRows(t, ctx, db)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "success", rows[0].Status)
+	assert.Equal(t, 1, accessAuditCount(t, ctx, db))
+}
+
+func auditedTransferRequest(t *testing.T, db *bun.DB) exporttransfer.Request {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, db, "transfer@example.test")
+	request := transferRequest()
+	request.ActorAccountID = account.ID
+	request.PrepareFile = func(ctx context.Context) (string, []byte, error) {
+		tx, tenantID, err := database()(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		_, err = tx.NewRaw(`INSERT INTO audit.data_access_log
+			(tenant_id,actor_account_id,actor_role,resource_type,range_start,range_end)
+			VALUES (?,?,'staff','time_tracking_export',now(),now())`, tenantID, account.ID).Exec(ctx)
+		return request.Filename, request.Data, err
+	}
+	return request
+}
+
+func accessAuditCount(t *testing.T, ctx context.Context, db *bun.DB) int {
+	t.Helper()
+	n, err := db.NewSelect().TableExpr("audit.data_access_log").Where("tenant_id = ?", testpkg.Tenant(t)).Count(ctx)
+	require.NoError(t, err)
+	return int(n)
+}
+
+func TestIntentRollbackAlsoRollsBackAccessAudit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	dir := t.TempDir()
+	module := buildModule(t, db, sftptest.Start(t), dir)
+	rollbackErr := errors.New("intent commit failed")
+	_, err := module.Transfer(rollbackCommandContext(t, ctx, db, rollbackErr), auditedTransferRequest(t, db))
+	require.ErrorIs(t, err, rollbackErr)
+	assert.Zero(t, accessAuditCount(t, ctx, db))
+	assert.Empty(t, readTransferRows(t, ctx, db))
+	files, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, files)
 }

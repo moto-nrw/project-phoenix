@@ -245,3 +245,38 @@ func TestState_PassesTheConfigurationThrough(t *testing.T) {
 	assert.True(t, got.Ready())
 	assert.Equal(t, "dateien.beispiel.de", got.Host)
 }
+
+func TestAccessAuditFailurePreventsTransfer(t *testing.T) {
+	t.Parallel()
+	uploader := &fakeUploader{}
+	journal := &fakeJournal{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
+	auditErr := errors.New("access audit unavailable")
+	_, err := service.Transfer(context.Background(), domain.Request{
+		PrepareFile: func(context.Context) (string, []byte, error) {
+			return "", nil, auditErr
+		},
+	})
+	require.ErrorIs(t, err, auditErr)
+	assert.Zero(t, uploader.calls)
+	assert.Empty(t, journal.entries)
+}
+
+func TestTransferUsesTheFilePreparedWithItsAccessAudit(t *testing.T) {
+	t.Parallel()
+	uploader := &fakeUploader{}
+	journal := &fakeJournal{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
+	result, err := service.Transfer(context.Background(), domain.Request{
+		PrepareFile: func(context.Context) (string, []byte, error) {
+			return "prepared.csv", []byte("prepared export"), nil
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Success)
+	assert.Equal(t, "prepared.csv", uploader.filename)
+	assert.Equal(t, []byte("prepared export"), uploader.data)
+	require.Len(t, journal.entries, 1)
+	assert.Equal(t, uploader.filename, journal.entries[0].Filename)
+	assert.Equal(t, int64(len(uploader.data)), journal.entries[0].ByteSize)
+}

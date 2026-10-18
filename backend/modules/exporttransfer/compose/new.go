@@ -75,10 +75,8 @@ func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exp
 		return nil, errors.New("export transfer compose: setting keys are required")
 	}
 
-	journal := postgres.New(database())
-
 	resolver := application.SettingsResolver{Settings: application.Settings(dependencies.Settings), Keys: application.SettingKeys(dependencies.Keys)}
-	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, journal, ports.CommandRuntime{
+	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, postgres.New(database()), ports.CommandRuntime{
 		Active: tenant.HasAfterCommitHooks,
 		Detached: func(ctx context.Context) context.Context {
 			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
@@ -156,6 +154,7 @@ func (e engine) Transfer(ctx context.Context, request exporttransfer.Request) (e
 		Format:         request.Format,
 		Filename:       request.Filename,
 		Data:           request.Data,
+		PrepareFile:    request.PrepareFile,
 		ActorAccountID: request.ActorAccountID,
 		ActorName:      request.ActorName,
 	})
