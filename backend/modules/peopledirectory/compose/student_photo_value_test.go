@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // The photo runtime passed as a value serves the photo lifecycle directly;
@@ -33,8 +31,8 @@ func TestStudentPhotoPort_TakesTheRuntimeValue(t *testing.T) {
 }
 
 // The disabled runtime behaves like the unbound resolver a root without
-// photos composed with before: the feature reports disabled and a consent
-// change fails with the same error.
+// photos composed with before: the feature reports disabled and nothing is
+// unlinked or acted for.
 func TestDisabledStudentPhotos_MatchesTheUnboundRuntime(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -43,17 +41,18 @@ func TestDisabledStudentPhotos_MatchesTheUnboundRuntime(t *testing.T) {
 	require.NoError(t, err)
 	unbound, err := studentPhotoPort(Dependencies{})
 	require.NoError(t, err)
-
 	for _, port := range []interface {
 		PhotoFeatureEnabled(context.Context) (bool, error)
 		ActingAccountID(context.Context) int64
-		RecordPhotoConsent(context.Context, domain.StudentConsentSnapshot, domain.StudentConsentSnapshot, *int64, time.Time) error
 	}{disabled, unbound} {
 		enabled, err := port.PhotoFeatureEnabled(ctx)
 		require.NoError(t, err)
 		require.False(t, enabled)
 		require.Zero(t, port.ActingAccountID(ctx))
-		err = port.RecordPhotoConsent(ctx, domain.StudentConsentSnapshot{}, domain.StudentConsentSnapshot{}, nil, time.Now())
-		require.EqualError(t, err, "people directory: student photo runtime is not bound")
 	}
+
+	// A consent change fails with the error the unbound runtime reports.
+	err = DisabledStudentPhotos().RecordPhotoConsent(ctx, StudentPhotoConsentSnapshot{}, StudentPhotoConsentSnapshot{}, nil, time.Now())
+	require.ErrorIs(t, err, errStudentPhotoRuntimeUnbound)
+	require.EqualError(t, err, "people directory: student photo runtime is not bound")
 }
