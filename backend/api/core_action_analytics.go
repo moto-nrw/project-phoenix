@@ -126,11 +126,7 @@ func coreActionRouteGaps(router chi.Routes) (unclassified, stale []string, err e
 
 func collectWritingPortalRoutes(router chi.Routes, into map[analytics.RouteKey]bool) error {
 	return chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		switch method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
-			return nil
-		}
-		if isCoreActionPortalRoute(route) {
+		if analytics.IsWritingMethod(method) && isCoreActionPortalRoute(route) {
 			into[analytics.RouteKey{Method: method, Pattern: route}] = true
 		}
 		return nil
