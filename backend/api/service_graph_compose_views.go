@@ -95,10 +95,8 @@ func composeDeviceServices(b graphBuild) graphBuild {
 // group view and the supervision dashboard.
 func composeProjections(b graphBuild) (graphBuild, error) {
 	b.graph.Reminders = reminder.Module{
-		Query: b.TimetableWiring.ReminderQuery(ReminderSources{
-			CurrentStaff: b.userContext, Settings: b.settingsService, Pickups: b.graph.PickupSchedule,
-			Sessions: b.graph.Active, Supervisions: b.groupSupervisions, Logger: b.Logger.With("service", "reminders"),
-		}),
+		Query: b.TimetableWiring.ReminderQuery(b.userContext, b.settingsService, b.graph.PickupSchedule,
+			b.graph.Active, b.groupSupervisions, b.Logger.With("service", "reminders")),
 		Command:                   b.TimetableWiring.ReminderCommand(b.graph.Calendar),
 		ParentAnnouncementCommand: b.graph.ParentAnnouncement,
 	}
@@ -131,7 +129,7 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 	b.graph.SupervisionDashboard = dashboard
 	b.graph.StudentHistory = presenceservice.NewStudentHistory(b.Presence.Presence, b.TimetableWiring.HistoryRooms,
 		b.Platform.DataAccessAudit(b.audits.DataAccessLog), b.TimetableWiring.HistorySlots)
-	b.graph.Statistics = b.Presence.Statistics(StatisticsSources{AccessLog: b.audits.DataAccessLog, Settings: b.settingsService})
+	b.graph.Statistics = b.Presence.Statistics(b.audits.DataAccessLog, b.settingsService)
 	return b, nil
 }
 

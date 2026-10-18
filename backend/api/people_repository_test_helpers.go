@@ -143,9 +143,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	}
 	presence := NewStudentPresenceForTests(db)
 	enrollment := enrollmentCompose.New()
-	sessions := NewSessionRecords(db, SessionRecordOwners{
-		Now: now, Devices: devices, Rooms: deps.Rooms, Timetable: deps.Capability, Membership: deps.Membership, Persons: deps.Students,
-	})
+	sessions := NewSessionRecords(db, now, devices, deps.Rooms, deps.Capability, deps.Membership, deps.Students)
 	return &PeopleRepositorySuiteFactory{
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),

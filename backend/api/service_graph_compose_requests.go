@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -330,15 +332,12 @@ func composeEnrollmentRequests(b graphBuild) (graphBuild, error) {
 		ClassListEntries: b.Presence.ClassListEntries, PickupSchedules: b.graph.PickupSchedule,
 		CareParticipation: b.graph.CareLifecycle, Settings: b.settingsService,
 	})
-	b.graph.ClassDayArrivalExceptions = b.Presence.ClassDay(ClassDaySources{
-		Caller: b.userContext, Reports: b.graph.EnrollmentReport, StatusDays: b.CarePlanWiring.StatusDays,
-		PickupTimes: b.graph.PickupSchedule, ArrivalTimes: b.graph.ArrivalSchedule, CareDays: b.graph.CareDay,
-		Companions: NewStudentCompanionRepository(b.CarePlan), Students: people.Students, Persons: people.Persons,
-		StudentGuardians: people.StudentGuardians, AccessLog: b.audits.DataAccessLog,
-		ClassArrivalExceptions: b.graph.ArrivalSchedule, Settings: b.settingsService,
-		BlockStarts: b.graph.TimetableOperations, Broadcaster: b.graph.RealtimeHub,
-		Logger: b.Logger.With("service", "class-day-arrival-exceptions"),
-	})
+	b.graph.ClassDayArrivalExceptions = b.Presence.ClassDay(classdayCompose.ClassDayDependencies{
+		Caller: b.userContext, PickupTimes: b.graph.PickupSchedule, ArrivalTimes: b.graph.ArrivalSchedule, CareDays: b.graph.CareDay,
+		Companions: NewStudentCompanionRepository(b.CarePlan), ClassArrivalExceptions: b.graph.ArrivalSchedule,
+		BlockStarts: b.graph.TimetableOperations,
+	}, b.graph.EnrollmentReport, b.CarePlanWiring.StatusDays, people.Students, people.Persons, people.StudentGuardians,
+		b.audits.DataAccessLog, b.settingsService, b.graph.RealtimeHub, b.Logger.With("service", "class-day-arrival-exceptions"))
 	return b, nil
 }
 

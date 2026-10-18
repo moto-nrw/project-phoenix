@@ -12,6 +12,8 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -87,11 +89,7 @@ func NewTimetableWiring(owners TimetableWiringOwners) (TimetableWiring, error) {
 		Calendar:              NewCalendarPortal,
 		// Calendar appointments share one renderer for all four kinds.
 		AppointmentRenderer: func(defaultFrom email.Email) deliveryCompose.MailRenderer {
-			return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
-				DefaultFrom: defaultFrom,
-				Runtime:     calendarCompose.NewTenantRuntime(pool),
-				Guardians:   people.StudentGuardians,
-			}))
+			return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(defaultFrom, calendarCompose.NewTenantRuntime(pool), people.StudentGuardians))
 		},
 		ReminderQuery: newReminderQuery(owners),
 		ReminderCommand: func(calendar calendarCompose.Application) reminder.Command {
@@ -101,28 +99,30 @@ func NewTimetableWiring(owners TimetableWiringOwners) (TimetableWiring, error) {
 }
 
 // newReminderQuery binds the reminder evaluation's readers to the owners the
-// root composed and to the values the service graph hands over.
-func newReminderQuery(owners TimetableWiringOwners) func(ReminderSources) reminder.Query {
+// root composed and to the values the service graph hands over: the acting
+// staff member, the tenant settings, the effective pickups, the live
+// sessions and the active supervisions.
+func newReminderQuery(owners TimetableWiringOwners) func(CareRequestStaff, settingsCompose.SettingsService, EffectivePickupTimes, studentpresence.Presence, studentpresence.SupervisionRecords, *slog.Logger) reminder.Query {
 	presence := NewLoggedStudentPresence(owners.DB, owners.Logger)
-	return func(sources ReminderSources) reminder.Query {
+	return func(currentStaff CareRequestStaff, settings settingsCompose.SettingsService, pickups EffectivePickupTimes, sessions studentpresence.Presence, supervisions studentpresence.SupervisionRecords, logger *slog.Logger) reminder.Query {
 		return reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 			Clock:        ReminderClock(),
-			CurrentStaff: ReminderStaffIdentity(sources.CurrentStaff),
-			Settings:     ReminderSettings{sources.Settings},
+			CurrentStaff: ReminderStaffIdentity(currentStaff),
+			Settings:     ReminderSettings{settings},
 			Attendance:   presence,
-			Pickup:       ReminderPickupReader{Source: sources.Pickups},
+			Pickup:       ReminderPickupReader{Source: pickups},
 			Instance:     ReminderTimetableReader{Source: owners.Timetable},
 			Room:         ReminderRoomReader{Source: owners.Rooms},
 			Student:      ReminderStudentReader{Source: owners.People.Students},
 			Person:       ReminderPersonReader{Source: owners.People.Persons},
-			Supervision:  ReminderSupervisionReader{Source: sources.Sessions, Presence: presence},
+			Supervision:  ReminderSupervisionReader{Source: sessions, Presence: presence},
 			Visits:       ReminderVisitReader{Source: presence},
-			Logger:       sources.Logger,
+			Logger:       logger,
 
 			// Bulk readers for ComputeBatch. They answer the three genuinely
 			// per-person facts for the whole tenant in one query each, which is what
 			// keeps the per-minute cost flat in the number of staff.
-			BulkSupervision:   ReminderBulkSupervisionReader{Source: sources.Supervisions},
+			BulkSupervision:   ReminderBulkSupervisionReader{Source: supervisions},
 			BulkInstanceStaff: ReminderTimetableReader{Source: owners.Timetable},
 		})
 	}

@@ -11,7 +11,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
@@ -742,42 +741,11 @@ type PresenceWiring struct {
 	BindClassListEntries func(auditModels.Command) error
 	SessionDevices       func(DeviceOnlineWindowSettings) presenceservice.SessionDeviceDirectory
 	AttendanceStaffNames func(peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames
-	ClassDay             func(ClassDaySources) classday.ClassDay
-	Statistics           func(StatisticsSources) studentpresence.StatisticsReports
-}
-
-// ClassDaySources are what this graph composes of the school portal's
-// class-day capability: the caller, the reports, the schedules and care
-// days, the student rows, the access log, the settings, the block starts and
-// the broadcaster.
-type ClassDaySources struct {
-	Caller     classdayCompose.CallerReader
-	Reports    enrollmentOwner.Reports
-	StatusDays interface {
-		FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
-	}
-	PickupTimes            classdayCompose.ClassDayPickupReader
-	ArrivalTimes           classdayCompose.ArrivalTimeReader
-	CareDays               classdayCompose.CareDayResolver
-	Companions             classdayCompose.Companions
-	Students               classDayStudentRows
-	Persons                classDayPersonRows
-	StudentGuardians       classDayContactRows
-	AccessLog              accessLogLedger
-	ClassArrivalExceptions careplan.ClassArrivalExceptions
-	Settings               classDayWriteScopeSettings
-	BlockStarts            classdayCompose.BlockStarts
-	// Broadcaster is optional: without it no arrival schedule change is
-	// announced.
-	Broadcaster realtime.Broadcaster
-	Logger      *slog.Logger
-}
-
-// StatisticsSources are what this graph composes of the Statistik report:
-// the access log and the retention settings.
-type StatisticsSources struct {
-	AccessLog accessLogLedger
-	Settings  RetentionSettings
+	ClassDay             func(
+		classdayCompose.ClassDayDependencies, enrollmentOwner.Reports, classDayStatusDayReader, classDayStudentRows, classDayPersonRows,
+		classDayContactRows, accessLogLedger, classDayWriteScopeSettings, realtime.Broadcaster, *slog.Logger,
+	) classday.ClassDay
+	Statistics func(accessLogLedger, RetentionSettings) studentpresence.StatisticsReports
 }
 
 // validate refuses a wiring with a missing value or constructor.
@@ -923,7 +891,7 @@ type TimetableWiring struct {
 	AttendanceCorrections  func(TimetableCorrectionInputs) (timetable.AttendanceCorrections, error)
 	Calendar               func(CalendarDependencies) calendarCompose.Application
 	AppointmentRenderer    func(defaultFrom email.Email) deliveryCompose.MailRenderer
-	ReminderQuery          func(ReminderSources) reminder.Query
+	ReminderQuery          func(CareRequestStaff, settingsCompose.SettingsService, EffectivePickupTimes, studentpresence.Presence, studentpresence.SupervisionRecords, *slog.Logger) reminder.Query
 	ReminderCommand        func(calendarCompose.Application) reminder.Command
 }
 
@@ -1231,16 +1199,4 @@ type CalendarFacts struct {
 // (careplanCompose.ParentChildLinks).
 type ParentChildLinkSource interface {
 	ListByAccount(context.Context, int64) ([]careplanCompose.ParentChildLink, error)
-}
-
-// ReminderSources are the values of this graph the reminder evaluation
-// reads: the acting staff member, the tenant settings, the effective
-// pickups, the live sessions and the active supervisions.
-type ReminderSources struct {
-	CurrentStaff CareRequestStaff
-	Settings     settingsCompose.SettingsService
-	Pickups      EffectivePickupTimes
-	Sessions     studentpresence.Presence
-	Supervisions studentpresence.SupervisionRecords
-	Logger       *slog.Logger
 }

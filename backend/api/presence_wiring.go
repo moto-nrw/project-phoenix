@@ -65,12 +65,9 @@ func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 	staff := owners.People.Staff
 	sessionDeviceRecords := devicefleetRepositoryAdapter.NewDeviceRepository(devices)
 	return PresenceWiring{
-		Presence:         presence,
-		UnloggedPresence: NewUnloggedStudentPresence(db),
-		SessionRecords: NewSessionRecords(db, SessionRecordOwners{
-			Now: owners.Now, Devices: devices, Rooms: owners.Rooms, Timetable: owners.Timetable,
-			Membership: owners.Membership, Persons: owners.Persons,
-		}),
+		Presence:                  presence,
+		UnloggedPresence:          NewUnloggedStudentPresence(db),
+		SessionRecords:            NewSessionRecords(db, owners.Now, devices, owners.Rooms, owners.Timetable, owners.Membership, owners.Persons),
 		PartialAbsencePreview:     NewPartialAbsencePreview(db),
 		AttendanceStaff:           NewAttendanceStaffDirectory(staff),
 		AttendanceEducationGroups: NewAttendanceEducationGroups(owners.People.Groups, owners.People.Students),
@@ -97,10 +94,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 		AttendanceStaffNames: func(people peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames {
 			return NewAttendanceStaffNames(staff, people)
 		},
-		ClassDay: NewClassDay,
-		Statistics: newStatisticsReports(statisticsOwners{
-			DB: db, CarePlan: owners.CarePlan, Calendar: owners.Calendar, Students: owners.People.Students,
-			Rooms: owners.Rooms, Logger: logger, Now: owners.Now,
-		}),
+		ClassDay:   NewClassDay,
+		Statistics: newStatisticsReports(db, owners.CarePlan, owners.Calendar, owners.People.Students, owners.Rooms, logger, owners.Now),
 	}, nil
 }

@@ -10,6 +10,7 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -105,8 +106,8 @@ func CalendarNoPushAudience() error { return deliveryCompose.ErrNoWebPushSubscri
 
 // RenderCalendarMailForTest renders one queued calendar mail of the tenant
 // the way the Delivery outbox worker does; rendered reports a message.
-func RenderCalendarMailForTest(ctx context.Context, d CalendarEmailDependencies, tenantID int64, kind string, payload map[string]any) (rendered bool, err error) {
-	message, err := NewCalendarAppointmentRenderer(d)(ctx, &deliveryCompose.MailIntent{TenantID: tenantID, Kind: kind, Payload: payload})
+func RenderCalendarMailForTest(ctx context.Context, runtime *calendarCompose.TenantRuntime, guardians CalendarMailGuardians, tenantID int64, kind string, payload map[string]any) (rendered bool, err error) {
+	message, err := NewCalendarAppointmentRenderer(email.Email{}, runtime, guardians)(ctx, &deliveryCompose.MailIntent{TenantID: tenantID, Kind: kind, Payload: payload})
 	return message != nil, err
 }
 

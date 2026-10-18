@@ -67,9 +67,7 @@ func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organiz
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	sessionDevices, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	sessions := api.NewSessionRecords(testpkg.NewDatabase(t, db), api.SessionRecordOwners{
-		Devices: sessionDevices, Rooms: owners.Rooms, Timetable: owners.Capability, Membership: owners.Membership, Persons: owners.Students,
-	})
+	sessions := api.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, owners.Rooms, owners.Capability, owners.Membership, owners.Students)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))

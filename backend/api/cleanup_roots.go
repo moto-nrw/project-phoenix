@@ -87,7 +87,7 @@ func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapa
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	sessions := NewSessionRecords(db, SessionRecordOwners{Devices: fleet, Rooms: rooms, Timetable: timetableCapability})
+	sessions := NewSessionRecords(db, nil, fleet, rooms, timetableCapability, nil, nil)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
 	completion := timetableCompose.NewActivityInstanceRepository(db.Pool(), timetableCapability, NewUnloggedStudentPresence(db))
 	return sessions, devices, completion

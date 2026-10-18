@@ -452,10 +452,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		Audit:          factory.Audit,
 		Observe:        observeDataImport,
 	})
-	databaseStats := newDatabaseStats(databaseStatsSources{
-		people: people, rooms: rooms, timetable: timetableRepositories, identity: identityModule,
-		devices: platform.DeviceFleet, logger: logger,
-	})
+	databaseStats := newDatabaseStats(people.Repositories, people.Groups, rooms, timetableRepositories, identityModule, platform.DeviceFleet, logger)
 	return moduleServices{organizations: organizations, listExport: platform.ListExport, imports: imports, databaseStats: databaseStats, carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 

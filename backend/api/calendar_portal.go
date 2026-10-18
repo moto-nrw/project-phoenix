@@ -204,20 +204,20 @@ func (p calendarSynchronousNotificationPort) NotifySynchronously(ctx context.Con
 	return p.source.NotifySynchronously(ctx, calendarNotification(event))
 }
 
-type CalendarEmailDependencies struct {
-	DefaultFrom email.Email
-	// Runtime re-checks the authorization scope a row carries before it
-	// renders (calendarCompose.NewTenantRuntime); nil skips the re-check.
-	Runtime   *calendarCompose.TenantRuntime
-	Guardians interface {
-		FilterAccountsWithStudentAccess(context.Context, []int64, []int64, int64, string) ([]int64, error)
-	}
+// CalendarMailGuardians re-checks which guardian accounts still reach the
+// children a queued calendar mail names.
+type CalendarMailGuardians interface {
+	FilterAccountsWithStudentAccess(context.Context, []int64, []int64, int64, string) ([]int64, error)
 }
 
-func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Context, *deliveryCompose.MailIntent) (*email.Message, error) {
-	cfg := calendarCompose.EmailConfig{Guardians: d.Guardians, RenderCancelled: deliveryCompose.ErrRenderCancelled}
-	if d.Runtime != nil {
-		cfg.Runtime = d.Runtime
+// NewCalendarAppointmentRenderer renders the calendar's queued mails from
+// defaultFrom. runtime re-checks the authorization scope a row carries
+// before it renders (calendarCompose.NewTenantRuntime); nil skips the
+// re-check. guardians answers the guardian access re-check.
+func NewCalendarAppointmentRenderer(defaultFrom email.Email, runtime *calendarCompose.TenantRuntime, guardians CalendarMailGuardians) func(context.Context, *deliveryCompose.MailIntent) (*email.Message, error) {
+	cfg := calendarCompose.EmailConfig{Guardians: guardians, RenderCancelled: deliveryCompose.ErrRenderCancelled}
+	if runtime != nil {
+		cfg.Runtime = runtime
 	}
 	render := calendarCompose.NewAppointmentRenderer(cfg)
 	return func(ctx context.Context, row *deliveryCompose.MailIntent) (*email.Message, error) {
@@ -225,6 +225,6 @@ func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Co
 		if err != nil {
 			return nil, err
 		}
-		return &email.Message{From: d.DefaultFrom, To: email.NewEmail("", value.To), Subject: value.Subject, Template: value.Template, Content: value.Content}, nil
+		return &email.Message{From: defaultFrom, To: email.NewEmail("", value.To), Subject: value.Subject, Template: value.Template, Content: value.Content}, nil
 	}
 }

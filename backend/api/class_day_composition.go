@@ -22,33 +22,34 @@ import (
 // the People Directory students and guardian contacts, the GDPR access log
 // and the realtime hub.
 
-// NewClassDay composes the school portal's class-day capability.
-func NewClassDay(sources ClassDaySources) classday.ClassDay {
-	deps := classdayCompose.ClassDayDependencies{
-		Caller:                 sources.Caller,
-		PickupTimes:            sources.PickupTimes,
-		ArrivalTimes:           sources.ArrivalTimes,
-		CareDays:               sources.CareDays,
-		Companions:             sources.Companions,
-		ClassArrivalExceptions: sources.ClassArrivalExceptions,
-		WriteScope:             newClassDayWriteScope(sources.Settings),
-		BlockStarts:            sources.BlockStarts,
-		Announcer:              classDayArrivalAnnouncer{broadcaster: sources.Broadcaster, logger: sources.Logger},
+// NewClassDay composes the school portal's class-day capability. deps
+// carries the caller, the pickup and arrival times, the care days, the
+// companions, the class arrival exceptions and the block starts; the
+// remaining ports are bound here over the reports, the status days, the
+// student, person and contact rows, the access log, the write-scope settings
+// and the broadcaster. Without a broadcaster no arrival schedule change is
+// announced.
+func NewClassDay(
+	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
+	students classDayStudentRows, persons classDayPersonRows, studentGuardians classDayContactRows,
+	accessLog accessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
+) classday.ClassDay {
+	deps.WriteScope = newClassDayWriteScope(settings)
+	deps.Announcer = classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
+	if reports != nil {
+		deps.Rosters = classDayRosters{reports: reports}
 	}
-	if sources.Reports != nil {
-		deps.Rosters = classDayRosters{reports: sources.Reports}
+	if statusDays != nil {
+		deps.StatusDays = classDayStatusDays{reader: statusDays}
 	}
-	if sources.StatusDays != nil {
-		deps.StatusDays = classDayStatusDays{reader: sources.StatusDays}
+	if students != nil && persons != nil {
+		deps.Students = classDaySheetStudents{students: students, persons: persons}
 	}
-	if sources.Students != nil && sources.Persons != nil {
-		deps.Students = classDaySheetStudents{students: sources.Students, persons: sources.Persons}
+	if studentGuardians != nil {
+		deps.EmergencyContacts = classDayEmergencyContacts{repo: studentGuardians}
 	}
-	if sources.StudentGuardians != nil {
-		deps.EmergencyContacts = classDayEmergencyContacts{repo: sources.StudentGuardians}
-	}
-	if sources.AccessLog != nil {
-		deps.AccessLog = classDayAccessLog{repo: sources.AccessLog}
+	if accessLog != nil {
+		deps.AccessLog = classDayAccessLog{repo: accessLog}
 	}
 	return classdayCompose.NewClassDay(deps)
 }
@@ -85,9 +86,12 @@ func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string,
 
 // classDayStatusDays reads the active scheduled day statuses.
 type classDayStatusDays struct {
-	reader interface {
-		FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
-	}
+	reader classDayStatusDayReader
+}
+
+// classDayStatusDayReader reads Care Plan's active scheduled day statuses.
+type classDayStatusDayReader interface {
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {

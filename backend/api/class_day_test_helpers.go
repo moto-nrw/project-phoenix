@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -50,13 +52,11 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})
-	classDay := NewClassDay(ClassDaySources{
-		Caller: active.UserContext, Reports: reports, StatusDays: r.StudentStatusDay,
-		PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
-		Companions: NewStudentCompanionRepository(r.CarePlan), Students: r.Student, Persons: r.Person,
-		StudentGuardians: r.StudentGuardian, AccessLog: r.DataAccessLog, ClassArrivalExceptions: active.ArrivalSchedule,
-		Settings: active.Settings, BlockStarts: active.TimetableOperations,
-		Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()), Logger: slog.Default(),
-	})
+	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
+		Caller: active.UserContext, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
+		Companions: NewStudentCompanionRepository(r.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
+		BlockStarts: active.TimetableOperations,
+	}, reports, r.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, r.DataAccessLog, active.Settings,
+		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())
 	return ClassDayTestModule{ActiveTestModule: active, EnrollmentReports: reports, ClassDay: classDay}, nil
 }
