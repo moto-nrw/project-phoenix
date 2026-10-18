@@ -19,7 +19,7 @@ const (
 	maxStudentDocumentFile = 10 * 1024 * 1024
 	maxStudentDocumentBody = maxStudentDocumentFile + 4096
 	// studentDocumentKind is the storage key prefix for child documents.
-	studentDocumentKind = "student-documents"
+	studentDocumentKind = careplan.StudentDocumentStorageKind
 )
 
 // studentDocumentCoordinator asks Root for the native byte coordinator per
