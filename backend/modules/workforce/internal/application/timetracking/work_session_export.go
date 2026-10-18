@@ -100,22 +100,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 
 	switch format {
 	case "pdf":
-		doc, err := s.buildTimeTrackingDocument(ctx, staffID, rows, from, to)
-		if err != nil {
-			return nil, err
-		}
-		if s.renderPDF == nil {
-			return nil, errors.New("time-tracking PDF renderer is not configured")
-		}
-		data, err := s.renderPDF(doc)
-		if err != nil {
-			return nil, err
-		}
-		return &ExportFile{
-			Data:        data,
-			Filename:    fmt.Sprintf("zeiterfassung_%s_%s.pdf", fromStr, toStr),
-			ContentType: "application/pdf",
-		}, nil
+		return s.renderSessionPDF(ctx, staffID, rows, from, to, fromStr, toStr)
 	case "xlsx":
 		data, err := s.renderWorkbook("Zeiterfassung", timeTrackingHeaders(), stringsRowsToAny(cells), nil)
 		if err != nil {
@@ -139,6 +124,26 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 			ContentType: contentTypeCSV,
 		}, nil
 	}
+}
+
+// renderSessionPDF applies the shared print layout to the prepared session rows.
+func (s *workSessionService) renderSessionPDF(ctx context.Context, staffID int64, rows []exportRow, from, to calendar.Date, fromStr, toStr string) (*ExportFile, error) {
+	doc, err := s.buildTimeTrackingDocument(ctx, staffID, rows, from, to)
+	if err != nil {
+		return nil, err
+	}
+	if s.renderPDF == nil {
+		return nil, errors.New("time-tracking PDF renderer is not configured")
+	}
+	data, err := s.renderPDF(doc)
+	if err != nil {
+		return nil, err
+	}
+	return &ExportFile{
+		Data:        data,
+		Filename:    fmt.Sprintf("zeiterfassung_%s_%s.pdf", fromStr, toStr),
+		ContentType: "application/pdf",
+	}, nil
 }
 
 // buildTimeTrackingDocument shapes the merged export rows into the shared
