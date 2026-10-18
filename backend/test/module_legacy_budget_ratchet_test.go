@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 1226
+const moduleLegacyBudgetTotal = 1138
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -162,7 +162,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 34041
+const moduleComposeBudgetTotal = 33213
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -175,7 +175,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose":                      266,
 	"modules/careplan/compose":                      2556,
 	"modules/careplan/requestfeed/compose":          68,
-	"modules/classday/compose":                      506,
+	"modules/classday/compose":                      462,
 	"modules/communication/composition":             1480,
 	"modules/dataimport/compose":                    253,
 	"modules/dataimport/compose/retained":           34,
@@ -184,12 +184,12 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose/realtime":             30,
 	"modules/devicefleet/compose":                   372,
 	"modules/devicefleet/compose/repositoryadapter": 298,
-	"modules/devicescan/compose":                    1513,
+	"modules/devicescan/compose":                    1446,
 	"modules/emergencysnapshot/compose":             13,
 	"modules/enrollment/compose":                    716,
 	"modules/exporttransfer/compose":                323,
 	"modules/facilities/compose":                    394,
-	"modules/facilities/compose/httpadapter":        483,
+	"modules/facilities/compose/httpadapter":        473,
 	"modules/facilities/compose/repositoryadapter":  242,
 	"modules/feedback/compose":                      219,
 	"modules/filestorage/compose":                   636,
@@ -214,10 +214,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                354,
-	"modules/schoolsetup/compose":                     107,
+	"modules/schoolsetup/compose":                     93,
 	"modules/schoolstructure/compose":                 901,
 	"modules/settings/compose":                        587,
-	"modules/settings/compose/vocabulary":             126,
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
@@ -228,8 +227,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,
 	"modules/transactionruntime/compose":              172,
-	"modules/workforce/compose":                       1468,
-	"modules/workforce/compose/repositoryadapter":     274,
+	"modules/workforce/compose":                       1175,
 	"workflows/gradetransition/compose":               145,
 	"workflows/openroommove/compose":                  81,
 	"workflows/parentportal/compose":                  463,
@@ -247,7 +245,7 @@ var moduleComposeBudgets = map[string]int{
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
-	"modules/devicefleet/compose/legacy": 231,
+	"modules/devicefleet/compose/legacy": 143,
 	// #4077 moved the adapters into the root; the German name order stays
 	// until #4086 settles internal/collation.
 	"modules/emergencysnapshot/legacy": 11,

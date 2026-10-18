@@ -3,7 +3,7 @@ package defaults
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // School lesson end times (#3372). The team maintains them per school and

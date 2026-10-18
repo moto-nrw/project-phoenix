@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Info-point display settings (issue #1325). The feature is opt-in and

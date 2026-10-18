@@ -18,6 +18,16 @@ type SchoolAccountListing struct {
 	HasUserRole  bool
 }
 
+// SchoolAccountListingStatusInvited is the status of a pending invitation's
+// row.
+const SchoolAccountListingStatusInvited = "invited"
+
+// PendingInvitation reports the row of an invitation no account has accepted
+// yet: it carries no account and lists after the accounts.
+func (l SchoolAccountListing) PendingInvitation() bool {
+	return l.AccountID == 0 && l.Status == SchoolAccountListingStatusInvited
+}
+
 // SchoolAccountListings reads only the explicit school set. The caller owns
 // school visibility; the query preserves its ambient transaction and RLS.
 type SchoolAccountListings interface {

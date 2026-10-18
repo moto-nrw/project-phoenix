@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // SettingsService defines operations for the schema-driven settings system.

@@ -12,12 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -27,6 +21,7 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -44,6 +39,7 @@ import (
 	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
@@ -90,6 +86,7 @@ import (
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
@@ -104,6 +101,7 @@ import (
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -1112,7 +1110,7 @@ func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 // mountModuleRoutes mounts the route groups modules serve themselves.
 func mountModuleRoutes(tenant chi.Router, in routeInputs) error {
 	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
-		Settings: in.modules.services.Settings,
+		Settings: SchoolSetupSettings{Settings: in.modules.services.Settings},
 	})
 	if err != nil {
 		return err
@@ -1601,7 +1599,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		// A destination chosen at the kiosk runs the phone's open-room
 		// move (#3067).
 		OpenRooms: newDeviceOpenRoomMover(openRoomMove),
-		Settings:  svc.Settings,
+		Settings:  newDeviceScanSettings(svc.Settings),
 		Logger:    logger.With("service", "device-scan"),
 	})
 	return iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -1610,7 +1608,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
 		StaffClock:       newStaffClockService(svc.Users, NewPeopleIdentityAccess(in.db, observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
-		Configuration:    devicescanCompose.NewConfiguration(svc.Settings),
+		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: svc.Settings}),
 		Rooms:            devicescanCompose.NewRoomAvailability(modules.presence.RoomService),
 		Directory:        devicescanCompose.NewDirectory(svc.Users, svc.Activities, logger),
 		TagAssignments:   devicescanCompose.NewTagAssignments(svc.Users, logger),
@@ -1733,11 +1731,12 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, pool, logger := in.modules.services, in.modules, in.db.Pool(), in.logger
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(modules.rooms, roomsHTTPAdapter.Dependencies{
-		Facilities: modules.presence.RoomService, Settings: svc.Settings,
-		UserContext: modules.userContext, Active: svc.Active,
+		Facilities:          modules.presence.RoomService,
+		RoomHistorySettings: NewRoomHistorySettings(svc.Settings, logger.With("handler", "rooms"), settingsFacts.PrefetchSettings),
+		UserContext:         modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: modules.listExport,
-	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings, transactionFailures.IsConstraintViolation).Router())
+	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, transactionFailures.IsConstraintViolation).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).

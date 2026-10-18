@@ -16,10 +16,10 @@ const (
 )
 
 type recordedSettingsRegistry struct {
-	handlers map[string]settingHandler
+	handlers map[string]SettingHandler
 }
 
-func (r *recordedSettingsRegistry) Register(key string, handler settingHandler) {
+func (r *recordedSettingsRegistry) Register(key string, handler SettingHandler) {
 	r.handlers[key] = handler
 }
 
@@ -73,10 +73,10 @@ func TestRegisterSettingsSideEffectsPreservesProvisioningContracts(t *testing.T)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			registry := &recordedSettingsRegistry{handlers: make(map[string]settingHandler)}
+			registry := &recordedSettingsRegistry{handlers: make(map[string]SettingHandler)}
 			schulhof := &recordedSchulhofProvisioner{err: test.schulhofErr}
 			wc := &recordedWCProvisioner{err: test.wcErr}
-			RegisterSettingsSideEffects(registry, schulhof, wc)
+			RegisterSettingsSideEffects(registry, checkoutSchulhofEnabledKey, checkoutWCEnabledKey, schulhof, wc)
 
 			postCommit, err := registry.dispatch(context.Background(), test.key, test.value)
 

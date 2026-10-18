@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -301,7 +301,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Outbox: func() MailOutbox {
 				return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 			},
-			WelcomeDelay: StaffWelcomeDelay,
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 	})
 	if err != nil {

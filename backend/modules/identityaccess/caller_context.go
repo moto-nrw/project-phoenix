@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -240,4 +241,13 @@ type ParentRequestReviews interface {
 	ReviewScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 	AbsenceReviewScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 	ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
+}
+
+// AuditActorName is the name an audit records the acting account under: its
+// person's full name, or the username when the account carries no name.
+func AuditActorName(firstName, lastName, username string) string {
+	if name := strings.TrimSpace(firstName + " " + lastName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(username)
 }

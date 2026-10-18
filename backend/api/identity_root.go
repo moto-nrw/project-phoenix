@@ -126,7 +126,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
 			Outbox:       func() MailOutbox { return m.Outbox() },
-			WelcomeDelay: StaffWelcomeDelay,
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the role management of the module
 		// they are composed into.
@@ -153,7 +153,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	usercontextLogger := m.Logger.With("service", "usercontext")
 	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
 		Accounts:             module,
-		Persons:              m.PersonRows,
+		Persons:              callerPersons{rows: m.PersonRows, people: m.Persons},
 		Membership:           m.Membership,
 		StaffGroups:          m.StaffGroups,
 		SupervisedActivities: m.ActivityGroups.SupervisedActivityGroupIDs,
@@ -194,21 +194,17 @@ func operatorFrontendURLOf(operatorHostname, frontendURL string) (string, error)
 	return fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/")), nil
 }
 
-// emailChangeExpiry is the lifetime of an operator e-mail change link. It
-// deliberately reuses PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: both are one-time
-// verification links with the same delivery constraints and security
-// profile. If the two ever need to diverge, introduce
-// EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES. The 15-minute floor accounts for mail
-// delivery latency and the time the user needs.
+// emailChangeExpiry is the owner's lifetime of an operator e-mail change
+// link; the root reports when the owner raised the configured value.
 func emailChangeExpiry(passwordResetExpiry time.Duration, logger *slog.Logger) time.Duration {
-	if passwordResetExpiry >= 15*time.Minute {
-		return passwordResetExpiry
+	expiry := identityaccess.OperatorEmailChangeExpiry(passwordResetExpiry)
+	if expiry != passwordResetExpiry {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetExpiry.Minutes())),
+			slog.Int("effective_minutes", int(expiry.Minutes())),
+		)
 	}
-	logger.Warn("email change token expiry bumped to minimum 15 minutes",
-		slog.Int("configured_minutes", int(passwordResetExpiry.Minutes())),
-		slog.Int("effective_minutes", 15),
-	)
-	return 15 * time.Minute
+	return expiry
 }
 
 // identityMailRenderers render the Identity & Access mail kinds of the

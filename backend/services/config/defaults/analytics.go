@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Usage analytics (Nutzungsanalyse, #3603). Operator-only: the moto team

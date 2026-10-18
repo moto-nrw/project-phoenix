@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -15,7 +14,7 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Identity & Access owns the account and operator second factor and both
@@ -181,9 +180,7 @@ func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) 
 // --- the two mails -----------------------------------------------------------
 
 // mfaMailer sends the code through synchronous delivery and the
-// device-added notice asynchronously. The code template carries no link or
-// button on purpose: the user pastes the code into the moto login, which
-// kills the "click here to confirm" phishing pattern.
+// device-added notice asynchronously.
 type mfaMailer struct {
 	dispatcher  *email.Dispatcher
 	from        email.Email
@@ -201,20 +198,8 @@ func (m mfaMailer) DeliverCode(ctx context.Context, message identityaccess.MFACo
 		deliveryType = "operator_mfa_email_code"
 	}
 	err := m.dispatcher.Deliver(ctx, email.DeliveryRequest{
-		Message: email.Message{
-			From:     m.from,
-			To:       email.NewEmail(message.RecipientName, message.Recipient),
-			Subject:  "Ihr moto-Anmeldecode",
-			Template: "mfa-email-code.html",
-			Content: map[string]any{
-				"LogoURL":              motoLogoURL(m.frontendURL),
-				"Code":                 message.Code,
-				"ExpiryMinutes":        message.ExpiryMinutes,
-				"RequestIP":            message.RequestIP,
-				"TrustedDeviceEnabled": message.TrustedDeviceEnabled,
-				"TrustedDeviceDays":    message.TrustedDeviceDays,
-			},
-		},
+		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
+			identityaccess.MFACodeMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
@@ -242,19 +227,8 @@ func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identit
 		deliveryType = "operator_mfa_trusted_device_added"
 	}
 	m.dispatcher.Dispatch(ctx, email.DeliveryRequest{
-		Message: email.Message{
-			From:     m.from,
-			To:       email.NewEmail(message.RecipientName, message.Recipient),
-			Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
-			Template: "trusted-device-added.html",
-			Content: map[string]any{
-				"LogoURL":     motoLogoURL(m.frontendURL),
-				"DeviceLabel": message.DeviceLabel,
-				"IPAddress":   message.RequestIP,
-				"AddedAt":     message.AddedAt,
-				"TrustedDays": message.TrustedDays,
-			},
-		},
+		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
+			identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
@@ -342,8 +316,4 @@ func operatorMFAChanges(evidence *identityaccess.OperatorMFAEvidence) map[string
 		return map[string]any{"locked_until": evidence.LockedUntil}
 	}
 	return nil
-}
-
-func motoLogoURL(frontendURL string) string {
-	return fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", strings.TrimRight(frontendURL, "/"))
 }

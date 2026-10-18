@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -85,11 +84,7 @@ func (a TokenAdapter) Caller(ctx context.Context) identityaccess.Caller {
 // audit records it under.
 func (a TokenAdapter) AuditActor(ctx context.Context) (int64, string) {
 	claims := a.claims(ctx)
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = strings.TrimSpace(claims.Username)
-	}
-	return claims.AccountID, name
+	return claims.AccountID, identityaccess.AuditActorName(claims.FirstName, claims.LastName, claims.Username)
 }
 
 // actorScope returns the acting account of the request and its token scope.

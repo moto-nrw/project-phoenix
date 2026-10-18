@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Reminder settings (issue #1457). Visual-only reminders for staff — NO sound.

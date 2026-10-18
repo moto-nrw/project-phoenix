@@ -17,9 +17,7 @@ import (
 // operations a seam calls.
 
 type personRows interface {
-	Create(ctx context.Context, person *userModels.Person) error
 	FindByID(ctx context.Context, id any) (*userModels.Person, error)
-	Update(ctx context.Context, person *userModels.Person) error
 	List(ctx context.Context, filters map[string]any) ([]*userModels.Person, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
