@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -132,21 +131,7 @@ func (s supervisionSettings) StudentPhotosEnabled(ctx context.Context) (bool, er
 }
 
 func (s supervisionSettings) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {
-	enabled, err := s.settings.ResolveBool(ctx, settingsplatform.KeyTrackingIndicatorsEnabled)
-	if err != nil || !enabled {
-		return nil, err
-	}
-	labels := make([]string, 0, 3)
-	for _, key := range []string{settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3} {
-		value, err := s.settings.ResolveString(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if value = strings.TrimSpace(value); value != "" {
-			labels = append(labels, value)
-		}
-	}
-	return labels, nil
+	return settingsplatform.PrefetchedTrackingIndicatorLabels(ctx, s.settings)
 }
 
 func (s supervisionSettings) SpontaneousActivitiesEnabled(ctx context.Context) (bool, error) {

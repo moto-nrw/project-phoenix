@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -534,21 +533,7 @@ func (s groupLiveSettings) StudentPhotosEnabled(ctx context.Context) (bool, erro
 }
 
 func (s groupLiveSettings) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {
-	enabled, err := s.settings.ResolveBool(ctx, settingsplatform.KeyTrackingIndicatorsEnabled)
-	if err != nil || !enabled {
-		return nil, err
-	}
-	labels := make([]string, 0, 3)
-	for _, key := range []string{settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3} {
-		value, err := s.settings.ResolveString(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if value = strings.TrimSpace(value); value != "" {
-			labels = append(labels, value)
-		}
-	}
-	return labels, nil
+	return settingsplatform.PrefetchedTrackingIndicatorLabels(ctx, s.settings)
 }
 
 type groupLiveCalendar struct{ now func() time.Time }
