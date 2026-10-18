@@ -317,7 +317,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},
 		ActiveTimetable{TimetableOperations: operations, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations, Activities: dataActivities.Activities, Timetable: dataActivities.Timetable},
-		ActiveSettings{Settings: settings.Settings}, ActivePresence{Active: presence}, ActiveEducation{Education: groups.Education},
+		ActiveSettings{Settings: settings.Settings}, ActivePresence{Active: presence}, ActiveEducation(groups),
 		ActivePeople{Users: dataUsers, People: groupPeople.People}, groupCaller, scan, dataDevices,
 		ActiveFacilities{Facilities: dataFacilities, RoomUsage: dataRoomUsage, SchulhofService: yard},
 		ActiveSupervision{Yard: newSupervisionYard(yard), SupervisionDashboard: dashboard}, ActiveSessionEnd{SessionEnd: sessionEnd}, nil

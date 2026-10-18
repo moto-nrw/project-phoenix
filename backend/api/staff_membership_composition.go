@@ -11,7 +11,6 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -350,16 +349,16 @@ func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 // sentinel, without the "education: {Op}:" prefix), else internal with the
 // wrapped error kept for the logs.
 func ClassifyStaffSchoolClassFailure(err error) (StaffFailureKind, error) {
-	var wrapped *educationSvc.EducationError
+	var wrapped *schoolstructure.EducationError
 	inner := err
 	if errors.As(err, &wrapped) && wrapped.Err != nil {
 		inner = wrapped.Err
 	}
 	switch {
-	case errors.Is(inner, educationSvc.ErrStaffNotFound):
-		return StaffFailureNotFound, educationSvc.ErrStaffNotFound
-	case errors.Is(inner, educationSvc.ErrEmptySchoolClass):
-		return StaffFailureInvalidRequest, educationSvc.ErrEmptySchoolClass
+	case errors.Is(inner, schoolstructure.ErrStaffNotFound):
+		return StaffFailureNotFound, schoolstructure.ErrStaffNotFound
+	case errors.Is(inner, schoolstructure.ErrEmptySchoolClass):
+		return StaffFailureInvalidRequest, schoolstructure.ErrEmptySchoolClass
 	default:
 		return StaffFailureInternal, err
 	}

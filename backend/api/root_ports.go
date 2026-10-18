@@ -19,7 +19,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -64,7 +63,7 @@ func (l pickupStudentLocks) LockStudent(ctx context.Context, studentID int64) (b
 
 // observeCarePlan records the excused-absence workflow as Care Plan
 // operations.
-func observeCarePlan(observation carePlanCompose.Observation) {
+func observeCarePlan(observation careplanCompose.Observation) {
 	observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, careplan.ErrorCode(observation.Err), observation.Err)
 }
 

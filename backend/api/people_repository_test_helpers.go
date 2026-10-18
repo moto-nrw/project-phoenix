@@ -132,7 +132,7 @@ func (f *CarePlanSuiteRepositories) WithSchoolProjections(schools organizationte
 		panic("parent portal repositories: organization tenancy query is required")
 	}
 	bound := *f
-	bound.ParentPortalRepositories = f.ParentPortalRepositories.WithSchools(ParentPortalSchools{Schools: schools})
+	bound.ParentPortalRepositories = f.WithSchools(ParentPortalSchools{Schools: schools})
 	return &bound
 }
 
@@ -162,7 +162,7 @@ func (r *ParentMessagingSuiteRepositories) WithSchoolProjections(schools organiz
 		panic("parent portal repositories: organization tenancy query is required")
 	}
 	bound := *r
-	bound.MessagingRepositories = r.MessagingRepositories.WithSchoolNames(ParentPortalSchools{Schools: schools})
+	bound.MessagingRepositories = r.WithSchoolNames(ParentPortalSchools{Schools: schools})
 	return &bound
 }
 

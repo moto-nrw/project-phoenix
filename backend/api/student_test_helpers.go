@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -106,7 +105,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 // on the caller's broadcaster and the stored-file cleanup, which the student
 // route tests assert on.
 func NewStudentHTTPTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, broadcaster PhotoBroadcaster, clocks ...func() time.Time) (StudentTestModule, ActiveTestModule, StudentTestPeople, auditModels.Command, enrollmentOwner.Decisions, grouplive.Query, error) {
-	return newStudentTestModule(db, unit, feedbackCounter, broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}), clocks...)
+	return newStudentTestModule(db, unit, feedbackCounter, broadcaster, peopledirectory.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}), clocks...)
 }
 
 // newStudentTestModule composes the graph with the photo lifecycle on

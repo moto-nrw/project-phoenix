@@ -11,7 +11,6 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -20,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -214,7 +212,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		structure        StructureRows
 		presencePeople   PresencePeopleReads
 		careRows         TimetableCareRows
-		devices          devicefleetModule.Capability
+		devices          devicefleet.Capability
 		presence         PresenceOwner
 		substitutions    GroupSubstitutionRepository
 		supervisions     studentpresence.SupervisionRecords
@@ -229,11 +227,11 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		caller           *CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories
-		consent          communicationModule.NotificationConsentCapability
+		consent          communication.NotificationConsentCapability
 		notifications    DeliveryNotifications
 		emitter          *communicationCompose.ParentEventEmitter
 		purger           filestorageModule.AttachmentPurger
-		announcements    communicationModule.ParentAnnouncementCapability
+		announcements    communication.ParentAnnouncementCapability
 		schedules        CarePlanSchedules
 		services         PeopleServices
 		days             TimetableDays
@@ -242,7 +240,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		active           studentpresence.Presence
 		activities       arrivalTimetable.ActivityService
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleetModule.Module
+		deviceFleet      *devicefleet.Module
 		materialization  timetable.MaterializationCapability
 		lifecycle        TimetableLifecycle
 		reports          PresenceReports

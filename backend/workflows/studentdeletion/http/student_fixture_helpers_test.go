@@ -99,16 +99,9 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 	return testutil.ExecuteRequestForTest(t, tc.router(), req)
 }
 
-// newStudentTestRepositories composes the retained repositories the suites
-// arrange through, recording into the test audit store.
-var newStudentTestRepositories = api.MustNewStudentHTTPTestRows
-
-// newStudentTestEnrollment composes the Enrollment graph the suites arrange
-// through, and newStudentTestPeopleRows the People Directory rows.
-var (
-	newStudentTestEnrollment = api.MustNewStudentHTTPTestEnrollment
-	newStudentTestPeopleRows = api.MustNewStudentHTTPTestPeopleRows
-)
+// newStudentTestPeopleRows composes the People Directory rows the suites
+// arrange through.
+var newStudentTestPeopleRows = api.MustNewStudentHTTPTestPeopleRows
 
 // previewStudentDeletion reads the delete-impact preview the confirmed
 // deletion has to quote back (#2710): the permanent deletion is never

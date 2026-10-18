@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -47,7 +46,7 @@ import (
 type careFixture struct {
 	db            *bun.DB
 	svc           carerequests.Service
-	persons       peopledirectory.Capability
+	persons       peopleValues.Capability
 	schedules     api.CarePlanSchedules
 	services      api.PeopleServices
 	caller        *api.CallerRows
