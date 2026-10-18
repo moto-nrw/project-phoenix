@@ -158,7 +158,7 @@ func (b *graphBuild) canSeeAllSubstitutions(ctx context.Context, assignmentBound
 		if err != nil {
 			return false, fmt.Errorf("resolve operational overview scope: %w", err)
 		}
-		return scope == configModels.OverviewScopeAllStaff, nil
+		return configModels.OverviewOpenToAllStaff(scope), nil
 	}, assignmentBound, admin, hasStaff)
 }
 

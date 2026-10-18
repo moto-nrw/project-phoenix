@@ -271,6 +271,12 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
+// IsBinaryPresence reports whether a stored presence mode is the binary mode;
+// anything else is the detailed mode.
+func IsBinaryPresence(value string) bool {
+	return value == PresenceModeBinary
+}
+
 // PresenceModeOf reads a stored presence mode: anything but binary is the
 // detailed mode.
 func PresenceModeOf(value string) string {
@@ -303,6 +309,13 @@ const (
 	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
 )
+
+// OverviewOpenToAllStaff reports an overview scope that opens every group and
+// running module to all verified staff; any other value keeps the personal
+// view.
+func OverviewOpenToAllStaff(scope string) bool {
+	return scope == OverviewScopeAllStaff
+}
 
 // AttendanceEditScope extends attendance actions, not supervision or planning.
 const (
@@ -357,6 +370,12 @@ const (
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
 )
+
+// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
+// the school portal set class-wide arrival day exceptions.
+func SchoolPortalWritesClassArrivalExceptions(scope string) bool {
+	return scope == SchoolPortalWriteScopeClassArrivalExceptions
+}
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
 // setting says who has to write a reason for a parent request: the guardian

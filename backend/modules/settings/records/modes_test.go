@@ -22,3 +22,16 @@ func TestStudentAbsenceEditOpensOnlyForAllStaff(t *testing.T) {
 		t.Error("only the all-staff scope opens direct absence reports")
 	}
 }
+
+func TestScopePredicatesOpenOnlyForTheirValue(t *testing.T) {
+	t.Parallel()
+	if !OverviewOpenToAllStaff(OverviewScopeAllStaff) || OverviewOpenToAllStaff(OverviewScopeOwn) || OverviewOpenToAllStaff(OverviewScopeAdmins) || OverviewOpenToAllStaff("") {
+		t.Error("only the all-staff overview scope opens every group")
+	}
+	if !SchoolPortalWritesClassArrivalExceptions(SchoolPortalWriteScopeClassArrivalExceptions) || SchoolPortalWritesClassArrivalExceptions(SchoolPortalWriteScopeNone) || SchoolPortalWritesClassArrivalExceptions("") {
+		t.Error("only the class arrival exception scope opens the school portal write")
+	}
+	if !IsBinaryPresence(PresenceModeBinary) || IsBinaryPresence(PresenceModeDetailed) || IsBinaryPresence("") {
+		t.Error("only the binary value is the binary presence mode")
+	}
+}

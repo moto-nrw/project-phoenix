@@ -34,7 +34,7 @@ func (b ClassDayWriteScope) SchoolMayWriteClassArrivalExceptions(ctx context.Con
 	if err != nil {
 		return false, err
 	}
-	return scope == configModels.SchoolPortalWriteScopeClassArrivalExceptions, nil
+	return configModels.SchoolPortalWritesClassArrivalExceptions(scope), nil
 }
 
 // newClassDayWriteScope binds the write scope; nil settings leave it unbound.
