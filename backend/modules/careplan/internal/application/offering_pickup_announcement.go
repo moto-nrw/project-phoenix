@@ -19,26 +19,41 @@ func AnnounceOfferingPickupChange(staff ports.PickupScheduleStaff, guardians por
 	if logger == nil {
 		logger = slog.Default()
 	}
+	announcer := pickupAnnouncer{staff: staff, guardians: guardians, logger: logger}
 	return func(ctx context.Context, studentIDs []int64) {
 		tenantID := hooks.TenantID(ctx)
-		hooks.AfterCommit(ctx, func() {
-			if tenantID <= 0 || len(studentIDs) == 0 {
-				return
-			}
-			if staff != nil {
-				if err := staff.PickupScheduleChanged(tenantID); err != nil {
-					logger.Warn(
-						"offering pickup projection: failed to broadcast schedule change",
-						slog.Int64("tenant_id", tenantID),
-						slog.String("error", err.Error()),
-					)
-				}
-			}
-			if guardians != nil {
-				for _, studentID := range studentIDs {
-					guardians.BroadcastChildUpdateToGuardians(tenantID, studentID)
-				}
-			}
-		})
+		hooks.AfterCommit(ctx, func() { announcer.announce(tenantID, studentIDs) })
+	}
+}
+
+type pickupAnnouncer struct {
+	staff     ports.PickupScheduleStaff
+	guardians ports.PickupScheduleGuardians
+	logger    *slog.Logger
+}
+
+func (a pickupAnnouncer) announce(tenantID int64, studentIDs []int64) {
+	if tenantID <= 0 || len(studentIDs) == 0 {
+		return
+	}
+	a.wakeStaff(tenantID)
+	if a.guardians == nil {
+		return
+	}
+	for _, studentID := range studentIDs {
+		a.guardians.BroadcastChildUpdateToGuardians(tenantID, studentID)
+	}
+}
+
+func (a pickupAnnouncer) wakeStaff(tenantID int64) {
+	if a.staff == nil {
+		return
+	}
+	if err := a.staff.PickupScheduleChanged(tenantID); err != nil {
+		a.logger.Warn(
+			"offering pickup projection: failed to broadcast schedule change",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
 	}
 }
