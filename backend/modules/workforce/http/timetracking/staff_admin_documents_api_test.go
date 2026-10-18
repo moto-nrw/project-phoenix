@@ -348,6 +348,8 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	queue, err := workforceCompose.NewDocumentCleanup(c.tc.db, func() time.Time { return now })
 	require.NoError(t, err)
 	c.tc.resource.OffboardingCleanup = queue
+	c.tc.resource.documentFiles, err = workforceCompose.NewStaffDocumentFileRecovery(c.tc.resource.StaffDocumentService, queue, c.tc.resource.uploads, c.tc.resource.logger)
+	require.NoError(t, err)
 	rec := c.upload(t, "zeugnis", "retry.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())

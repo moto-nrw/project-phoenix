@@ -105,9 +105,14 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 	if err != nil {
 		panic(err)
 	}
+	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, logger)
+	if err != nil {
+		panic(err)
+	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
+		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,
