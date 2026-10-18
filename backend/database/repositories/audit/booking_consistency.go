@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"slices"
 
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
@@ -51,22 +51,14 @@ type EnrollmentQueries interface {
 	ApprovedBookingOfferingLinks(context.Context) ([]auditlog.ApprovedBookingOfferingLink, error)
 }
 
-func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries) auditModel.BookingConsistencyRepository {
+// NewBookingConsistencyRepository builds the cross-domain booking audit. The
+// People Directory resolves the alumnus exclusion (#2662) and the Care Plan
+// projection the offerings; either may be nil.
+func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries, students StudentDirectory, carePlan CareOfferingDirectory) auditModel.BookingConsistencyRepository {
 	if enrollment == nil {
 		panic("booking consistency audit requires Enrollment queries")
 	}
-	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment}
-}
-
-// BindStudentDirectory installs the People Directory the audit resolves the
-// alumnus exclusion through (#2662).
-func (r *bookingConsistencyRepository) BindStudentDirectory(students StudentDirectory) {
-	r.students = students
-}
-
-// BindCarePlan installs the owner projection used by the cross-domain audit.
-func (r *bookingConsistencyRepository) BindCarePlan(capability CareOfferingDirectory) {
-	r.carePlan = capability
+	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment, students: students, carePlan: carePlan}
 }
 
 // Audit checks approved booking windows for missing pickup projections and

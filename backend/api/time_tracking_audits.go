@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )

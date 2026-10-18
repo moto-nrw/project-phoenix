@@ -57,7 +57,9 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
 			return nil
 		},
-		Clock: clock,
+		Audit:                api.MustNewWorkflowAuditCommand(testpkg.NewDatabase(t, db), "grade transition audit append failed"),
+		ClassListEntryRecord: api.GradeTransitionClassListRecord,
+		Clock:                clock,
 	})
 	require.NoError(t, err)
 	deps.Authorize = func(context.Context, string) (gradetransition.Actor, error) {

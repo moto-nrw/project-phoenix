@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )

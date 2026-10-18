@@ -3,7 +3,7 @@ package audit
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 )
 
 // ContextWithTenant hands the tenant of a unit of work to the Audit adapters.
