@@ -16,7 +16,15 @@ import (
 // no student read joins education.groups itself.
 type OverlappingRosterGroupNames struct {
 	peoplePorts.StudentRepository
-	Groups schoolstructure.Query
+	Groups groupNameQuery
+}
+
+// groupNameQuery is the School Structure read the decorators name the groups
+// of their rows through: the two reads schoolStructureCompose.EnrichGroupNames
+// takes.
+type groupNameQuery interface {
+	FindGroup(ctx context.Context, id int64) (schoolstructure.Group, error)
+	ListGroupsByID(ctx context.Context, ids []int64) ([]schoolstructure.Group, error)
 }
 
 func (r OverlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
@@ -31,7 +39,7 @@ func (r OverlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Conte
 
 type groupStudentRepository struct {
 	peoplePorts.StudentRepository
-	groups schoolstructure.Query
+	groups groupNameQuery
 }
 
 func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*userModels.StudentWithGroupInfo, error) {

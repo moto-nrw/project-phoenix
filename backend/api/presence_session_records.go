@@ -61,7 +61,7 @@ func sessionRecordDependencies(owners SessionRecordOwners) presenceCompose.Sessi
 // person facts.
 type presenceSupervisionStaff struct {
 	membership schoolMembershipCompose.StaffLookup
-	persons    peopledirectory.Query
+	persons    personsByIDQuery
 }
 
 func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs []int64) (map[int64]*presenceCompose.SessionStaff, error) {
@@ -84,12 +84,12 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 
 // personGroupSupervisorRepository attaches Staff.Person to active-group
 // supervisions.
-func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, staff map[int64]*presenceCompose.SessionStaff) error {
+func attachSupervisionPersons(ctx context.Context, query personsByIDQuery, staff map[int64]*presenceCompose.SessionStaff) error {
 	ids := make([]int64, 0, len(staff))
 	for _, member := range staff {
 		ids = append(ids, member.PersonID)
 	}
-	persons, err := peopleCompose.PersonsByID(ctx, query, ids)
+	persons, err := livePersonsByID(ctx, query, ids)
 	if err != nil {
 		return err
 	}

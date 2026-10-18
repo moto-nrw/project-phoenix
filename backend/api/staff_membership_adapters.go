@@ -38,9 +38,16 @@ type staffMembershipDeps struct {
 	identity staffIdentityQuery
 	// employment is Workforce's owner of the employment-only staff writes
 	// (#2753): notes and the birthday opt-out.
-	employment workforce.StaffEmploymentCommand
+	employment staffEmploymentWrites
 	// GroupTeachers is lazy because School Membership may be rebound after construction.
 	GroupTeachers func() GroupTeacherRepository
+}
+
+// staffEmploymentWrites are Workforce's employment-only staff writes the
+// live staff employment runs inside the membership lock.
+type staffEmploymentWrites interface {
+	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (workforce.StaffEmployment, error)
+	SetStaffBirthdayDisplayOptOut(ctx context.Context, membershipID int64, optOut bool) error
 }
 
 // staffPersonRows are the person reads the staff projections attach.
