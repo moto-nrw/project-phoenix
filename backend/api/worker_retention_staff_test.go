@@ -52,7 +52,8 @@ func (s retentionSuite) staffWithRecords(t *testing.T, tenantID int64, name stri
 		VALUES (?, ?, ?, true, DATE '2020-01-06')`, tenantID, staff.ID, plannedGroup.ID)
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoomForTenant(t, s.admin, tenantID, name+" Raum")
-	instance := testpkg.CreateTestActivityInstanceForTenant(t, s.admin, tenantID, testpkg.Date(2020, 1, 6), room.ID, testpkg.ActivityInstanceOpts{})
+	instanceDate := testpkg.Date(2020, 1, 6)
+	instance := testpkg.CreateTestActivityInstanceForTenant(t, s.admin, tenantID, instanceDate, room.ID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaffForTenant(t, s.admin, tenantID, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 	var document string
 	require.NoError(t, s.admin.NewRaw(`INSERT INTO users.staff_documents
