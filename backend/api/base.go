@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -651,33 +650,17 @@ func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) 
 				StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
 			})
 		}
-		sort.SliceStable(candidates, func(left, right int) bool {
-			return mealPlanParticipantLess(candidates[left], candidates[right])
-		})
 		return candidates, nil
 	}
 }
 
-func mealPlanParticipantLess(left, right mealplanCompose.ParticipantCandidate) bool {
-	if left.SchoolClass != right.SchoolClass {
-		return left.SchoolClass < right.SchoolClass
-	}
-	if left.LastName != right.LastName {
-		return left.LastName < right.LastName
-	}
-	if left.FirstName != right.FirstName {
-		return left.FirstName < right.FirstName
-	}
-	return left.StudentID < right.StudentID
-}
-
 var mealPlanErrorRules = []apiCommon.ErrorRule{
-	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("feature_disabled"), apiCommon.CodeMealsPlanDisabled)},
-	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrDisabled.Detail), apiCommon.CodeMealsPlanDisabled)},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New(mealplanModule.ErrInvalidMealDate.Detail))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("meal_registration_disabled"), apiCommon.CodeMealsRegistrationDisabled)},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrRegistrationDisabled.Detail), apiCommon.CodeMealsRegistrationDisabled)},
 	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New("meal_participation_cutoff_passed"), apiCommon.CodeMealsParticipationCutoffPassed)},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrParticipationCutoff.Detail), apiCommon.CodeMealsParticipationCutoffPassed)},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -713,26 +696,18 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 }
 
 func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-	rows := make([][]string, 0, len(list.Participants))
-	for _, participant := range list.Participants {
-		rows = append(rows, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
-	}
-	date, err := list.Date.German()
+	export, err := list.Export()
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}
+	columns := make([]SimpleListColumn, 0, len(export.Columns))
+	for _, column := range export.Columns {
+		columns = append(columns, SimpleListColumn{ID: column.ID, Label: column.Label})
+	}
 	file, err := renderer(SimpleListDocument{
-		Title:       "Mittagessen – Tagesliste",
-		Subtitle:    "Tagesliste für den " + date,
-		GeneratedAt: time.Now(),
-		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
-		Columns: []SimpleListColumn{
-			{ID: "student_name", Label: "Kind"},
-			{ID: "student_class", Label: "Klasse"},
-		},
-		Rows:   rows,
-		Footer: "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
-	}, format, "mittagessen-"+string(list.Date))
+		Title: export.Title, Subtitle: export.Subtitle, GeneratedAt: time.Now(), Filters: export.Filters,
+		Columns: columns, Rows: export.Lines, Footer: export.Footer,
+	}, format, export.Filename)
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}
