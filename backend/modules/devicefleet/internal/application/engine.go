@@ -45,22 +45,34 @@ func toDomainDevice(device devicefleet.Device) domain.Device {
 }
 
 func (e Engine) FindDevice(ctx context.Context, id int64) (devicefleet.Device, error) {
-	value, err := e.service.FindDevice(ctx, id)
+	value, err := e.service.findDevice(ctx, "find_device", true, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
+		return e.service.deps.Devices.FindByID(ctx, id, "")
+	})
+
 	return toPublicDevice(value), MapError(err)
 }
 
 func (e Engine) FindDeviceForUpdate(ctx context.Context, id int64) (devicefleet.Device, error) {
-	value, err := e.service.FindDeviceForUpdate(ctx, id)
+	value, err := e.service.findDevice(ctx, "find_device_for_update", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
+		return e.service.deps.Devices.FindByID(ctx, id, "UPDATE")
+	})
+
 	return toPublicDevice(value), MapError(err)
 }
 
 func (e Engine) FindDeviceByDeviceID(ctx context.Context, deviceID string) (devicefleet.Device, error) {
-	value, err := e.service.FindDeviceByDeviceID(ctx, deviceID)
+	value, err := e.service.findDevice(ctx, "find_device_by_device_id", true, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
+		return e.service.deps.Devices.FindByDeviceID(ctx, deviceID)
+	})
+
 	return toPublicDevice(value), MapError(err)
 }
 
 func (e Engine) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
-	value, err := e.service.FindDeviceByAPIKey(ctx, apiKey)
+	value, err := e.service.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
+		return e.service.deps.Devices.FindByAPIKey(ctx, apiKey)
+	})
+
 	return toPublicDevice(value), MapError(err)
 }
 
@@ -70,8 +82,14 @@ func (e Engine) ListDevices(ctx context.Context, filter devicefleet.DeviceFilter
 }
 
 func (e Engine) ListDevicesByID(ctx context.Context, ids []int64) ([]devicefleet.Device, error) {
-	values, err := e.service.ListDevicesByIDs(ctx, ids)
-	return toPublicDevices(values), MapError(err)
+	var devices []domain.Device
+	err := e.service.run(ctx, "list_devices_by_id", func(ctx context.Context, stats *domain.OperationStats) error {
+		found, queryStats, err := e.service.deps.Devices.ListByIDs(ctx, ids)
+		stats.Add(queryStats)
+		devices = found
+		return err
+	})
+	return toPublicDevices(devices), MapError(err)
 }
 
 func (e Engine) ListOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]devicefleet.Device, error) {
@@ -80,7 +98,13 @@ func (e Engine) ListOfflineDevices(ctx context.Context, offlineSince time.Durati
 }
 
 func (e Engine) CountDevicesByType(ctx context.Context) (map[string]int, error) {
-	counts, err := e.service.CountDevicesByType(ctx)
+	var counts map[string]int
+	err := e.service.run(ctx, "count_devices_by_type", func(ctx context.Context, stats *domain.OperationStats) error {
+		found, queryStats, err := e.service.deps.Devices.CountByType(ctx)
+		stats.Add(queryStats)
+		counts = found
+		return err
+	})
 	return counts, MapError(err)
 }
 

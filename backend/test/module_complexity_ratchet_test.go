@@ -263,7 +263,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/planning/staff_shift_cancellation.go:(*staffShiftService).ApplyCancellation":                                    49,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).DeleteShift":                                               16,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).updateShiftWithOptions":                                    45,
-	"modules/workforce/legacy/substitution_repository.go:(*groupSubstitutionRepository).List":                                                   18,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:EvaluateWorkSessionsLaborTime":                                    16,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:netMinutesByDate":                                                 29,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).RebookAbsences":                      21,

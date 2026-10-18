@@ -117,38 +117,7 @@ func (s *Service) updateOneColumnSet(ctx context.Context, operation string, inpu
 	})
 }
 
-// FindDevice reads one live device including its Facilities room name.
-func (s *Service) FindDevice(ctx context.Context, id int64) (domain.Device, error) {
-	return s.findDevice(ctx, "find_device", true, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return s.deps.Devices.FindByID(ctx, id, "")
-	})
-}
-
-// FindDeviceForUpdate reads and locks one live device. The archived predicate
-// is re-evaluated after the lock wait, so at most one transfer can archive a
-// source device.
-func (s *Service) FindDeviceForUpdate(ctx context.Context, id int64) (domain.Device, error) {
-	return s.findDevice(ctx, "find_device_for_update", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return s.deps.Devices.FindByID(ctx, id, "UPDATE")
-	})
-}
-
-// FindDeviceByDeviceID reads one live device by its tenant-unique device_id,
-// including its room name.
-func (s *Service) FindDeviceByDeviceID(ctx context.Context, deviceID string) (domain.Device, error) {
-	return s.findDevice(ctx, "find_device_by_device_id", true, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return s.deps.Devices.FindByDeviceID(ctx, deviceID)
-	})
-}
-
-// FindDeviceByAPIKey reads one live device by its API key. Device
-// authentication calls it before a tenant is known.
-func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (domain.Device, error) {
-	return s.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return s.deps.Devices.FindByAPIKey(ctx, apiKey)
-	})
-}
-
+// findDevice runs an observed lookup and attaches room names when requested.
 func (s *Service) findDevice(
 	ctx context.Context,
 	operation string,
@@ -197,18 +166,6 @@ func (s *Service) ListDevices(ctx context.Context, filter domain.DeviceFilter) (
 	return devices, err
 }
 
-// ListDevicesByIDs reads the live devices for the supplied primary keys.
-func (s *Service) ListDevicesByIDs(ctx context.Context, ids []int64) ([]domain.Device, error) {
-	var devices []domain.Device
-	err := s.run(ctx, "list_devices_by_id", func(ctx context.Context, stats *domain.OperationStats) error {
-		found, queryStats, err := s.deps.Devices.ListByIDs(ctx, ids)
-		stats.Add(queryStats)
-		devices = found
-		return err
-	})
-	return devices, err
-}
-
 // ListOfflineDevices reads devices unseen for at least offlineSince.
 func (s *Service) ListOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]domain.Device, error) {
 	var devices []domain.Device
@@ -243,18 +200,6 @@ func (s *Service) ListDevicesByTenants(ctx context.Context, tenantIDs []int64) (
 		return err
 	})
 	return devices, err
-}
-
-// CountDevicesByType counts live devices grouped by device_type.
-func (s *Service) CountDevicesByType(ctx context.Context) (map[string]int, error) {
-	var counts map[string]int
-	err := s.run(ctx, "count_devices_by_type", func(ctx context.Context, stats *domain.OperationStats) error {
-		found, queryStats, err := s.deps.Devices.CountByType(ctx)
-		stats.Add(queryStats)
-		counts = found
-		return err
-	})
-	return counts, err
 }
 
 // attachRoomNames fills Device.RoomName from the Facilities owner. The

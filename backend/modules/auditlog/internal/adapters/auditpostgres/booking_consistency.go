@@ -12,104 +12,7 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
-var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
-
-type bookingConsistencyRepository struct {
-	runtime    Runtime
-	students   StudentDirectory
-	carePlan   CareOfferingDirectory
-	enrollment EnrollmentQueries
-}
-
-// CareOfferingProjection is the narrow owner data this audit needs.
-type CareOfferingProjection struct {
-	ID             int64             `json:"id"`
-	TenantID       int64             `json:"tenant_id"`
-	PhaseID        int64             `json:"phase_id"`
-	DaysOfWeekMode string            `json:"days_of_week_mode"`
-	AvailableDays  []string          `json:"available_days"`
-	IsActive       bool              `json:"is_active"`
-	IsRequired     bool              `json:"is_required"`
-	CountsAsCare   bool              `json:"counts_as_care"`
-	PickupTimes    map[string]string `json:"pickup_times"`
-}
-
-// CareOfferingDirectory supplies the current tenant's care offerings.
-type CareOfferingDirectory interface {
-	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
-}
-
-// approvedBookingOfferingLinkColumns is the jsonb_to_recordset column list
-// that matches the JSON encoding of auditlog.ApprovedBookingOfferingLink.
-const approvedBookingOfferingLinkColumns = `id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
- selected_days jsonb, valid_from date, valid_until date`
-
-// EnrollmentQueries supplies the approved bookings and their offering links
-// in the audit's own vocabulary; the root binds it to Enrollment (#4072).
-type EnrollmentQueries interface {
-	ApprovedBookings(context.Context) ([]auditlog.ApprovedBooking, error)
-	ApprovedBookingOfferingLinks(context.Context) ([]auditlog.ApprovedBookingOfferingLink, error)
-}
-
-// NewBookingConsistencyRepository builds the cross-domain booking audit. The
-// People Directory resolves the alumnus exclusion (#2662) and the Care Plan
-// projection the offerings; either may be nil.
-func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries, students StudentDirectory, carePlan CareOfferingDirectory) auditModel.BookingConsistencyRepository {
-	if enrollment == nil {
-		panic("booking consistency audit requires Enrollment queries")
-	}
-	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment, students: students, carePlan: carePlan}
-}
-
-// Audit checks approved booking windows for missing pickup projections and
-// offering coverage. Raw arrival rows and materialized class rosters are not
-// consistency signals: booking-led care deliberately ignores the former on
-// unbooked days and marks the latter not scheduled at read time.
-//
-// Graduates drop out of both checks. Their lifecycle status belongs to the
-// People Directory (#2662): the approved students are read first, the
-// directory names the alumni among them, and the audit query excludes those
-// ids. A request child whose student reference was cleared (ON DELETE SET
-// NULL) keeps the semantics of the former joins: it never counts as an
-// approved student, but still counts as approved without offering.
-func (r *bookingConsistencyRepository) Audit(
-	ctx context.Context,
-	auditDate auditModel.Date,
-) (*auditModel.BookingConsistencyReport, error) {
-	if auditDate.IsZero() {
-		return nil, errors.New("booking consistency audit date is required")
-	}
-	tenantID := runtimeTenantID(ctx, r.runtime)
-	if tenantID <= 0 {
-		return nil, errBookingConsistencyTenantRequired
-	}
-	bookings, err := r.enrollment.ApprovedBookings(ctx)
-	if err != nil {
-		return nil, err
-	}
-	encodedBookings, err := json.Marshal(bookings)
-	if err != nil {
-		return nil, fmt.Errorf("encode approved booking audit projection: %w", err)
-	}
-	links, err := r.enrollment.ApprovedBookingOfferingLinks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	encodedLinks, err := json.Marshal(links)
-	if err != nil {
-		return nil, fmt.Errorf("encode approved booking offering links: %w", err)
-	}
-	alumni, err := r.approvedAlumniStudentIDs(ctx, bookings)
-	if err != nil {
-		return nil, err
-	}
-	offerings, err := r.careOfferingProjection(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	report := &auditModel.BookingConsistencyReport{}
-	err = runtimeDB(ctx, r.runtime).NewRaw(`
+const bookingConsistencyQuery = `
 WITH params AS (
 	SELECT ?::bigint AS tenant_id, ?::date AS audit_date, ?::bigint[] AS alumni_student_ids
 ), care_offerings AS (
@@ -124,7 +27,7 @@ WITH params AS (
   service_start_date date, service_end_date date, care_offering_selection_mode text
  )
 ), offering_links AS (
- SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(`+approvedBookingOfferingLinkColumns+`)
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(` + approvedBookingOfferingLinkColumns + `)
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
@@ -260,7 +163,106 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
+`
+
+var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
+
+type bookingConsistencyRepository struct {
+	runtime    Runtime
+	students   StudentDirectory
+	carePlan   CareOfferingDirectory
+	enrollment EnrollmentQueries
+}
+
+// CareOfferingProjection is the narrow owner data this audit needs.
+type CareOfferingProjection struct {
+	ID             int64             `json:"id"`
+	TenantID       int64             `json:"tenant_id"`
+	PhaseID        int64             `json:"phase_id"`
+	DaysOfWeekMode string            `json:"days_of_week_mode"`
+	AvailableDays  []string          `json:"available_days"`
+	IsActive       bool              `json:"is_active"`
+	IsRequired     bool              `json:"is_required"`
+	CountsAsCare   bool              `json:"counts_as_care"`
+	PickupTimes    map[string]string `json:"pickup_times"`
+}
+
+// CareOfferingDirectory supplies the current tenant's care offerings.
+type CareOfferingDirectory interface {
+	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
+}
+
+// approvedBookingOfferingLinkColumns is the jsonb_to_recordset column list
+// that matches the JSON encoding of auditlog.ApprovedBookingOfferingLink.
+const approvedBookingOfferingLinkColumns = `id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
+ selected_days jsonb, valid_from date, valid_until date`
+
+// EnrollmentQueries supplies the approved bookings and their offering links
+// in the audit's own vocabulary; the root binds it to Enrollment (#4072).
+type EnrollmentQueries interface {
+	ApprovedBookings(context.Context) ([]auditlog.ApprovedBooking, error)
+	ApprovedBookingOfferingLinks(context.Context) ([]auditlog.ApprovedBookingOfferingLink, error)
+}
+
+// NewBookingConsistencyRepository builds the cross-domain booking audit. The
+// People Directory resolves the alumnus exclusion (#2662) and the Care Plan
+// projection the offerings; either may be nil.
+func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries, students StudentDirectory, carePlan CareOfferingDirectory) auditModel.BookingConsistencyRepository {
+	if enrollment == nil {
+		panic("booking consistency audit requires Enrollment queries")
+	}
+	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment, students: students, carePlan: carePlan}
+}
+
+// Audit checks approved booking windows for missing pickup projections and
+// offering coverage. Raw arrival rows and materialized class rosters are not
+// consistency signals: booking-led care deliberately ignores the former on
+// unbooked days and marks the latter not scheduled at read time.
+//
+// Graduates drop out of both checks. Their lifecycle status belongs to the
+// People Directory (#2662): the approved students are read first, the
+// directory names the alumni among them, and the audit query excludes those
+// ids. A request child whose student reference was cleared (ON DELETE SET
+// NULL) keeps the semantics of the former joins: it never counts as an
+// approved student, but still counts as approved without offering.
+func (r *bookingConsistencyRepository) Audit(
+	ctx context.Context,
+	auditDate auditModel.Date,
+) (*auditModel.BookingConsistencyReport, error) {
+	if auditDate.IsZero() {
+		return nil, errors.New("booking consistency audit date is required")
+	}
+	tenantID := runtimeTenantID(ctx, r.runtime)
+	if tenantID <= 0 {
+		return nil, errBookingConsistencyTenantRequired
+	}
+	bookings, err := r.enrollment.ApprovedBookings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedBookings, err := json.Marshal(bookings)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking audit projection: %w", err)
+	}
+	links, err := r.enrollment.ApprovedBookingOfferingLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedLinks, err := json.Marshal(links)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking offering links: %w", err)
+	}
+	alumni, err := r.approvedAlumniStudentIDs(ctx, bookings)
+	if err != nil {
+		return nil, err
+	}
+	offerings, err := r.careOfferingProjection(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &auditModel.BookingConsistencyReport{}
+	err = runtimeDB(ctx, r.runtime).NewRaw(bookingConsistencyQuery, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}

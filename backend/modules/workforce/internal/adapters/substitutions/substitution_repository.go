@@ -124,26 +124,31 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 		if value == nil {
 			continue
 		}
-		switch field {
-		case "active":
-			if active, ok := value.(bool); ok && active {
-				filter.On = calendar.TodayDate().String()
-			}
-		case "date":
-			if date, ok := conditionDate(value); ok {
-				filter.On = date
-			}
-		case "reason_like":
-			if text, ok := value.(string); ok {
-				filter.ReasonContains = text
-			}
-		default:
-			if err := applyGroupSubstitutionEquality(&filter, field, value); err != nil {
-				return nil, &databaseError{op: "list", err: err}
-			}
+		if err := applyGroupSubstitutionFilter(&filter, field, value); err != nil {
+			return nil, &databaseError{op: "list", err: err}
 		}
 	}
 	return r.list(ctx, "list", filter)
+}
+
+func applyGroupSubstitutionFilter(filter *workforce.GroupSubstitutionFilter, field string, value any) error {
+	switch field {
+	case "active":
+		if active, ok := value.(bool); ok && active {
+			filter.On = calendar.TodayDate().String()
+		}
+	case "date":
+		if date, ok := conditionDate(value); ok {
+			filter.On = date
+		}
+	case "reason_like":
+		if text, ok := value.(string); ok {
+			filter.ReasonContains = text
+		}
+	default:
+		return applyGroupSubstitutionEquality(filter, field, value)
+	}
+	return nil
 }
 
 // ListWithFilter lists the rows the typed capability filter selects.

@@ -1,7 +1,7 @@
 package compose
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

@@ -3,8 +3,8 @@
 package compose
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/uptrace/bun"
 )

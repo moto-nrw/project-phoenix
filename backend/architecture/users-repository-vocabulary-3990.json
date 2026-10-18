@@ -37,7 +37,7 @@
     "source": "PR #4112 CI at a94211d756 and local reproduction on 2026-10-16. The migration-evidence step rejected two unclaimed removals; the deterministic architecture step passed.",
     "sources": [
       "backend/modules/peopledirectory/ports/repository_contracts.go",
-      "backend/database/repositories/users/repository_vocabulary.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/repository_vocabulary.go",
       "backend/workflows/shiftplansync/compose/new.go",
       "backend/workflows/shiftplansync/internal/application/substitution.go",
       "https://github.com/moto-nrw/project-phoenix/actions/runs/38832404773/job/116753930692"

@@ -279,7 +279,7 @@ func TestFirstPartyImportsAllowedByTheCompositionReaches(t *testing.T) {
 		{"the root composes an owner", ScopeProduction, "api", "modules/workforce/compose", true},
 		{"an owner's suite uses its own contract", ScopeExternalTest, "modules/identityaccess/behavior", "modules/identityaccess", true},
 		{"a root rule into a tool owner", ScopeProduction, "api", "demoprofile", false},
-		{"an implementation role of another owner", ScopeProduction, "api", "modules/workforce/legacy", false},
+		{"an implementation role of another owner", ScopeProduction, "api", "modules/workforce/internal/adapters/substitutions", false},
 		{"the legacy composition's own domain", ScopeProduction, "database/repositories/studentintegration", "models", false},
 	} {
 		got := firstPartyAllowedByReviewedCompositionReach(&base, candidate, scenario.scope, classified(scenario.source), classified(scenario.target))

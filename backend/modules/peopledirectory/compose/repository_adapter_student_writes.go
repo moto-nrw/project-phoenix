@@ -8,9 +8,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 

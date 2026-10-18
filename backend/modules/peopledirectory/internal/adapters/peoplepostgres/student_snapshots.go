@@ -57,22 +57,7 @@ func NativeStudentSnapshot(row *models.Student) *directory.StudentSnapshot {
 	if row.BusDays != nil {
 		value.BusDays, _ = json.Marshal(row.BusDays)
 	}
-	if row.DepartureBaseline != nil {
-		b := row.DepartureBaseline
-		value.DepartureBaseline = &directory.StudentDepartureSnapshot{}
-		if b.PickupDays != nil {
-			value.DepartureBaseline.PickupDays, _ = json.Marshal(b.PickupDays)
-		}
-		if b.AllowedDepartureModes != nil {
-			value.DepartureBaseline.AllowedDepartureModes, _ = json.Marshal(b.AllowedDepartureModes)
-		}
-		if b.DepartureDays != nil {
-			value.DepartureBaseline.DepartureDays, _ = json.Marshal(b.DepartureDays)
-		}
-		if b.BusDays != nil {
-			value.DepartureBaseline.BusDays, _ = json.Marshal(b.BusDays)
-		}
-	}
+	value.DepartureBaseline = studentDepartureSnapshot(row)
 	value.Person = directoryPersonSnapshot(row.Person)
 	return value
 }
@@ -86,4 +71,25 @@ func (r *studentRepository) StudentSnapshotByID(ctx context.Context, id int64) (
 func (r *studentRepository) StudentSnapshotForUpdate(ctx context.Context, id int64) (*directory.StudentSnapshot, error) {
 	row, err := r.FindByIDForUpdate(ctx, id)
 	return NativeStudentSnapshot(row), err
+}
+
+func studentDepartureSnapshot(row *models.Student) *directory.StudentDepartureSnapshot {
+	if row.DepartureBaseline != nil {
+		b := row.DepartureBaseline
+		value := &directory.StudentDepartureSnapshot{}
+		if b.PickupDays != nil {
+			value.PickupDays, _ = json.Marshal(b.PickupDays)
+		}
+		if b.AllowedDepartureModes != nil {
+			value.AllowedDepartureModes, _ = json.Marshal(b.AllowedDepartureModes)
+		}
+		if b.DepartureDays != nil {
+			value.DepartureDays, _ = json.Marshal(b.DepartureDays)
+		}
+		if b.BusDays != nil {
+			value.BusDays, _ = json.Marshal(b.BusDays)
+		}
+		return value
+	}
+	return nil
 }

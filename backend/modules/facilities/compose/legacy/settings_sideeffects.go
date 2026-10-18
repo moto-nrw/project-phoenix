@@ -3,7 +3,7 @@ package legacy
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services/facilities"
+	facilities "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 )
 
 // SettingHandler applies one setting's write side effect; the root registers it.

@@ -34,7 +34,7 @@
     "source": "Assigned localhost5547 test database; pinned toolchain with a fresh /tmp/gocache-4073 after verified merge of PR4260. Immutable base b5d9144edc95f6faa0ab9526867d2983a36a5cd2.",
     "sources": [
       "backend/api/parent_people_fixtures_test_helpers.go",
-      "backend/database/repositories/users/parent_fixtures_test_helpers.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/parent_fixtures_test_helpers.go",
       "backend/modules/peopledirectory/parent_fixtures_test_helpers.go",
       "backend/modules/peopledirectory/internal/application/parent_fixture_protocol_test_helpers.go",
       "backend/test/request_review_policy.go",

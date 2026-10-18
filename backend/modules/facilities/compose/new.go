@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -39,11 +37,11 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
 	observe := func(observation Observation) {
-		observation.Err = mapError(observation.Err)
+		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}
 	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
-	return facilities.NewModule(engine{service: service, observe: observe}), nil
+	return facilities.NewModule(engine{Engine: application.NewEngine(service, observe)}), nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -70,18 +68,11 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 	}
 }
 
-type engine struct {
-	service *application.Service
-	observe ports.Observer
-}
+type engine struct{ application.Engine }
 
 func (engine) RequireTenant(ctx context.Context) error {
 	_, err := tenant.TenantFromContext(ctx)
 	return err
-}
-
-func (e engine) ObserveRejection(operation string, duration time.Duration, err error) {
-	e.observe(ports.Observation{Operation: operation, Duration: duration, Err: err})
 }
 
 type transaction struct{}
@@ -95,116 +86,4 @@ func (transaction) RunWrite(ctx context.Context, callback func(context.Context) 
 
 func (transaction) AcquireLock(ctx context.Context, key string) error {
 	return tenant.AcquireLock(ctx, key, false)
-}
-
-func (e engine) CreateRoom(ctx context.Context, input facilities.CreateRoom) (facilities.Room, error) {
-	value, err := e.service.Create(ctx, domain.CreateRoom{
-		Name: input.Name, Building: input.Building, Floor: input.Floor, Capacity: input.Capacity,
-		Category: input.Category, Color: input.Color, IsSystem: input.IsSystem,
-		IsOpenRoom: input.IsOpenRoom,
-	})
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) UpdateRoom(ctx context.Context, input facilities.UpdateRoom) (facilities.Room, error) {
-	value, err := e.service.Update(ctx, domain.UpdateRoom{
-		ID: input.ID, Name: input.Name, Building: input.Building, Floor: input.Floor,
-		Capacity: input.Capacity, Category: input.Category, Color: input.Color,
-		IsOpenRoom: input.IsOpenRoom,
-	})
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) DeleteRoom(ctx context.Context, id int64) error {
-	return mapError(e.service.Delete(ctx, id))
-}
-
-func (e engine) FindRoom(ctx context.Context, id int64) (facilities.Room, error) {
-	value, err := e.service.FindByID(ctx, id)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) FindRoomForUpdate(ctx context.Context, id int64) (facilities.Room, error) {
-	value, err := e.service.FindByIDForUpdate(ctx, id)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) FindRoomByName(ctx context.Context, name string) (facilities.Room, error) {
-	value, err := e.service.FindByName(ctx, name)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) FindToiletRoom(ctx context.Context, excludeRoomID int64) (facilities.Room, error) {
-	value, err := e.service.FindToilet(ctx, excludeRoomID)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) ListRooms(ctx context.Context, filter facilities.RoomFilter) ([]facilities.Room, error) {
-	values, err := e.service.List(ctx, domain.RoomFilter{
-		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
-		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
-		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
-		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
-	})
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) ListRoomsPage(ctx context.Context, filter facilities.RoomFilter, offset, limit int) (facilities.RoomPage, error) {
-	values, total, err := e.service.ListPage(ctx, domain.RoomFilter{
-		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
-		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
-		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
-		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
-	}, offset, limit)
-	return facilities.RoomPage{Rooms: toPublicList(values), Total: total}, mapError(err)
-}
-
-func (e engine) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
-	values, err := e.service.ListByIDs(ctx, ids)
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) LockRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
-	values, err := e.service.LockByIDs(ctx, ids)
-	return toPublicList(values), mapError(err)
-}
-
-func toPublicList(values []domain.Room) []facilities.Room {
-	result := make([]facilities.Room, 0, len(values))
-	for _, value := range values {
-		result = append(result, toPublic(value))
-	}
-	return result
-}
-
-func toPublic(value domain.Room) facilities.Room {
-	return facilities.Room{
-		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		Name: value.Name, Building: value.Building, Floor: value.Floor, Capacity: value.Capacity,
-		Category: value.Category, Color: value.Color, IsSystem: value.IsSystem,
-		IsOpenRoom: value.IsOpenRoom,
-	}
-}
-
-func mapError(err error) error {
-	switch {
-	case errors.Is(err, domain.ErrNotFound):
-		return facilities.ErrRoomNotFound
-	case errors.Is(err, domain.ErrDuplicate):
-		return facilities.ErrDuplicateRoom
-	case errors.Is(err, domain.ErrDuplicateToilet):
-		return facilities.ErrDuplicateToiletRoom
-	case errors.Is(err, domain.ErrColorAlreadyInUse):
-		return facilities.ErrRoomColorAlreadyInUse
-	case errors.Is(err, domain.ErrSystemProtected):
-		return facilities.ErrSystemRoomProtected
-	case errors.Is(err, domain.ErrSystemNameReserved):
-		return facilities.ErrSystemRoomNameReserved
-	case errors.Is(err, domain.ErrInUse):
-		return facilities.ErrRoomInUse
-	case errors.Is(err, domain.ErrRequiredByOffering):
-		return facilities.ErrRoomRequiredByOffering
-	default:
-		return err
-	}
 }
