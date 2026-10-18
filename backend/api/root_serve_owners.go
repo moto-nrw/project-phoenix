@@ -70,7 +70,7 @@ func observeFacilities(observation facilitiesCompose.Observation) {
 // buildServeRooms composes the Facilities room catalog every owner reads; the
 // room deletion is composed once its guard exists.
 func buildServeRooms(db transactionruntime.Database) (*facilitiesModule.Rooms, error) {
-	return facilitiesCompose.NewRooms(facilitiesCompose.RoomsDependencies{DB: db.Pool(), Observe: observeFacilities})
+	return facilitiesCompose.NewRooms(facilitiesCompose.Dependencies{DB: db.Pool(), Observe: observeFacilities})
 }
 
 // buildFacilitiesModule composes Facilities with its room deletion: the

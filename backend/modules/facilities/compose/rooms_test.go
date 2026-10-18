@@ -19,9 +19,9 @@ func TestNewRoomsRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	_, err := NewRooms(RoomsDependencies{Observe: func(Observation) {}})
+	_, err := NewRooms(Dependencies{Observe: func(Observation) {}})
 	require.EqualError(t, err, "facilities compose: all dependencies are required")
-	_, err = NewRooms(RoomsDependencies{DB: db})
+	_, err = NewRooms(Dependencies{DB: db})
 	require.EqualError(t, err, "facilities compose: all dependencies are required")
 }
 
@@ -31,7 +31,7 @@ func TestRoomsServeTheCatalogBeforeTheDeletionGuard(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	log := &observationLog{}
-	rooms, err := NewRooms(RoomsDependencies{DB: db, Observe: log.record})
+	rooms, err := NewRooms(Dependencies{DB: db, Observe: log.record})
 	require.NoError(t, err)
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t))
 
@@ -54,7 +54,7 @@ func TestRoomsServeTheCatalogBeforeTheDeletionGuard(t *testing.T) {
 func TestRoomRecordsReadTheRetainedRowsOverTheRooms(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	rooms, err := NewRooms(RoomsDependencies{DB: db, Observe: func(Observation) {}})
+	rooms, err := NewRooms(Dependencies{DB: db, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	igel := testpkg.CreateTestRoom(t, db, "Igelraum")
 	records := NewRoomRecords(rooms)

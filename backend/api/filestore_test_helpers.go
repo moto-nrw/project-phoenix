@@ -53,10 +53,19 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return nil, nil, err
 	}
-	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
+	purger, err := filestorageCompose.NewAttachmentPurger(filestorageCompose.AttachmentPurgerDependencies{
+		DB: db.Pool(), Objects: objects, Observe: func(filestorageCompose.Observation) {},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	announcements, err := communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New()), guardianLinkView.NewReader()), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
 		Fingerprints: SecurityFingerprints{},
-	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	}, purger, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	if err != nil {
+		return nil, nil, err
+	}
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),
 		Objects:       objects,
@@ -72,6 +81,5 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return nil, nil, err
 	}
-	announcements.SetAttachmentPurger(files)
 	return files, settings.Settings, nil
 }

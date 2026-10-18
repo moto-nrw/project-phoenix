@@ -97,8 +97,8 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 
 	notifier := &capturingNotifier{}
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-		WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
+		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+		api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 	ev := staffDecision(chain.AccountID, 301)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
@@ -141,8 +141,8 @@ func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: messaging.NewThreadRepository(reposMessages.ParentMessageThread)}
 	notifier := &capturingNotifier{}
 	emitter := newMockEmitter(t, db, threadRepo, messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-		WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
+		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+		api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 	ev := staffDecision(chain.AccountID, 309)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
@@ -166,8 +166,8 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 		notifier := &capturingNotifier{}
 		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: false}))
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: false}))
 
 		ev := staffDecision(chain.AccountID, 302)
 		require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
@@ -184,8 +184,8 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 		notifier := &capturingNotifier{}
 		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 		withdrawn := staffDecision(chain.AccountID, 303)
 		withdrawn.ActorKind = messaging.ParentMessageSenderGuardian
@@ -220,8 +220,8 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier(notifier.Notify, prefs))
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, prefs))
 
 		ev := staffDecision(chain.AccountID, refID)
 		err := enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev)
@@ -261,9 +261,9 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	})
 }
 
-func TestWithDecisionNotificationsOnNilEmitter(t *testing.T) {
+func TestDecisionDeliveryOnNilEmitter(t *testing.T) {
 	t.Parallel()
 	var emitter *parentmessaging.Emitter
-	assert.Nil(t, emitter.WithDecisionNotifications(api.NewCommunicationRequestDecisionNotifier((&capturingNotifier{}).Notify, decisionPreferences{})),
-		"a partially-wired factory must not panic while adding optional dependencies")
+	assert.NoError(t, emitter.EnqueueRequestDecision(context.Background(), 1, 2, 3, staffDecision(3, 310)),
+		"a partially-wired factory must not panic on its optional decision delivery")
 }

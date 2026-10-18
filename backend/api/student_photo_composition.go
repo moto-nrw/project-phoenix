@@ -12,7 +12,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
@@ -266,10 +265,4 @@ type StudentPhotoRuntimeDependencies struct {
 // side effects call when the feature flag changes.
 type StudentPhotoFeatureToggle interface {
 	HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
-}
-
-// RegisterStudentPhotoSettingsSideEffects wires the student-photo feature flag
-// to the photo lifecycle service.
-func RegisterStudentPhotoSettingsSideEffects(registry *settingsCompose.SideEffectRegistry, service StudentPhotoFeatureToggle) {
-	registry.Register(configModel.KeyStudentPhotosEnabled, service.HandleFeatureToggle)
 }

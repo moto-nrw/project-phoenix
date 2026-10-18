@@ -136,7 +136,7 @@ func validPeriod() CalendarPeriodFields {
 
 func TestNewModuleRequiresAnEngine(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { NewModule(nil) })
+	assert.Panics(t, func() { newTestModule(nil) })
 }
 
 func TestHolidayWindowValidationRunsBeforeTheEngine(t *testing.T) {
@@ -151,7 +151,7 @@ func TestHolidayWindowValidationRunsBeforeTheEngine(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			_, err := NewModule(engine).ListHolidays(context.Background(), "DE-NW", dates[0], dates[1])
+			_, err := newTestModule(engine).ListHolidays(context.Background(), "DE-NW", dates[0], dates[1])
 			require.ErrorIs(t, err, ErrInvalidHolidayRange)
 			assert.Zero(t, engine.calls)
 		})
@@ -179,7 +179,7 @@ func TestCalendarPeriodValidationMirrorsTheLegacyRules(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			module := NewModule(engine)
+			module := newTestModule(engine)
 			fields := validPeriod()
 			tc.mutate(&fields)
 
@@ -212,7 +212,7 @@ func TestClosingDayValidationMirrorsTheLegacyRules(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			module := NewModule(engine)
+			module := newTestModule(engine)
 			fields := valid
 			tc.mutate(&fields)
 
@@ -224,7 +224,7 @@ func TestClosingDayValidationMirrorsTheLegacyRules(t *testing.T) {
 	}
 
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 	_, err := module.CreateClosingDay(context.Background(), CreateClosingDay{ClosingDayFields: ClosingDayFields{StartDate: "2030-11-04", EndDate: "2030-11-04", Reason: "Rosenmontag"}})
 	require.NoError(t, err, "a single day closes with start = end")
 }
@@ -233,7 +233,7 @@ func TestDateframeValidationMirrorsTheLegacyRules(t *testing.T) {
 	t.Parallel()
 	start := time.Date(2030, time.August, 1, 0, 0, 0, 0, time.UTC)
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 
 	_, err := module.CreateDateframe(context.Background(), CreateDateframe{DateframeFields: DateframeFields{EndDate: start}})
 	require.ErrorIs(t, err, ErrInvalidDateframe)
@@ -251,7 +251,7 @@ func TestDateframeValidationMirrorsTheLegacyRules(t *testing.T) {
 func TestFiltersAreNormalisedBeforeDelegating(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 	ctx := context.Background()
 
 	_, err := module.ListCalendarPeriods(ctx, CalendarPeriodFilter{IDs: []int64{3, 0, 3, -1, 5}, PeriodType: PeriodTypeHoliday})
@@ -289,7 +289,7 @@ func TestFiltersAreNormalisedBeforeDelegating(t *testing.T) {
 func TestIDsMustBePositive(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 	ctx := context.Background()
 
 	_, err := module.FindCalendarPeriod(ctx, 0)
@@ -318,3 +318,12 @@ func TestErrorCodeLabelsTheStableOutcomes(t *testing.T) {
 	assert.Equal(t, "calendar_period_name_conflict", ErrorCode(ErrCalendarPeriodNameConflict))
 	assert.Equal(t, "internal_error", ErrorCode(errors.New("boom")))
 }
+
+// engine serves both halves of the module, as the composition's does.
+type engine interface {
+	recordsEngine
+	administrationEngine
+}
+
+// newTestModule builds the whole module over one engine.
+func newTestModule(e engine) *Module { return NewAdministeredModule(NewRecords(e), e) }

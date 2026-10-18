@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -16,9 +15,8 @@ import (
 // require the session dependencies: the flows reuse the portal-role lookups
 // and the session revocation.
 type PasswordResetDependencies struct {
-	Delivery identityPorts.PasswordResetDelivery
 	// DeliveryFor builds the delivery over the recorder of its outcome; the
-	// composition calls it once. It replaces Delivery, which must be unset.
+	// composition calls it once.
 	DeliveryFor      func(identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery
 	Passwords        PasswordPolicy
 	Expiry           time.Duration
@@ -34,14 +32,9 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 		return nil, errors.New("identity access compose: the password reset flows require the session dependencies")
 	}
 	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
-	delivery := deps.Delivery
-	if deps.DeliveryFor != nil && delivery == nil {
+	var delivery identityPorts.PasswordResetDelivery
+	if deps.DeliveryFor != nil {
 		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach))
-	} else if deps.DeliveryFor != nil {
-		return nil, errors.New("identity access compose: the password reset delivery and its factory are exclusive")
 	}
 	if delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every password reset dependency is required")

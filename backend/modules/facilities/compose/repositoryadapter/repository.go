@@ -11,57 +11,94 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
-type Repository struct{ rooms facilities.Capability }
+// roomQuery and roomCommand name the Facilities halves the adapters embed;
+// the fields stay unexported, so only the constructors bind them.
+type (
+	roomQuery   = facilities.Query
+	roomCommand = facilities.Command
+)
 
-func New() *Repository { return &Repository{} }
+// Repository serves the retained room repository contract: the reads of its
+// Records and the writes over the Facilities capability. Only New builds it.
+type Repository struct {
+	*Records
+	roomCommand
+}
 
-func (r *Repository) Bind(rooms facilities.Capability) {
+// New binds the repository to rooms; a missing capability panics.
+func New(rooms facilities.Capability) *Repository {
 	if rooms == nil {
 		panic("room repository adapter: Facilities capability is required")
 	}
-	r.rooms = rooms
+	return &Repository{Records: NewRecords(rooms), roomCommand: rooms}
 }
 
-// records reads through the Records; before Bind they report the missing
-// binding.
-func (r *Repository) records() *Records { return &Records{rooms: r.rooms} }
+// Records serves the retained room rows the legacy readers ask for over the
+// Facilities queries alone, so a root can hand them out before the room
+// deletion exists (#4080). It writes no room; the Repository reads through
+// it. Only NewRecords builds it.
+type Records struct{ roomQuery }
 
-func (r *Repository) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
-	return r.records().FindByID(ctx, rawID)
-}
-
-func (r *Repository) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
-	return r.records().List(ctx, filters)
-}
-
-func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
-	return r.records().FindByIDs(ctx, ids)
-}
-
-func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
-	return r.records().FindByIDForUpdate(ctx, id)
-}
-
-func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
-	return r.records().FindByName(ctx, name)
-}
-
-func (r *Repository) capability() (facilities.Capability, error) {
-	if r.rooms == nil {
-		return nil, errors.New("room repository adapter: Facilities capability is not bound")
+func NewRecords(rooms facilities.Query) *Records {
+	if rooms == nil {
+		panic("room records adapter: Facilities query is required")
 	}
-	return r.rooms, nil
+	return &Records{roomQuery: rooms}
+}
+
+func (r *Records) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
+	id, err := roomID(rawID)
+	if err != nil {
+		return nil, err
+	}
+	room, err := r.FindRoom(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointer(room), nil
+}
+
+func (r *Records) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
+	filter, err := roomFilter(filters)
+	if err != nil {
+		return nil, err
+	}
+	values, err := r.ListRooms(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointers(values), nil
+}
+
+func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
+	values, err := r.ListRoomsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointers(values), nil
+}
+
+func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
+	room, err := r.FindRoomForUpdate(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointer(room), nil
+}
+
+func (r *Records) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
+	room, err := r.FindRoomByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointer(room), nil
 }
 
 func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) error {
 	if room == nil {
 		return errors.New("room cannot be nil")
 	}
-	rooms, err := r.capability()
-	if err != nil {
-		return err
-	}
-	created, err := rooms.CreateRoom(ctx, facilities.CreateRoom{
+	created, err := r.CreateRoom(ctx, facilities.CreateRoom{
 		Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
 		Category: room.Category, Color: room.Color, IsSystem: room.IsSystem,
 		IsOpenRoom: room.IsOpenRoom,
@@ -76,11 +113,7 @@ func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) er
 	if room == nil {
 		return errors.New("room cannot be nil")
 	}
-	rooms, err := r.capability()
-	if err != nil {
-		return err
-	}
-	updated, err := rooms.UpdateRoom(ctx, facilities.UpdateRoom{
+	updated, err := r.UpdateRoom(ctx, facilities.UpdateRoom{
 		ID: room.ID, Name: room.Name, Building: room.Building, Floor: room.Floor,
 		Capacity: room.Capacity, Category: room.Category, Color: room.Color,
 		// Legacy callers read-modify-write a whole room, so the loaded
@@ -100,11 +133,7 @@ func (r *Repository) Delete(ctx context.Context, rawID any) error {
 	if err != nil {
 		return err
 	}
-	rooms, err := r.capability()
-	if err != nil {
-		return err
-	}
-	return rooms.DeleteRoom(ctx, id)
+	return r.DeleteRoom(ctx, id)
 }
 
 func roomID(value any) (int64, error) {

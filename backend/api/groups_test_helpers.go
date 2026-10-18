@@ -12,6 +12,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -79,7 +80,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(ttPresence.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: devicescanCompose.AttendancePrincipal,
-		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
+		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
 		StaffNames:      NewAttendanceStaffNames(members.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(ttRooms.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student),

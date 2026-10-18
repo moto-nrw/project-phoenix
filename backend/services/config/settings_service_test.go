@@ -2247,16 +2247,12 @@ func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 }
 
 // setClassRestrictionGuard wires the enrollment class-restriction probe on a
-// settings service via the exported setter on the concrete type (reachable
-// from this external test package through an interface assertion, the same
-// way the factory wires it).
+// settings service, the probe the root passes at construction.
 func setClassRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
-	guarded, ok := svc.(interface {
-		SetClassRestrictionGuard(func(context.Context) (bool, error))
-	})
-	require.True(t, ok, "settings service must expose SetClassRestrictionGuard")
-	guarded.SetClassRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+	guarded, ok := svc.(*settingsService)
+	require.True(t, ok, "settings service must be the concrete service")
+	guarded.classRestrictionGuard = func(context.Context) (bool, error) { return restricted, nil }
 }
 
 // TestSetValue_ClassCollectionGuard_CrossFieldValidation covers the #1663 fix:
@@ -2354,11 +2350,9 @@ func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 // counterpart of setClassRestrictionGuard above (#1663).
 func setGradeRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
-	guarded, ok := svc.(interface {
-		SetGradeRestrictionGuard(func(context.Context) (bool, error))
-	})
-	require.True(t, ok, "settings service must expose SetGradeRestrictionGuard")
-	guarded.SetGradeRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+	guarded, ok := svc.(*settingsService)
+	require.True(t, ok, "settings service must be the concrete service")
+	guarded.gradeRestrictionGuard = func(context.Context) (bool, error) { return restricted, nil }
 }
 
 // TestSetValue_GradeCollectionGuard_CrossFieldValidation covers the grade-level
@@ -2417,11 +2411,9 @@ func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
 // enrollment probe next to setClassRestrictionGuard / setGradeRestrictionGuard.
 func setGradeCapGuard(t *testing.T, svc SettingsService, highest int) {
 	t.Helper()
-	guarded, ok := svc.(interface {
-		SetGradeCapGuard(func(context.Context) (int, error))
-	})
-	require.True(t, ok, "settings service must expose SetGradeCapGuard")
-	guarded.SetGradeCapGuard(func(context.Context) (int, error) { return highest, nil })
+	guarded, ok := svc.(*settingsService)
+	require.True(t, ok, "settings service must be the concrete service")
+	guarded.gradeCapGuard = func(context.Context) (int, error) { return highest, nil }
 }
 
 // TestSetValue_GradeLevelCapGuard_CrossFieldValidation covers lowering

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -206,22 +205,6 @@ func TenantRuntimeMiddleware(tb testing.TB, db *bun.DB) func(http.Handler) http.
 			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), runtime)))
 		})
 	}
-}
-
-// SetTenantRuntime wires a test runtime without forcing behavior tests to
-// import the tenant runtime package directly.
-func SetTenantRuntime(tb testing.TB, target any, db *bun.DB) {
-	tb.Helper()
-	setter, ok := target.(interface{ SetTenantRuntime(tenant.UnitOfWork) })
-	if ok {
-		setter.SetTenantRuntime(TenantRuntime(tb, db))
-		return
-	}
-	method := reflect.ValueOf(target).MethodByName("SetRuntime")
-	if !method.IsValid() {
-		tb.Fatalf("%T does not accept a tenant runtime", target)
-	}
-	method.Call([]reflect.Value{reflect.ValueOf(SettingsRuntime(tb, db))})
 }
 
 // SettingsRuntimeAdapter implements the consumer-owned settings runtime port.

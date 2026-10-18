@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -34,18 +35,14 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	runtime := settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit)
 	repos := NewSettingsTestRepositories(runtime)
 	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
-	settings := settingsCompose.NewSettingsServiceWithHomeLayouts(
-		repos.Values, repos.Audit,
-		NewSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
-	)
-	guards := settings.(interface {
-		SetClassRestrictionGuard(func(context.Context) (bool, error))
-		SetGradeRestrictionGuard(func(context.Context) (bool, error))
-		SetGradeCapGuard(func(context.Context) (int, error))
+	settings, err := settingsCompose.NewSettings(settingsCompose.SettingsDependencies{
+		Values: repos.Values, Audit: repos.Audit, Schools: NewSchoolSettingsStore(organizations), Runtime: runtime,
+		Logger: slog.Default(), HomeLayouts: homeLayouts, ObserveLookup: func(string, string, string, time.Duration) {},
+		ClassRestrictionGuard: repos.ClassRestriction, GradeRestrictionGuard: repos.GradeRestriction, GradeCapGuard: repos.GradeCap,
 	})
-	guards.SetClassRestrictionGuard(repos.ClassRestriction)
-	guards.SetGradeRestrictionGuard(repos.GradeRestriction)
-	guards.SetGradeCapGuard(repos.GradeCap)
+	if err != nil {
+		return SettingsTestModule{}, err
+	}
 	payroll := settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
 		staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{})
 		if err != nil {
@@ -65,6 +62,12 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		runtime:        runtime,
 		TenantSettings: settingsCompose.NewTenantOperations(settings, payroll, runtime, nil, nil),
 	}, nil
+}
+
+// TenantSettingsWithHook is TenantSettings with the value-set side effect
+// hook bound at construction.
+func (m SettingsTestModule) TenantSettingsWithHook(hook func(context.Context, int64, string, any) (func(), error)) *settingsCompose.TenantOperations {
+	return settingsCompose.NewTenantOperations(m.Settings, m.payroll, m.runtime, hook, nil)
 }
 
 // TenantSnapshots binds the Worker's minute-snapshot read over this module's

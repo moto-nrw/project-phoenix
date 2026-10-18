@@ -110,7 +110,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		calendarPeriodUsage:      usage,
 		rosterStudents:           members.Student, educationGroups: structure.Group,
 		educationGroupNames: TimetableEducationGroupNames(structure.Group),
-		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room),
+		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records),
 	}
 	result.deviationEvents, result.deviations = TimetableDeviationPorts(nil)
 	result.Timetable = bookings
@@ -221,8 +221,7 @@ func NewTimetableRoomRows(db transactionruntime.Database) (TimetableRoomRows, er
 	if err != nil {
 		return TimetableRoomRows{}, err
 	}
-	room := facilitiesAdapter.New()
-	room.Bind(rooms)
+	room := facilitiesAdapter.New(rooms)
 	return TimetableRoomRows{Room: room, Facilities: rooms}, nil
 }
 

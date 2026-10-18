@@ -70,9 +70,6 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		return nil, errors.New("identity access compose: every session dependency is required")
 	}
 	attach := deps.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
 	return application.NewAccountAuthentication(service, application.AccountAuthenticationDependencies{
 		Store:     store,
 		Schools:   application.SchoolDirectory{Source: deps.Schools},

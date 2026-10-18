@@ -22,8 +22,7 @@ func TestRepositoryPreservesFloorListFilter(t *testing.T) {
 	t.Parallel()
 
 	owner := &floorFilterCapabilityStub{}
-	repository := New()
-	repository.Bind(owner)
+	repository := New(owner)
 
 	_, err := repository.List(context.Background(), map[string]any{"floor": 0})
 

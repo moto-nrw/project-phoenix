@@ -210,8 +210,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{}).(*service)
-	svc.SetAttachmentPurger(digestStub{&stubPurger{}})
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}, Attachments: digestStub{&stubPurger{}}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{}).(*service)
 
 	_, err := svc.Publish(ctx, announcement.ID)
 	require.NoError(t, err)

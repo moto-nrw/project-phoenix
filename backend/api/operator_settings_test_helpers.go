@@ -7,9 +7,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -34,9 +36,7 @@ type OperatorSettingsTestModule struct {
 func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (OperatorSettingsTestModule, careplan.CareLifecycle, error) {
 	settings := NewActiveTestSettings(db, unit)
 	presence := NewActiveTestPresence(db, unit)
-	facilities := NewActiveTestFacilities(db, unit)
-	timetableRows := NewActiveTestTimetable(db, unit)
-	care, _, err := NewCareLifecycleTestModule(db, unit)
+	effects, careLifecycle, err := newOperatorSettingSideEffects(db, unit)
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}
@@ -44,10 +44,10 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}
-	registry := settingsCompose.NewSideEffectRegistry()
-	wc := facilitiesCompose.NewWCService(facilities.Facilities, FacilitiesActivityCatalog(timetableRows.Activities), slog.Default())
-	registerCheckoutSettingsSideEffects(registry, facilities.SchulhofService, wc)
-	RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, effects...)
+	if err != nil {
+		return OperatorSettingsTestModule{}, nil, err
+	}
 	return OperatorSettingsTestModule{
 		Settings:            settings.Settings,
 		SettingsSideEffects: registry,
@@ -55,7 +55,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 		operator: settingsCompose.OperatorDependencies{
 			Settings: settings.Settings, DB: db.Pool(), OpenAttendance: OpenAttendanceChecker{Service: presence.Active},
 		},
-	}, care.CareLifecycle, nil
+	}, careLifecycle, nil
 }
 
 // OperatorSchoolSettings composes the operator's school settings the way
@@ -87,4 +87,23 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 	deps.Notify = opts.Notify
 	deps.OnValueSet = opts.OnValueSet
 	return settingsCompose.NewOperatorSchoolSettings(deps)
+}
+
+// newOperatorSettingSideEffects are the checkout switches of Facilities and
+// the booking authority of Care Plan over the active graph, as the serving
+// root binds them, with the Care Plan lifecycle they drive.
+func newOperatorSettingSideEffects(db transactionruntime.Database, unit tenant.UnitOfWork) ([]settingsCompose.SettingSideEffect, careplan.CareLifecycle, error) {
+	facilities := NewActiveTestFacilities(db, unit)
+	timetableRows := NewActiveTestTimetable(db, unit)
+	care, _, err := NewCareLifecycleTestModule(db, unit)
+	if err != nil {
+		return nil, nil, err
+	}
+	wc := facilitiesCompose.NewWCService(facilities.Facilities, FacilitiesActivityCatalog(timetableRows.Activities), slog.Default())
+	schulhof, wcSwitch := facilitiesLegacy.SettingHandlers(facilities.SchulhofService, wc)
+	return []settingsCompose.SettingSideEffect{
+		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
+		{Key: configModels.KeyCheckoutWCEnabled, Handle: wcSwitch},
+		careWithdrawalSettingSideEffect(care.CareLifecycle),
+	}, care.CareLifecycle, nil
 }

@@ -56,7 +56,6 @@ func TestNewModuleAndWorkerRequireTheirDependencies(t *testing.T) {
 	runtime, err := NewModule(ModuleDependencies{DB: db, People: noGuardians{}, Observe: observe})
 	require.NoError(t, err)
 	require.NotNil(t, runtime.Module)
-	assert.Nil(t, runtime.Worker, "NewModule composes no worker")
 
 	_, err = NewWorker(nil, acceptingProvider{})
 	require.Error(t, err)
@@ -72,11 +71,13 @@ func TestNewModuleAndWorkerRequireTheirDependencies(t *testing.T) {
 func TestNewComposesModuleAndWorker(t *testing.T) {
 	t.Parallel()
 	db := bun.NewDB(sql.OpenDB(pgdriver.NewConnector()), pgdialect.New())
-	_, err := New(Dependencies{DB: db, People: noGuardians{}, Observe: func(delivery.Observation) {}})
+	runtime, err := NewModule(ModuleDependencies{DB: db, People: noGuardians{}, Observe: func(delivery.Observation) {}})
+	require.NoError(t, err)
+	_, err = NewWorker(runtime, nil)
 	require.Error(t, err, "the provider is required")
 
-	runtime, err := New(Dependencies{DB: db, Provider: acceptingProvider{}, People: noGuardians{}, Observe: func(delivery.Observation) {}})
+	worker, err := NewWorker(runtime, acceptingProvider{})
 	require.NoError(t, err)
 	assert.NotNil(t, runtime.Module)
-	assert.NotNil(t, runtime.Worker)
+	assert.NotNil(t, worker)
 }

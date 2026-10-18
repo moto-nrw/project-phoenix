@@ -63,7 +63,7 @@ func TestTenantHolidaysResolveTheRegionFromTheTenant(t *testing.T) {
 	t.Parallel()
 
 	engine := &calendarDaysEngine{region: "DE-SN", holidays: []Holiday{{Date: "2026-11-18", Name: "Buß- und Bettag"}}}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 
 	list, err := module.TenantHolidays(context.Background(), "2026-11-01", "2026-11-30")
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestTenantHolidaysResolveTheRegionFromTheTenant(t *testing.T) {
 func TestTenantHolidayDates(t *testing.T) {
 	t.Parallel()
 
-	module := NewModule(&calendarDaysEngine{region: "DE-NW", dates: map[string]bool{"2026-05-01": true, "2026-05-25": true}})
+	module := newTestModule(&calendarDaysEngine{region: "DE-NW", dates: map[string]bool{"2026-05-01": true, "2026-05-25": true}})
 
 	set, err := module.TenantHolidayDates(context.Background(), "2026-05-01", "2026-05-31")
 	require.NoError(t, err)
@@ -87,20 +87,20 @@ func TestTenantHolidayDates(t *testing.T) {
 func TestTenantHolidayErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewModule(&calendarDaysEngine{regionErr: errors.New("boom")}).
+	_, err := newTestModule(&calendarDaysEngine{regionErr: errors.New("boom")}).
 		TenantHolidayDates(context.Background(), "2026-01-01", "2026-01-02")
 	require.ErrorIs(t, err, ErrFederalStateUnavailable)
 
-	_, err = NewModule(&calendarDaysEngine{region: "XX"}).
+	_, err = newTestModule(&calendarDaysEngine{region: "XX"}).
 		TenantHolidayDates(context.Background(), "2026-01-01", "2026-01-02")
 	require.ErrorIs(t, err, ErrFederalStateUnavailable)
 	assert.Contains(t, err.Error(), "unsupported region")
 
-	_, err = NewModule(&calendarDaysEngine{regionErr: errors.New("boom")}).
+	_, err = newTestModule(&calendarDaysEngine{regionErr: errors.New("boom")}).
 		TenantHolidays(context.Background(), "2026-01-01", "2026-01-02")
 	require.ErrorIs(t, err, ErrFederalStateUnavailable)
 
-	_, err = NewModule(&calendarDaysEngine{region: "DE-NW"}).
+	_, err = newTestModule(&calendarDaysEngine{region: "DE-NW"}).
 		TenantHolidays(context.Background(), "2026-01-02", "2026-01-01")
 	require.ErrorIs(t, err, ErrInvalidHolidayRange, "the window is validated before the region is resolved")
 }
@@ -113,7 +113,7 @@ func TestClosingDayDatesExpandsRanges(t *testing.T) {
 		closingRange("2026-12-31", "2026-12-31", "Silvester"),
 	}}
 
-	set, err := NewModule(engine).ClosingDayDates(context.Background(), "2026-12-01", "2026-12-31")
+	set, err := newTestModule(engine).ClosingDayDates(context.Background(), "2026-12-01", "2026-12-31")
 	require.NoError(t, err)
 	assert.Equal(t, ClosingDayFilter{OverlappingFrom: "2026-12-01", OverlappingTo: "2026-12-31"}, engine.seenClosing)
 	assert.Len(t, set, 5)
@@ -127,7 +127,7 @@ func TestClosingDayDatesClampsToWindow(t *testing.T) {
 	t.Parallel()
 
 	// Range extends past both window edges; only in-window days may appear.
-	module := NewModule(&calendarDaysEngine{closing: []ClosingDay{closingRange("2026-07-20", "2026-08-07", "Sommerschließung")}})
+	module := newTestModule(&calendarDaysEngine{closing: []ClosingDay{closingRange("2026-07-20", "2026-08-07", "Sommerschließung")}})
 
 	set, err := module.ClosingDayDates(context.Background(), "2026-08-01", "2026-08-03")
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestClosingDayDatesEmptyOnInvertedWindow(t *testing.T) {
 	t.Parallel()
 
 	engine := &calendarDaysEngine{closingErr: errors.New("must not be reached")}
-	set, err := NewModule(engine).ClosingDayDates(context.Background(), "2026-08-03", "2026-08-01")
+	set, err := newTestModule(engine).ClosingDayDates(context.Background(), "2026-08-03", "2026-08-01")
 	require.NoError(t, err)
 	assert.Empty(t, set)
 }
@@ -150,7 +150,7 @@ func TestClosingDayDatesEmptyOnInvertedWindow(t *testing.T) {
 func TestClosingDayDatesRejectsInvalidWindow(t *testing.T) {
 	t.Parallel()
 
-	module := NewModule(&calendarDaysEngine{})
+	module := newTestModule(&calendarDaysEngine{})
 	_, err := module.ClosingDayDates(context.Background(), "", "2026-08-01")
 	require.ErrorIs(t, err, ErrInvalidClosingDay)
 	_, err = module.ClosingDayDates(context.Background(), "2026-08-01", "01.08.2026")
@@ -160,7 +160,7 @@ func TestClosingDayDatesRejectsInvalidWindow(t *testing.T) {
 func TestClosingDayDatesPropagatesStoreError(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewModule(&calendarDaysEngine{closingErr: errors.New("boom")}).
+	_, err := newTestModule(&calendarDaysEngine{closingErr: errors.New("boom")}).
 		ClosingDayDates(context.Background(), "2026-08-01", "2026-08-03")
 	require.Error(t, err)
 }
@@ -176,7 +176,7 @@ func TestNonWorkingDayDatesUnionsHolidaysAndClosingDays(t *testing.T) {
 		closing: []ClosingDay{closingRange("2026-10-12", "2026-10-12", "Pädagogischer Tag"), closingRange("2026-10-30", "2026-11-01", "Brücke")},
 	}
 
-	set, err := NewModule(engine).NonWorkingDayDates(context.Background(), "2026-10-01", "2026-11-30")
+	set, err := newTestModule(engine).NonWorkingDayDates(context.Background(), "2026-10-01", "2026-11-30")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]bool{"2026-10-03": true, "2026-10-12": true, "2026-10-30": true, "2026-10-31": true, "2026-11-01": true}, set)
 	assert.Len(t, engine.dates, 2, "the union must not mutate the holiday set")
@@ -191,7 +191,7 @@ func TestNonWorkingDayDatesKeepsTenantHolidaysPure(t *testing.T) {
 		closing:  []ClosingDay{closingRange("2026-05-04", "2026-05-04", "Brückentag")},
 	}
 
-	list, err := NewModule(engine).TenantHolidays(context.Background(), "2026-05-01", "2026-05-31")
+	list, err := newTestModule(engine).TenantHolidays(context.Background(), "2026-05-01", "2026-05-31")
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, "Tag der Arbeit", list[0].Name, "closing days must never leak into the holiday listing")
@@ -200,11 +200,11 @@ func TestNonWorkingDayDatesKeepsTenantHolidaysPure(t *testing.T) {
 func TestNonWorkingDayDatesPropagatesErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewModule(&calendarDaysEngine{region: "DE-NW", holidayErr: errors.New("holiday boom")}).
+	_, err := newTestModule(&calendarDaysEngine{region: "DE-NW", holidayErr: errors.New("holiday boom")}).
 		NonWorkingDayDates(context.Background(), "2026-05-01", "2026-05-31")
 	require.Error(t, err)
 
-	_, err = NewModule(&calendarDaysEngine{region: "DE-NW", dates: map[string]bool{}, closingErr: errors.New("closing boom")}).
+	_, err = newTestModule(&calendarDaysEngine{region: "DE-NW", dates: map[string]bool{}, closingErr: errors.New("closing boom")}).
 		NonWorkingDayDates(context.Background(), "2026-05-01", "2026-05-31")
 	require.Error(t, err)
 }
@@ -213,7 +213,7 @@ func TestListActiveOverlapsSkipsInactivePeriods(t *testing.T) {
 	t.Parallel()
 
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 
 	overlaps, err := module.ListActiveOverlaps(context.Background(), CalendarPeriod{ID: 7, StartDate: "2030-08-01", EndDate: "2031-07-31", IsActive: false})
 	require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestPeriodAdministrationValidatesBeforeDelegating(t *testing.T) {
 	t.Parallel()
 
 	engine := &recordingEngine{}
-	module := NewModule(engine)
+	module := newTestModule(engine)
 
 	_, err := module.AddCalendarPeriod(context.Background(), CreateCalendarPeriod{})
 	require.ErrorIs(t, err, ErrInvalidCalendarPeriod)

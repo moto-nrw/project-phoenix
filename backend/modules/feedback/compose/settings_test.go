@@ -26,5 +26,4 @@ func TestNewBoundSettingsResolvesThroughTheBoundResolvers(t *testing.T) {
 	days, err := settings.FeedbackRetentionDays(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 90, days)
-	assert.Panics(t, func() { settings.Bind(enabled, retention) }, "bound settings refuse a second binding")
 }

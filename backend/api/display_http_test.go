@@ -69,7 +69,6 @@ var RootCompositions displayTestCompositions
 func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database) displaySettings {
 	t.Helper()
 	service := NewSettingsTestService(testpkg.SettingsRuntime(t, database.Pool()))
-	testpkg.SetTenantRuntime(t, service, database.Pool())
 	return displaySettings{service: service}
 }
 

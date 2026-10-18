@@ -13,6 +13,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -27,7 +28,7 @@ type SettingsCallbacksTestModule struct {
 // NewSettingsCallbacksTestModule composes the tenant settings over db and
 // returns them with the realtime hub a settings change broadcasts on.
 func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peoplePorts.PhotoUnlinker) (SettingsCallbacksTestModule, *realtime.Hub, error) {
-	module, _, err := NewOperatorSettingsTestModule(db, unit)
+	effects, _, err := newOperatorSettingSideEffects(db, unit)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
@@ -49,9 +50,13 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		return SettingsCallbacksTestModule{}, nil, err
 	}
 	photos := NewStudentPhotos(directory, photoDeps)
-	RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, append(effects,
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle})...)
+	if err != nil {
+		return SettingsCallbacksTestModule{}, nil, err
+	}
 	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
-		module.SettingsSideEffects.Dispatch,
+		registry.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
 		})

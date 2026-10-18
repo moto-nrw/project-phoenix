@@ -58,7 +58,7 @@ func (r *recordingParentEvents) last(t *testing.T) parentmessaging.ChildEvent {
 func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
-	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitter(events),
+	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitterWithDecisions(events, nil),
 		api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.

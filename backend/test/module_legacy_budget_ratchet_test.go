@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 555
+const moduleLegacyBudgetTotal = 555 - 8
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 32697 - 99 - 38
+const moduleComposeBudgetTotal = 32168
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -167,7 +167,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/compose":                      2542,
 	"modules/careplan/requestfeed/compose":          68,
 	"modules/classday/compose":                      461,
-	"modules/communication/composition":             1475,
+	"modules/communication/composition":             1453,
 	"modules/dataimport/compose":                    253,
 	"modules/dataimport/compose/retained":           34,
 	"modules/delivery/compose":                      797,
@@ -179,16 +179,16 @@ var moduleComposeBudgets = map[string]int{
 	"modules/emergencysnapshot/compose":             13,
 	"modules/enrollment/compose":                    715,
 	"modules/exporttransfer/compose":                323,
-	"modules/facilities/compose":                    273,
+	"modules/facilities/compose":                    272,
 	"modules/facilities/compose/httpadapter":        473,
-	"modules/facilities/compose/repositoryadapter":  242,
-	"modules/feedback/compose":                      219,
-	"modules/filestorage/compose":                   636,
+	"modules/facilities/compose/repositoryadapter":  227,
+	"modules/feedback/compose":                      196,
+	"modules/filestorage/compose":                   363,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
 	// Raised by ADR 0063: the operator status lifecycle (#4047).
-	"modules/identityaccess/compose":      1768,
-	"modules/mealplan/compose":            274,
+	"modules/identityaccess/compose":      1761,
+	"modules/mealplan/compose":            242,
 	"modules/organizationtenancy/compose": 479,
 	// #4076: the compositions of the parent request feed, student directory
 	// and enrollment provenance projections only build their readers for the
@@ -202,12 +202,12 @@ var moduleComposeBudgets = map[string]int{
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1069,
 	"modules/schedulerruntime/compose":                83,
-	"modules/schoolcalendar/compose":                  572,
+	"modules/schoolcalendar/compose":                  562,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                343,
 	"modules/schoolsetup/compose":                     93,
 	"modules/schoolstructure/compose":                 901,
-	"modules/settings/compose":                        587,
+	"modules/settings/compose":                        578,
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
@@ -238,7 +238,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 109,
 	// No ticket today.
-	"modules/facilities/compose/legacy": 446,
+	"modules/facilities/compose/legacy": 438,
 }
 
 func TestModuleLegacyBudgetRatchet(t *testing.T) {

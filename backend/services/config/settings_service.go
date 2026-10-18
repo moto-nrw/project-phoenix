@@ -28,35 +28,28 @@ type settingsService struct {
 	// eligibility to specific school classes. It gates disabling the
 	// concrete-class collection toggles so an admin cannot make every
 	// submission to such a phase fail (#1663). Optional: nil skips the
-	// guard (unit tests, callers that never wire enrollment). Injected via
-	// SetClassRestrictionGuard to keep the config package decoupled from
-	// the enrollment domain.
+	// guard (unit tests, callers that never wire enrollment). Injected at
+	// construction (SettingsServiceDependencies) to keep the config package
+	// decoupled from the enrollment domain.
 	classRestrictionGuard func(ctx context.Context) (bool, error)
 	// gradeRestrictionGuard is the same probe for phases restricted to
 	// specific GRADE LEVELS. Separate from classRestrictionGuard because the
 	// two hang off different toggles: a grade restriction only needs
 	// collect_grade_level, so disabling collect_school_class must not be
-	// blocked by it (#1663). Optional in the same way; injected via
-	// SetGradeRestrictionGuard.
+	// blocked by it (#1663). Optional in the same way.
 	gradeRestrictionGuard func(ctx context.Context) (bool, error)
 	// gradeCapGuard reports the highest grade any active phase restricts
 	// itself to (0 when none does). It gates LOWERING
 	// enrollment.grade_level_max: the public form only offers grades up to the
 	// cap and the submit path re-checks it, so a cap below a live restriction
 	// leaves that phase unable to accept any submission (#1663). Optional in
-	// the same way as the two probes above; injected via SetGradeCapGuard.
+	// the same way as the two probes above.
 	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
 // SettingsLookupObserver records bounded per-key lookup evidence. cache is
 // one of snapshot, hit, miss, or bypass; outcome is ok or error.
 type SettingsLookupObserver func(key, cache, outcome string, duration time.Duration)
-
-func (s *settingsService) SetLookupObserver(observer SettingsLookupObserver) {
-	s.observeLookup = observer
-}
-
-func (s *settingsService) SetRuntime(runtime Runtime) { s.runtime = runtime }
 
 func (s *settingsService) homeLayoutService() (*HomeLayoutService, error) {
 	if s == nil || s.homeLayouts == nil {
@@ -115,28 +108,6 @@ func (s *settingsService) SetHomeBlockPolicies(ctx context.Context, tenantID, ac
 	return homeLayouts.SetPolicies(ctx, tenantID, accountID, permissions, parsed)
 }
 
-// SetClassRestrictionGuard wires the enrollment class-restriction probe used
-// by the concrete-class collection guard. Kept off the constructor (and off
-// the SettingsService interface) so existing call sites and tests are
-// unaffected; the factory sets it after construction (#1663).
-func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
-	s.classRestrictionGuard = fn
-}
-
-// SetGradeRestrictionGuard wires the enrollment grade-restriction probe used
-// by the grade-level collection guard, following the same off-constructor
-// convention as SetClassRestrictionGuard (#1663).
-func (s *settingsService) SetGradeRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
-	s.gradeRestrictionGuard = fn
-}
-
-// SetGradeCapGuard wires the enrollment highest-restricted-grade probe used by
-// the grade-level-cap guard, following the same off-constructor convention as
-// SetClassRestrictionGuard (#1663).
-func (s *settingsService) SetGradeCapGuard(fn func(ctx context.Context) (int, error)) {
-	s.gradeCapGuard = fn
-}
-
 // NewSettingsService creates a new SettingsService.
 func NewSettingsService(
 	valueRepo config.SettingValueRepository,
@@ -147,21 +118,6 @@ func NewSettingsService(
 	registries ...*config.Registry,
 ) SettingsService {
 	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, nil, registries...)
-}
-
-// NewSettingsServiceWithHomeLayouts wires the settings platform's start-page
-// capability at construction time. Keeping it on this owner avoids widening
-// the legacy TenantOperations composition graph.
-func NewSettingsServiceWithHomeLayouts(
-	valueRepo config.SettingValueRepository,
-	auditRepo config.SettingAuditRepository,
-	schoolStore SchoolSettingsStore,
-	runtime Runtime,
-	logger *slog.Logger,
-	homeLayouts *HomeLayoutService,
-	registries ...*config.Registry,
-) BatchSettingsService {
-	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
 }
 
 // SettingsServiceDependencies are every collaborator of the settings service,
@@ -183,9 +139,8 @@ type SettingsServiceDependencies struct {
 }
 
 // NewSettingsServiceWithDependencies builds the settings service with its
-// runtime, lookup observer and collection guards at construction, in place
-// of SetRuntime, SetLookupObserver and the Set*Guard calls after it
-// (ADR 0059). A missing dependency is a construction error.
+// runtime, lookup observer and collection guards at construction (ADR 0059).
+// A missing dependency is a construction error.
 func NewSettingsServiceWithDependencies(dependencies SettingsServiceDependencies) (BatchSettingsService, error) {
 	if dependencies.Values == nil || dependencies.Audit == nil || dependencies.Schools == nil || dependencies.Runtime == nil ||
 		dependencies.Logger == nil || dependencies.HomeLayouts == nil || dependencies.ObserveLookup == nil ||

@@ -98,27 +98,12 @@ type Emitter struct {
 	notifier DecisionNotifier
 }
 
-// NewEmitter wraps Communication's event implementation. A nil events port
-// turns every operation into a no-op, so partially-wired test factories stay
-// safe.
-func NewEmitter(events Events) *Emitter {
-	return &Emitter{events: events}
-}
-
-// NewEmitterWithDecisions is NewEmitter with the durable guardian delivery of
-// decided requests at construction, in place of WithDecisionNotifications
-// after it (ADR 0059). A nil notifier delivers no decisions, as NewEmitter.
+// NewEmitterWithDecisions wraps Communication's event implementation with the
+// durable guardian delivery of decided requests at construction (ADR 0059). A
+// nil events port turns every operation into a no-op, so partially-wired test
+// factories stay safe; a nil notifier delivers no decisions.
 func NewEmitterWithDecisions(events Events, notifier DecisionNotifier) *Emitter {
 	return &Emitter{events: events, notifier: notifier}
-}
-
-// WithDecisionNotifications adds durable guardian delivery for decided requests.
-func (e *Emitter) WithDecisionNotifications(notifier DecisionNotifier) *Emitter {
-	if e == nil {
-		return nil
-	}
-	e.notifier = notifier
-	return e
 }
 
 // EmitChildEvent appends one pill to the (student, guardian) thread and fires

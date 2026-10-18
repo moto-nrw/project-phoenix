@@ -12,8 +12,8 @@ import (
 )
 
 // The constructors below take the root's tenant unit of work and every
-// collaborator at construction, in place of SetTenantRuntime after it
-// (ADR 0059). A missing one is a construction error. Loggers stay optional.
+// collaborator at construction (ADR 0059). A missing one is a construction
+// error. Loggers stay optional.
 
 func requireTenantRuntime(service string, runtime tenant.UnitOfWork, dependenciesPresent bool) error {
 	if runtime.IsZero() {

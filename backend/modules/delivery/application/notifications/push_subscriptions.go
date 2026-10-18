@@ -71,10 +71,6 @@ type pushSubscriptionService struct {
 	tenantRuntime  *tenant.UnitOfWork
 }
 
-func (s *pushSubscriptionService) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	s.tenantRuntime = &runtime
-}
-
 func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context.Context {
 	if s.tenantRuntime == nil {
 		return ctx

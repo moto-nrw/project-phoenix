@@ -46,8 +46,8 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			return reminderEnabled[tenant.FromContext(settingsCtx)], nil
 		},
 	}
-	svc := notifications.NewPreferenceService(api.NewNotificationConsentTestStore(testpkg.NewDatabase(t, db)), settings, db, identity, securityruntime.HasPermission)
-	testpkg.SetTenantRuntime(t, svc, db)
+	svc, err := notifications.NewTenantPreferenceService(testpkg.TenantRuntime(t, db), api.NewNotificationConsentTestStore(testpkg.NewDatabase(t, db)), settings, db, identity, securityruntime.HasPermission)
+	require.NoError(t, err)
 
 	t.Run("starts empty", func(t *testing.T) {
 		overview, err := svc.GetForParent(ctx, chain.AccountID)

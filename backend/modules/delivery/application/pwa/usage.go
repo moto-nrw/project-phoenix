@@ -99,10 +99,6 @@ type usageService struct {
 	snapshotTime time.Time
 }
 
-func (s *usageService) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	s.tenantRuntime = &runtime
-}
-
 // NewUsageService builds the PWA usage service.
 func NewUsageService(
 	db *bun.DB,
@@ -126,8 +122,8 @@ func NewUsageService(
 }
 
 // NewTenantUsageService is NewUsageService over the root's tenant unit of
-// work, in place of SetTenantRuntime after construction (ADR 0059). A
-// missing collaborator is a construction error; the logger stays optional.
+// work (ADR 0059). A missing collaborator is a construction error; the
+// logger stays optional.
 func NewTenantUsageService(
 	runtime tenant.UnitOfWork,
 	db *bun.DB,
