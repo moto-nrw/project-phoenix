@@ -192,7 +192,7 @@ func (r offeringChangeRows) find(ctx context.Context, id int64, lock bool, op st
 }
 
 func (r offeringChangeRows) PendingForStudent(ctx context.Context, studentID int64) (*careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{StudentID: studentID, Statuses: []string{careplan.OfferingChangePending}, Order: careplan.ChangeOrderCreated})
+	rows, err := r.list(ctx, careplan.PendingOfferingChanges(studentID))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("get pending offering change request", err)
 	}
@@ -203,7 +203,7 @@ func (r offeringChangeRows) PendingForStudent(ctx context.Context, studentID int
 }
 
 func (r offeringChangeRows) ListByStudent(ctx context.Context, studentID int64) ([]careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{StudentID: studentID, Order: careplan.ChangeOrderReviewed})
+	rows, err := r.list(ctx, careplan.StudentOfferingChangeHistory(studentID))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("list offering change requests by student", err)
 	}
@@ -211,7 +211,7 @@ func (r offeringChangeRows) ListByStudent(ctx context.Context, studentID int64) 
 }
 
 func (r offeringChangeRows) ListPending(ctx context.Context) ([]careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{Statuses: []string{careplan.OfferingChangePending}, Order: careplan.ChangeOrderCreated})
+	rows, err := r.list(ctx, careplan.PendingOfferingChanges(0))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("list pending offering change requests", err)
 	}

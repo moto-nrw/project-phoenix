@@ -32,6 +32,17 @@ type PickupChangeCreateInput struct {
 	Cutoff            DayCutoff
 }
 
+// MandatoryReasonPickupChange is the Gehzeit change of the legacy submission
+// entry point (Service.CreatePickupChangeRequest): it always requires a
+// reason, whatever the school's reason policy says. A caller that resolved
+// the policy builds its own PickupChangeCreateInput.
+func MandatoryReasonPickupChange(studentID, guardianAccountID int64, date calendar.Date, pickupTime time.Time, reason string) PickupChangeCreateInput {
+	return PickupChangeCreateInput{
+		StudentID: studentID, GuardianAccountID: guardianAccountID,
+		Date: date, PickupTime: pickupTime, Reason: reason, ReasonRequired: true,
+	}
+}
+
 type Submissions interface {
 	CreateRequest(context.Context, int64, int64, json.RawMessage) (*Request, error)
 	CreatePickupChange(context.Context, PickupChangeCreateInput) (*Request, error)

@@ -2,6 +2,7 @@ package careplan
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
@@ -35,6 +36,34 @@ func EarliestOfferingChangeDate(today calendar.Date, leadDays int) calendar.Date
 		leadDays = 0
 	}
 	return today.AddDays(1 + leadDays)
+}
+
+// PendingOfferingChanges selects the offering change requests still waiting
+// for a decision, oldest first. A positive studentID narrows them to that
+// child; zero selects every child of the school.
+func PendingOfferingChanges(studentID int64) OfferingChangeFilter {
+	return OfferingChangeFilter{StudentID: studentID, Statuses: []string{OfferingChangePending}, Order: ChangeOrderCreated}
+}
+
+// StudentOfferingChangeHistory selects every offering change request of the
+// child in review order.
+func StudentOfferingChangeHistory(studentID int64) OfferingChangeFilter {
+	return OfferingChangeFilter{StudentID: studentID, Order: ChangeOrderReviewed}
+}
+
+// ManualPlanningWindow validates the child and the date window of the manual
+// planning an offering change leaves uncovered, and parses the two days. The
+// window is inclusive and must not end before it starts.
+func ManualPlanningWindow(studentID int64, from, to string) (calendar.Date, calendar.Date, error) {
+	if studentID <= 0 {
+		return "", "", errors.New("student id must be positive")
+	}
+	fromDate, fromErr := calendar.ParseDate(from)
+	toDate, toErr := calendar.ParseDate(to)
+	if fromErr != nil || toErr != nil || toDate.Before(fromDate) {
+		return "", "", errors.New("valid planning date range is required")
+	}
+	return fromDate, toDate, nil
 }
 
 // OfferingChangeSelection is one desired offering with its chosen days.

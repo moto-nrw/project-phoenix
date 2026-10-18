@@ -115,24 +115,22 @@ func (d excusedRequestStudentDirectory) ReviewerNames(ctx context.Context, accou
 	return carePlanPersonNames(rows), nil
 }
 
-// SetLiveAbsenceFlags mirrors the direct parent path: an approved sick day
-// that covers today raises the live sick flag, an approved excused day clears
-// it. The row is re-read under lock so a concurrent flag change is not lost.
+// SetLiveAbsenceFlags writes the live flags Care Plan decides for the
+// approved absence onto the child row. The row is re-read under lock so a
+// concurrent flag change is not lost.
 func (d excusedRequestStudentDirectory) SetLiveAbsenceFlags(ctx context.Context, studentID int64, status string, at time.Time) error {
 	fresh, err := d.students.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return err
 	}
-	if status == careplan.StudentStatusDaySick {
-		trueVal, falseVal := true, false
-		fresh.Sick = &trueVal
+	flags := careplan.LiveFlagsForApprovedAbsence(status)
+	fresh.Sick, fresh.SickSince = &flags.Sick, nil
+	if flags.Sick {
 		fresh.SickSince = &at
-		fresh.Excused = &falseVal
-		fresh.ExcusedSince = nil
-	} else {
-		falseVal := false
-		fresh.Sick = &falseVal
-		fresh.SickSince = nil
+	}
+	if flags.ClearExcused {
+		excused := false
+		fresh.Excused, fresh.ExcusedSince = &excused, nil
 	}
 	return d.students.Update(ctx, fresh)
 }

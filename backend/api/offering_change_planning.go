@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
-	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	presenceProjection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -32,13 +32,9 @@ type PlanningQuery struct {
 // ListManualPlanningOccurrences validates the child and the date window and
 // lists the child's manually planned care blocks in it.
 func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]carePlanCompose.ManualPlanningOccurrence, error) {
-	if studentID <= 0 {
-		return nil, errors.New("student id must be positive")
-	}
-	fromDate, fromErr := calendar.ParseDate(from)
-	toDate, toErr := calendar.ParseDate(to)
-	if fromErr != nil || toErr != nil || toDate.Before(fromDate) {
-		return nil, errors.New("valid planning date range is required")
+	fromDate, toDate, err := careplan.ManualPlanningWindow(studentID, from, to)
+	if err != nil {
+		return nil, err
 	}
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
 	rows, err := presenceProjection.Reader{}.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
