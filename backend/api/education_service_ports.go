@@ -229,7 +229,7 @@ func (a EducationClassAssignmentAudit) RecordSchoolClassChange(ctx context.Conte
 		StaffID:   change.StaffID,
 		ChangedBy: change.ChangedBy,
 		Section:   auditModels.StammdatenSectionSchoolClasses,
-		FieldName: "school_classes",
+		FieldName: auditModels.StammdatenFieldSchoolClasses,
 		OldValue:  change.OldValue,
 		NewValue:  change.NewValue,
 	})

@@ -26,6 +26,10 @@ const (
 	StammdatenSectionSchoolClasses = "school-classes"
 )
 
+// StammdatenFieldSchoolClasses is the field name of a school class
+// assignment rewrite in the school classes section.
+const StammdatenFieldSchoolClasses = "school_classes"
+
 // StaffMasterDataChange is an append-only audit row for one changed
 // Stammdaten field of a staff member (#1423). Written in the same tenant
 // transaction as the update — no change without a trace, same contract as
