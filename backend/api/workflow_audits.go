@@ -53,6 +53,15 @@ func GradeTransitionClassListRecord(actor gradetransition.Actor, change gradetra
 	return event
 }
 
+// The student deletion names the Audit Platform's deletion types itself; a
+// drift must not compile: a false comparison repeats the false key of this
+// map literal.
+var _ = map[bool]struct{}{
+	false: {},
+	studentdeletion.DeletionTypeManual == auditModels.DeletionTypeManual &&
+		studentdeletion.DeletionTypeRetention == auditModels.DeletionTypeStudentRetention: {},
+}
+
 // studentDeletionRecords are the deletion log entry and the tombstone of one
 // deleted child, as the student deletion workflow attributes them.
 func studentDeletionRecords(actor studentdeletion.Actor, result studentdeletion.Result) []any {
