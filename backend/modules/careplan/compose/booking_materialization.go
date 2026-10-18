@@ -63,28 +63,13 @@ type BookingMaterializationDependencies struct {
 	LockTemplateRecurrence      func(context.Context) error
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	// AnnouncePickupChange announces a changed offering pickup projection of
-	// the students; it runs after the tenant transaction commits.
-	AnnouncePickupChange func(tenantID int64, studentIDs []int64)
+	// PickupStaff and PickupGuardians hear about a changed offering pickup
+	// projection after commit; either may be nil.
+	PickupStaff     ports.PickupScheduleStaff
+	PickupGuardians ports.PickupScheduleGuardians
 
 	Today  func() calendar.Date
 	Logger *slog.Logger
-}
-
-// afterCommit defers an announcement until the tenant transaction commits,
-// so a rolled-back change stays silent. Nil stays nil.
-func afterCommit(announce func(tenantID int64, studentIDs []int64)) func(context.Context, []int64) {
-	if announce == nil {
-		return nil
-	}
-	return func(ctx context.Context, studentIDs []int64) {
-		tenantID := tenant.FromContext(ctx)
-		tenant.RegisterAfterCommit(ctx, func() {
-			if tenantID > 0 {
-				announce(tenantID, studentIDs)
-			}
-		})
-	}
 }
 
 // NewBookingMaterialization composes the Care Plan booking materialization
@@ -102,7 +87,7 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (carepla
 		LockTemplateRecurrence:      deps.LockTemplateRecurrence,
 		ResyncPickupAutoExcusals:    deps.ResyncPickupAutoExcusals,
 		ClearPickupWeekdayExtension: deps.ClearPickupWeekdayExtension,
-		AnnouncePickupChange:        afterCommit(deps.AnnouncePickupChange),
+		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
 		Today:                       deps.Today,
 		Logger:                      deps.Logger,
 	})

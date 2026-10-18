@@ -79,51 +79,29 @@ func (r ManualPlanningReader) ListManualPlanningOccurrences(ctx context.Context,
 	return r.Query.ListManualPlanningOccurrences(ctx, studentID, from, to)
 }
 
-// CourseGroupsForOfferings resolves both link shapes through the Timetable
-// owner: the legacy group on the offering and the templates sourcing it.
+// CourseGroupsForOfferings resolves the course groups the Timetable owner
+// links to each offering.
 func (r ManualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offerings []carePlanCompose.CourseOfferingReference, effectiveOn calendar.Date) (map[int64][]carePlanCompose.CourseGroup, error) {
-	legacyToOfferings := make(map[int64][]int64, len(offerings))
-	wantedOfferings := make(map[int64]bool, len(offerings))
-	filter := timetable.CourseGroupFilter{}
-	for _, offering := range offerings {
-		if offering.OfferingID <= 0 {
-			continue
-		}
-		wantedOfferings[offering.OfferingID] = true
-		filter.SourceOfferingIDs = append(filter.SourceOfferingIDs, offering.OfferingID)
-		if offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
-			legacyToOfferings[*offering.ActivityGroupID] = append(legacyToOfferings[*offering.ActivityGroupID], offering.OfferingID)
-			filter.LegacyGroupIDs = append(filter.LegacyGroupIDs, *offering.ActivityGroupID)
-		}
+	links := make([]timetable.CourseOfferingLink, len(offerings))
+	for i, offering := range offerings {
+		links[i] = timetable.CourseOfferingLink{OfferingID: offering.OfferingID, ActivityGroupID: offering.ActivityGroupID}
 	}
-	filter.EffectiveOn = effectiveOn.String()
-	groups, err := r.CourseGroups.ListCourseGroups(ctx, filter)
+	groups, err := timetable.CourseGroupsForOfferings(ctx, r.CourseGroups, links, effectiveOn)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64][]carePlanCompose.CourseGroup, len(offerings))
-	for _, group := range groups {
-		course := timetableCourseGroup(group)
-		for _, offeringID := range legacyToOfferings[group.ID] {
-			result[offeringID] = append(result[offeringID], course)
-		}
-		for _, offeringID := range group.SourceCareOfferingIDs {
-			if wantedOfferings[offeringID] {
-				result[offeringID] = append(result[offeringID], course)
-			}
+	result := make(map[int64][]carePlanCompose.CourseGroup, len(groups))
+	for offeringID, linked := range groups {
+		for _, group := range linked {
+			result[offeringID] = append(result[offeringID], timetableCourseGroup(group))
 		}
 	}
 	return result, nil
 }
 
 func timetableCourseGroup(group timetable.CourseGroup) carePlanCompose.CourseGroup {
-	var participantLimit *int
-	if group.MaxParticipants > 0 {
-		limit := group.MaxParticipants
-		participantLimit = &limit
-	}
 	return carePlanCompose.CourseGroup{
-		ID: group.ID, Active: group.Active, ParticipantLimit: participantLimit,
+		ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit(),
 		ScheduledWeekdays:   append([]int(nil), group.ScheduledWeekdays...),
 		SourceGradeLevels:   append([]int(nil), group.SourceGradeLevels...),
 		SourceSchoolClasses: append([]string(nil), group.SourceSchoolClasses...),

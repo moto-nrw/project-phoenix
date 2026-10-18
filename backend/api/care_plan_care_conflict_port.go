@@ -36,9 +36,9 @@ func (s *careScheduleRequestService) DecideConflictRequest(ctx context.Context, 
 }
 
 func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
-	pickup, ok := write.Value["value"].(string)
-	if !ok {
-		return carerequests.ErrInvalidPayload
+	pickup, err := carerequests.StaffPickupValue(write.Value)
+	if err != nil {
+		return err
 	}
 	return legacyConflictError(s.requests.conflicts.WriteStaffValue(ctx, carerequests.StaffValueWrite{
 		StudentID: write.StudentID, RequestIDs: write.RequestIDs, ConflictKey: write.ConflictKey,

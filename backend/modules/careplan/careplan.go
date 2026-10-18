@@ -233,7 +233,7 @@ type engine interface {
 	WeekdayPickupNotesCommand
 	DepartureExceptions
 	CareDayLocker
-	StudentStatusDayRetention
+	DeleteStudentStatusDaysBefore(context.Context, Date) (int, error)
 }
 
 // CareDayLocker exposes the Care Plan owner's canonical lock order to other

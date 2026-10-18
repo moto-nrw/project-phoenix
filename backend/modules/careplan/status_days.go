@@ -3,7 +3,10 @@ package careplan
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var ErrStudentStatusDayNotFound = errors.New("student status day not found")
@@ -133,9 +136,24 @@ func (m *Module) ArchiveStudentStatusFlags(ctx context.Context, value StatusFlag
 
 // StudentStatusDayRetention deletes a school's status days once their
 // retention window has passed (#3958). Sick, excused and class-trip days are
-// one data kind: the nightly cleanup deletes every day dated before cutoff.
+// one data kind: the nightly cleanup deletes every day dated before the
+// window.
 type StudentStatusDayRetention interface {
-	DeleteStudentStatusDaysBefore(context.Context, Date) (int, error)
+	DeleteExpiredStudentStatusDays(ctx context.Context, retentionDays int) (int, error)
+}
+
+// ErrStatusDayRetentionWindow refuses a retention window that is not
+// positive: nothing is deleted on a wrong period, and the run is caught up
+// once the setting is fixed.
+var ErrStatusDayRetentionWindow = errors.New("retention window must be positive")
+
+// DeleteExpiredStudentStatusDays deletes the days dated before the first
+// Berlin calendar day a window of retentionDays keeps.
+func (m *Module) DeleteExpiredStudentStatusDays(ctx context.Context, retentionDays int) (int, error) {
+	if retentionDays <= 0 {
+		return 0, fmt.Errorf("%w, got %d", ErrStatusDayRetentionWindow, retentionDays)
+	}
+	return m.DeleteStudentStatusDaysBefore(ctx, Date(calendar.TodayDate().AddDays(-retentionDays)))
 }
 
 func (m *Module) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff Date) (int, error) {

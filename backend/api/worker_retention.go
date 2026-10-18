@@ -183,11 +183,15 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: retentionStatusDays,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				days, err := retentionDays(ctx, owners.settings, settingsModule.KeyGDPRStatusDayRetentionDays)
+				key := settingsModule.KeyGDPRStatusDayRetentionDays
+				days, err := owners.settings.ResolveInt(ctx, key)
 				if err != nil {
-					return schedulerPorts.RetentionOutcome{}, err
+					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
 				}
-				deleted, err := statusDays.DeleteStudentStatusDaysBefore(ctx, carePlanModule.Date(retentionCutoff(days)))
+				deleted, err := statusDays.DeleteExpiredStudentStatusDays(ctx, days)
+				if errors.Is(err, carePlanModule.ErrStatusDayRetentionWindow) {
+					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
+				}
 				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 			},
 		})
@@ -422,26 +426,4 @@ func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, i
 			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 		},
 	}
-}
-
-// retentionDays resolves a school's retention window. It never guesses: an
-// unreadable or non-positive window fails the step, so nothing is deleted
-// on a wrong period and the run is caught up once the setting is fixed.
-func retentionDays(ctx context.Context, settings interface {
-	ResolveInt(ctx context.Context, key string) (int, error)
-}, key string) (int, error) {
-	days, err := settings.ResolveInt(ctx, key)
-	if err != nil {
-		return 0, fmt.Errorf("resolve %s: %w", key, err)
-	}
-	if days <= 0 {
-		return 0, fmt.Errorf("resolve %s: retention window must be positive, got %d", key, days)
-	}
-	return days, nil
-}
-
-// retentionCutoff is the first Berlin calendar day a window of days keeps:
-// data dated before it is past its retention.
-func retentionCutoff(days int) calendar.Date {
-	return calendar.TodayDate().AddDays(-days)
 }
