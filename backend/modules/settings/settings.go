@@ -188,6 +188,10 @@ type (
 	PermissionDeniedError   = configSvc.PermissionDeniedError
 )
 
+// AttendanceWindowError rejects a visible attendance window longer than the
+// attendance retention window (#3957).
+type AttendanceWindowError = configSvc.AttendanceWindowError
+
 // ErrPresenceModeSwitchBlocked reports a presence-mode switch while
 // attendance of the day is still open.
 var ErrPresenceModeSwitchBlocked = configSvc.ErrPresenceModeSwitchBlocked

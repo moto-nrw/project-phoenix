@@ -2784,7 +2784,9 @@
         "managed_by_upload": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "invalid_value": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "presence_mode_switch_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "attendance_visible_exceeds_retention": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

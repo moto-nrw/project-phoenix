@@ -27,7 +27,12 @@ func TestAttendanceVisibleDaysNeverExceedRetention(t *testing.T) {
 
 	// The moto team shortens the retention: down to the visible window, not below.
 	require.NoError(t, settings.SetValue(ctx, retentionKey, 30, nil, nil))
-	require.ErrorIs(t, settings.SetValue(ctx, visibleKey, 31, nil, nil), ErrInvalidValue)
+	err := settings.SetValue(ctx, visibleKey, 31, nil, nil)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	var window *AttendanceWindowError
+	require.ErrorAs(t, err, &window)
+	require.Equal(t, AttendanceWindowError{Key: visibleKey, VisibleDays: 31, RetentionDays: 30}, *window,
+		"the rejection names the retention the school may not exceed")
 	read(visibleKey, 30)
 	require.NoError(t, settings.SetValue(ctx, retentionKey, 60, nil, nil))
 

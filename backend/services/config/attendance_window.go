@@ -12,10 +12,30 @@ import (
 // #3957): the school would otherwise promise a history the nightly cleanup
 // has already deleted. The school writes the first, the moto team the second.
 
-const (
-	attendanceVisibleTooLongReason    = "Die Anwesenheit ist höchstens so lange sichtbar, wie moto sie aufbewahrt. Wählen Sie höchstens %d Tage."
-	attendanceRetentionTooShortReason = "Das Team sieht die Anwesenheit %d Tage zurück. Die Aufbewahrung muss mindestens so lang sein. Verkürzen Sie zuerst die Sichtbarkeit."
-)
+// AttendanceWindowError rejects a write that would let the visible window
+// exceed the retention window. Key is the setting written; the HTTP layer
+// names the conflicting window to the person through its own error code.
+type AttendanceWindowError struct {
+	Key           string
+	VisibleDays   int
+	RetentionDays int
+}
+
+func (e *AttendanceWindowError) Error() string {
+	return fmt.Sprintf("invalid value for setting %s: attendance visible for %d days exceeds its retention of %d days",
+		e.Key, e.VisibleDays, e.RetentionDays)
+}
+
+// VisibleWritten reports whether the write lengthened the visible window;
+// otherwise it shortened the retention window.
+func (e *AttendanceWindowError) VisibleWritten() bool {
+	return e.Key == config.KeyAttendanceVisibleDays
+}
+
+// Unwrap keeps the rejection an invalid value (400) for every caller.
+func (e *AttendanceWindowError) Unwrap() error {
+	return ErrInvalidValue
+}
 
 func isAttendanceWindowKey(key string) bool {
 	return key == config.KeyAttendanceVisibleDays || key == config.KeyGDPRAttendanceRetentionDays
@@ -63,8 +83,5 @@ func (s *settingsService) validateAttendanceWindows(ctx context.Context, key str
 	if visible <= retention {
 		return nil
 	}
-	if key == config.KeyAttendanceVisibleDays {
-		return &InvalidValueError{Key: key, Reason: fmt.Sprintf(attendanceVisibleTooLongReason, retention)}
-	}
-	return &InvalidValueError{Key: key, Reason: fmt.Sprintf(attendanceRetentionTooShortReason, visible)}
+	return &AttendanceWindowError{Key: key, VisibleDays: visible, RetentionDays: retention}
 }
