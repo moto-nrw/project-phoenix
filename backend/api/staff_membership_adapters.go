@@ -39,8 +39,9 @@ type staffMembershipDeps struct {
 	// employment is Workforce's owner of the employment-only staff writes
 	// (#2753): notes and the birthday opt-out.
 	employment staffEmploymentWrites
-	// GroupTeachers is lazy because School Membership may be rebound after construction.
-	GroupTeachers func() GroupTeacherRepository
+	// groupTeachers are the teaching assignments the teacher projections
+	// resolve their groups through.
+	groupTeachers GroupTeacherRepository
 }
 
 // staffEmploymentWrites are Workforce's employment-only staff writes the
@@ -56,8 +57,8 @@ type staffPersonRows interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 }
 
-func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment}
+func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers GroupTeacherRepository) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment, groupTeachers: groupTeachers}
 }
 
 // StaffMembershipRepository serves users.StaffRepository.

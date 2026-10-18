@@ -61,7 +61,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	care := carePlan.CarePlan
 	return CareLifecycleTestRepositories{
 		TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: carePlan, TimetableRoomRows: rooms, TimetableSchoolCalendar: schoolCalendar,
-		CareWithdrawal: NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal: NewCareWithdrawalCompletionRepository(care),
 		db:             db,
 		sources: NewCareLifecycleOwners(
 			members.Student, members.Person, membership, people, tt.Timetable, calendar,
