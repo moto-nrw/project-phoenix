@@ -303,10 +303,7 @@ func composeMail(b graphBuild) (graphBuild, error) {
 		return b, err
 	}
 	b.dispatcher = email.NewDispatcher(mailer, b.Logger.With("component", "email"), email.DeliveryObserver(b.ObserveDelivery))
-	b.graph.DefaultFrom = email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
-	if b.graph.DefaultFrom.Address == "" {
-		b.graph.DefaultFrom = email.NewEmail("moto", "no-reply@moto.local")
-	}
+	b.graph.DefaultFrom = email.NewEmail(deliveryModule.SenderOrDefault(cfg.EmailFromName, cfg.EmailFromAddress))
 	if b, err = resolveLinks(b); err != nil {
 		return b, err
 	}
