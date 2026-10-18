@@ -57,7 +57,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	student := testpkg.CreateTestStudent(t, db, "PC-Kid", fmt.Sprintf("One-%d", suffix), "2b")
 
 	return &plannedConflictSetup{
-		detection: newConflictDetection(t, repos),
+		detection: newConflictDetection(t, db, repos),
 		db:        db,
 		ctx:       testpkg.Ctx(t),
 		roomID:    room.ID,
@@ -324,18 +324,21 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 
 // newConflictDetection composes the Timetable owner's conflict detection and
 // staffing capability over the retained repositories, the way the root does.
-func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
+func newConflictDetection(t *testing.T, db *bun.DB, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
+	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, members)
+	require.NoError(t, err)
 	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         repos.ActivityInstance,
 		InstanceStaff:     repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
 		Exceptions:        repos.ActivityException,
 		Schedules:         repos.ActivitySchedule,
-		Staff:             api.NewTimetableStaff(repos.Staff),
+		Staff:             api.NewTimetableStaff(members.Staff),
 		CalendarPeriods:   repos.CalendarPeriod,
 		ArrivalExceptions: repos.StudentArrivalException,
-		Sessions:          repos.ActiveGroup,
+		Sessions:          presence.ActiveGroup,
 		Shifts:            repos.StaffShift,
 		Presence:          planningOnlyPresence{},
 	}, nil)

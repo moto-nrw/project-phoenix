@@ -84,7 +84,7 @@ func makePoolSetup(t *testing.T) *poolSetup {
 		db:        db,
 		ctx:       testpkg.TenantContext(tenantID),
 		tenantID:  tenantID,
-		detection: newConflictDetection(t, repos),
+		detection: newConflictDetection(t, db, repos),
 	}
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Pool-Room-%d", suffix))
 	s.roomID = room.ID

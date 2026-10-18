@@ -71,8 +71,7 @@ func NewTimetableTestRepositories(db transactionruntime.Database, clocks ...func
 }
 
 func withTimetableTestAudit(db transactionruntime.Database, timetable TimetableTestRepositories) TimetableTestRepositories {
-	timetable.DeviationEvent = NewTestAuditPersistence(db, nil).DeviationEvent
-	return timetable
+	return timetable.withDeviationAudit(NewTestAuditPersistence(db, nil).DeviationEvent)
 }
 
 // NewWorkSessionTestRepositories composes the work-session test graph with its
@@ -87,6 +86,7 @@ func NewWorkSessionTestRepositories(db transactionruntime.Database, clocks ...fu
 
 func withWorkSessionTestAudit(db transactionruntime.Database, sessions WorkSessionTestRepositories) WorkSessionTestRepositories {
 	sessions.TimetableTestRepositories = withTimetableTestAudit(db, sessions.TimetableTestRepositories)
+	sessions.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	sessions.WorkSessionEdit = NewTestAuditPersistence(db, nil).WorkSessionEdit
 	return sessions
 }
@@ -118,6 +118,7 @@ func NewEnrollmentTestRepositories(db transactionruntime.Database, command audit
 
 func withEnrollmentTestAudit(db transactionruntime.Database, command auditModels.Command, enrollment EnrollmentTestRepositories) EnrollmentTestRepositories {
 	enrollment.TimetableTestRepositories = withTimetableTestAudit(db, enrollment.TimetableTestRepositories)
+	enrollment.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	enrollment.DataAccessLog = NewTestAuditPersistence(db, command).DataAccessLog
 	return enrollment
 }
@@ -130,6 +131,7 @@ func NewEnrollmentFlowTestRepositories(db transactionruntime.Database) (*Enrollm
 		return nil, err
 	}
 	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
+	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	audits := NewTestAuditPersistence(db, nil)
 	result.EnrollmentOfferingAdjustment = audits.EnrollmentOfferingAdjustment
 	result.EnrollmentRestorationAudit = audits.EnrollmentRestorationAudit
@@ -146,6 +148,7 @@ func NewCareLifecycleTestRepositories(db transactionruntime.Database, command au
 		return CareLifecycleTestRepositories{}, err
 	}
 	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
+	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	audits := NewTestAuditPersistence(db, command)
 	result.StudentFieldEdit = audits.StudentFieldEdit
 	return result, nil

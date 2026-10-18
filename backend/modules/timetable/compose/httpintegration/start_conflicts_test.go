@@ -43,7 +43,7 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
 		testpkg.ActivityInstanceOpts{Title: "Pool-Missing"})
 
-	detection := newConflictDetection(t, repos)
+	detection := newConflictDetection(t, db, repos)
 
 	_, err = detection.StaffPoolForInstance(testpkg.Ctx(t), instance.ID)
 	require.NoError(t, err, "the block's own tenant reads its pool")
@@ -69,7 +69,7 @@ func TestWindowConflicts_FingerprintsMatchPersistedAcknowledgements(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	detection := newConflictDetection(t, repos)
+	detection := newConflictDetection(t, db, repos)
 
 	clock := func(hour, minute int) time.Time { return time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC) }
 	date := calendar.NewDate(2026, time.September, 7)

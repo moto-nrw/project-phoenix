@@ -50,7 +50,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	students := OverlappingRosterGroupNames{StudentRepository: r.Timetable.Student, Groups: groups}
+	students := OverlappingRosterGroupNames{StudentRepository: MustNewMembershipTestRepositories(db).Student, Groups: groups}
 	calendarAdministration := SchoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {

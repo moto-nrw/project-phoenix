@@ -62,9 +62,17 @@ func init() {
 		if err != nil {
 			return timetableAPI.TimetableRows{}, err
 		}
+		rooms, err := api.NewTimetableRoomRows(testpkg.MustDatabase(db))
+		if err != nil {
+			return timetableAPI.TimetableRows{}, err
+		}
+		calendar, err := api.NewTimetableSchoolCalendar(testpkg.MustDatabase(db))
+		if err != nil {
+			return timetableAPI.TimetableRows{}, err
+		}
 		return timetableAPI.TimetableRows{
-			Repositories: rows.Repositories, Timetable: rows.Timetable, ShiftType: rows.ShiftType, Room: rows.Room,
-			CalendarPeriods: rows.SchoolCalendar(), PeriodUsage: rows.CalendarPeriodUsage(),
+			Repositories: rows.Repositories, Timetable: rows.Timetable, ShiftType: rows.ShiftType, Room: rooms.Room,
+			CalendarPeriods: calendar.SchoolCalendar(), PeriodUsage: rows.CalendarPeriodUsage(),
 		}, nil
 	}
 	root.People = func(db *bun.DB) (timetableAPI.People, error) {

@@ -39,6 +39,12 @@ func NewAppointments(db transactionruntime.Database) (appointments.Capability, e
 
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
 	Profile         identityaccess.AccountProfiles
 	StaffGroups     schoolstructure.StaffGroupQuery
 	GuardianProfile peoplePorts.GuardianProfileRepository
@@ -70,10 +76,14 @@ func NewCalendarTestRepositories(db transactionruntime.Database, members Members
 	if err != nil {
 		return CalendarTestRepositories{}, err
 	}
+	presence, care, rooms, _, err := newTimetableTestCompanions(db, identity.Timetable, members)
+	if err != nil {
+		return CalendarTestRepositories{}, err
+	}
 	feeds := NewCalendarFeedTestRepositories(db)
 	return CalendarTestRepositories{
-		TimetableTestRepositories: identity.Timetable,
-		Profile:                   identity.Profile, StaffGroups: identity.StaffGroups,
+		TimetableTestRepositories: identity.Timetable, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms,
+		Profile: identity.Profile, StaffGroups: identity.StaffGroups,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
 		ParentPortalRepositories: parents.ParentPortalRepositories, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
 		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,

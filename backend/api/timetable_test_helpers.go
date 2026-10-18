@@ -46,6 +46,15 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
+	members := MustNewMembershipTestRepositories(db)
+	presence, err := NewTimetablePresenceRows(db, r, members, clocks...)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	rooms, err := NewTimetableRoomRows(db)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -105,18 +114,18 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(presence.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: devicescanCompose.AttendancePrincipal,
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
-		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
+		StudentRepo: PresenceStudents(db, members.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
+		EducationGroupRepo: NewAttendanceEducationGroups(members.Group, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff),
 		DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
 	}, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
-	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
+	offerings, err := newTestCareOfferingCatalog(db, r, settings.Settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: recurrenceLock.LockRecurrenceWrites, Today: today,
 	})
 	if err != nil {
@@ -130,7 +139,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := TimetableMaterializationDependencies(rows, r.Student, calendar, recurrenceLock, hub, logger)
+	materializationDeps := TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
 	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
@@ -139,8 +148,8 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	recovery := arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
 	conflicts, err := NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
-		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: NewTimetableStaff(r.Staff), CalendarPeriods: r.CalendarPeriod,
-		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
+		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: NewTimetableStaff(members.Staff), CalendarPeriods: r.CalendarPeriod,
+		ArrivalExceptions: r.StudentArrivalException, Sessions: presence.ActiveGroup, Shifts: r.StaffShift,
 		Presence: NewLoggedStudentPresence(db, logger), Logger: logger,
 	}, arrival)
 	if err != nil {
@@ -154,7 +163,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	lifecycleRows.Locks = recovery
 	instance, err := NewTimetableLifecycle(timetablePorts.InstanceLifecycleDependencies{
 		IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
-		StaffRepo: NewTimetableStaff(r.Staff), ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
+		StaffRepo: NewTimetableStaff(members.Staff), ActiveGroupRepo: presence.ActiveGroup, SupervisorRepo: presence.GroupSupervisor,
 		Presence: NewLoggedStudentPresence(db, logger), ActiveService: ender, CareDayLocks: carePlan,
 		Materialization: materialization, RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Logger: logger, Now: now,
@@ -164,7 +173,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	dataRows := r.OwnerRows()
 	dataRows.Locks = recovery
-	timetableData, err := NewTimetableData(dataRows, arrival, pickup, NewLoggedStudentPresence(db, logger), r.Timetable, r.ActiveGroup,
+	timetableData, err := NewTimetableData(dataRows, arrival, pickup, NewLoggedStudentPresence(db, logger), r.Timetable, presence.ActiveGroup,
 		r.Timetable, arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List), true, logger)
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -179,7 +188,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviationDeps, err := TimetableStaffDeviationDependencies(r.OwnerRows(), NewTimetableStaff(r.Staff), r.GroupSupervisor,
+	deviationDeps, err := TimetableStaffDeviationDependencies(r.OwnerRows(), NewTimetableStaff(members.Staff), presence.GroupSupervisor,
 		instance.DeviationLifecycle(), hub, logger, now)
 	if err != nil {
 		return TimetableTestModule{}, err

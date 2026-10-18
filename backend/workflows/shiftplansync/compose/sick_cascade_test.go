@@ -173,7 +173,7 @@ type deviationEvent struct {
 // [from, to].
 func (e *sickCascadeEnv) deviationEvents(t *testing.T, from, to calendar.Date) []deviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEventsBetween(e.ctx, from, to)
+	events, err := e.deviations.DeviationEventsBetween(e.ctx, from, to)
 	require.NoError(t, err)
 	out := make([]deviationEvent, 0, len(events))
 	for _, ev := range events {

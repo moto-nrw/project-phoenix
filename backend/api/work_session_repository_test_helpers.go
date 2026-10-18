@@ -14,6 +14,13 @@ import (
 
 type WorkSessionTestRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
+	TimetableSchoolCalendar
 	// Workforce is the capability the time-tracking rows are served from.
 	Workforce workforce.Capability
 	// WorkSessionEdit is filled by NewWorkSessionTestRepositories.
@@ -25,6 +32,10 @@ type WorkSessionTestRepositories struct {
 
 func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+	if err != nil {
+		return WorkSessionTestRepositories{}, err
+	}
+	presence, care, rooms, calendar, err := newTimetableTestCompanions(db, tt, members, clocks...)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
@@ -41,7 +52,7 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
+	return WorkSessionTestRepositories{TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
 		Workforce:         workTime,
 		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
 		StaffWorkSchedule: NewStaffWorkScheduleRepository(workTime),

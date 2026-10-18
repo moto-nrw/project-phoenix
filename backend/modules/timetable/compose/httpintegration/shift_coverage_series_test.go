@@ -135,7 +135,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	countedDB := db.WithQueryHook(queryCounter)
 	countedRepos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, countedDB), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, countedDB)))
 	require.NoError(t, err)
-	detection := newConflictDetection(t, countedRepos)
+	detection := newConflictDetection(t, countedDB, countedRepos)
 	pattern := 0
 	coverage, err := detection.DetectShiftCoverage(localCtx, timetable.ShiftCoverageProbe{
 		Dates:     []calendar.Date{monday, wednesday, friday, nextMonday, nextWednesday},

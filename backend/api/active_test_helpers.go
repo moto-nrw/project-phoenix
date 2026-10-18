@@ -82,6 +82,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	r.TimetableTestRepositories = withTimetableTestAudit(db, r.TimetableTestRepositories)
+	r.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return ActiveTestModule{}, err

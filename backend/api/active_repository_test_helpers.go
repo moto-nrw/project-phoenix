@@ -12,6 +12,13 @@ import (
 
 type ActiveTestRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
+	TimetableSchoolCalendar
 	SessionStartLock interface {
 		LockSessionStart(context.Context, int64) error
 	}
@@ -26,12 +33,16 @@ func NewActiveTestRepositories(db transactionruntime.Database, members Membershi
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
+	presence, care, rooms, calendar, err := newTimetableTestCompanions(db, tt, members, clocks...)
+	if err != nil {
+		return ActiveTestRepositories{}, err
+	}
 	people := members.People
 	groups, err := NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
-	return ActiveTestRepositories{TimetableTestRepositories: tt,
+	return ActiveTestRepositories{TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
 		SessionStartLock: NewUnloggedStudentPresence(db), GroupMapping: NewUnloggedStudentPresence(db),
 		CrossTenant: NewCrossTenantQuery(NewUnloggedStudentPresence(db), people, groups)}, nil
 }
