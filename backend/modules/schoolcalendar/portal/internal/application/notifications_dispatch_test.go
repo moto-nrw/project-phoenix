@@ -162,12 +162,12 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 
 	t.Run("without a notifier or an audience nothing is dispatched", func(t *testing.T) {
 		s := &service{}
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 
 		s = &service{cfg: Config{NotificationCopy: dispatchCopy(t), Notifier: &dispatchNotifier{}, Preferences: &dispatchPreferences{}}}
-		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, nil, students, "")
+		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, nil, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 	})
@@ -176,7 +176,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		notifier := &dispatchNotifier{}
 		s := &service{cfg: Config{NotificationCopy: dispatchCopy(t), Notifier: notifier}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 		assert.Empty(t, notifier.events)
@@ -189,7 +189,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{err: consentErr},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, accounts, students, "")
 		require.ErrorIs(t, err, consentErr)
 		assert.False(t, dispatched)
 	})
@@ -201,7 +201,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{optedIn: []int64{}},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 		assert.Empty(t, notifier.events)
@@ -212,7 +212,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		prefs := &dispatchPreferences{}
 		s := &service{cfg: Config{NotificationCopy: dispatchCopy(t), Notifier: notifier, Preferences: prefs}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentCancelled, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentCancelled, accounts, students, "")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 1)
@@ -224,7 +224,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		assert.Equal(t, students, notifier.events[0].Audience.StudentIDs,
 			"the children the recipients were let through by must reach the delivery transaction, which rechecks their access")
 
-		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentReminder, accounts, students, "")
+		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentReminder, accounts, students, "")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 2)
@@ -238,7 +238,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		notifier := &dispatchNotifier{}
 		s := &service{cfg: Config{NotificationCopy: dispatchCopy(t), Notifier: notifier, Preferences: &dispatchPreferences{}}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentCancelled, accounts, students, "en")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentCancelled, accounts, students, "en")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 1)
@@ -252,7 +252,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), ports.EmailKindAppointmentPublished, accounts, students, "")
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), emailKindAppointmentPublished, accounts, students, "")
 		require.ErrorIs(t, err, dispatchErr)
 		assert.False(t, dispatched)
 	})
@@ -322,10 +322,10 @@ func dispatchCopy(t *testing.T) func(string, string) (string, string) {
 	t.Helper()
 	return func(kind, locale string) (string, string) {
 		if locale == "en" {
-			assert.Equal(t, ports.EmailKindAppointmentCancelled, kind)
+			assert.Equal(t, emailKindAppointmentCancelled, kind)
 			return "Appointment cancelled", "Cancelled body"
 		}
-		if kind == ports.EmailKindAppointmentReminder {
+		if kind == emailKindAppointmentReminder {
 			return "Terminerinnerung", "Reminder body"
 		}
 		return "Appointment", "Appointment body"

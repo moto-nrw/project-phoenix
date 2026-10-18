@@ -19,10 +19,10 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -51,14 +51,14 @@ func composeDelivery(b graphBuild) (graphBuild, error) {
 	defaultFrom := b.graph.DefaultFrom
 	appointments := b.TimetableWiring.AppointmentRenderer(defaultFrom)
 	renderers := map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
+		communication.MailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: communication.MailAddress(defaultFrom),
 		}))),
-		platformModels.EmailKindParentMessage:        deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: communication.MailAddress(defaultFrom)}, deliveryPolicy.ParentDeliveryPolicy{}))),
-		platformModels.EmailKindAppointmentPublished: appointments,
-		platformModels.EmailKindAppointmentUpdated:   appointments,
-		platformModels.EmailKindAppointmentCancelled: appointments,
-		platformModels.EmailKindAppointmentReminder:  appointments,
+		communication.MailKindParentMessage:           deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: communication.MailAddress(defaultFrom)}, deliveryPolicy.ParentDeliveryPolicy{}))),
+		calendarService.EmailKindAppointmentPublished: appointments,
+		calendarService.EmailKindAppointmentUpdated:   appointments,
+		calendarService.EmailKindAppointmentCancelled: appointments,
+		calendarService.EmailKindAppointmentReminder:  appointments,
 	}
 	for kind, renderer := range b.Enrollment.MailRenderers(defaultFrom) {
 		renderers[kind] = renderer

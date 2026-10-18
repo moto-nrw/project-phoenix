@@ -1422,20 +1422,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/platform",
-      "owner": "organization-tenancy",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/platform/platformtest",
-      "owner": "organization-tenancy",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/schedule",
       "owner": "timetable-activities",
       "role": "legacy-model",
@@ -1801,13 +1787,6 @@
     },
     {
       "path": "modules/organizationtenancy/compose",
-      "owner": "organization-tenancy",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/organizationtenancy/compose/vocabulary",
       "owner": "organization-tenancy",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -10202,28 +10181,6 @@
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "delivery-platform",
-      "target_role": "test-support"
-    },
-    {
-      "id": "organization-tenancy.test-support.domain",
-      "description": "The capturing outbox in models/platform/platformtest implements the outbox port of models/platform (#3967). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "test-support",
-      "target_owner": "organization-tenancy",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "test-support.to.organization-tenancy-support",
-      "description": "The shared fixtures re-export Organisation & Tenancy's capturing outbox (#3967).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "organization-tenancy",
       "target_role": "test-support"
     },
     {

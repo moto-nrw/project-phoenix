@@ -52,7 +52,7 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 
 type emailFixture struct {
 	svc    *messaging.Service
-	outbox *testpkg.CapturingOutbox
+	outbox *api.CapturingOutbox
 	chain  testpkg.ParentChain
 	staff  int64
 }
@@ -63,7 +63,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),

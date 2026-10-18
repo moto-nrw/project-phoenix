@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -48,7 +47,7 @@ func newEnrollmentWiring(owners enrollmentWiringOwners) EnrollmentWiring {
 		MailRenderers: func(defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
 			return enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom)
 		},
-		Notifications: func(settings EnrollmentSettings, outbox platformModels.OutboxEnqueuer) enrollmentOwner.Notifications {
+		Notifications: func(settings EnrollmentSettings, outbox MailOutbox) enrollmentOwner.Notifications {
 			return NewEnrollmentNotifications(bookings, settings, outbox, owners.Schools)
 		},
 		Deletions: NewEnrollmentDeletionModule,

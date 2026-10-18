@@ -52,6 +52,14 @@ type OperatorLoginResult struct {
 	TrustedDeviceDays    int
 }
 
+// Actions of the operator ledger entries that change an account's school
+// access; AccessChange is set on them.
+const (
+	OperatorAuditActionCreate = "create"
+	OperatorAuditActionUpdate = "update"
+	OperatorAuditActionDelete = "delete"
+)
+
 // OperatorAuditEntry is one platform-scoped ledger entry the operator flows
 // append through the Audit owner: who did what to which resource, with the
 // request address and the typed change summary of the action.

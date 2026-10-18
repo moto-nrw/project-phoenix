@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -67,7 +67,7 @@ type InvitationWiring struct {
 	// carries; nil leaves them out and /help asks.
 	Settings tenantSettingsResolver
 	// Outbox persists the staff welcome in the invitation transaction.
-	Outbox func() platformModels.OutboxEnqueuer
+	Outbox func() MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
 }
@@ -122,7 +122,7 @@ type invitationDelivery struct {
 	invitations  func() identityaccess.SchoolInvitations
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
-	outbox       func() platformModels.OutboxEnqueuer
+	outbox       func() MailOutbox
 	welcomeDelay time.Duration
 }
 
@@ -231,10 +231,10 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)
 	}
-	if err := d.outbox().EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:              platformModels.EmailKindStaffWelcome,
+	if err := d.outbox().EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+		Kind:              identityaccess.MailKindStaffWelcome,
 		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeSchoolInvitation,
+		RelatedEntityType: identityaccess.MailRelatedSchoolInvitation,
 		RelatedEntityID:   invitation.ID,
 		DeliverAfter:      deliverAfter,
 	}); err != nil {
