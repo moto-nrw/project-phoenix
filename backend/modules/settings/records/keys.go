@@ -271,6 +271,24 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
+// PresenceModeOf reads a stored presence mode: anything but binary is the
+// detailed mode.
+func PresenceModeOf(value string) string {
+	if value == PresenceModeBinary {
+		return PresenceModeBinary
+	}
+	return PresenceModeDetailed
+}
+
+// GroupModeOf reads a stored group mode: anything but open care is fixed
+// groups.
+func GroupModeOf(value string) string {
+	if value == GroupModeOpenCare {
+		return GroupModeOpenCare
+	}
+	return GroupModeFixedGroups
+}
+
 // OperationalOverviewScope option values for KeyOperationalOverviewScope.
 // The setting decides which educational groups and running modules staff can
 // see; role permissions independently decide which actions they may perform.
