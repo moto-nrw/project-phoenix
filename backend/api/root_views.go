@@ -290,7 +290,7 @@ func buildClassDayViews(
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 ) (ClassDayViews, error) {
-	classDayReads, err := arrivalTimetable.NewPresenceReads(db.Pool())
+	classDayReads, err := arrivalTimetable.NewPresenceReads(NewTimetablePresenceProjection(db))
 	if err != nil {
 		return ClassDayViews{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}

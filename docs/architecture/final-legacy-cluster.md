@@ -1,4 +1,148 @@
-# Final legacy cluster: round 3
+# Final legacy cluster: round 4
+
+Base: development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` after PR #4335. This section is the current result; the round-3 record below is historical.
+
+## Current result
+
+| Surface | Before | Candidate |
+|---|---:|---:|
+| Exact legacy keys | 15 | 1 |
+| #4004 | 11 | 1 |
+| #4076 | 4 | 0 |
+| Production composition targets | 0 | 0 |
+| Foreign compose aliases | 30 | 23 |
+| Conventional production package carriers | 8 | 5 |
+| Legacy-tree LOC | 0 | 0 |
+| Legacy-prefixed file LOC | 2,897 | 2,666 |
+| Compose LOC | 31,160 | 27,204 |
+| Policy rules | 902 | 926 |
+
+Architecture passes at one retained key against the fixed base. The checker includes two unchanged test hooks in its combined surface measurement (`2 -> 2`); production remains zero. All 14 removed keys have retirement evidence in `final-legacy-round-four-4004.json` and `final-legacy-round-four-4076.json`. No key, alias, exception, grant, hook allowance, checker behavior or budget is added. Twenty-nine native-contract successor rules replace five stale rules.
+
+## Implemented boundaries
+
+1. The root constructs each Communication audience/inbox projection and the operator dashboard, then injects a positional consumer port. Projection rows are actual native definitions, not aliases or copied DTOs. The implementation owners and existing read grants are unchanged. The physical projection move remains blocked as described below.
+2. Timetable HTTP moves to `modules/timetable/http/activities`. Authorization uses the existing Security Runtime public functions. Its transaction function is supplied by the root over the same Tenant runtime. Transport suites move to the existing adapter-test role with unchanged assertions. Activity values and availability behavior move to native owner contracts; CRUD/model compatibility is not republished as public API.
+3. Timetable presence reads and Student Deletion enrollment counts receive root-built projection ports. Existing strict ambient-transaction checks stay in immutable root bindings. No consumer composition imports either foreign projection implementation.
+4. Data Import internal decision tests construct a consumer-port fake, including `admin:*`, without a compose authorization call. Existing assertions are unchanged. Its production authorization edge is retained unchanged after the zero-key checker blocker below was demonstrated; the native root implementation is reverted, not kept alive as dead code.
+5. Delivery owns its Bun subscription row, tenant filter and SQL-not-found translation. `deadcode` proved that the deleted generic CRUD/model API had no production caller. Its obsolete generic suites are deleted under the explicit round-4 authorization. Live error wrapping stays in Transaction Runtime internal postgres. The canonical unique-violation detector remains at its immutable helper-guard path; its original assertions run against that implementation through the existing native runtime facade. Existing Delivery subscription/portal suites and the new native error-chain contract protect the production path.
+6. Actual Enrollment offering/availability values move to `offeringcontract`, preserving counts/default and validation behavior. The remaining decoded request state moves into the existing internal application role. The `models/enrollment` carrier is deleted.
+7. Actual parent-event orchestration moves to Communication internal application by ADR 0020. Communication's native contract publishes an opaque JSON payload, not `map[string]any`. The payload is genuinely free-form; test support supplies the decoded view used by unchanged Care Plan assertions. Persistence uses `UseNumber` so large integer detail is not rounded during the internal JSON round trip. The `services/parentmessaging` carrier is deleted.
+8. Seven foreign compose aliases disappear. Three redundant Communication delivery-recorder methods and seven Timetable reader/clock/end/assignment forwarding methods disappear through promotion of the actual native capabilities. These ten deletions offset the ten newly counted delegations. New HTTP/validation functions are split to the existing size/complexity/facade limits. Every improved budget is lowered; none is transferred to a new path.
+
+## Golden normalization proof
+
+`TestFullProductionRouterGolden` is unchanged. The route and IoT golden files are unchanged. Exactly 6 lines in `middleware_table.golden` change, all by the package path `modules/timetable/compose/httpadapter` to `modules/timetable/http/activities`.
+
+```python
+before = git_show("dd92c93a8af3c4cc3d74d51769eb04d4922c85b8:backend/api/testdata/middleware_table.golden")
+after = read_bytes("backend/api/testdata/middleware_table.golden")
+assert after.replace(b"modules/timetable/http/activities", b"modules/timetable/compose/httpadapter") == before
+```
+
+Normalized SHA-256: `8aac8ecab2b289d4672a132a762e8dea6b5f6d2400495c262c178cf322eece45`. The normalized diff is empty: no route, middleware ordering, permission or response change is claimed or accepted.
+
+## Dissolved carriers
+
+| Carrier | Outcome |
+|---|---|
+| `database/repositories/base` | Dead generic CRUD/context protocol deleted; Delivery owns its live tenant persistence and errors |
+| `models/enrollment` | Native offering contract plus existing Enrollment internal application; original behavior suites move with the code |
+| `services/parentmessaging` | Communication internal application, same owner/application role and original suite file set (ADR 0020) |
+
+## Exact remaining boundaries
+
+| Surface | Exact blocker / remaining work |
+|---|---|
+| Zero-key checkpoint | Unchanged `internal/architecture/cli_test.go:790`, `TestCanonicalArchitectureRatchetMatchesCommittedBaseline`, requires the baseline-free canonical check to fail with `imports.forbidden`. With a valid zero-key graph it succeeds, so the test fails. Changing this assertion is a forbidden checker edit. The original live Data Import compose → auth/authorize edge is retained as the single blocked consumer, rather than adding a synthetic violation, alias or keep-alive. |
+| Projection physical relocation | Moving the five existing read implementations to their standalone module paths produced 33 new path-bound read-projection grants. ADR 0020 does not rewrite those grants. No grant or checker edit is made. Projection-owned composers therefore remain under the original Go-internal parent (`communication/projections/*`, `organizationtenancy/projections/operatordashboard`); the root still constructs the independent projection owners and injects only ports. |
+| `models/base` | Generic model/filter/accessors are deleted, but unchanged `test/helper_consolidation_ratchet_test.go` permits SQLSTATE unique-violation literals only under `models/base/`. Moving the actual canonical detector produced four forbidden literal sites. It remains as the live canonical detector, reached by Transaction Runtime's existing private facade. No split literal, arithmetic encoding, new allowance or checker edit is used. |
+| `services/scheduler` | Unchanged `test/composition_inventory_test.go` discovers `services/scheduler/worker.go` by literal path. Moving it requires a checker edit, which is forbidden. Constructor-injected clock/targets and instance emitter state from PR #4334 remain intact. |
+| `models/activities` | Actual row/validation values are native now. Remaining callers still name generic repository interfaces, `QueryOptions`, template query rows and error compatibility. A direct public move would publish generic CRUD; a private port/domain move requires the missing external `timetable-activities/workflow-integration-test -> port/domain` reach. ADR 0020 cannot relabel `legacy-model`. Bounded native persistence capabilities and an owner fixture seam remain necessary; no private grant is introduced. |
+| `models/schedule` | Timetable composition, application, ports and its external integration suites still construct retained ORM rows/repository contracts (`ActivityInstance`, `InstanceStudent`, recovery/snapshot, recurrence and school-calendar records). Public contracts cannot carry those Bun/generic APIs; external integration tests lack the private domain/port reach. A value/capability/fixture cutover is still required, not a policy-only package rename. |
+| `models/delivery` | The live private row is separated from the now base-free subscription value. A public publication attempt needs new `delivery-platform/postgres -> contract` and integration-fixture reach at an existing policy point; the checker rejected it as loosening. No rule/grant is added. The remaining persistence capability needs a native port/fixture cutover before the model carrier can disappear. |
+| Delivery email aliases | The 23 remaining foreign aliases are all in `modules/delivery/compose/email`. They expose actual provider `Message`, `Mailer`, `Dispatcher`, SMTP construction and test-mock types from `email` (adapter). Removing the facade requires native mail contracts and a test-support seam; redirecting roots to the private adapter would add private reach. These are retained explicitly, not claimed retired. |
+| Compose and legacy files | There are still 27,204 compose LOC and 2,666 legacy-prefixed LOC. In particular Timetable's retained activity service, repository bindings and model contracts remain business/persistence code. Their removal depends on the bounded capability cutover above. They are not renamed outside the counted trees. |
+
+## Round-4 baseline foreign-importer inventory
+
+AST selector inventory at the immutable round-4 base. Own-owner callers are excluded from this foreign-owner table. Candidate imports of the five conventional carriers are all same-owner; their role/fixture blockers are listed above. Shared runtime rows are limited to the retiring consumers.
+
+| Target | Foreign importer owner / package | Scope | Symbols |
+|---|---|---|---|
+| `api/common` | `timetable-activities` / `modules/timetable/compose/httpadapter` | production | `BindAction`, `CodeTimetableActivityNotOwner`, `CodeTimetableActivitySystemProtected`, `CodeTimetableActivityTemplateProtected`, `CodeTimetableOnlySupervisorReplacementRequired`, `DateFormatISO`, `ErrorBusinessRejectionOr`, `ErrorConflict`, `ErrorConflictWithCode`, `ErrorForbidden`, `ErrorForbiddenWithCode`, `ErrorInternalServer`, `ErrorInvalidRequest`, `ErrorNotFound`, `ErrorRule`, `IDFetch`, `Middleware`, `MsgInvalidActivityID`, `MsgInvalidStudentID`, `MsgInvalidWeekday`, `PaginationParams`, `ParseID`, `ParseIDParam`, `ParsePagination`, `RenderError`, `RequiresAnyPermission`, `RequiresPermission`, `Respond`, `RespondPaginated`, `RespondWithError`, `RulesRenderer`, `Time`, `UnwrapRenderer` |
+| `auth/authorize` | `data-import` / `modules/dataimport/compose` | production | `CanGrantRole`, `HasPermission` |
+| `auth/authorize` | `timetable-activities` / `modules/timetable/compose/httpadapter` | production | `CanReadStudent`, `HasAdminWildcard` |
+| `database/repositories/base` | `delivery-platform` / `modules/delivery/internal/adapters/deliverypostgres` | production | `EnsureTenantID`, `GetDB`, `NewRepository`, `Repository`, `TranslateNotFound`, `WithTenantFilter` |
+| `models/base` | `delivery-platform` / `models/delivery` | production | `CRUDRepository`, `Model`, `TenantModel` |
+| `models/enrollment` | `care-plan` / `modules/careplan/contracttest` | external_test | `AvailabilityMatchAll`, `AvailabilityOperatorIn`, `AvailabilitySourceGradeLevel`, `CareOffering`, `CareOfferingAvailabilityCondition`, `CareOfferingAvailabilityRule`, `ChildStatusApproved`, `ChildStatusSubmitted`, `DaysOfWeekModeFixed`, `DaysOfWeekModeParentChoice`, `OfferingChangeDate`, `OfferingChangeSnapshotEntry`, `OfferingChangeStatusApproved`, `OfferingChangeStatusPending`, `OfferingChangeStatusRejected`, `OfferingChangeStatusWithdrawn`, `PhaseCareOfferingSelectionAtLeastOne`, `PhaseCareOverflowWaitlist`, `PhaseKindSchoolYear`, `SelectionRuleAtLeastOne`, `SelectionRuleAtMostOne`, `SelectionRuleExactlyOne`, `SelectionRuleOptional` |
+| `modules/communication/internal/adapters/audience` | `communication` / `modules/communication/composition` | production | `Announcement`, `Map`, `New`, `Rows`, `Stats`, `Target`, `ViewDetail` |
+| `modules/communication/internal/adapters/parentaudience` | `communication` / `modules/communication/parentstore` | production | `Database`, `DeclarationChild`, `DeclarationHistoryLink`, `DeclarationSigner`, `New`, `ParentAnnouncementFeedItem`, `ParentAnnouncementFeedScope`, `ParentAnnouncementReminderRecipient`, `PendingAnnouncementApplicant`, `Projection` |
+| `modules/communication/internal/adapters/parentinbox` | `communication` / `modules/communication/parentstore` | production | `Database`, `New`, `ParentInboxThread`, `ParentReadCursor`, `Projection` |
+| `modules/communication/internal/adapters/staffinbox` | `communication` / `modules/communication/staffstore` | production | `Database`, `New`, `Projection` |
+| `modules/identityaccess/sessiontoken` | `timetable-activities` / `modules/timetable/compose/httpadapter` | production | `PermissionsFromCtx` |
+| `modules/organizationtenancy/internal/adapters/operatordashboard` | `organization-tenancy` / `modules/organizationtenancy/compose` | production | `Counts`, `Map`, `New`, `OrganizationSummary`, `PWAUsageRow`, `Rows`, `SchoolSummary` |
+| `modules/presenceprojection` | `timetable-activities` / `modules/timetable/compose` | production | `CountNonAbsentParticipants`, `HasPlannedSlotsInRange`, `Instance`, `LegacyInstanceFilter`, `LegacyParticipantFilter`, `ListLegacyInstances`, `ListLegacyParticipants`, `ListParallelPresence`, `ListPartialAbsenceBlocks`, `ListScheduledInstancesForStudent`, `ParallelPresence`, `PartialAbsenceBlock`, `Participant`, `ScheduledInstance` |
+| `modules/timetable/compose/httpadapter` | `root-composition` / `api` | production | `NewResource`, `NewSchedulesResource`, `TimeframeChangeGuard` |
+| `modules/timetableprojection` | `student-deletion` / `workflows/studentdeletion/compose` | production | `CountStudentEnrollments` |
+| `services/parentmessaging` | `care-plan` / `modules/careplan/contracttest` | external_test | `ChildEvent`, `Emitter`, `NewEmitterWithDecisions`, `PortalGuardian`, `TenantSettingsResolver` |
+
+## Native successor rules
+
+All new rules target native public/contract values, or the exact existing HTTP runtime targets of moved transport suites. No private reach is added. HTTP follows PR #4321's owner-http pattern. Fresh owner contract points follow ADR 0058 and the same native successor pattern used by PR #4335; projection/domain-to-native-public directions are pre-approved in the task. Test rules preserve scope and pin the moved source/target where applicable.
+
+| Added rule | Precedent / reason |
+|---|---|
+| `parent-announcement-audience.postgres.parentannouncementaudience.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `communication.compose.parentannouncementaudience.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `parent-message-inbox.postgres.parentmessageinbox.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `communication.compose.parentmessageinbox.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `staff-message-inbox.postgres.staffmessageinbox.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `communication.compose.staffmessageinbox.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `operator-dashboard-view.postgres.native-contract` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `staff-announcement-audience.postgres.staff-audience.native-public` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `communication.compose.staff-audience.native-public` | Retired Communication/Organisation private-projection key; same projection owner publishes actual native public rows, root binds ports; ADR 0058 public directions |
+| `care-plan.contracttest.enrollment-offering-contract` | Retired Care Plan legacy-model test key / existing Enrollment own-value validation and error identity; fresh native contract point |
+| `enrollment.application.offering-contract` | Retired Care Plan legacy-model test key / existing Enrollment own-value validation and error identity; fresh native contract point |
+| `enrollment.public.offering-contract` | Retired Care Plan legacy-model test key / existing Enrollment own-value validation and error identity; fresh native contract point |
+| `communication.application.native-event-contract` | Retired Care Plan parentmessaging test key / same Communication event capability; fresh typed native contract, existing owner public event port |
+| `communication.adapter.native-event-contract` | Retired Care Plan parentmessaging test key / same Communication event capability; fresh typed native contract, existing owner public event port |
+| `communication.test-support.native-event-contract` | Retired Care Plan parentmessaging test key / same Communication event capability; fresh typed native contract, existing owner public event port |
+| `care-plan.e2e-test.native-event-contract` | Retired Care Plan parentmessaging test key / same Communication event capability; fresh typed native contract, existing owner public event port |
+| `communication.event-contract.public` | Retired Care Plan parentmessaging test key / same Communication event capability; fresh typed native contract, existing owner public event port |
+| `timetable-activities.application.production.activity-contract` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `timetable-activities.legacy-model.production.activity-contract` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `timetable-activities.workflow-integration-test.internal_test.activity-contract` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `timetable-activities.activity-contract.public` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `timetable-activities.http.activity-contract` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `presence-legacy-view.postgres.native-presence-projection` | Retired Timetable presence key; actual native projection rows and consumer-owned read port, root binding; ADR 0058 public directions |
+| `timetable-activities.application.native-presence-projection` | Retired Timetable presence key; actual native projection rows and consumer-owned read port, root binding; ADR 0058 public directions |
+| `timetable-activities.port.native-presence-projection` | Retired Timetable presence key; actual native projection rows and consumer-owned read port, root binding; ADR 0058 public directions |
+| `timetable-activities.port.activity-contract` | Existing Timetable own-model and compose activity capability; fresh native contract values, no generic CRUD/ORM; owner HTTP pattern #4321 |
+| `timetable-activities.http.adapter-test.common` | Existing Timetable HTTP test runtime target and external-test scope; moved adapter-test role as PR #4321; exact target package |
+| `timetable-activities.http.adapter-test.identity-runtime` | Existing Timetable HTTP test runtime target and external-test scope; moved adapter-test role as PR #4321; exact target package |
+| `root-composition.internal-test.activity-contract` | Existing root internal tests constructed the same activity capability through compose; native contract only |
+
+## Verification and issue exits
+
+- Fixed-base architecture: passed, 1 retained key and unchanged production composition 0.
+- Retirement validation: passed, all 14 removed keys covered; historical evidence paths for moved files use immutable base links.
+- Source ratchets: passed after lowering the improved entries; no new budget entry.
+- Full affected tests, lint and full hooks: running; publication requires them to pass. Final outcomes are recorded before the publication commit.
+
+| Issue | Exit evidence / intended state |
+|---|---|
+| #4004 | Ten keys retire; one original Data Import authorization key remains because the immutable canonical regression gate requires at least one forbidden import; open |
+| #4076 | All 4 remaining carrier keys retire; no keys for this issue remain, subject to final full verification |
+| #4084 | Not met: composition still contains retained business/persistence code; open |
+| #4085 | Not met: alias ratchet is 23, not 0; open |
+| #4086 | Not met: five conventional production carriers, legacy-prefixed files and non-internal implementations remain; open |
+
+The exits established by PR #4334 and PR #4335 remain intact. No broad graph, mutable injection setter or production composition target is restored.
+
+## Historical round-3 record
+
+### Final legacy cluster: round 3
 
 Base: development `d8708d82c7c8e18774acc3ee800014649560d666` after PR #4334 and the clean integration of PR #4333. This is a partial contraction, not proof of the whole final-cluster exit.
 

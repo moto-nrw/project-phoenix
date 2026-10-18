@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -119,12 +117,12 @@ func newParentMessagingRepositories(
 	}
 	groupNames := parentGroupNames{groups: groups}.list
 	return parentStore.MessagingRepositories{
-		ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
+		ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, newParentAnnouncementAudience(db, ParentAnnouncementApplicants(enrollment), now)),
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
 		ParentMessageRead: parentStore.WithInboxGroupNames(
-			parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
+			parentStore.NewStaffParentMessageReadRepository(pool, newParentMessageInbox(db), members, personAccounts), groupNames),
 		StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
-			parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
+			parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity)), newStaffMessageInbox(db)),
 	}
 }
 

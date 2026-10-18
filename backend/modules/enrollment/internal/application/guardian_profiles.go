@@ -7,8 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // resolveGuardianProfile finds an existing tenant-scoped guardian by
@@ -16,7 +15,7 @@ import (
 // are added by the targeted-field dispatch, not here.
 func (d *Decisions) resolveGuardianProfile(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 ) (*GuardianProfile, bool, error) {
 	profiles := d.deps.People.GuardianProfiles
 	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
@@ -57,7 +56,7 @@ func (d *Decisions) resolveGuardianProfile(
 // existingGuardianProfileByEmail resolves the profile the submitted email
 // already belongs to, refusing a profile the authenticated submitter may not
 // claim.
-func (d *Decisions) existingGuardianProfileByEmail(ctx context.Context, request *enrollmentModels.Request, email string, authAccountID int64) (*GuardianProfile, error) {
+func (d *Decisions) existingGuardianProfileByEmail(ctx context.Context, request *Request, email string, authAccountID int64) (*GuardianProfile, error) {
 	existing, err := d.deps.People.GuardianProfiles.GuardianProfileByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve guardian profile by email: %w", err)
@@ -88,7 +87,7 @@ func (d *Decisions) checkGuardianProfileClaim(ctx context.Context, existing *Gua
 		return nil
 	}
 	if existing.AccountID != nil && *existing.AccountID != authAccountID {
-		return fmt.Errorf("%w: guardian_profile_id %d", enrollment.ErrGuardianAccountMismatch, existing.ID)
+		return fmt.Errorf("%w: guardian_profile_id %d", enrollmentNative.ErrGuardianAccountMismatch, existing.ID)
 	}
 	if existing.AccountID != nil {
 		return nil
@@ -98,13 +97,13 @@ func (d *Decisions) checkGuardianProfileClaim(ctx context.Context, existing *Gua
 		return err
 	}
 	if !owns {
-		return fmt.Errorf("%w: guardian_profile_id %d", enrollment.ErrGuardianAccountMismatch, existing.ID)
+		return fmt.Errorf("%w: guardian_profile_id %d", enrollmentNative.ErrGuardianAccountMismatch, existing.ID)
 	}
 	return nil
 }
 
 // createSubmittedGuardianProfile builds a fresh profile from the request.
-func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request *enrollmentModels.Request, email string) (*GuardianProfile, error) {
+func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request *Request, email string) (*GuardianProfile, error) {
 	profile := &GuardianProfile{
 		FirstName:              strings.TrimSpace(request.GuardianFirstName),
 		LastName:               strings.TrimSpace(request.GuardianLastName),
@@ -132,13 +131,13 @@ func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request 
 // instead of granting access to the editable request address.
 func (d *Decisions) guardianIdentityRequest(
 	ctx context.Context,
-	request *enrollmentModels.Request,
-) (*enrollmentModels.Request, error) {
+	request *Request,
+) (*Request, error) {
 	if request == nil {
 		return nil, errors.New("decision: guardian identity request is required")
 	}
 	if (request.GuardianAccountID != nil && *request.GuardianAccountID > 0) ||
-		enrollment.NormalizedSubmissionSource(request.SubmissionSource) != enrollmentModels.RequestSourceLateInvite {
+		enrollmentNative.NormalizedSubmissionSource(request.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return request, nil
 	}
 	if d.deps.LateInvites == nil {
@@ -153,7 +152,7 @@ func (d *Decisions) guardianIdentityRequest(
 	return &identityRequest, nil
 }
 
-func (d *Decisions) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *GuardianProfile, request *enrollmentModels.Request) error {
+func (d *Decisions) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *GuardianProfile, request *Request) error {
 	if request == nil {
 		return nil
 	}
@@ -190,7 +189,7 @@ func (d *Decisions) applyStandaloneGuardianProfileNameCorrection(ctx context.Con
 // gave one; absent that, a fresh contact-only profile is created.
 func (d *Decisions) resolveAdditionalGuardianProfile(
 	ctx context.Context,
-	extra *enrollment.RequestGuardian,
+	extra *enrollmentNative.RequestGuardian,
 ) (int64, error) {
 	if extra.GuardianProfileID != nil && *extra.GuardianProfileID > 0 {
 		return *extra.GuardianProfileID, nil
@@ -223,7 +222,7 @@ func (d *Decisions) resolveAdditionalGuardianProfile(
 
 // coGuardianProfileByEmail returns the id of the existing profile of a
 // co-guardian's email, or 0.
-func (d *Decisions) coGuardianProfileByEmail(ctx context.Context, extra *enrollment.RequestGuardian, email string) (int64, error) {
+func (d *Decisions) coGuardianProfileByEmail(ctx context.Context, extra *enrollmentNative.RequestGuardian, email string) (int64, error) {
 	if email == "" {
 		return 0, nil
 	}
@@ -241,7 +240,7 @@ func (d *Decisions) coGuardianProfileByEmail(ctx context.Context, extra *enrollm
 }
 
 // createCoGuardianProfile creates the contact-only profile of a co-guardian.
-func (d *Decisions) createCoGuardianProfile(ctx context.Context, extra *enrollment.RequestGuardian, email string) (int64, error) {
+func (d *Decisions) createCoGuardianProfile(ctx context.Context, extra *enrollmentNative.RequestGuardian, email string) (int64, error) {
 	contactMethod := "email"
 	if email == "" {
 		contactMethod = "phone"

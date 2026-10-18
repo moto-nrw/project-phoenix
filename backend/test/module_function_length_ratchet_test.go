@@ -82,7 +82,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
 	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                                  61,
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                                    176,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                                    134,
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                           84,
 	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                           69,
 	"modules/communication/internal/parentmessages/service.go:(*Service).notifyGuardianDevice":                                                  61,
@@ -169,10 +169,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/studentpresence/inbound/presence/groups_handlers.go:(*Resource).buildVisitDisplayResponses":                                        68,
 	"modules/studentpresence/internal/adapters/postgres/group_session.go:(*Store).EndGroupSession":                                              63,
 	"modules/studentpresence/internal/adapters/postgres/room_utilization.go:(*Store).RoomUtilization":                                           88,
-	"modules/timetable/compose/httpadapter/activity_handlers.go:(*Resource).createActivity":                                                     70,
-	"modules/timetable/compose/httpadapter/activity_handlers.go:(*Resource).listActivities":                                                     67,
-	"modules/timetable/compose/httpadapter/activity_handlers.go:(*Resource).quickCreateActivity":                                                70,
-	"modules/timetable/compose/httpadapter/http.go:(*Resource).Router":                                                                          72,
 	"modules/timetable/internal/adapters/postgres/calendar_period_references.go:(*Store).CountCalendarPeriodReferences":                         62,
 	"modules/timetable/internal/adapters/postgres/groups.go:(*Store).ListCourseGroups":                                                          71,
 	"modules/timetable/internal/adapters/postgres/pickup_extensions.go:(*Store).ListPickupExtensionWeekdayBlocks":                               70,
@@ -219,7 +215,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession":                                                                76,
 
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 71,
-	"workflows/studentdeletion/compose/new.go:Assemble":              85,
+	"workflows/studentdeletion/compose/new.go:Assemble":              79,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":   69,
 }
 

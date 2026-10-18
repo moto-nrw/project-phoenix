@@ -133,9 +133,9 @@ type LegacyRows struct {
 	reads timetableCompose.PresenceReads
 }
 
-func NewLegacyRows(tb TB, db *bun.DB) LegacyRows {
+func NewLegacyRows(tb TB, projection timetablePorts.PresenceProjection) LegacyRows {
 	tb.Helper()
-	reads, err := timetableCompose.NewPresenceReads(db)
+	reads, err := timetableCompose.NewPresenceReads(projection)
 	if err != nil {
 		tb.Fatalf("compose timetable presence reads: %v", err)
 	}

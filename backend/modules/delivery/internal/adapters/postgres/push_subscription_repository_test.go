@@ -131,7 +131,7 @@ func newSubscription(tb testing.TB, accountID int64, portal, endpoint string) *d
 		Auth:      "auth-key",
 		UserAgent: "test-agent",
 	}
-	sub.SetTenantID(testpkg.Tenant(tb))
+	sub.TenantID = testpkg.Tenant(tb)
 	return sub
 }
 
@@ -175,11 +175,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 
 	t.Run("upsert inserts and refreshes by (tenant, endpoint)", func(t *testing.T) {
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, endpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, endpoint)))
 
 		rotated := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, endpoint)
 		rotated.P256dh = "rotated-p256dh"
-		require.NoError(t, repo.Upsert(ctx, rotated))
+		require.NoError(t, repo.RegisterSubscription(ctx, rotated))
 
 		subs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("guardian finder returns only parent-portal rows of that account", func(t *testing.T) {
 		parentEndpoint := endpoint + "/parent"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, parentEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, parentEndpoint)))
 
 		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		// A stale staff-portal row must not restore tenant delivery after the
 		// account becomes guardian-only.
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t,
 			guardian.ID,
 			deliveryModels.PushPortalStaff,
 			endpoint+"/guardian-staff",
@@ -216,7 +216,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		// Conversely, a parent-portal row for a staff-only account is not a
 		// guardian recipient.
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t,
 			account.ID,
 			deliveryModels.PushPortalParent,
 			endpoint+"/staff-parent",
@@ -231,7 +231,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		chainCtx := testpkg.TenantContext(chain.TenantID)
 		childEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/child-%d", time.Now().UnixNano())
-		require.NoError(t, repo.Upsert(chainCtx, newSubscription(t, chain.AccountID, deliveryModels.PushPortalParent, childEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(chainCtx, newSubscription(t, chain.AccountID, deliveryModels.PushPortalParent, childEndpoint)))
 
 		subs, err := repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{chain.StudentID})
 		require.NoError(t, err)
@@ -282,9 +282,9 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		sharedEndpoint := endpoint + "/shared-parent-device"
 		tenantOneSub := newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, sharedEndpoint)
 		tenantTwoSub := newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, sharedEndpoint)
-		tenantTwoSub.SetTenantID(otherSchool.ID)
-		require.NoError(t, repo.Upsert(ctx, tenantOneSub))
-		require.NoError(t, repo.Upsert(otherSchoolCtx, tenantTwoSub))
+		tenantTwoSub.TenantID = otherSchool.ID
+		require.NoError(t, repo.RegisterSubscription(ctx, tenantOneSub))
+		require.NoError(t, repo.RegisterSubscription(otherSchoolCtx, tenantTwoSub))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteParentByEndpoint(adminCtx, sharedEndpoint)
@@ -306,11 +306,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		schoolHere := newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)
 		schoolThere := newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)
-		schoolThere.SetTenantID(otherSchool.ID)
+		schoolThere.TenantID = otherSchool.ID
 		staffHere := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, sharedEndpoint)
-		require.NoError(t, repo.Upsert(ctx, schoolHere))
-		require.NoError(t, repo.Upsert(otherSchoolCtx, schoolThere))
-		require.NoError(t, repo.Upsert(ctx, staffHere))
+		require.NoError(t, repo.RegisterSubscription(ctx, schoolHere))
+		require.NoError(t, repo.RegisterSubscription(otherSchoolCtx, schoolThere))
+		require.NoError(t, repo.RegisterSubscription(ctx, staffHere))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteSchoolByEndpointAcrossTenants(adminCtx, sharedEndpoint)
@@ -388,7 +388,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("school endpoint deletion preserves a staff subscription", func(t *testing.T) {
 		staffEndpoint := endpoint + "/staff-kept"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, staffEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, staffEndpoint)))
 
 		require.NoError(t, repo.DeleteSchoolByEndpoint(ctx, account.ID, staffEndpoint))
 		subs, err := repo.FindForTenantStaff(ctx)
@@ -398,9 +398,9 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("same endpoint can be registered in both staff portals", func(t *testing.T) {
 		sharedEndpoint := endpoint + "/shared-portals"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, sharedEndpoint)))
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)))
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalParent, sharedEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, sharedEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalParent, sharedEndpoint)))
 
 		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{account.ID})
 		require.NoError(t, err)
@@ -425,7 +425,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
 		raceEndpoint := endpoint + "/refresh-race"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, raceEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, raceEndpoint)))
 
 		var sentSnapshot deliveryModels.PushSubscription
 		require.NoError(t, db.NewSelect().
@@ -438,7 +438,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		refreshed := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, raceEndpoint)
 		refreshed.P256dh = "refreshed-p256dh"
 		refreshed.Auth = "refreshed-auth"
-		require.NoError(t, repo.Upsert(ctx, refreshed))
+		require.NoError(t, repo.RegisterSubscription(ctx, refreshed))
 
 		deleted, err := repo.DeleteExpiredIfUnchanged(ctx, &sentSnapshot)
 		require.NoError(t, err)
@@ -457,7 +457,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		rebound := newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, raceEndpoint)
 		rebound.P256dh = current.P256dh
 		rebound.Auth = current.Auth
-		require.NoError(t, repo.Upsert(ctx, rebound))
+		require.NoError(t, repo.RegisterSubscription(ctx, rebound))
 
 		deleted, err = repo.DeleteExpiredIfUnchanged(ctx, &current)
 		require.NoError(t, err)
@@ -482,8 +482,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	t.Run("account-wide staff deletion preserves parent subscriptions", func(t *testing.T) {
 		staffEndpoint := endpoint + "/logout-staff"
 		parentEndpoint := endpoint + "/logout-parent"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, staffEndpoint)))
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalParent, parentEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalStaff, staffEndpoint)))
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, account.ID, deliveryModels.PushPortalParent, parentEndpoint)))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteStaffByAccountID(adminCtx, account.ID)
@@ -509,8 +509,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		keep.TokenFamilyID = "family-keep"
 		drop := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, dropEndpoint)
 		drop.TokenFamilyID = "family-drop"
-		require.NoError(t, repo.Upsert(ctx, keep))
-		require.NoError(t, repo.Upsert(ctx, drop))
+		require.NoError(t, repo.RegisterSubscription(ctx, keep))
+		require.NoError(t, repo.RegisterSubscription(ctx, drop))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "family-drop")
@@ -533,10 +533,10 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
 		there := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, endpoint+"/unbound-there")
 		there.TokenFamilyID = ""
-		there.SetTenantID(otherSchool.ID)
-		require.NoError(t, repo.Upsert(ctx, here))
+		there.TenantID = otherSchool.ID
+		require.NoError(t, repo.RegisterSubscription(ctx, here))
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
-			return repo.Upsert(adminCtx, there)
+			return repo.RegisterSubscription(adminCtx, there)
 		}))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -561,8 +561,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		keep.TokenFamilyID = "parent-family-keep"
 		drop := newSubscription(t, account.ID, deliveryModels.PushPortalParent, dropEndpoint)
 		drop.TokenFamilyID = "parent-family-drop"
-		require.NoError(t, repo.Upsert(ctx, keep))
-		require.NoError(t, repo.Upsert(ctx, drop))
+		require.NoError(t, repo.RegisterSubscription(ctx, keep))
+		require.NoError(t, repo.RegisterSubscription(ctx, drop))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "parent-family-drop")
@@ -585,10 +585,10 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
 		there := newSubscription(t, account.ID, deliveryModels.PushPortalParent, endpoint+"/parent-unbound-there")
 		there.TokenFamilyID = ""
-		there.SetTenantID(otherSchool.ID)
-		require.NoError(t, repo.Upsert(ctx, here))
+		there.TenantID = otherSchool.ID
+		require.NoError(t, repo.RegisterSubscription(ctx, here))
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
-			return repo.Upsert(adminCtx, there)
+			return repo.RegisterSubscription(adminCtx, there)
 		}))
 
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -644,7 +644,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	} {
 		createAccountTenantMapping(t, db, accountID, testpkg.Tenant(t))
 		assignSystemRole(t, db, accountID, testpkg.Tenant(t), "user")
-		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
+		require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t,
 			accountID,
 			deliveryModels.PushPortalStaff,
 			"https://fcm.googleapis.com/fcm/send/"+suffix,

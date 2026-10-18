@@ -315,7 +315,7 @@ func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings api.Class
 	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db, testpkg.StudentDirectory{})
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
-		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, db)},
+		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, api.NewTimetablePresenceProjection(testpkg.MustDatabase(db)))},
 		Presence:        newSlotListPresence(db),
 		CarePlan:        carePlan,
 		Students:        people,
@@ -3070,7 +3070,7 @@ type slotListInstanceStudents struct {
 
 func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
 	return slotListInstanceStudents{
-		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, db),
+		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, api.NewTimetablePresenceProjection(testpkg.MustDatabase(db))),
 	}
 }
 

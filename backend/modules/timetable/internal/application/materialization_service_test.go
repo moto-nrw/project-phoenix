@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -108,8 +110,8 @@ func TestResolveWindow(t *testing.T) {
 func TestIsEnrollmentValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) activities.Date {
-		return activities.Date(calendar.NewDate(y, m, day))
+	d := func(y int, m time.Month, day int) activityContract.Date {
+		return activityContract.Date(calendar.NewDate(y, m, day))
 	}
 	p100 := int64(100)
 	p200 := int64(200)
@@ -121,7 +123,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		e      *activities.StudentEnrollment
+		e      *activityContract.StudentEnrollment
 		period int64
 		want   bool
 	}{
@@ -133,7 +135,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "unbounded, no period scope → valid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom: d(2026, time.January, 1),
 			},
 			period: p100,
@@ -141,7 +143,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "valid_from equals date (inclusive start) → valid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom: target,
 			},
 			period: p100,
@@ -149,7 +151,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "valid_from after date → invalid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom: d(2026, time.April, 21),
 			},
 			period: p100,
@@ -157,7 +159,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "valid_until equals date (exclusive end) → invalid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:  d(2026, time.January, 1),
 				ValidUntil: &validUntilApr20,
 			},
@@ -166,7 +168,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "valid_until one day after date → valid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:  d(2026, time.January, 1),
 				ValidUntil: &validUntilApr21,
 			},
@@ -175,7 +177,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "calendar_period_id nil matches any period",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom: d(2026, time.January, 1),
 			},
 			period: p200,
@@ -183,7 +185,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "calendar_period_id mismatches selected period → invalid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:        d(2026, time.January, 1),
 				CalendarPeriodID: &p100,
 			},
@@ -192,7 +194,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "calendar_period_id matches selected period → valid",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:        d(2026, time.January, 1),
 				CalendarPeriodID: &p100,
 			},
@@ -201,7 +203,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "selected weekdays empty matches any weekday",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:        d(2026, time.January, 1),
 				SelectedWeekdays: nil,
 			},
@@ -210,7 +212,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "selected weekdays includes target weekday",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:        d(2026, time.January, 1),
 				SelectedWeekdays: []int{1, 3},
 			},
@@ -219,7 +221,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		},
 		{
 			name: "selected weekdays excludes target weekday",
-			e: &activities.StudentEnrollment{
+			e: &activityContract.StudentEnrollment{
 				ValidFrom:        d(2026, time.January, 1),
 				SelectedWeekdays: []int{2, 3},
 			},
@@ -238,7 +240,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
 	t.Parallel()
 
-	enrollment := &activities.StudentEnrollment{}
+	enrollment := &activityContract.StudentEnrollment{}
 	assert.False(t, enrollmentStudentIsAlumnus(enrollment))
 }
 
@@ -249,13 +251,13 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	periodID := int64(400)
 	otherPeriodID := int64(401)
 	endedBefore := date.AddDays(-1)
-	enrollments := []*activities.StudentEnrollment{
-		{StudentID: 501, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &periodID},
-		{StudentID: 502, ValidFrom: activities.Date(date.AddDays(1))},
-		{StudentID: 503, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &otherPeriodID},
-		{StudentID: 504, ValidFrom: activities.Date(date.AddDays(-1)), SelectedWeekdays: []int{2}},
-		{StudentID: 505, ValidFrom: activities.Date(date.AddDays(-1)), StudentAlumnus: true},
-		{StudentID: 506, ValidFrom: activities.Date(date.AddDays(-1))},
+	enrollments := []*activityContract.StudentEnrollment{
+		{StudentID: 501, ValidFrom: activityContract.Date(date.AddDays(-1)), CalendarPeriodID: &periodID},
+		{StudentID: 502, ValidFrom: activityContract.Date(date.AddDays(1))},
+		{StudentID: 503, ValidFrom: activityContract.Date(date.AddDays(-1)), CalendarPeriodID: &otherPeriodID},
+		{StudentID: 504, ValidFrom: activityContract.Date(date.AddDays(-1)), SelectedWeekdays: []int{2}},
+		{StudentID: 505, ValidFrom: activityContract.Date(date.AddDays(-1)), StudentAlumnus: true},
+		{StudentID: 506, ValidFrom: activityContract.Date(date.AddDays(-1))},
 	}
 	targetStudentIDs := []int64{501, 507, 508, 507}
 	careBounds := map[int64]calendar.Date{506: endedBefore, 507: date, 508: endedBefore}
@@ -273,8 +275,8 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 func TestIsSupervisorValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) activities.Date {
-		return activities.Date(calendar.NewDate(y, m, day))
+	d := func(y int, m time.Month, day int) activityContract.Date {
+		return activityContract.Date(calendar.NewDate(y, m, day))
 	}
 	target := d(2026, time.April, 20)
 	targetDay := calendar.NewDate(2026, 4, 20)
@@ -282,11 +284,11 @@ func TestIsSupervisorValidOn(t *testing.T) {
 	p200 := int64(200)
 	until := d(2026, time.April, 20) // exclusive
 
-	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: target}, targetDay, p100, isoWeekday(targetDay)))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.April, 21)}, targetDay, p100, isoWeekday(targetDay)))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), ValidUntil: &until}, targetDay, p100, isoWeekday(targetDay)))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p200, isoWeekday(targetDay)))
-	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p100, isoWeekday(targetDay)))
+	assert.True(t, isSupervisorValidOn(&activityContract.SupervisorPlanned{ValidFrom: target}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activityContract.SupervisorPlanned{ValidFrom: d(2026, time.April, 21)}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activityContract.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), ValidUntil: &until}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activityContract.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p200, isoWeekday(targetDay)))
+	assert.True(t, isSupervisorValidOn(&activityContract.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p100, isoWeekday(targetDay)))
 	assert.False(t, isSupervisorValidOn(nil, targetDay, p100, isoWeekday(targetDay)), "nil must be invalid")
 }
 
@@ -296,12 +298,12 @@ func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 	monday := calendar.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	periodID := int64(100)
-	mondayWeekday := activities.WeekdayMonday
+	mondayWeekday := activityContract.WeekdayMonday
 
-	supervisors := []*activities.SupervisorPlanned{
-		{Model: activities.Model{ID: 1}, StaffID: 10, IsPrimary: true},
+	supervisors := []*activityContract.SupervisorPlanned{
+		{ID: 1, StaffID: 10, IsPrimary: true},
 		{
-			Model:            activities.Model{ID: 2},
+			ID:               2,
 			StaffID:          20,
 			IsPrimary:        true,
 			CalendarPeriodID: &periodID,
@@ -430,60 +432,60 @@ func TestPeriodSelection(t *testing.T) {
 
 	t.Run("template schedule pinned to period within range → uses it", func(t *testing.T) {
 		pinnedID := holiday.ID
-		sch := &activities.Schedule{CalendarPeriodID: &pinnedID}
-		got := selectPeriod(&activities.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
+		sch := &activityContract.Schedule{CalendarPeriodID: &pinnedID}
+		got := selectPeriod(&activityContract.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
 		require.NotNil(t, got)
 		assert.Equal(t, holiday.ID, got.ID)
 	})
 
 	t.Run("schedule pinned to period outside date range → nil (SkippedNoPeriod)", func(t *testing.T) {
 		pinnedID := holiday.ID
-		sch := &activities.Schedule{CalendarPeriodID: &pinnedID}
+		sch := &activityContract.Schedule{CalendarPeriodID: &pinnedID}
 		outsideDate := d(2026, time.September, 1) // before holiday start
-		got := selectPeriod(&activities.Group{}, sch, outsideDate, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
+		got := selectPeriod(&activityContract.Group{}, sch, outsideDate, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
 		assert.Nil(t, got)
 	})
 
 	t.Run("schedule pinned to unknown period → nil", func(t *testing.T) {
 		unknown := int64(999999)
-		sch := &activities.Schedule{CalendarPeriodID: &unknown}
-		got := selectPeriod(&activities.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
+		sch := &activityContract.Schedule{CalendarPeriodID: &unknown}
+		got := selectPeriod(&activityContract.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
 		assert.Nil(t, got)
 	})
 
 	t.Run("unbound with single active period containing date", func(t *testing.T) {
-		sch := &activities.Schedule{}
-		got := selectPeriod(&activities.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear}, logger)
+		sch := &activityContract.Schedule{}
+		got := selectPeriod(&activityContract.Group{}, sch, target, []*schedule.CalendarPeriod{schoolYear}, logger)
 		require.NotNil(t, got)
 		assert.Equal(t, schoolYear.ID, got.ID)
 	})
 
 	t.Run("unbound with multiple active periods → picks lowest-ID", func(t *testing.T) {
-		sch := &activities.Schedule{}
+		sch := &activityContract.Schedule{}
 		// On 2026-10-20, all three periods contain the date. Lowest ID is 300
 		// (fallSemester).
-		got := selectPeriod(&activities.Group{}, sch, target,
+		got := selectPeriod(&activityContract.Group{}, sch, target,
 			[]*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
 		require.NotNil(t, got)
 		assert.Equal(t, fallSemester.ID, got.ID)
 	})
 
 	t.Run("unbound with no active period containing date → nil", func(t *testing.T) {
-		sch := &activities.Schedule{}
+		sch := &activityContract.Schedule{}
 		futureDate := d(2028, time.January, 1)
-		got := selectPeriod(&activities.Group{}, sch, futureDate,
+		got := selectPeriod(&activityContract.Group{}, sch, futureDate,
 			[]*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
 		assert.Nil(t, got)
 	})
 
 	t.Run("nil schedule has no pinned period", func(t *testing.T) {
-		assert.Nil(t, schedulePinnedPeriodID(&activities.Group{}, nil))
+		assert.Nil(t, schedulePinnedPeriodID(&activityContract.Group{}, nil))
 	})
 
 	t.Run("template pinned via Group.CalendarPeriodID, no schedule pin → uses template's period", func(t *testing.T) {
 		pinnedID := holiday.ID
-		tmpl := &activities.Group{CalendarPeriodID: &pinnedID}
-		sch := &activities.Schedule{} // no schedule-level pin
+		tmpl := &activityContract.Group{CalendarPeriodID: &pinnedID}
+		sch := &activityContract.Schedule{} // no schedule-level pin
 		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
 		require.NotNil(t, got)
 		assert.Equal(t, holiday.ID, got.ID)
@@ -492,8 +494,8 @@ func TestPeriodSelection(t *testing.T) {
 	t.Run("schedule pin wins over template pin when both set", func(t *testing.T) {
 		schedulePinnedID := fallSemester.ID
 		templatePinnedID := holiday.ID
-		tmpl := &activities.Group{CalendarPeriodID: &templatePinnedID}
-		sch := &activities.Schedule{CalendarPeriodID: &schedulePinnedID}
+		tmpl := &activityContract.Group{CalendarPeriodID: &templatePinnedID}
+		sch := &activityContract.Schedule{CalendarPeriodID: &schedulePinnedID}
 		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
 		require.NotNil(t, got)
 		assert.Equal(t, fallSemester.ID, got.ID, "schedule's own pin must win over the template's")
@@ -521,11 +523,11 @@ func TestIsoWeekday(t *testing.T) {
 
 type materializationFakeGroupRepo struct {
 	activities.GroupRepository
-	templates []*activities.Group
+	templates []*activityContract.Group
 	err       error
 }
 
-func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activities.Group, error) {
+func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -534,11 +536,11 @@ func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*acti
 
 type materializationFakeScheduleRepo struct {
 	activities.ScheduleRepository
-	schedules []*activities.Schedule
+	schedules []*activityContract.Schedule
 	err       error
 }
 
-func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) ([]*activities.Schedule, error) {
+func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) ([]*activityContract.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -550,7 +552,7 @@ type materializationFakeEnrollmentRepo struct {
 	err error
 }
 
-func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activities.StudentEnrollment, error) {
+func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -562,7 +564,7 @@ type materializationFakeSupervisorRepo struct {
 	err error
 }
 
-func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activities.SupervisorPlanned, error) {
+func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -697,7 +699,7 @@ func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
 	svc, saturday := newMaterializationBranchServiceForSchedule(
 		materializationFakeInstanceRepo{inserted: true},
 		calendar.NewDate(2026, time.April, 25),
-		activities.WeekdaySaturday,
+		activityContract.WeekdaySaturday,
 	)
 
 	result, err := svc.MaterializeForTenant(
@@ -728,9 +730,9 @@ func TestMaterializeForTenant_WeekendFollowsFriday(t *testing.T) {
 		follows bool
 		want    int
 	}{
-		{"Friday's schedule on a following Saturday", activities.WeekdayFriday, true, 1},
-		{"Friday's schedule without the setting", activities.WeekdayFriday, false, 0},
-		{"a legacy Saturday schedule with the setting", activities.WeekdaySaturday, true, 0},
+		{"Friday's schedule on a following Saturday", activityContract.WeekdayFriday, true, 1},
+		{"Friday's schedule without the setting", activityContract.WeekdayFriday, false, 0},
+		{"a legacy Saturday schedule with the setting", activityContract.WeekdaySaturday, true, 0},
 	} {
 		svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, tc.weekday)
 		result, err := svc.MaterializeForTenant(following(tc.follows), saturday, saturday, timetable.MaterializationSourceManual)
@@ -743,7 +745,7 @@ func TestMaterializeForTenant_WeekendPlanResolutionFails(t *testing.T) {
 	t.Parallel()
 
 	saturday := calendar.NewDate(2026, time.April, 25)
-	svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, activities.WeekdayFriday)
+	svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, activityContract.WeekdayFriday)
 	ctx := calendar.WithWeekendPlan(tenant.WithTenantID(context.Background(), 300),
 		func(context.Context) (bool, error) { return false, errors.New("settings unavailable") })
 	_, err := svc.MaterializeForTenant(ctx, saturday, saturday, timetable.MaterializationSourceManual)
@@ -757,7 +759,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 
 	t.Run("warns and no-ops without active periods", func(t *testing.T) {
 		svc := newMaterializationForTest(
-			materializationFakeGroupRepo{templates: []*activities.Group{{Name: "Lernzeit"}}},
+			materializationFakeGroupRepo{templates: []*activityContract.Group{{Name: "Lernzeit"}}},
 			materializationFakeScheduleRepo{},
 			materializationFakeEnrollmentRepo{},
 			materializationFakeSupervisorRepo{},
@@ -790,7 +792,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 				StartDate: schedule.Date(date.AddDays(-30)),
 				EndDate:   schedule.Date(date.AddDays(30)),
 				IsActive:  true,
-				Model:     schedule.Model{ID: 401},
+				ID:        401,
 			}}},
 			materializationFakeInstanceRepo{inserted: true},
 			materializationFakeStaffRepo{},
@@ -819,15 +821,15 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 		StartDate: schedule.Date(date.AddDays(-30)),
 		EndDate:   schedule.Date(date.AddDays(30)),
 		IsActive:  true,
-		Model:     schedule.Model{ID: 405},
+		ID:        405,
 	}
 	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
 	tfID := int64(406)
 	roomID := int64(407)
-	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: activities.Model{ID: 408}}
-	scheduleRow := &activities.Schedule{Weekday: 1, TimeframeID: &tfID}
-	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: schedule.Model{ID: tfID}}
+	template := &activityContract.Group{Name: "Lernzeit", PlannedRoomID: &roomID, ID: 408}
+	scheduleRow := &activityContract.Schedule{Weekday: 1, TimeframeID: &tfID}
+	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, ID: tfID}
 
 	makeSvc := func(
 		groupRepo materializationFakeGroupRepo,
@@ -856,8 +858,8 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 		)
 	}
 
-	baseGroup := materializationFakeGroupRepo{templates: []*activities.Group{template}}
-	baseSchedule := materializationFakeScheduleRepo{schedules: []*activities.Schedule{scheduleRow}}
+	baseGroup := materializationFakeGroupRepo{templates: []*activityContract.Group{template}}
+	baseSchedule := materializationFakeScheduleRepo{schedules: []*activityContract.Schedule{scheduleRow}}
 	basePeriod := materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{period}}
 	baseInstance := materializationFakeInstanceRepo{inserted: true}
 	baseTimeframe := materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{timeframe}}
@@ -970,7 +972,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, 4, 20)
-	validFrom := activities.Date(date)
+	validFrom := activityContract.Date(date)
 	periodID := int64(400)
 
 	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
@@ -991,12 +993,12 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Run("copy enrollments skips invalid and duplicate students", func(t *testing.T) {
 		studentRepo := &materializationCountingStudentRepo{}
 		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
-		valid := &activities.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
-		duplicate := &activities.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
-		wrongWeekday := &activities.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
+		valid := &activityContract.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
+		duplicate := &activityContract.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
+		wrongWeekday := &activityContract.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copyExpectedStudents(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
+		err := svc.copyExpectedStudents(context.Background(), 601, []*activityContract.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStudentsCreated)
@@ -1009,7 +1011,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copyExpectedStudents(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
+		err := svc.copyExpectedStudents(context.Background(), 602, []*activityContract.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy enrollment")
@@ -1019,12 +1021,12 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Run("copy supervisors skips invalid and duplicate staff", func(t *testing.T) {
 		staffRepo := &materializationCountingStaffRepo{}
 		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
-		valid := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom, IsPrimary: true}
-		duplicate := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom}
-		future := &activities.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDays(1)}
+		valid := &activityContract.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom, IsPrimary: true}
+		duplicate := &activityContract.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom}
+		future := &activityContract.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDays(1)}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 603, []*activities.SupervisorPlanned{valid, duplicate, future}, date, periodID, isoWeekday(date), result)
+		err := svc.copySupervisors(context.Background(), 603, []*activityContract.SupervisorPlanned{valid, duplicate, future}, date, periodID, isoWeekday(date), result)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStaffCreated)
@@ -1038,7 +1040,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 604, []*activities.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, isoWeekday(date), result)
+		err := svc.copySupervisors(context.Background(), 604, []*activityContract.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, isoWeekday(date), result)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy supervisor")
@@ -1084,7 +1086,7 @@ func (r *materializationCountingStaffRepo) Create(_ context.Context, row *schedu
 
 func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (timetable.MaterializationCapability, calendar.Date) {
 	date := calendar.NewDate(2026, 4, 20)
-	return newMaterializationBranchServiceForSchedule(instanceRepo, date, activities.WeekdayMonday)
+	return newMaterializationBranchServiceForSchedule(instanceRepo, date, activityContract.WeekdayMonday)
 }
 
 func newMaterializationBranchServiceForSchedule(
@@ -1099,14 +1101,14 @@ func newMaterializationBranchServiceForSchedule(
 	timeframeID := int64(600)
 
 	svc := newMaterializationForTest(
-		materializationFakeGroupRepo{templates: []*activities.Group{{
+		materializationFakeGroupRepo{templates: []*activityContract.Group{{
 			Name:          "Lernzeit",
 			PlannedRoomID: &roomID,
 			IsTemplate:    true,
-			Model:         activities.Model{ID: templateID},
+			ID:            templateID,
 		}}},
-		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
-			Model:           activities.Model{ID: 800},
+		materializationFakeScheduleRepo{schedules: []*activityContract.Schedule{{
+			ID:              800,
 			ActivityGroupID: templateID,
 			Weekday:         weekday,
 			TimeframeID:     &timeframeID,
@@ -1120,7 +1122,7 @@ func newMaterializationBranchServiceForSchedule(
 			EndDate:         schedule.Date(date.AddDays(30)),
 			WeekCycleLength: 1,
 			IsActive:        true,
-			Model:           schedule.Model{ID: 400},
+			ID:              400,
 		}}},
 		instanceRepo,
 		materializationFakeStaffRepo{},
@@ -1129,7 +1131,7 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{{
 			StartTime: start,
 			EndTime:   &end,
-			Model:     schedule.Model{ID: timeframeID},
+			ID:        timeframeID,
 		}}},
 		nil,
 		nil,
@@ -1148,15 +1150,15 @@ func TestScheduleEndedOn(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.June, 15)
-	until := activities.Date(calendar.NewDate(2026, time.June, 15))
+	until := activityContract.Date(calendar.NewDate(2026, time.June, 15))
 
 	assert.False(t, scheduleEndedOn(nil, date), "nil schedule never matches")
-	assert.False(t, scheduleEndedOn(&activities.Schedule{}, date), "nil valid_until = open-ended")
-	assert.True(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date),
+	assert.False(t, scheduleEndedOn(&activityContract.Schedule{}, date), "nil valid_until = open-ended")
+	assert.True(t, scheduleEndedOn(&activityContract.Schedule{ValidUntil: &until}, date),
 		"valid_until is exclusive: the schedule is ended ON that date")
-	assert.True(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(1)),
+	assert.True(t, scheduleEndedOn(&activityContract.Schedule{ValidUntil: &until}, date.AddDays(1)),
 		"dates after valid_until are ended")
-	assert.False(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(-1)),
+	assert.False(t, scheduleEndedOn(&activityContract.Schedule{ValidUntil: &until}, date.AddDays(-1)),
 		"dates before valid_until still materialize")
 }
 
@@ -1169,15 +1171,15 @@ func TestScheduleNotStartedOn(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.August, 13)
-	from := activities.Date(calendar.NewDate(2026, time.August, 13))
+	from := activityContract.Date(calendar.NewDate(2026, time.August, 13))
 
 	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
-	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")
-	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date),
+	assert.False(t, scheduleNotStartedOn(&activityContract.Schedule{}, date), "nil valid_from = open start")
+	assert.False(t, scheduleNotStartedOn(&activityContract.Schedule{ValidFrom: &from}, date),
 		"valid_from is inclusive: the schedule materializes ON that date")
-	assert.False(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(1)),
+	assert.False(t, scheduleNotStartedOn(&activityContract.Schedule{ValidFrom: &from}, date.AddDays(1)),
 		"dates after valid_from materialize")
-	assert.True(t, scheduleNotStartedOn(&activities.Schedule{ValidFrom: &from}, date.AddDays(-1)),
+	assert.True(t, scheduleNotStartedOn(&activityContract.Schedule{ValidFrom: &from}, date.AddDays(-1)),
 		"dates before valid_from must not materialize")
 }
 

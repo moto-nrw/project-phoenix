@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -57,7 +59,6 @@ type ActiveTimetable struct {
 	// Deviations are the Timetable owner's deviation writes over the same
 	// repositories (#3424 slice S3).
 	Deviations timetable.StaffDeviations
-	Activities arrivalTimetable.ActivityService
 	Timetable  timetable.Capability
 }
 
@@ -138,12 +139,12 @@ type ActiveSessionEnd struct {
 
 func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (
 	ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *CallerRows,
-	ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, error,
+	ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, activityContract.ActivityService, error,
 ) {
 	fail := func(err error) (ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *CallerRows,
-		ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, error) {
+		ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, activityContract.ActivityService, error) {
 		return ActiveTestModule{}, ActiveTimetable{}, ActiveSettings{}, ActivePresence{}, ActiveEducation{}, ActivePeople{}, nil,
-			ActiveDeviceScan{}, DeviceTestModule{}, ActiveFacilities{}, ActiveSupervision{}, ActiveSessionEnd{}, err
+			ActiveDeviceScan{}, DeviceTestModule{}, ActiveFacilities{}, ActiveSupervision{}, ActiveSessionEnd{}, nil, err
 	}
 	members := MustNewMembershipTestRepositories(db)
 	r, err := NewActiveTestRepositories(db, members, clocks...)
@@ -160,7 +161,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	data, dataActivities, dataUsers, dataDevices, dataFacilities, dataRoomUsage, err := NewIoTDataTestModule(db, unit)
+	data, dataActivities, dataActivityService, dataUsers, dataDevices, dataFacilities, dataRoomUsage, err := NewIoTDataTestModule(db, unit)
 	if err != nil {
 		return fail(err)
 	}
@@ -250,7 +251,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
-	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivities.Activities), facilitiesCompose.NewOpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
+	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivityService), facilitiesCompose.NewOpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(rt.Timetable, NewPartialAbsencePreview(db)),
 	})
@@ -317,17 +318,17 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},
-		ActiveTimetable{TimetableOperations: operations, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations, Activities: dataActivities.Activities, Timetable: dataActivities.Timetable},
+		ActiveTimetable{TimetableOperations: operations, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations, Timetable: dataActivities.Timetable},
 		ActiveSettings{Settings: settings.Settings}, ActivePresence{Active: presence}, ActiveEducation(groups),
 		ActivePeople{Users: dataUsers, People: groupPeople.People}, groupCaller, scan, dataDevices,
 		ActiveFacilities{Facilities: dataFacilities, RoomUsage: dataRoomUsage, SchulhofService: yard},
-		ActiveSupervision{Yard: newSupervisionYard(yard), SupervisionDashboard: dashboard}, ActiveSessionEnd{SessionEnd: sessionEnd}, nil
+		ActiveSupervision{Yard: newSupervisionYard(yard), SupervisionDashboard: dashboard}, ActiveSessionEnd{SessionEnd: sessionEnd}, dataActivityService, nil
 }
 
 // NewActiveTestModule composes the active graph and returns its Care Plan
 // side.
 func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
-	care, _, _, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	care, _, _, _, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	return care, err
 }
 
@@ -338,78 +339,78 @@ func mustActiveTestModule(err error) {
 }
 
 // NewActiveTestTimetable composes the active graph and returns its ActiveTimetable part.
-func NewActiveTestTimetable(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveTimetable {
-	_, part, _, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+func NewActiveTestTimetable(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTimetable, activityContract.ActivityService) {
+	_, part, _, _, _, _, _, _, _, _, _, _, activities, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
-	return part
+	return part, activities
 }
 
 // NewActiveTestSettings composes the active graph and returns its ActiveSettings part.
 func NewActiveTestSettings(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveSettings {
-	_, _, part, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, part, _, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestPresence composes the active graph and returns its ActivePresence part.
 func NewActiveTestPresence(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActivePresence {
-	_, _, _, part, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, part, _, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestEducation composes the active graph and returns its ActiveEducation part.
 func NewActiveTestEducation(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveEducation {
-	_, _, _, _, part, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, part, _, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestPeople composes the active graph and returns its ActivePeople part.
 func NewActiveTestPeople(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActivePeople {
-	_, _, _, _, _, part, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, part, _, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestCaller composes the active graph and returns its CallerRows part.
 func NewActiveTestCaller(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) *CallerRows {
-	_, _, _, _, _, _, part, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, part, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestDeviceScan composes the active graph and returns its ActiveDeviceScan part.
 func NewActiveTestDeviceScan(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveDeviceScan {
-	_, _, _, _, _, _, _, part, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, _, part, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestDevices composes the active graph and returns its DeviceTestModule part.
 func NewActiveTestDevices(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) DeviceTestModule {
-	_, _, _, _, _, _, _, _, part, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, _, _, part, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestFacilities composes the active graph and returns its ActiveFacilities part.
 func NewActiveTestFacilities(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveFacilities {
-	_, _, _, _, _, _, _, _, _, part, _, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, _, _, _, part, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestSupervision composes the active graph and returns its ActiveSupervision part.
 func NewActiveTestSupervision(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveSupervision {
-	_, _, _, _, _, _, _, _, _, _, part, _, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, _, _, _, _, part, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }
 
 // NewActiveTestSessionEnd composes the active graph and returns its ActiveSessionEnd part.
 func NewActiveTestSessionEnd(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) ActiveSessionEnd {
-	_, _, _, _, _, _, _, _, _, _, _, part, err := buildActiveTestModule(db, unit, clocks...)
+	_, _, _, _, _, _, _, _, _, _, _, part, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part
 }

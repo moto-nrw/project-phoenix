@@ -64,7 +64,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 // the Timetable capability and an unobserved Student Presence owner, as the
 // test graphs need it.
 func NewUnobservedCarePlan(db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability) (careplan.Capability, error) {
-	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
+	slots := timetableCompose.NewInstanceStudentRepository(MustPresenceReads(db), capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	return NewCarePlan(db, students, slots)
 }
 

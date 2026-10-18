@@ -5,27 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // CategoryRepository defines operations for managing activity categories
 type CategoryRepository interface {
-	Repository[*Category]
+	Repository[*activityContract.Category]
 
 	// FindByName finds a category by its name
-	FindByName(ctx context.Context, name string) (*Category, error)
+	FindByName(ctx context.Context, name string) (*activityContract.Category, error)
 
 	// FindByNameIncludingArchivedForShare finds a category by name across active
 	// and archived rows, preferring the active row and holding a transaction-
 	// scoped FOR SHARE lock against a concurrent archive.
-	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*Category, error)
+	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error)
 
 	// FindByIDForShare returns a category while holding a transaction-scoped
 	// FOR SHARE lock. New category assignments use it so an archive cannot
 	// commit between validation and the referencing write.
-	FindByIDForShare(ctx context.Context, id int64) (*Category, error)
+	FindByIDForShare(ctx context.Context, id int64) (*activityContract.Category, error)
 
 	// ListAll returns all categories
-	ListAll(ctx context.Context) ([]*Category, error)
+	ListAll(ctx context.Context) ([]*activityContract.Category, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary key
@@ -33,27 +35,27 @@ type CategoryRepository interface {
 	// archived_at through it (#2131), so a concurrent rename is never
 	// clobbered and a restore still surfaces the case-insensitive partial
 	// unique-index violation on its own.
-	UpdateColumns(ctx context.Context, category *Category, columns ...string) (int64, error)
+	UpdateColumns(ctx context.Context, category *activityContract.Category, columns ...string) (int64, error)
 }
 
 // GroupRepository defines operations for managing activity groups
 type GroupRepository interface {
-	Repository[*Group]
+	Repository[*activityContract.Group]
 	// ListWithCategory returns groups and their category from one LEFT JOIN.
-	ListWithCategory(ctx context.Context, query *GroupListQuery) ([]*Group, error)
+	ListWithCategory(ctx context.Context, query *activityContract.GroupListQuery) ([]*activityContract.Group, error)
 
 	// FindByIDForUpdate locks the group until the surrounding transaction ends.
 	// It is used when modification authority must remain valid through a write.
-	FindByIDForUpdate(ctx context.Context, id any) (*Group, error)
+	FindByIDForUpdate(ctx context.Context, id any) (*activityContract.Group, error)
 
 	// FindByName finds a non-archived activity group by its name.
-	FindByName(ctx context.Context, name string) (*Group, error)
+	FindByName(ctx context.Context, name string) (*activityContract.Group, error)
 
 	// FindByIDs returns the groups matching the given IDs in one
 	// tenant-scoped IN query. Archived groups are included — callers resolve
 	// display names for historical references (matching FindByID). Empty
 	// input returns an empty slice without hitting the DB.
-	FindByIDs(ctx context.Context, ids []int64) ([]*Group, error)
+	FindByIDs(ctx context.Context, ids []int64) ([]*activityContract.Group, error)
 
 	// ListTemplateRows returns the template list read model (template +
 	// schedule + aggregate people counts), optionally filtered to one
@@ -98,25 +100,25 @@ type GroupRepository interface {
 	ArchiveTemplate(ctx context.Context, id int64) (rowsAffected int64, err error)
 
 	// FindOpenGroups finds all groups that are open for enrollment
-	FindOpenGroups(ctx context.Context) ([]*Group, error)
+	FindOpenGroups(ctx context.Context) ([]*activityContract.Group, error)
 
 	// FindWithEnrollmentCounts returns groups with their current enrollment counts
-	FindWithEnrollmentCounts(ctx context.Context) ([]*Group, map[int64]int, error)
+	FindWithEnrollmentCounts(ctx context.Context) ([]*activityContract.Group, map[int64]int, error)
 
 	// FindWithSupervisors returns a group with its supervisors
-	FindWithSupervisors(ctx context.Context, groupID int64) (*Group, []*SupervisorPlanned, error)
+	FindWithSupervisors(ctx context.Context, groupID int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, error)
 
 	// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
-	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*Group, error)
+	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activityContract.Group, error)
 
 	// FindAllTemplates returns all activity groups flagged as templates
 	// (is_template = true). Used by the materialization service to enumerate
 	// candidates when generating schedule.activity_instances rows.
-	FindAllTemplates(ctx context.Context) ([]*Group, error)
+	FindAllTemplates(ctx context.Context) ([]*activityContract.Group, error)
 
 	// FindTemplateSeries returns every non-archived template segment in the
 	// same split lineage as groupID. An unsplit template is one segment.
-	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
+	FindTemplateSeries(ctx context.Context, groupID int64) ([]*activityContract.Group, error)
 
 	// UpdateTemplateOfferingSource rewrites ONLY a template's offering-source
 	// columns: the id array plus the Jahrgang filter, both NULLed when the
@@ -131,8 +133,8 @@ type GroupRepository interface {
 
 // GroupTargetRepository manages dynamic target cohorts for timetable templates.
 type GroupTargetRepository interface {
-	ReplaceTargets(ctx context.Context, groupID int64, targets []*GroupTarget) error
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*GroupTarget, error)
+	ReplaceTargets(ctx context.Context, groupID int64, targets []*activityContract.GroupTarget) error
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 	FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error)
 	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
 }
@@ -155,14 +157,14 @@ type TemplateStartTime struct {
 
 // ScheduleRepository defines operations for managing activity schedules
 type ScheduleRepository interface {
-	Create(context.Context, *Schedule) error
-	FindByID(context.Context, any) (*Schedule, error)
-	Update(context.Context, *Schedule) error
+	Create(context.Context, *activityContract.Schedule) error
+	FindByID(context.Context, any) (*activityContract.Schedule, error)
+	Update(context.Context, *activityContract.Schedule) error
 	Delete(context.Context, any) error
-	FindByGroupIDs(context.Context, []int64) ([]*Schedule, error)
+	FindByGroupIDs(context.Context, []int64) ([]*activityContract.Schedule, error)
 
 	// FindByGroupID finds all schedules for a specific group
-	FindByGroupID(ctx context.Context, groupID int64) ([]*Schedule, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error)
 
 	// DeleteByGroupID removes all schedules of an activity group.
 	DeleteByGroupID(ctx context.Context, groupID int64) error
@@ -185,11 +187,11 @@ type ScheduleRepository interface {
 
 // SupervisorPlannedRepository defines operations for managing activity supervisors
 type SupervisorPlannedRepository interface {
-	Create(context.Context, *SupervisorPlanned) error
-	FindByID(context.Context, any) (*SupervisorPlanned, error)
-	Update(context.Context, *SupervisorPlanned) error
+	Create(context.Context, *activityContract.SupervisorPlanned) error
+	FindByID(context.Context, any) (*activityContract.SupervisorPlanned, error)
+	Update(context.Context, *activityContract.SupervisorPlanned) error
 	Delete(context.Context, any) error
-	List(context.Context, *SupervisorQueryOptions) ([]*SupervisorPlanned, error)
+	List(context.Context, *SupervisorQueryOptions) ([]*activityContract.SupervisorPlanned, error)
 
 	// ListPlannedSupervisionBlockers returns planned activity supervisions
 	// as caregiver-capability blocker rows.
@@ -198,16 +200,16 @@ type SupervisorPlannedRepository interface {
 	// CloseOpenByGroupAndPeriod closes the open planned supervisions of a
 	// group for the given calendar period (NULL period matches rows without
 	// one) by setting valid_until.
-	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom Date) error
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom activityContract.Date) error
 
 	// FindByStaffID finds all supervisions for a specific staff member
-	FindByStaffID(ctx context.Context, staffID int64) ([]*SupervisorPlanned, error)
+	FindByStaffID(ctx context.Context, staffID int64) ([]*activityContract.SupervisorPlanned, error)
 
 	// FindByGroupID finds all supervisors for a specific group
-	FindByGroupID(ctx context.Context, groupID int64) ([]*SupervisorPlanned, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.SupervisorPlanned, error)
 
 	// FindByGroupIDs finds all supervisors for multiple groups in a single query
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*SupervisorPlanned, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityContract.SupervisorPlanned, error)
 
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
@@ -216,11 +218,11 @@ type SupervisorPlannedRepository interface {
 	// Rows starting on/after the cap are deleted because they have no interval
 	// left; begun rows are ended at validUntil. Bounded rows are left to their
 	// owning workflow. Returns the total number changed.
-	CapActiveByGroup(ctx context.Context, groupID int64, validUntil Date) (int64, error)
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil activityContract.Date) (int64, error)
 
 	// SetValidUntilByID closes exactly one supervision without writing the
 	// rest of a potentially partial read model back to the database.
-	SetValidUntilByID(ctx context.Context, id int64, validUntil Date) error
+	SetValidUntilByID(ctx context.Context, id int64, validUntil activityContract.Date) error
 }
 
 type PlannedSupervisionBlocker struct {
@@ -232,37 +234,36 @@ type PlannedSupervisionBlocker struct {
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
 type StudentEnrollmentRepository interface {
-	Repository[*StudentEnrollment]
+	Repository[*activityContract.StudentEnrollment]
 
 	// CloseOpenByGroupAndPeriod closes the open enrollments of a group for
 	// the given calendar period (NULL period matches rows without one) by
 	// setting valid_until.
-	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom Date) error
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom activityContract.Date) error
 
 	// FindByStudentID finds all enrollments for a specific student
-	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentEnrollment, error)
+	FindByStudentID(ctx context.Context, studentID int64) ([]*activityContract.StudentEnrollment, error)
 
 	// FindActiveByStudentIDs finds active enrollments for a batch of students
 	// on the given date. valid_until is exclusive.
-	FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate Date) ([]*StudentEnrollment, error)
+	FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate activityContract.Date) ([]*activityContract.StudentEnrollment, error)
 
 	// FindByGroupID finds all enrollments for a specific group
-	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.StudentEnrollment, error)
 
 	// CapActiveByGroup caps open enrollment rows (valid_until IS NULL). Rows
 	// starting on/after the cap are deleted because they have no interval left;
 	// begun rows are ended at validUntil. Bounded rows are left to their owning
 	// workflow. Returns the total number changed.
-	CapActiveByGroup(ctx context.Context, groupID int64, validUntil Date) (int64, error)
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil activityContract.Date) (int64, error)
 
 	// SetValidUntilByID closes exactly one enrollment without writing the
 	// rest of a potentially partial read model back to the database.
-	SetValidUntilByID(ctx context.Context, id int64, validUntil Date) error
+	SetValidUntilByID(ctx context.Context, id int64, validUntil activityContract.Date) error
 }
 
 // StudentEnrollmentDate keeps legacy compatibility adapters from importing
 // the lower-layer calendar-date package.
-type StudentEnrollmentDate = Date
 
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
 // Grouped into a struct (rather than positional params) because the field
@@ -328,7 +329,7 @@ type TemplateListRow struct {
 	// RequiredStaff is the template's manual Personalbedarf override (#1839);
 	// NULL = derive from the Betreuungsschlüssel.
 	RequiredStaff NullInt64 `bun:"required_staff"`
-	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
+	// TemplateCalendarPeriodID is the template's OWN period pin (activityContract.Group.
 	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
 	// per-schedule-row pin. See materialization_service.go's
 	// schedulePinnedPeriodID for the precedence between the two.
@@ -370,19 +371,19 @@ type TemplateListRow struct {
 	// AB-week-filtered, or unmaterializable) the manual required_staff
 	// override must not create demand — otherwise the list shows a false 0/N
 	// understaffing indicator for a block that never occurs (#1839).
-	CapacityOccurrenceFound bool           `bun:"-"`
-	StudentIDs              []int64        `bun:"student_ids,array"`
-	StaffIDs                []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID          NullInt64      `bun:"primary_staff_id"`
-	ScheduleID              int64          `bun:"schedule_id"`
-	Weekday                 int            `bun:"weekday"`
-	StartTime               NullString     `bun:"start_time"`
-	EndTime                 NullString     `bun:"end_time"`
-	WeekPattern             int            `bun:"week_pattern"`
-	CalendarPeriodID        NullInt64      `bun:"calendar_period_id"`
-	ScheduleValidFrom       NullString     `bun:"schedule_valid_from"`
-	ScheduleValidUntil      NullString     `bun:"schedule_valid_until"`
-	Targets                 []*GroupTarget `bun:"-"`
+	CapacityOccurrenceFound bool                            `bun:"-"`
+	StudentIDs              []int64                         `bun:"student_ids,array"`
+	StaffIDs                []int64                         `bun:"staff_ids,array"`
+	PrimaryStaffID          NullInt64                       `bun:"primary_staff_id"`
+	ScheduleID              int64                           `bun:"schedule_id"`
+	Weekday                 int                             `bun:"weekday"`
+	StartTime               NullString                      `bun:"start_time"`
+	EndTime                 NullString                      `bun:"end_time"`
+	WeekPattern             int                             `bun:"week_pattern"`
+	CalendarPeriodID        NullInt64                       `bun:"calendar_period_id"`
+	ScheduleValidFrom       NullString                      `bun:"schedule_valid_from"`
+	ScheduleValidUntil      NullString                      `bun:"schedule_valid_until"`
+	Targets                 []*activityContract.GroupTarget `bun:"-"`
 }
 
 // ParseSourceCareOfferingIDs decodes the SourceCareOfferingIDsJSON text form
@@ -462,9 +463,9 @@ const (
 // which a recurring template actually runs. OccurrenceDate is a calendar day,
 // not an instant; valid_until fields are evaluated as exclusive boundaries.
 type TemplateCapacityOccurrence struct {
-	TemplateID       int64 `bun:"template_id"`
-	CalendarPeriodID int64 `bun:"calendar_period_id"`
-	OccurrenceDate   Date  `bun:"occurrence_date"`
-	EnrollmentCount  int   `bun:"enrollment_count"`
-	SupervisorCount  int   `bun:"supervisor_count"`
+	TemplateID       int64                 `bun:"template_id"`
+	CalendarPeriodID int64                 `bun:"calendar_period_id"`
+	OccurrenceDate   activityContract.Date `bun:"occurrence_date"`
+	EnrollmentCount  int                   `bun:"enrollment_count"`
+	SupervisorCount  int                   `bun:"supervisor_count"`
 }

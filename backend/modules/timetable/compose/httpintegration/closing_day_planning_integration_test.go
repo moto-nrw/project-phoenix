@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -66,7 +67,7 @@ func TestMaterializeForTenant_SkipsHolidaysAndClosingDays(t *testing.T) {
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday.AddDays(4))
 
 	result, err := s.materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
@@ -86,7 +87,7 @@ func TestMaterializeForTenant_SeriesIncludingClosingDaysStillSkipsHolidays(t *te
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	// A holiday inside the closure: the holiday wins even for holiday care.
 	insertScenarioClosingDay(t, s, easterMonday, closingMonday)
 	setSeriesIncludesClosingDays(t, s, true)
@@ -109,7 +110,7 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
 
 	detect := func() []timetable.EditedOccurrence {
@@ -143,7 +144,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, closingMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, closingMonday)
 
 	_, err := s.materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -165,7 +166,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 func bulkCancelScenario(t *testing.T) (*scenarioSetup, []calendar.Date) {
 	t.Helper()
 	first := calendar.NewDate(2026, time.August, 17)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	// Tenant transactions follow the test onto its own database when it opted
 	// into one (the query budget below); otherwise this is the package runtime.
 	s.ctx = testpkg.WithTestTenantRuntime(t, s.ctx)
@@ -308,7 +309,7 @@ func TestReplanWeek_FollowsTheSeriesClosingDayFlag(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	closing := first.AddDays(7)
 	last := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	insertScenarioClosingDay(t, s, closing, closing)
 	setSeriesIncludesClosingDays(t, s, true)
 	_, err := s.materialization.MaterializeForTenant(s.ctx, first, last, timetable.MaterializationSourceManual)

@@ -101,7 +101,7 @@ func NewSessionRecords(db transactionruntime.Database, now func() time.Time, dev
 
 // MustPresenceReads composes the joined Timetable presence reads.
 func MustPresenceReads(db transactionruntime.Database) timetableCompose.PresenceReads {
-	reads, err := timetableCompose.NewPresenceReads(db.Pool())
+	reads, err := timetableCompose.NewPresenceReads(NewTimetablePresenceProjection(db))
 	if err != nil {
 		panic(err)
 	}

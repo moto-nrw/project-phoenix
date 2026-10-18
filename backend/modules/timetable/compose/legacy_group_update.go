@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // UpdateGroupWithDetails updates a group's core fields, replaces its
@@ -18,7 +18,7 @@ import (
 // schedule replacement half-failed (old rows deleted, new rows missing).
 // Clients now get the error and unchanged state instead of a silent
 // partial write.
-func (s *Service) UpdateGroupWithDetails(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error) {
+func (s *Service) UpdateGroupWithDetails(ctx context.Context, group *activityContract.Group, requestingStaffID int64, hasManagePermission bool, supervisorIDs []int64, schedules []*activityContract.Schedule) (*activityContract.Group, error) {
 	updatedGroup, err := s.UpdateGroup(ctx, group, requestingStaffID, hasManagePermission)
 	if err != nil {
 		return nil, err

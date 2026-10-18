@@ -7,14 +7,13 @@ import (
 	"net/mail"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // enqueueSubmissionEmails enqueues the parent confirmation and the admin
 // notifications in the submission transaction, so the request and every
 // delivery intent commit together. Without an outbox nothing is sent.
-func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*RequestChild, statusURL string) error {
+func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *Request, children []*RequestChild, statusURL string) error {
 	if s.deps.Outbox == nil {
 		return nil
 	}

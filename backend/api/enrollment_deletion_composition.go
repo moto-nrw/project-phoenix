@@ -57,7 +57,7 @@ func NewEnrollmentDeletionModule(src EnrollmentDeletionSources) enrollmentCompos
 	deps := enrollmentCompose.DeletionModuleDependencies{
 		Owner: src.Owner, Guardians: src.Guardians,
 		CountAuditAdjustments: src.CountAuditAdjustments, CountBookings: src.CountBookings,
-		SourceEnrollments: timetableProjection.CountSourceEnrollments,
+		SourceEnrollments: timetableProjection.New().CountSourceEnrollments,
 		Delivery:          src.Delivery, Logger: src.Logger,
 	}
 	if src.Audit != nil {

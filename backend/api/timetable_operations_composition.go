@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"

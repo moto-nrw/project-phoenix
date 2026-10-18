@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -48,7 +52,7 @@ func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg Se
 	persons *peopledirectory.Module, services PeopleServices, schedules CarePlanSchedules, requests CarePlanRequests,
 	active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
-	activities arrivalTimetable.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
+	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet *devicefleetModule.Module, notices EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
 	return composeTestRootWith(db, logger, cfg, testRootObservers(), clocks...)
@@ -59,7 +63,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	persons *peopledirectory.Module, services PeopleServices, schedules CarePlanSchedules, requests CarePlanRequests,
 	active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
-	activities arrivalTimetable.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
+	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet *devicefleetModule.Module, notices EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
 	env, err = newRootEnvironment(cfg, logger, OptionalClock(clocks), observe)
@@ -108,7 +112,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		messaging        parentStore.MessagingRepositories
 		consent          communicationModule.NotificationConsentCapability
 		notifications    DeliveryNotifications
-		emitter          *communicationCompose.ParentEventEmitter
+		emitter          eventContract.Emitter
 		purger           filestorageModule.AttachmentPurger
 		announcements    communicationModule.ParentAnnouncementCapability
 		days             TimetableDays

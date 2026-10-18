@@ -20,7 +20,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -48,7 +47,7 @@ func requireChildStillOpen(t *testing.T, harness offeringGuardHarness) {
 	t.Helper()
 	child, err := harness.repos.Enrollment().ChildByID(harness.ctx, harness.childID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status, "the refused enrollment stays open")
+	assert.Equal(t, capability.ChildStatusSubmitted, child.Status, "the refused enrollment stays open")
 	assert.Nil(t, child.CreatedStudentID, "the refused enrollment links no student")
 	assert.Nil(t, child.ReviewedAt, "the refused decision left no trace")
 }
@@ -77,7 +76,7 @@ func studentStatus(t *testing.T, db *bun.DB, studentID int64) string {
 func TestDecideAdminChild_NewChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
@@ -95,7 +94,7 @@ func TestDecideAdminChild_NewChildRefusedByAFullKinderkontingent(t *testing.T) {
 func TestDecideAdminChild_RenewalOfAnUncountedChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	returning := matchExistingStudent(t, db, harness, peopleValues.StudentStatusInactive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
@@ -110,7 +109,7 @@ func TestDecideAdminChild_RenewalOfAnUncountedChildRefusedByAFullKinderkontingen
 func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	departed := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
@@ -128,7 +127,7 @@ func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(
 func TestDecideAdminChild_RenewalOfACountedChildPassesAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	counted := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
@@ -142,9 +141,9 @@ func TestDecideAdminChild_RenewalOfACountedChildPassesAFullKinderkontingent(t *t
 // The admin area reads why an open enrollment was left to the school.
 func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	t.Parallel()
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	_, err := testpkg.SetupTestDB(t).NewUpdate().TableExpr("enrollment.request_children").
-		Set("status = ?", enrollmentModels.ChildStatusAutoRenewed).Where("id = ?", harness.childID).Exec(harness.ctx)
+		Set("status = ?", capability.ChildStatusAutoRenewed).Where("id = ?", harness.childID).Exec(harness.ctx)
 	require.NoError(t, err)
 	held, err := harness.repos.Enrollment().HoldAutoRenewedChild(harness.ctx, harness.childID, capability.ReviewReasonChildQuotaReached)
 	require.NoError(t, err)
@@ -166,7 +165,7 @@ func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Len(t, body.Data.Children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, body.Data.Children[0].Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, body.Data.Children[0].Status)
 	require.NotNil(t, body.Data.Children[0].ReviewReason)
 	assert.Equal(t, "child_quota_reached", *body.Data.Children[0].ReviewReason)
 }
@@ -187,13 +186,13 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	require.NoError(t, err)
 	phase := &capability.Phase{
 		Name:                      "Manuell " + t.Name(),
-		Kind:                      enrollmentModels.PhaseKindSchoolYear,
+		Kind:                      capability.PhaseKindSchoolYear,
 		ServiceStartDate:          capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:            capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:                  true,
 		FormSchemaID:              &schema.ID,
-		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
-		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOverflowMode:          capability.PhaseCareOverflowWaitlist,
+		CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 	}
 	phase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))

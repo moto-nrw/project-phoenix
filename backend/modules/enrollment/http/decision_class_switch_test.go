@@ -8,8 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -29,7 +27,7 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
 	newYearEnd := calendar.NewDate(2031, 7, 31)
-	env.sourcePhase.Kind = enrollmentModels.PhaseKindSchoolYear
+	env.sourcePhase.Kind = capability.PhaseKindSchoolYear
 	env.sourcePhase.ServiceStartDate = capability.Date(newYearStart)
 	env.sourcePhase.ServiceEndDate = capability.Date(newYearEnd)
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
@@ -102,7 +100,7 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
 	newYearEnd := calendar.NewDate(2031, 7, 31)
-	env.sourcePhase.Kind = enrollmentModels.PhaseKindSchoolYear
+	env.sourcePhase.Kind = capability.PhaseKindSchoolYear
 	env.sourcePhase.ServiceStartDate = capability.Date(newYearStart)
 	env.sourcePhase.ServiceEndDate = capability.Date(newYearEnd)
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
@@ -140,7 +138,7 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitchesAtOnce(t *testing.T) {
 	t.Parallel()
 
-	for _, kind := range []string{enrollmentModels.PhaseKindHoliday, enrollmentModels.PhaseKindCustom} {
+	for _, kind := range []string{capability.PhaseKindHoliday, capability.PhaseKindCustom} {
 		t.Run(kind, func(t *testing.T) {
 			env, cleanup := setupDecisionTest(t)
 			defer cleanup()

@@ -1,0 +1,87 @@
+package activitycontract
+
+import (
+	"errors"
+	"regexp"
+	"strings"
+	"time"
+)
+
+// DefaultCategoryColor is the fallback display color used when a category has
+// no color set.
+const DefaultCategoryColor = "#CCCCCC"
+
+// ErrUnknownCategoryIDs is returned when a Kategorie↔Schichtart mapping write
+// references category IDs that do not all exist in the current tenant. It must
+// abort the write rather than silently clearing existing mappings (#1837
+// follow-up). Callers map it to a 400.
+var ErrUnknownCategoryIDs = errors.New("one or more category IDs do not exist in this tenant")
+
+// Category represents a category for activities
+type Category struct {
+	ID          int64     `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	TenantID    int64     `json:"tenant_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Color       string    `json:"color,omitempty"`
+	IsSystem    bool      `json:"is_system"`
+	// ShiftTypeID optionally maps this Timetable-Kategorie to a Dienstplan
+	// Schichtart (schedule.shift_types, #1836). NULL = no mapping. Managed from
+	// the "Schichtarten verwalten" modal; see #1837 follow-up.
+	ShiftTypeID *int64 `json:"shift_type_id,omitempty"`
+	// ArchivedAt marks a category as retired (#2131). Archived categories stay
+	// in the table so existing Termine and Aktivitäten keep resolving their
+	// category, but they are no longer offered for new assignments. NULL =
+	// active. Only active rows take part in the case-insensitive tenant/name
+	// unique index.
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+// IsArchived reports whether the category has been retired and should no
+// longer be offered when picking a category.
+func (c *Category) IsArchived() bool {
+	return c.ArchivedAt != nil
+}
+
+// Validate ensures category data is valid
+func (c *Category) Validate() error {
+	// Normalize first so whitespace-only input cannot pass the required check.
+	c.Name = strings.TrimSpace(c.Name)
+	if c.Name == "" {
+		return errors.New("category name is required")
+	}
+
+	// Validate color if provided
+	if c.Color != "" {
+		// Add # prefix if missing
+		if !strings.HasPrefix(c.Color, "#") {
+			c.Color = "#" + c.Color
+		}
+
+		// Validate hex color format (#RRGGBB or #RGB)
+		hexColorPattern := regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
+		if !hexColorPattern.MatchString(c.Color) {
+			return errors.New("invalid color format, must be a valid hex color")
+		}
+	}
+
+	return nil
+}
+
+// GetColorOrDefault returns the category color or a default color if not set
+func (c *Category) GetColorOrDefault() string {
+	if c.Color == "" {
+		return DefaultCategoryColor // Default gray color
+	}
+	return c.Color
+}
+
+// HasDescription checks if the category has a description
+func (c *Category) HasDescription() bool {
+	return c.Description != ""
+}
+
+func (v *Category) GetTenantID() int64   { return v.TenantID }
+func (v *Category) SetTenantID(id int64) { v.TenantID = id }

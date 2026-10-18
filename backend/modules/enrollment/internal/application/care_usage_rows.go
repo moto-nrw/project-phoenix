@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-func normalizeCareUsageFilters(filters enrollment.CareUsageFilters) enrollment.CareUsageFilters {
+func normalizeCareUsageFilters(filters enrollmentNative.CareUsageFilters) enrollmentNative.CareUsageFilters {
 	filters.Status = strings.ToLower(strings.TrimSpace(filters.Status))
 	if filters.Status == "" {
-		filters.Status = enrollment.ChildStatusApproved
+		filters.Status = enrollmentNative.ChildStatusApproved
 	}
 	filters.Search = strings.TrimSpace(filters.Search)
 	filters.Weekday = strings.ToLower(strings.TrimSpace(filters.Weekday))
@@ -28,38 +29,38 @@ func normalizeCareUsageFilters(filters enrollment.CareUsageFilters) enrollment.C
 	return filters
 }
 
-func validateCareUsageFilters(filters enrollment.CareUsageFilters) error {
+func validateCareUsageFilters(filters enrollmentNative.CareUsageFilters) error {
 	if filters.Status != "all" && !validChildStatusFilters[filters.Status] {
-		return fmt.Errorf("%w: unsupported status %q", enrollment.ErrReportInvalidFilter, filters.Status)
+		return fmt.Errorf("%w: unsupported status %q", enrollmentNative.ErrReportInvalidFilter, filters.Status)
 	}
 	if filters.DayCount != nil && (*filters.DayCount < 0 || *filters.DayCount > 7) {
-		return fmt.Errorf("%w: day_count must be between 0 and 7", enrollment.ErrReportInvalidFilter)
+		return fmt.Errorf("%w: day_count must be between 0 and 7", enrollmentNative.ErrReportInvalidFilter)
 	}
-	if filters.Weekday != "" && !enrollment.ValidWeekdays[filters.Weekday] {
-		return fmt.Errorf("%w: weekday must be one of mon/tue/wed/thu/fri", enrollment.ErrReportInvalidFilter)
+	if filters.Weekday != "" && !enrollmentNative.ValidWeekdays[filters.Weekday] {
+		return fmt.Errorf("%w: weekday must be one of mon/tue/wed/thu/fri", enrollmentNative.ErrReportInvalidFilter)
 	}
 	if filters.PickupTime != "" {
 		if _, err := time.Parse("15:04", filters.PickupTime); err != nil {
-			return fmt.Errorf("%w: pickup_time must be HH:MM", enrollment.ErrReportInvalidFilter)
+			return fmt.Errorf("%w: pickup_time must be HH:MM", enrollmentNative.ErrReportInvalidFilter)
 		}
 	}
 	return nil
 }
 
 var validChildStatusFilters = map[string]bool{
-	enrollment.ChildStatusSubmitted:          true,
-	enrollment.ChildStatusUnderReview:        true,
-	enrollment.ChildStatusApproved:           true,
-	enrollment.ChildStatusWaitlisted:         true,
-	enrollment.ChildStatusRejected:           true,
-	enrollment.ChildStatusWithdrawn:          true,
-	enrollment.ChildStatusPendingRenewal:     true,
-	enrollment.ChildStatusAutoRenewed:        true,
-	enrollment.ChildStatusPendingAdminReview: true,
+	enrollmentNative.ChildStatusSubmitted:          true,
+	enrollmentNative.ChildStatusUnderReview:        true,
+	enrollmentNative.ChildStatusApproved:           true,
+	enrollmentNative.ChildStatusWaitlisted:         true,
+	enrollmentNative.ChildStatusRejected:           true,
+	enrollmentNative.ChildStatusWithdrawn:          true,
+	enrollmentNative.ChildStatusPendingRenewal:     true,
+	enrollmentNative.ChildStatusAutoRenewed:        true,
+	enrollmentNative.ChildStatusPendingAdminReview: true,
 }
 
-func careUsageAppliedFilters(filters enrollment.CareUsageFilters) enrollment.CareUsageAppliedFilters {
-	return enrollment.CareUsageAppliedFilters{
+func careUsageAppliedFilters(filters enrollmentNative.CareUsageFilters) enrollmentNative.CareUsageAppliedFilters {
+	return enrollmentNative.CareUsageAppliedFilters{
 		PhaseID:         filters.PhaseID,
 		Status:          filters.Status,
 		CareOfferingIDs: filters.CareOfferingIDs,
@@ -71,7 +72,7 @@ func careUsageAppliedFilters(filters enrollment.CareUsageFilters) enrollment.Car
 	}
 }
 
-func normalizedCareUsageOfferingIDs(ids []int64, offerings []*enrollmentModels.CareOffering, explicit bool) []int64 {
+func normalizedCareUsageOfferingIDs(ids []int64, offerings []*offeringContract.CareOfferingRecord, explicit bool) []int64 {
 	if explicit {
 		normalized := dedupePositiveInt64(ids)
 		if normalized == nil {
@@ -116,9 +117,9 @@ func dedupePositiveInt64(ids []int64) []int64 {
 	return out
 }
 
-func careUsageRow(req *enrollmentModels.Request, child *reportChild, links []*enrollment.RequestChildOfferingRecord, offeringByID map[int64]*enrollmentModels.CareOffering, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollment.CareUsageRow {
+func careUsageRow(req *Request, child *reportChild, links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollmentNative.CareUsageRow {
 	daySet := map[string]bool{}
-	rowOfferings := make([]enrollment.CareUsageRowOffering, 0, len(links))
+	rowOfferings := make([]enrollmentNative.CareUsageRowOffering, 0, len(links))
 	for _, link := range links {
 		rowOffering := careUsageRowOffering(link, offeringByID[link.CareOfferingID])
 		if includedOfferingIDs[link.CareOfferingID] {
@@ -135,7 +136,7 @@ func careUsageRow(req *enrollmentModels.Request, child *reportChild, links []*en
 	if pickupByDay == nil {
 		pickupByDay = map[string]string{}
 	}
-	return enrollment.CareUsageRow{
+	return enrollmentNative.CareUsageRow{
 		RequestID:         req.ID,
 		ChildID:           child.ID,
 		ChildFirstName:    child.FirstName,
@@ -158,7 +159,7 @@ func careUsageRow(req *enrollmentModels.Request, child *reportChild, links []*en
 
 // careUsageRowOffering renders one booked offering; a fixed-days offering
 // without selected days books its available days.
-func careUsageRowOffering(link *enrollment.RequestChildOfferingRecord, offering *enrollmentModels.CareOffering) enrollment.CareUsageRowOffering {
+func careUsageRowOffering(link *enrollmentNative.RequestChildOfferingRecord, offering *offeringContract.CareOfferingRecord) enrollmentNative.CareUsageRowOffering {
 	name := "Angebot #" + strconv.FormatInt(link.CareOfferingID, 10)
 	daysOfWeekMode := ""
 	days := link.SelectedDays
@@ -166,12 +167,12 @@ func careUsageRowOffering(link *enrollment.RequestChildOfferingRecord, offering 
 	if offering != nil {
 		name = offering.Name
 		daysOfWeekMode = offering.DaysOfWeekMode
-		if len(days) == 0 && offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+		if len(days) == 0 && offering.DaysOfWeekMode == offeringContract.DaysOfWeekModeFixed {
 			days = offering.AvailableDays
 			source = "available"
 		}
 	}
-	return enrollment.CareUsageRowOffering{
+	return enrollmentNative.CareUsageRowOffering{
 		ID:                    link.CareOfferingID,
 		Name:                  name,
 		Days:                  sortedDayCodes(days),
@@ -182,20 +183,20 @@ func careUsageRowOffering(link *enrollment.RequestChildOfferingRecord, offering 
 	}
 }
 
-func careUsageBookedPickupDays(row enrollment.CareUsageRow, filters enrollment.CareUsageFilters) []string {
+func careUsageBookedPickupDays(row enrollmentNative.CareUsageRow, filters enrollmentNative.CareUsageFilters) []string {
 	return careUsageDays(row, filters, func(day string) bool {
 		return strings.TrimSpace(row.PickupByDay[day]) != ""
 	})
 }
 
-func careUsageBookedDays(row enrollment.CareUsageRow, filters enrollment.CareUsageFilters) []string {
+func careUsageBookedDays(row enrollmentNative.CareUsageRow, filters enrollmentNative.CareUsageFilters) []string {
 	return careUsageDays(row, filters, func(string) bool { return true })
 }
 
 // careUsageDays collects the booked day codes from the row's (filtered)
 // offerings, falling back to the effective days when none match; include
 // narrows the set (e.g. to days that carry a pickup time).
-func careUsageDays(row enrollment.CareUsageRow, filters enrollment.CareUsageFilters, include func(day string) bool) []string {
+func careUsageDays(row enrollmentNative.CareUsageRow, filters enrollmentNative.CareUsageFilters, include func(day string) bool) []string {
 	daySet := map[string]bool{}
 	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
 	for _, offering := range row.Offerings {
@@ -219,7 +220,7 @@ func addIncludedDays(daySet map[string]bool, days []string, include func(day str
 	}
 }
 
-func careUsageRowMatches(row enrollment.CareUsageRow, filters enrollment.CareUsageFilters) bool {
+func careUsageRowMatches(row enrollmentNative.CareUsageRow, filters enrollmentNative.CareUsageFilters) bool {
 	if filters.Status != "all" && row.Status != filters.Status {
 		return false
 	}
@@ -235,7 +236,7 @@ func careUsageRowMatches(row enrollment.CareUsageRow, filters enrollment.CareUsa
 	return careUsageRowMatchesDays(row, filters) && careUsageRowMatchesSearch(row, filters.Search)
 }
 
-func careUsageRowMatchesDays(row enrollment.CareUsageRow, filters enrollment.CareUsageFilters) bool {
+func careUsageRowMatchesDays(row enrollmentNative.CareUsageRow, filters enrollmentNative.CareUsageFilters) bool {
 	if filters.Weekday != "" {
 		if !slices.Contains(careUsageBookedDays(row, filters), filters.Weekday) {
 			return false
@@ -255,7 +256,7 @@ func careUsageRowMatchesDays(row enrollment.CareUsageRow, filters enrollment.Car
 	return false
 }
 
-func careUsageRowMatchesSearch(row enrollment.CareUsageRow, search string) bool {
+func careUsageRowMatchesSearch(row enrollmentNative.CareUsageRow, search string) bool {
 	if search == "" {
 		return true
 	}
@@ -269,7 +270,7 @@ func careUsageRowMatchesSearch(row enrollment.CareUsageRow, search string) bool 
 	return strings.Contains(haystack, strings.ToLower(search))
 }
 
-func careUsageRowHasAnyOffering(row enrollment.CareUsageRow, offeringIDs []int64) bool {
+func careUsageRowHasAnyOffering(row enrollmentNative.CareUsageRow, offeringIDs []int64) bool {
 	if len(offeringIDs) == 0 {
 		return false
 	}
@@ -285,10 +286,10 @@ func careUsageRowHasAnyOffering(row enrollment.CareUsageRow, offeringIDs []int64
 	return false
 }
 
-func careUsageOfferingOptions(offerings []*enrollmentModels.CareOffering) []enrollment.CareUsageOfferingOption {
-	options := make([]enrollment.CareUsageOfferingOption, 0, len(offerings))
+func careUsageOfferingOptions(offerings []*offeringContract.CareOfferingRecord) []enrollmentNative.CareUsageOfferingOption {
+	options := make([]enrollmentNative.CareUsageOfferingOption, 0, len(offerings))
 	for _, offering := range offerings {
-		options = append(options, enrollment.CareUsageOfferingOption{
+		options = append(options, enrollmentNative.CareUsageOfferingOption{
 			ID:           offering.ID,
 			Name:         offering.Name,
 			CountsAsCare: offering.CountsAsCare,
@@ -300,8 +301,8 @@ func careUsageOfferingOptions(offerings []*enrollmentModels.CareOffering) []enro
 	return options
 }
 
-func careUsageOfferingStats(stats map[int64]*enrollment.CareUsageOfferingStat) []enrollment.CareUsageOfferingStat {
-	out := make([]enrollment.CareUsageOfferingStat, 0, len(stats))
+func careUsageOfferingStats(stats map[int64]*enrollmentNative.CareUsageOfferingStat) []enrollmentNative.CareUsageOfferingStat {
+	out := make([]enrollmentNative.CareUsageOfferingStat, 0, len(stats))
 	for _, stat := range stats {
 		out = append(out, *stat)
 	}

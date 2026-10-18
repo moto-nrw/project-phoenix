@@ -88,7 +88,6 @@ func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings Birt
 // administration: the activity service whose Kategorie↔Schichtart linker it
 // calls and the timetable rows it runs over.
 type ShiftTypeTestModule struct {
-	Activities   timetableCompose.ActivityService
 	Repositories ShiftTypeTestRepositories
 }
 
@@ -123,7 +122,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}
-	return planning.ShiftTypes, ShiftTypeTestModule{Activities: linker, Repositories: repos}, nil
+	return planning.ShiftTypes, ShiftTypeTestModule{Repositories: repos}, nil
 }
 
 type DeviceTestModule struct{ IoT devicefleetCompose.IoTService }

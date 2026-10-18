@@ -43,6 +43,6 @@ func NewStaffMessagingTestRepositories(db transactionruntime.Database, members M
 		Message: staffStore.NewStaffMessageRepository(db.Pool()),
 		Read: staffStore.NewStaffMessageReadRepository(db.Pool(), NewCommunicationStaffColleagues(db,
 			parentStore.CurrentTenantStaffAccounts(ParentStaffMembers{Membership: membership}.List, personAccounts),
-			StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
+			StaffMessageIdentity(NewPeopleIdentityAccess(db, nil))), newStaffMessageInbox(db)),
 	}, nil
 }

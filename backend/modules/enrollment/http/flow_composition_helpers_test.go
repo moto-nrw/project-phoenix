@@ -3,9 +3,10 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
@@ -17,12 +18,12 @@ type factorySchools struct {
 	repos *api.OrganizationTestRows
 }
 
-func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
+func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentNative.School, error) {
 	school, err := s.repos.School.FindSchool(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return &enrollmentOwner.School{
+	return &enrollmentNative.School{
 		Name: school.Name, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted(),
 	}, nil
 }
@@ -81,7 +82,7 @@ type unusedPhaseRecords struct{ TestPhaseRecords }
 
 type phaseOfferings struct {
 	rows interface {
-		ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 		CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
 	}
 }
@@ -154,7 +155,7 @@ func newTestChangeRequestService(cfg api.EnrollmentChangeRequestSources) enrollm
 
 // capacityOfferings locks the offerings a capacity check claims.
 type capacityOfferings interface {
-	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
 }
 
 func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.RolloverService {
@@ -175,6 +176,6 @@ func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.Rol
 // suite's outbox records the mails.
 func testNotifications(modes TestNotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
-}, outbox testMailOutbox, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
+}, outbox testMailOutbox, schools enrollmentNative.SchoolDirectory) enrollmentNative.Notifications {
 	return NewTestFlowNotifications(modes, notificationModeSettings{settings: settings}, outbox, schools)
 }

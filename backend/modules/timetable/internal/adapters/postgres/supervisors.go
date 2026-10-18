@@ -7,23 +7,25 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 type plannedSupervisorRow struct {
-	bun.BaseModel    `bun:"table:supervisors,alias:supervisor"`
-	ID               int64     `bun:"id,pk,autoincrement"`
-	TenantID         int64     `bun:"tenant_id,notnull"`
-	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt        time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StaffID          int64     `bun:"staff_id,notnull"`
-	GroupID          int64     `bun:"group_id,notnull"`
-	IsPrimary        bool      `bun:"is_primary,notnull,default:false"`
-	ValidFrom        string    `bun:"valid_from,notnull"`
-	ValidUntil       *string   `bun:"valid_until"`
-	CalendarPeriodID *int64    `bun:"calendar_period_id"`
-	Weekday          *int      `bun:"weekday"`
+	bun.BaseModel    `bun:"table:activities.supervisors,alias:supervisor"`
+	ID               int64          `bun:"id,pk,autoincrement"`
+	TenantID         int64          `bun:"tenant_id,notnull"`
+	CreatedAt        time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt        time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	StaffID          int64          `bun:"staff_id,notnull"`
+	GroupID          int64          `bun:"group_id,notnull"`
+	IsPrimary        bool           `bun:"is_primary,notnull,default:false"`
+	ValidFrom        calendar.Date  `bun:"valid_from,notnull"`
+	ValidUntil       *calendar.Date `bun:"valid_until"`
+	CalendarPeriodID *int64         `bun:"calendar_period_id"`
+	Weekday          *int           `bun:"weekday"`
 }
 
 func (s *Store) FindPlannedSupervisor(ctx context.Context, id int64) (domain.PlannedSupervisor, bool, domain.OperationStats, error) {
@@ -269,12 +271,12 @@ func plannedSupervisorSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 
 func applyPlannedSupervisorFields(row *plannedSupervisorRow, fields domain.PlannedSupervisorFields) {
 	row.StaffID, row.GroupID, row.IsPrimary = fields.StaffID, fields.GroupID, fields.IsPrimary
-	row.ValidFrom, row.ValidUntil = fields.ValidFrom, fields.ValidUntil
+	row.ValidFrom, row.ValidUntil = calendar.Date(fields.ValidFrom), (*calendar.Date)(fields.ValidUntil)
 	row.CalendarPeriodID, row.Weekday = fields.CalendarPeriodID, fields.Weekday
 }
 
 func plannedSupervisorToDomain(row plannedSupervisorRow) domain.PlannedSupervisor {
 	return domain.PlannedSupervisor{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		StaffID: row.StaffID, GroupID: row.GroupID, IsPrimary: row.IsPrimary, ValidFrom: row.ValidFrom,
-		ValidUntil: row.ValidUntil, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday}
+		StaffID: row.StaffID, GroupID: row.GroupID, IsPrimary: row.IsPrimary, ValidFrom: string(row.ValidFrom),
+		ValidUntil: (*string)(row.ValidUntil), CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday}
 }

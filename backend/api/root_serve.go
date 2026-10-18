@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 
 	"github.com/go-chi/chi/v5"
@@ -140,7 +144,7 @@ func composeServeRoot(
 		messaging        parentStore.MessagingRepositories
 		consent          communicationModule.NotificationConsentCapability
 		notifications    DeliveryNotifications
-		emitter          *communicationCompose.ParentEventEmitter
+		emitter          eventContract.Emitter
 		purger           filestorageModule.AttachmentPurger
 		announcements    communicationModule.ParentAnnouncementCapability
 		schedules        CarePlanSchedules
@@ -149,7 +153,7 @@ func composeServeRoot(
 		payroll          settingsCompose.PayrollStatusGetter
 		side             *workforceCompose.WorkSessionSide
 		active           studentpresence.Presence
-		activities       arrivalTimetable.ActivityService
+		activities       activityContract.ActivityService
 		yard             FacilitiesYard
 		shifts           *workforceCompose.ShiftPlanning
 		deviceFleet      *devicefleetModule.Module

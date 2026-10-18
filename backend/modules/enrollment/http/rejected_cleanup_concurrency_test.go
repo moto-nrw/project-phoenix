@@ -13,7 +13,6 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -68,7 +67,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 
 	phase := &capability.Phase{
 		Name:             fmt.Sprintf("cleanup-concurrency-%d", scope.TenantID),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
@@ -83,7 +82,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		GuardianEmail:     fmt.Sprintf("cleanup-%d@example.invalid", scope.TenantID),
 		ConsentFlags:      map[string]any{},
 		CustomData:        map[string]any{},
-		SubmissionSource:  enrollmentModels.RequestSourcePublic,
+		SubmissionSource:  capability.RequestSourcePublic,
 		SourceMetadata:    map[string]any{},
 		StatusToken:       fmt.Sprintf("cleanup-token-%d", scope.TenantID),
 		SubmittedAt:       time.Now(),
@@ -98,8 +97,8 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		LastName:       "Child",
 		DateOfBirth:    "2018-04-15",
 		CustomData:     map[string]any{},
-		Status:         enrollmentModels.ChildStatusRejected,
-		ActivationMode: enrollmentModels.ChildActivationScheduled,
+		Status:         capability.ChildStatusRejected,
+		ActivationMode: capability.ChildActivationScheduled,
 		ReviewedAt:     &oldReview,
 	}
 	child.TenantID = scope.TenantID
@@ -125,7 +124,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		UPDATE enrollment.request_children
 		SET status = ?, reviewed_at = ?
 		WHERE id = ?
-	`, enrollmentModels.ChildStatusUnderReview, time.Now(), child.ID)
+	`, capability.ChildStatusUnderReview, time.Now(), child.ID)
 	require.NoError(t, err)
 
 	lockStarted := make(chan struct{})
@@ -172,7 +171,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	assert.Equal(t, request.ID, storedRequest.ID)
 	storedChild, err := repos.Enrollment().ChildByID(ctx, child.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, storedChild.Status)
+	assert.Equal(t, capability.ChildStatusUnderReview, storedChild.Status)
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'pending'", outboxRow.ID))
 }
 
@@ -193,7 +192,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		phase := &capability.Phase{
 			Name:             fmt.Sprintf("cleanup-late-invite-%d", scope.TenantID),
-			Kind:             enrollmentModels.PhaseKindSchoolYear,
+			Kind:             capability.PhaseKindSchoolYear,
 			ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 			ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 			IsActive:         true,
@@ -209,7 +208,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			GuardianEmail:     fmt.Sprintf("cleanup-late-invite-%d@example.invalid", scope.TenantID),
 			ConsentFlags:      map[string]any{},
 			CustomData:        map[string]any{},
-			SubmissionSource:  enrollmentModels.RequestSourceLateInvite,
+			SubmissionSource:  capability.RequestSourceLateInvite,
 			SourceMetadata:    map[string]any{},
 			StatusToken:       fmt.Sprintf("cleanup-late-invite-token-%d", scope.TenantID),
 			SubmittedAt:       time.Now(),
@@ -225,8 +224,8 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			LastName:       "Child",
 			DateOfBirth:    "2018-04-15",
 			CustomData:     map[string]any{},
-			Status:         enrollmentModels.ChildStatusRejected,
-			ActivationMode: enrollmentModels.ChildActivationScheduled,
+			Status:         capability.ChildStatusRejected,
+			ActivationMode: capability.ChildActivationScheduled,
 			ReviewedAt:     &oldReview,
 		}
 		if err := enrollmentAPI.InsertOwnerChildForTest(ctx, repos.Enrollment(), child); err != nil {

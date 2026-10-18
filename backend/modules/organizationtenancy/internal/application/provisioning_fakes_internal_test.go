@@ -475,29 +475,29 @@ func idSet(ids []int64) map[int64]bool {
 type fakeDashboard struct {
 	guard        *adminGuard
 	engine       *fakeEngine
-	counts       domain.DashboardCounts
+	counts       organizationtenancy.DashboardCounts
 	accounts     map[int64]int
-	pwaRows      []domain.PWAUsageRow
+	pwaRows      []organizationtenancy.DashboardPWAUsage
 	pwaTenantID  int64
 	pwaWindow    time.Duration
 	schoolFilter []*int64
 	fail         map[string]error
 }
 
-func (d *fakeDashboard) Counts(ctx context.Context) (domain.DashboardCounts, error) {
+func (d *fakeDashboard) Counts(ctx context.Context) (organizationtenancy.DashboardCounts, error) {
 	d.guard.check(ctx, "Dashboard.Counts")
 	if err := d.fail["Counts"]; err != nil {
-		return domain.DashboardCounts{}, err
+		return organizationtenancy.DashboardCounts{}, err
 	}
 	return d.counts, nil
 }
 
-func (d *fakeDashboard) OrganizationSummaries(ctx context.Context) ([]domain.OrganizationSummary, error) {
+func (d *fakeDashboard) OrganizationSummaries(ctx context.Context) ([]organizationtenancy.DashboardOrganization, error) {
 	d.guard.check(ctx, "Dashboard.OrganizationSummaries")
 	if err := d.fail["OrganizationSummaries"]; err != nil {
 		return nil, err
 	}
-	rows := []domain.OrganizationSummary{}
+	rows := []organizationtenancy.DashboardOrganization{}
 	for _, org := range d.engine.sortedOrgs(func(organizationtenancy.Organization) bool { return true }) {
 		schools := 0
 		for _, school := range d.engine.schools {
@@ -505,7 +505,7 @@ func (d *fakeDashboard) OrganizationSummaries(ctx context.Context) ([]domain.Org
 				schools++
 			}
 		}
-		rows = append(rows, domain.OrganizationSummary{
+		rows = append(rows, organizationtenancy.DashboardOrganization{
 			ID: org.ID, Name: org.Name, Slug: org.Slug, Active: org.Active,
 			CreatedAt: org.CreatedAt, UpdatedAt: org.UpdatedAt, DeletedAt: org.DeletedAt, Settings: org.Settings,
 			SchoolCount: schools, AccountCount: d.accounts[org.ID],
@@ -514,13 +514,13 @@ func (d *fakeDashboard) OrganizationSummaries(ctx context.Context) ([]domain.Org
 	return rows, nil
 }
 
-func (d *fakeDashboard) SchoolSummaries(ctx context.Context, organizationID *int64) ([]domain.SchoolSummary, error) {
+func (d *fakeDashboard) SchoolSummaries(ctx context.Context, organizationID *int64) ([]organizationtenancy.DashboardSchool, error) {
 	d.guard.check(ctx, "Dashboard.SchoolSummaries")
 	d.schoolFilter = append(d.schoolFilter, organizationID)
 	if err := d.fail["SchoolSummaries"]; err != nil {
 		return nil, err
 	}
-	rows := []domain.SchoolSummary{}
+	rows := []organizationtenancy.DashboardSchool{}
 	for _, school := range d.engine.sortedSchools(func(s organizationtenancy.School) bool {
 		return organizationID == nil || s.OrganizationID == *organizationID
 	}) {
@@ -528,7 +528,7 @@ func (d *fakeDashboard) SchoolSummaries(ctx context.Context, organizationID *int
 		if org, ok := d.engine.orgs[school.OrganizationID]; ok {
 			orgName = org.Name
 		}
-		rows = append(rows, domain.SchoolSummary{
+		rows = append(rows, organizationtenancy.DashboardSchool{
 			ID: school.ID, OrganizationID: school.OrganizationID, OrganizationName: orgName,
 			Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain,
 			Active: school.Active, Hidden: school.Hidden, CreatedAt: school.CreatedAt, UpdatedAt: school.UpdatedAt,
@@ -541,7 +541,7 @@ func (d *fakeDashboard) SchoolSummaries(ctx context.Context, organizationID *int
 	return rows, nil
 }
 
-func (d *fakeDashboard) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]domain.PWAUsageRow, error) {
+func (d *fakeDashboard) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]organizationtenancy.DashboardPWAUsage, error) {
 	d.guard.check(ctx, "Dashboard.PWAUsage")
 	d.pwaTenantID, d.pwaWindow = tenantID, window
 	if err := d.fail["PWAUsage"]; err != nil {

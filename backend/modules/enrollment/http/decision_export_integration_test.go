@@ -11,7 +11,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,7 +207,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	_, approvedChildID := submitOneChild(t, env, "filter-approved@example.com", "Ada", "Approved")
 	submitOneChild(t, env, "filter-open@example.com", "Ben", "Open")
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, approvedChildID, enrollmentModels.ChildStatusApproved, nil, 0))
+		ctx, approvedChildID, capability.ChildStatusApproved, nil, 0))
 
 	auditAll := &stubAccessLogRepo{}
 	all, err := newExportDecisionService(env, auditAll).
@@ -220,7 +219,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Filter to approved → only Ada, and the audit child_count matches.
 	auditApproved := &stubAccessLogRepo{}
 	approved, err := newExportDecisionService(env, auditApproved).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusApproved)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusApproved)
 	require.NoError(t, err)
 	reqCount, childCount := approved.Counts()
 	assert.Equal(t, 1, reqCount, "only the request with an approved child remains")
@@ -231,13 +230,13 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Audit row reflects the filtered (disclosed) scope.
 	require.Len(t, auditApproved.entries, 1)
 	md := auditApproved.entries[0].GetMetadata()
-	assert.Equal(t, enrollmentModels.ChildStatusApproved, md["status_filter"])
+	assert.Equal(t, capability.ChildStatusApproved, md["status_filter"])
 	assert.Equal(t, 1, md["child_count"])
 
 	// Filter to a status no child holds → empty export, zero counts.
 	auditRejected := &stubAccessLogRepo{}
 	rejected, err := newExportDecisionService(env, auditRejected).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusRejected)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusRejected)
 	require.NoError(t, err)
 	rReq, rChild := rejected.Counts()
 	assert.Equal(t, 0, rReq, "no request has a rejected child")

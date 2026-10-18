@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -228,7 +232,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		messaging        parentStore.MessagingRepositories
 		consent          communication.NotificationConsentCapability
 		notifications    DeliveryNotifications
-		emitter          *communicationCompose.ParentEventEmitter
+		emitter          eventContract.Emitter
 		purger           filestorageModule.AttachmentPurger
 		announcements    communication.ParentAnnouncementCapability
 		schedules        CarePlanSchedules
@@ -237,7 +241,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		payroll          settingsCompose.PayrollStatusGetter
 		side             *workforceCompose.WorkSessionSide
 		active           studentpresence.Presence
-		activities       arrivalTimetable.ActivityService
+		activities       activityContract.ActivityService
 		shifts           *workforceCompose.ShiftPlanning
 		deviceFleet      *devicefleet.Module
 		materialization  timetable.MaterializationCapability

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func classBlockInstance(id, groupID int64, start string, status string) *schedul
 		panic(err)
 	}
 	return &scheduleModels.ActivityInstance{
-		Model:           scheduleModels.Model{ID: id},
+		ID:              id,
 		Date:            scheduleModels.NewDate(2026, 9, 7),
 		ActivityGroupID: &groupID,
 		StartTime:       parsed,
@@ -41,11 +42,11 @@ func TestEarliestPlannedBlockStartForClassPicksTheFirstBlockThatAddressesTheClas
 	// " 4a " are the same class, "Klasse 4a" is not.
 	klasse4a := "4A"
 	klasse3b := "3b"
-	deps.activityGroups.byID[1] = &activitiesModels.Group{Model: activitiesModels.Model{ID: 1}, TargetSchoolClass: &klasse4a}
-	deps.activityGroups.byID[2] = &activitiesModels.Group{Model: activitiesModels.Model{ID: 2}, TargetSchoolClass: &klasse3b}
-	deps.activityGroups.byID[3] = &activitiesModels.Group{Model: activitiesModels.Model{ID: 3}}
-	deps.activityGroups.targetsByGroup[3] = []*activitiesModels.GroupTarget{{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &klasse4a}}
-	deps.activityGroups.byID[4] = &activitiesModels.Group{Model: activitiesModels.Model{ID: 4}, SourceSchoolClasses: []string{"4a"}}
+	deps.activityGroups.byID[1] = &activityContract.Group{ID: 1, TargetSchoolClass: &klasse4a}
+	deps.activityGroups.byID[2] = &activityContract.Group{ID: 2, TargetSchoolClass: &klasse3b}
+	deps.activityGroups.byID[3] = &activityContract.Group{ID: 3}
+	deps.activityGroups.targetsByGroup[3] = []*activityContract.GroupTarget{{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &klasse4a}}
+	deps.activityGroups.byID[4] = &activityContract.Group{ID: 4, SourceSchoolClasses: []string{"4a"}}
 
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
 		// Another class's earlier block must not win.
@@ -73,7 +74,7 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 
 	// Spontaneous blocks carry no template and therefore no class.
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		{Model: scheduleModels.Model{ID: 20}, Date: scheduleModels.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModels.InstanceStatusPlanned},
+		{ID: 20, Date: scheduleModels.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModels.InstanceStatusPlanned},
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

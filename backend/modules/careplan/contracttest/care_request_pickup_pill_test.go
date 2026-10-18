@@ -11,13 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,38 +32,38 @@ import (
 // right after the call.
 type recordingParentEvents struct {
 	mu        sync.Mutex
-	emitted   []parentmessaging.ChildEvent
-	guardians []parentmessaging.PortalGuardian
+	emitted   []eventContract.ChildEvent
+	guardians []eventContract.PortalGuardian
 }
 
-func (r *recordingParentEvents) EmitChildEvent(_, _, _ int64, ev parentmessaging.ChildEvent) {
+func (r *recordingParentEvents) EmitChildEvent(_, _, _ int64, ev eventContract.ChildEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.emitted = append(r.emitted, ev)
 }
 func (r *recordingParentEvents) WakeChildGuardians(_, _ int64) {}
-func (r *recordingParentEvents) PortalGuardians(context.Context, int64) ([]parentmessaging.PortalGuardian, error) {
+func (r *recordingParentEvents) PortalGuardians(context.Context, int64) ([]eventContract.PortalGuardian, error) {
 	return r.guardians, nil
 }
 func (r *recordingParentEvents) InTransaction(context.Context) bool                    { return false }
 func (r *recordingParentEvents) MessagingEnabledForTenant(context.Context, int64) bool { return true }
 
-func (r *recordingParentEvents) last(t *testing.T) parentmessaging.ChildEvent {
+func (r *recordingParentEvents) last(t *testing.T) communicationtest.ChildEventSnapshot {
 	t.Helper()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	require.NotEmpty(t, r.emitted, "expected a pill to be emitted")
-	return r.emitted[len(r.emitted)-1]
+	return communicationtest.SnapshotChildEvent(r.emitted[len(r.emitted)-1])
 }
 
 func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
-	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitterWithDecisions(events, nil),
+	f := newCareFixtureWithEmitter(t, communicationtest.NewEmitterWithDecisions(events, nil),
 		api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.
-	events.guardians = []parentmessaging.PortalGuardian{{AccountID: f.chain.AccountID}}
+	events.guardians = []eventContract.PortalGuardian{{AccountID: f.chain.AccountID}}
 	return f, events
 }
 

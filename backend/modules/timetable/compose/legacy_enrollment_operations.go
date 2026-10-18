@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,33 +18,33 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	// legacy endpoint cannot preserve.
 	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "enroll student", Err: err}
+		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
 
 	if err := s.rejectAlumni(ctx, []int64{studentID}); err != nil {
-		return &ActivityError{Op: "enroll student", Err: err}
+		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
 
 	// Check if student is already enrolled
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "enroll student", Err: err}
+		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
 
 	for _, enrollment := range enrollments {
 		if enrollment.StudentID == studentID {
-			return &ActivityError{Op: "enroll student", Err: ErrStudentAlreadyEnrolled}
+			return &activityContract.ActivityError{Op: "enroll student", Err: activityContract.ErrStudentAlreadyEnrolled}
 		}
 	}
 
 	// Create enrollment
-	enrollment := &activities.StudentEnrollment{
+	enrollment := &activityContract.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: groupID,
-		ValidFrom:       activities.Date(calendar.TodayDate()),
+		ValidFrom:       activityContract.Date(calendar.TodayDate()),
 	}
 	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
-		return &ActivityError{Op: "enroll student", Err: err}
+		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
 
 	return nil
@@ -53,34 +53,34 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 // UnenrollStudent removes a student from an activity group
 func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64) error {
 	if _, err := s.findMutableActivityGroup(ctx, groupID); err != nil {
-		return &ActivityError{Op: "unenroll student", Err: err}
+		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "unenroll student", Err: err}
+		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
 	enrollmentID, err := s.findEnrollmentID(enrollments, studentID)
 	if err != nil {
-		return &ActivityError{Op: "unenroll student", Err: err}
+		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
 	if err := s.enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
-		return &ActivityError{Op: "unenroll student", Err: err}
+		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
 	return nil
 }
 
 // findEnrollmentID finds the enrollment ID for a specific student in a group
-func (s *Service) findEnrollmentID(enrollments []*activities.StudentEnrollment, studentID int64) (int64, error) {
+func (s *Service) findEnrollmentID(enrollments []*activityContract.StudentEnrollment, studentID int64) (int64, error) {
 	for _, enrollment := range enrollments {
 		if enrollment.StudentID == studentID {
 			return enrollment.ID, nil
 		}
 	}
-	return 0, ErrNotEnrolled
+	return 0, activityContract.ErrNotEnrolled
 }
 
 // UpdateGroupEnrollments updates the student enrollments for a group
@@ -88,12 +88,12 @@ func (s *Service) findEnrollmentID(enrollments []*activities.StudentEnrollment, 
 func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error {
 	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "UpdateGroupEnrollments", Err: err}
+		return &activityContract.ActivityError{Op: "UpdateGroupEnrollments", Err: err}
 	}
 
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "update group enrollments", Err: err}
+		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
@@ -109,7 +109,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// revert and for future materialization (#405 review).
 	locked, err := s.lockEnrollmentStudents(ctx, enrollments, added)
 	if err != nil {
-		return &ActivityError{Op: "update group enrollments", Err: err}
+		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	// Only the IDs this call would newly insert are validated. A graduated
@@ -117,7 +117,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// re-submitting a roster that still carries them must not fail — but a
 	// caller must not be able to ADD one either (#405 review).
 	if err := rejectAlumniFrom(locked, added); err != nil {
-		return &ActivityError{Op: "update group enrollments", Err: err}
+		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	// Alumni are invisible to GetEnrolledStudents, so the roster a caller reads
@@ -130,18 +130,18 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	preserved := hiddenAlumnusEnrollments(enrollments, locked)
 
 	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs, preserved); err != nil {
-		return &ActivityError{Op: "update group enrollments", Err: err}
+		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	if err := s.addNewEnrollmentsInTx(ctx, s, groupID, currentStudentIDs, studentIDs); err != nil {
-		return &ActivityError{Op: "update group enrollments", Err: err}
+		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	return nil
 }
 
 // buildEnrollmentMaps creates comparison maps for current and new enrollments
-func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollment, studentIDs []int64) (map[int64]int64, map[int64]bool) {
+func (s *Service) buildEnrollmentMaps(enrollments []*activityContract.StudentEnrollment, studentIDs []int64) (map[int64]int64, map[int64]bool) {
 	currentStudentIDs := make(map[int64]int64) // studentID -> enrollmentID
 	for _, enrollment := range enrollments {
 		currentStudentIDs[enrollment.StudentID] = enrollment.ID
@@ -164,7 +164,7 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 // had to commit before. A missing row is not preserved; unknown status must not
 // silently make enrollments undeletable.
 func hiddenAlumnusEnrollments(
-	enrollments []*activities.StudentEnrollment,
+	enrollments []*activityContract.StudentEnrollment,
 	locked map[int64]*timetable.OperationStudent,
 ) map[int64]bool {
 	hidden := make(map[int64]bool)
@@ -223,12 +223,12 @@ func rejectAlumniFrom(locked map[int64]*timetable.OperationStudent, studentIDs [
 			continue
 		}
 		if student.IsAlumnus() {
-			return ErrStudentIsAlumnus
+			return activityContract.ErrStudentIsAlumnus
 		}
 		// A child whose care has ended cannot be booked into an AG or care
 		// offering any more (#2487).
 		if student.CareEndedOn(today) {
-			return ErrStudentCareEnded
+			return activityContract.ErrStudentCareEnded
 		}
 	}
 	return nil
@@ -241,7 +241,7 @@ func rejectAlumniFrom(locked map[int64]*timetable.OperationStudent, studentIDs [
 // order and takes each row only once.
 func (s *Service) lockEnrollmentStudents(
 	ctx context.Context,
-	enrollments []*activities.StudentEnrollment,
+	enrollments []*activityContract.StudentEnrollment,
 	added []int64,
 ) (map[int64]*timetable.OperationStudent, error) {
 	ids := make([]int64, 0, len(enrollments)+len(added))
@@ -367,11 +367,11 @@ func ascendingUniqueIDs(ids []int64) []int64 {
 
 // removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,
 // except the ones the caller could not have seen (preserved).
-func (s *Service) removeUnwantedEnrollmentsInTx(ctx context.Context, txService ActivityService, currentStudentIDs map[int64]int64, newStudentIDs, preserved map[int64]bool) error {
+func (s *Service) removeUnwantedEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, currentStudentIDs map[int64]int64, newStudentIDs, preserved map[int64]bool) error {
 	for studentID, enrollmentID := range currentStudentIDs {
 		if !newStudentIDs[studentID] && !preserved[studentID] {
 			if err := txService.(*Service).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
-				return &ActivityError{Op: "delete enrollment", Err: err}
+				return &activityContract.ActivityError{Op: "delete enrollment", Err: err}
 			}
 		}
 	}
@@ -379,16 +379,16 @@ func (s *Service) removeUnwantedEnrollmentsInTx(ctx context.Context, txService A
 }
 
 // addNewEnrollmentsInTx adds new student enrollments
-func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityService, groupID int64, currentStudentIDs map[int64]int64, studentIDs []int64) error {
+func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, groupID int64, currentStudentIDs map[int64]int64, studentIDs []int64) error {
 	for _, studentID := range studentIDs {
 		if _, exists := currentStudentIDs[studentID]; !exists {
-			enrollment := &activities.StudentEnrollment{
+			enrollment := &activityContract.StudentEnrollment{
 				StudentID:       studentID,
 				ActivityGroupID: groupID,
-				ValidFrom:       activities.Date(calendar.TodayDate()),
+				ValidFrom:       activityContract.Date(calendar.TodayDate()),
 			}
 			if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
-				return &ActivityError{Op: "create enrollment", Err: err}
+				return &activityContract.ActivityError{Op: "create enrollment", Err: err}
 			}
 		}
 	}
@@ -407,7 +407,7 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*ti
 	// Get the enrollments for this group
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get enrolled students", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get enrolled students", Err: err}
 	}
 	studentIDs := make([]int64, 0, len(enrollments))
 	for _, enrollment := range enrollments {
@@ -415,7 +415,7 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*ti
 	}
 	studentsByID, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, &ActivityError{Op: "get enrolled students", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get enrolled students", Err: err}
 	}
 
 	students := make([]*timetable.OperationStudent, 0, len(enrollments))
@@ -451,19 +451,19 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*ti
 // already hides them from the roster side; without the same gate here the
 // staff-facing GET /api/activities/student/{id} handed the identical hidden
 // assignments straight back when queried with the graduate's ID (#405 review).
-func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error) {
+func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activityContract.Group, error) {
 	alumnus, err := s.isAlumnus(ctx, studentID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
 	if alumnus {
-		return []*activities.Group{}, nil
+		return []*activityContract.Group{}, nil
 	}
 
 	// Get all enrollments for this student
 	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
 
 	// Extract group IDs from enrollments
@@ -474,12 +474,12 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 
 	// If no enrollments found, return empty slice
 	if len(groupIDs) == 0 {
-		return []*activities.Group{}, nil
+		return []*activityContract.Group{}, nil
 	}
 
-	groups, err := s.groupRepo.ListWithCategory(ctx, &activities.GroupListQuery{IDs: groupIDs})
+	groups, err := s.groupRepo.ListWithCategory(ctx, &activityContract.GroupListQuery{IDs: groupIDs})
 	if err != nil {
-		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
 
 	return groups, nil
@@ -487,15 +487,15 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 
 // GetActiveStudentEnrollmentsByStudentIDs retrieves active activity groups for
 // multiple students on one calendar date.
-func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*activities.Group, error) {
-	result := make(map[int64][]*activities.Group, len(studentIDs))
+func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*activityContract.Group, error) {
+	result := make(map[int64][]*activityContract.Group, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
 
-	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, activities.Date(onDate))
+	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, activityContract.Date(onDate))
 	if err != nil {
-		return nil, &ActivityError{Op: "get active student enrollments by student IDs", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get active student enrollments by student IDs", Err: err}
 	}
 
 	seen := make(map[int64]map[int64]bool, len(studentIDs))
@@ -505,7 +505,7 @@ func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, s
 		}
 		group := enrollment.ActivityGroup
 		if group == nil {
-			group = &activities.Group{}
+			group = &activityContract.Group{}
 			group.ID = enrollment.ActivityGroupID
 		}
 		if seen[enrollment.StudentID] == nil {
@@ -522,34 +522,34 @@ func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, s
 }
 
 // GetAvailableGroups retrieves all groups a student can enroll in (not already enrolled)
-func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error) {
+func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*activityContract.Group, error) {
 	alumnus, err := s.isAlumnus(ctx, studentID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get available groups", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get available groups", Err: err}
 	}
 	if alumnus {
-		return nil, &ActivityError{Op: "get available groups", Err: ErrStudentNotFound}
+		return nil, &activityContract.ActivityError{Op: "get available groups", Err: activityContract.ErrStudentNotFound}
 	}
 	// A child whose care has ended cannot be booked into anything any more, so
 	// there is nothing available to offer (#2487).
 	ended, err := s.careEnded(ctx, studentID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get available groups", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get available groups", Err: err}
 	}
 	if ended {
-		return nil, &ActivityError{Op: "get available groups", Err: ErrStudentCareEnded}
+		return nil, &activityContract.ActivityError{Op: "get available groups", Err: activityContract.ErrStudentCareEnded}
 	}
 
 	// Get all active groups - assuming FindOpenGroups is the correct method
 	allGroups, err := s.groupRepo.FindOpenGroups(ctx)
 	if err != nil {
-		return nil, &ActivityError{Op: "get all groups", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get all groups", Err: err}
 	}
 
 	// Get enrollments for this student
 	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
 
 	// Create a map of enrolled group IDs for quick lookup
@@ -559,7 +559,7 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 	}
 
 	// Filter out already enrolled groups
-	availableGroups := make([]*activities.Group, 0)
+	availableGroups := make([]*activityContract.Group, 0)
 	for _, group := range allGroups {
 		if !enrolledMap[group.ID] {
 			availableGroups = append(availableGroups, group)

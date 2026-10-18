@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,7 +38,7 @@ func TestMaterializeForTenant_StopsAfterTheSeriesLastDay(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	setSeriesLastDay(t, s, &lastDay)
 
 	result, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
@@ -57,7 +59,7 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	first := calendar.NewDate(2099, time.December, 7) // a Monday
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	_, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
@@ -86,7 +88,7 @@ func TestReplanWeek_FollowsTheSeriesLastDay(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	_, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)

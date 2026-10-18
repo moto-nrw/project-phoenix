@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -213,7 +215,7 @@ func (r TimetableGroupReads) ListWithCategory(ctx context.Context) ([]*timetable
 	return publicGroups(rows), err
 }
 
-func publicGroups(rows []*activitiesModels.Group) []*timetable.Group {
+func publicGroups(rows []*activityContract.Group) []*timetable.Group {
 	if rows == nil {
 		return nil
 	}
@@ -224,7 +226,7 @@ func publicGroups(rows []*activitiesModels.Group) []*timetable.Group {
 	return result
 }
 
-func publicGroup(group *activitiesModels.Group) *timetable.Group {
+func publicGroup(group *activityContract.Group) *timetable.Group {
 	if group == nil {
 		return nil
 	}

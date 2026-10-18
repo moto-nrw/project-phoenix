@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -40,7 +39,7 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			schoolRows := api.NewOrganizationTestRows(database)
 			timetableRows := api.NewEnrollmentTimetableRows(database)
 			_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Parent", "Reviewer")
-			phase := createOfferingGuardPhase(t, repos, ctx, enrollmentModels.PhaseCareOfferingSelectionOptional)
+			phase := createOfferingGuardPhase(t, repos, ctx, capability.PhaseCareOfferingSelectionOptional)
 			schema, err := NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Atomic parent invitation", []capability.FormField{
 				{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 			}, reviewer.ID)

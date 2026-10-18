@@ -6,7 +6,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -78,34 +77,22 @@ func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) 
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
 	return SickCascadeTimetableRows{
-		instances: application.NewTimetableInstanceReads(r.Instances), staff: application.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
+		TimetableInstanceReads: application.NewTimetableInstanceReads(r.Instances), TimetableInstanceStaffReads: application.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
 	}
 }
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
 // port from the retained rows, in the Timetable owner's public vocabulary.
 type SickCascadeTimetableRows struct {
-	instances application.TimetableInstanceReads
-	staff     application.TimetableInstanceStaffReads
-	dayLock   func(context.Context, calendar.Date) error
+	application.TimetableInstanceReads
+	application.TimetableInstanceStaffReads
+	dayLock func(context.Context, calendar.Date) error
 }
 
 // AcquireSubstituteDayLock serializes the day-wide staffing mutations of the
 // tenant within the caller's transaction.
 func (r SickCascadeTimetableRows) AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
 	return r.dayLock(ctx, date)
-}
-
-func (r SickCascadeTimetableRows) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error) {
-	return r.staff.FindByStaffAndDate(ctx, staffID, date)
-}
-
-func (r SickCascadeTimetableRows) GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*timetable.ScheduledInstance, error) {
-	return r.instances.GetActivityInstancesByID(ctx, ids)
-}
-
-func (r SickCascadeTimetableRows) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error) {
-	return r.staff.FindByInstanceID(ctx, instanceID)
 }
 
 // TemplateRows are the retained repository rows the Timetable owner's

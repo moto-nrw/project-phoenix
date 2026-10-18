@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,11 +15,11 @@ import (
 // noApplicants is a school without undecided enrollment applications.
 type noApplicants struct{}
 
-func (noApplicants) PendingAnnouncementApplicants(context.Context) ([]PendingAnnouncementApplicant, error) {
+func (noApplicants) PendingAnnouncementApplicants(context.Context) ([]contract.PendingAnnouncementApplicant, error) {
 	return nil, nil
 }
 
-func (noApplicants) PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]PendingAnnouncementApplicant, error) {
+func (noApplicants) PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]contract.PendingAnnouncementApplicant, error) {
 	return nil, nil
 }
 

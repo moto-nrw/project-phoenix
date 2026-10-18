@@ -45,7 +45,6 @@ func bindTenantRuntime(unitOfWork *database.PostgresUnitOfWork, err error, retry
 		return tenant.UnitOfWork{}, err
 	}
 	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction)
-	runtime = runtime.WithContextAdapters(unitOfWork.ContextWithTenant, unitOfWork.ContextWithTransaction)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

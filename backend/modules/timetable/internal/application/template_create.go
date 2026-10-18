@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -38,7 +40,7 @@ type CreateTemplateInput struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	Targets           []*activitiesModel.GroupTarget
+	Targets           []*activityContract.GroupTarget
 	// SourceCareOfferingIDs/SourceGradeLevels/SourceSchoolClasses declare the
 	// offering-source rule (#2137, multi-source follow-up, #2482). With
 	// sources set, the roster is seeded from the union of the offerings'
@@ -51,8 +53,8 @@ type CreateTemplateInput struct {
 	// nil = no list kind.
 	ListKind           *string
 	Notes              *string
-	IncludeClosingDays bool                  // also plan on closing days (#3594)
-	SeriesLastDay      *activitiesModel.Date // inclusive last day of the series (#3594)
+	IncludeClosingDays bool                   // also plan on closing days (#3594)
+	SeriesLastDay      *activityContract.Date // inclusive last day of the series (#3594)
 	StudentIDs         []int64
 	StaffIDs           []int64
 	PrimaryStaffID     *int64
@@ -152,10 +154,10 @@ func validateTemplateCreateRecurrence(in CreateTemplateInput) error {
 		return errors.New("at least one weekday is required")
 	}
 	for _, weekday := range in.Weekdays {
-		if !activitiesModel.IsValidWeekday(weekday) {
+		if !activityContract.IsValidWeekday(weekday) {
 			return fmt.Errorf("invalid weekday %d", weekday)
 		}
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > activityContract.WeekdayFriday {
 			return errors.New("timetable templates can only be scheduled from Monday to Friday")
 		}
 	}
@@ -190,7 +192,7 @@ func validateOfferingSourceInput(
 	if err := validateSourceOfferingIDs(sourceOfferingIDs); err != nil {
 		return err
 	}
-	if targetGroupType != activitiesModel.TargetGroupTypeAngebot {
+	if targetGroupType != activityContract.TargetGroupTypeAngebot {
 		return fmt.Errorf("%w: source_care_offering_ids requires target group type 'angebot'", timetable.ErrOfferingSourceInvalid)
 	}
 	if err := validateSourceGradeLevels(gradeLevels, rules); err != nil {
@@ -200,7 +202,7 @@ func validateOfferingSourceInput(
 	// direct service callers bypass (#2482): the class filter is mutually
 	// exclusive with the Jahrgang filter, so no caller ever has to decide
 	// whether the two AND or OR.
-	normalizedClasses, err := activitiesModel.NormalizeSourceSchoolClasses(schoolClasses)
+	normalizedClasses, err := activityContract.NormalizeSourceSchoolClasses(schoolClasses)
 	if err != nil {
 		return fmt.Errorf("%w: %s", timetable.ErrOfferingSourceInvalid, err.Error())
 	}
@@ -316,7 +318,7 @@ func (s *TemplateService) createTemplateLocked(
 // validateTemplateCreateReferences runs every check before the first write: a
 // rejected request must not strand a timeframe or a half-built template. It
 // returns the normalized dynamic targets and mirrors the first one onto in.
-func (s *TemplateService) validateTemplateCreateReferences(ctx context.Context, in *CreateTemplateInput) ([]*activitiesModel.GroupTarget, error) {
+func (s *TemplateService) validateTemplateCreateReferences(ctx context.Context, in *CreateTemplateInput) ([]*activityContract.GroupTarget, error) {
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
 		return nil, err
 	}
@@ -346,11 +348,11 @@ func (s *TemplateService) validateTemplateCreateReferences(ctx context.Context, 
 func (s *TemplateService) createTemplateGroup(
 	ctx context.Context,
 	in CreateTemplateInput,
-	targets []*activitiesModel.GroupTarget,
+	targets []*activityContract.GroupTarget,
 	tenantID int64,
-) (*activitiesModel.Group, error) {
+) (*activityContract.Group, error) {
 	roomID := in.RoomID
-	group := &activitiesModel.Group{
+	group := &activityContract.Group{
 		Name:                  in.Name,
 		MaxParticipants:       in.MaxParticipants,
 		RequiredStaff:         in.RequiredStaff,
@@ -397,7 +399,7 @@ func (s *TemplateService) createTemplateSchedules(
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
 	for _, weekday := range in.Weekdays {
 		timeframe := timeframeID
-		sched := &activitiesModel.Schedule{
+		sched := &activityContract.Schedule{
 			Weekday:          weekday,
 			TimeframeID:      &timeframe,
 			ActivityGroupID:  groupID,
@@ -436,12 +438,12 @@ func (s *TemplateService) seedTemplateOfferingRoster(ctx context.Context, templa
 	return nil
 }
 
-func normalizeDynamicTargets(targetType string, grade *int16, class *string, groupID *int64, targets []*activitiesModel.GroupTarget) ([]*activitiesModel.GroupTarget, error) {
+func normalizeDynamicTargets(targetType string, grade *int16, class *string, groupID *int64, targets []*activityContract.GroupTarget) ([]*activityContract.GroupTarget, error) {
 	if len(targets) == 0 {
 		targets = mirroredDynamicTarget(targetType, grade, class, groupID)
 	}
 	seen := make(map[string]struct{}, len(targets))
-	normalized := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	normalized := make([]*activityContract.GroupTarget, 0, len(targets))
 	for _, target := range targets {
 		copy, key, err := normalizeDynamicTarget(targetType, target)
 		if err != nil {
@@ -453,7 +455,7 @@ func normalizeDynamicTargets(targetType string, grade *int16, class *string, gro
 		seen[key] = struct{}{}
 		normalized = append(normalized, copy)
 	}
-	if targetType == activitiesModel.TargetGroupTypeJahrgang || targetType == activitiesModel.TargetGroupTypeKlasse || targetType == activitiesModel.TargetGroupTypeGruppe {
+	if targetType == activityContract.TargetGroupTypeJahrgang || targetType == activityContract.TargetGroupTypeKlasse || targetType == activityContract.TargetGroupTypeGruppe {
 		if len(normalized) == 0 {
 			return nil, errors.New("at least one dynamic target is required")
 		}
@@ -465,21 +467,21 @@ func normalizeDynamicTargets(targetType string, grade *int16, class *string, gro
 
 // mirroredDynamicTarget builds the single target a legacy request expresses
 // through the group mirror fields when it lists no targets.
-func mirroredDynamicTarget(targetType string, grade *int16, class *string, groupID *int64) []*activitiesModel.GroupTarget {
+func mirroredDynamicTarget(targetType string, grade *int16, class *string, groupID *int64) []*activityContract.GroupTarget {
 	switch {
-	case targetType == activitiesModel.TargetGroupTypeJahrgang && grade != nil:
-		return []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetGradeLevel: grade}}
-	case targetType == activitiesModel.TargetGroupTypeKlasse && class != nil:
-		return []*activitiesModel.GroupTarget{{TargetGroupType: targetType, TargetSchoolClass: class}}
-	case targetType == activitiesModel.TargetGroupTypeGruppe && groupID != nil:
-		return []*activitiesModel.GroupTarget{{TargetGroupType: targetType, EducationGroupID: groupID}}
+	case targetType == activityContract.TargetGroupTypeJahrgang && grade != nil:
+		return []*activityContract.GroupTarget{{TargetGroupType: targetType, TargetGradeLevel: grade}}
+	case targetType == activityContract.TargetGroupTypeKlasse && class != nil:
+		return []*activityContract.GroupTarget{{TargetGroupType: targetType, TargetSchoolClass: class}}
+	case targetType == activityContract.TargetGroupTypeGruppe && groupID != nil:
+		return []*activityContract.GroupTarget{{TargetGroupType: targetType, EducationGroupID: groupID}}
 	}
 	return nil
 }
 
 // normalizeDynamicTarget validates one target against the template's
 // Zielgruppe and returns a copy plus its de-duplication key.
-func normalizeDynamicTarget(targetType string, target *activitiesModel.GroupTarget) (*activitiesModel.GroupTarget, string, error) {
+func normalizeDynamicTarget(targetType string, target *activityContract.GroupTarget) (*activityContract.GroupTarget, string, error) {
 	if target == nil {
 		return nil, "", errors.New("target cannot be null")
 	}
@@ -495,17 +497,17 @@ func normalizeDynamicTarget(targetType string, target *activitiesModel.GroupTarg
 	}
 	key := copy.TargetGroupType
 	switch copy.TargetGroupType {
-	case activitiesModel.TargetGroupTypeJahrgang:
+	case activityContract.TargetGroupTypeJahrgang:
 		key += fmt.Sprintf(":%d", *copy.TargetGradeLevel)
-	case activitiesModel.TargetGroupTypeKlasse:
+	case activityContract.TargetGroupTypeKlasse:
 		key += ":" + strings.ToLower(*copy.TargetSchoolClass)
-	case activitiesModel.TargetGroupTypeGruppe:
+	case activityContract.TargetGroupTypeGruppe:
 		key += fmt.Sprintf(":%d", *copy.EducationGroupID)
 	}
 	return &copy, key, nil
 }
 
-func validateDynamicTargets(ctx context.Context, s *TemplateService, gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+func validateDynamicTargets(ctx context.Context, s *TemplateService, gradeLevelMax int, existing *activityContract.Group, existingTargets, targets []*activityContract.GroupTarget) error {
 	if err := validateTemplateTargetsGradeLimit(s.deps.SchoolClasses, gradeLevelMax, existing, existingTargets, targets); err != nil {
 		return err
 	}
@@ -517,7 +519,7 @@ func validateDynamicTargets(ctx context.Context, s *TemplateService, gradeLevelM
 	return nil
 }
 
-func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activitiesModel.GroupTarget) {
+func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activityContract.GroupTarget) {
 	in.TargetGradeLevel = nil
 	in.TargetSchoolClass = nil
 	if len(targets) == 0 {
@@ -525,7 +527,7 @@ func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activiti
 	}
 	in.TargetGradeLevel = targets[0].TargetGradeLevel
 	in.TargetSchoolClass = targets[0].TargetSchoolClass
-	if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+	if in.TargetGroupType == activityContract.TargetGroupTypeGruppe {
 		in.EducationGroupID = targets[0].EducationGroupID
 	}
 }
@@ -544,14 +546,14 @@ func (s *TemplateService) createTemplateRoster(
 		return &ports.ScheduleError{Op: "create template: resolve roster", Err: err}
 	}
 
-	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
+	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
 	for _, row := range roster.Students {
-		enrollment := &activitiesModel.StudentEnrollment{
+		enrollment := &activityContract.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  groupID,
-			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
+			ValidFrom:        activityContract.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
@@ -561,15 +563,15 @@ func (s *TemplateService) createTemplateRoster(
 		}
 	}
 
-	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
+	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
 	for _, row := range roster.Staff {
-		supervisor := &activitiesModel.SupervisorPlanned{
+		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:          row.PersonID,
 			GroupID:          groupID,
 			IsPrimary:        row.IsPrimary,
-			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
+			ValidFrom:        activityContract.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}

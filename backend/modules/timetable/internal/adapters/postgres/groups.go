@@ -8,49 +8,51 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 type groupRow struct {
-	bun.BaseModel         `bun:"table:groups,alias:group"`
-	ID                    int64      `bun:"id,pk,autoincrement"`
-	TenantID              int64      `bun:"tenant_id,notnull"`
-	CreatedAt             time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt             time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Name                  string     `bun:"name"`
-	MaxParticipants       int        `bun:"max_participants,nullzero"`
-	RequiredStaff         *int       `bun:"required_staff"`
-	IsOpen                bool       `bun:"is_open"`
-	CategoryID            int64      `bun:"category_id"`
-	PlanningTrackID       *int64     `bun:"planning_track_id"`
-	PlannedRoomID         *int64     `bun:"planned_room_id"`
-	CreatedBy             *int64     `bun:"created_by"`
-	Type                  string     `bun:"type"`
-	EducationGroupID      *int64     `bun:"education_group_id"`
-	ListKind              *string    `bun:"list_kind"`
-	IsTemplate            bool       `bun:"is_template"`
-	IsSystem              bool       `bun:"is_system"`
-	ArchivedAt            *time.Time `bun:"archived_at"`
-	SeriesRootID          *int64     `bun:"series_root_id"`
-	CalendarPeriodID      *int64     `bun:"calendar_period_id"`
-	TargetGroupType       string     `bun:"target_group_type"`
-	TargetGradeLevel      *int16     `bun:"target_grade_level"`
-	TargetSchoolClass     *string    `bun:"target_school_class"`
-	SourceCareOfferingIDs []int64    `bun:"source_care_offering_ids,type:jsonb,nullzero"`
-	SourceGradeLevels     []int      `bun:"source_grade_levels,type:jsonb,nullzero"`
-	SourceSchoolClasses   []string   `bun:"source_school_classes,type:jsonb,nullzero"`
-	Notes                 *string    `bun:"notes"`
-	IncludeClosingDays    bool       `bun:"include_closing_days,notnull"`
-	SeriesLastDay         *string    `bun:"series_last_day"`
-	CategoryName          string     `bun:"category_name,scanonly"`
-	CategoryCreatedAt     time.Time  `bun:"category_created_at,scanonly"`
-	CategoryUpdatedAt     time.Time  `bun:"category_updated_at,scanonly"`
-	CategoryDescription   string     `bun:"category_description,scanonly"`
-	CategoryColor         string     `bun:"category_color,scanonly"`
-	CategoryIsSystem      bool       `bun:"category_is_system,scanonly"`
-	CategoryShiftTypeID   *int64     `bun:"category_shift_type_id,scanonly"`
-	CategoryArchivedAt    *time.Time `bun:"category_archived_at,scanonly"`
+	bun.BaseModel         `bun:"table:activities.groups,alias:group"`
+	ID                    int64          `bun:"id,pk,autoincrement"`
+	TenantID              int64          `bun:"tenant_id,notnull"`
+	CreatedAt             time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt             time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name                  string         `bun:"name"`
+	MaxParticipants       int            `bun:"max_participants,nullzero"`
+	RequiredStaff         *int           `bun:"required_staff"`
+	IsOpen                bool           `bun:"is_open"`
+	CategoryID            int64          `bun:"category_id"`
+	PlanningTrackID       *int64         `bun:"planning_track_id"`
+	PlannedRoomID         *int64         `bun:"planned_room_id"`
+	CreatedBy             *int64         `bun:"created_by"`
+	Type                  string         `bun:"type"`
+	EducationGroupID      *int64         `bun:"education_group_id"`
+	ListKind              *string        `bun:"list_kind"`
+	IsTemplate            bool           `bun:"is_template"`
+	IsSystem              bool           `bun:"is_system"`
+	ArchivedAt            *time.Time     `bun:"archived_at"`
+	SeriesRootID          *int64         `bun:"series_root_id"`
+	CalendarPeriodID      *int64         `bun:"calendar_period_id"`
+	TargetGroupType       string         `bun:"target_group_type"`
+	TargetGradeLevel      *int16         `bun:"target_grade_level"`
+	TargetSchoolClass     *string        `bun:"target_school_class"`
+	SourceCareOfferingIDs []int64        `bun:"source_care_offering_ids,type:jsonb,nullzero"`
+	SourceGradeLevels     []int          `bun:"source_grade_levels,type:jsonb,nullzero"`
+	SourceSchoolClasses   []string       `bun:"source_school_classes,type:jsonb,nullzero"`
+	Notes                 *string        `bun:"notes"`
+	IncludeClosingDays    bool           `bun:"include_closing_days,notnull"`
+	SeriesLastDay         *calendar.Date `bun:"series_last_day"`
+	CategoryName          string         `bun:"category_name,scanonly"`
+	CategoryCreatedAt     time.Time      `bun:"category_created_at,scanonly"`
+	CategoryUpdatedAt     time.Time      `bun:"category_updated_at,scanonly"`
+	CategoryDescription   string         `bun:"category_description,scanonly"`
+	CategoryColor         string         `bun:"category_color,scanonly"`
+	CategoryIsSystem      bool           `bun:"category_is_system,scanonly"`
+	CategoryShiftTypeID   *int64         `bun:"category_shift_type_id,scanonly"`
+	CategoryArchivedAt    *time.Time     `bun:"category_archived_at,scanonly"`
 }
 
 type groupTargetRow struct {
@@ -503,7 +505,7 @@ func applyGroupFields(row *groupRow, fields domain.GroupFields) {
 	row.TargetGradeLevel, row.TargetSchoolClass = fields.TargetGradeLevel, fields.TargetSchoolClass
 	row.SourceCareOfferingIDs, row.SourceGradeLevels = fields.SourceCareOfferingIDs, fields.SourceGradeLevels
 	row.SourceSchoolClasses, row.Notes = fields.SourceSchoolClasses, fields.Notes
-	row.IncludeClosingDays, row.SeriesLastDay = fields.IncludeClosingDays, fields.SeriesLastDay
+	row.IncludeClosingDays, row.SeriesLastDay = fields.IncludeClosingDays, (*calendar.Date)(fields.SeriesLastDay)
 }
 
 func groupUpdateQuery(db bun.IDB, row *groupRow, tenantID, id int64) *bun.UpdateQuery {
@@ -537,7 +539,7 @@ func groupToDomain(row groupRow, withCategory bool) domain.Group {
 		TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
 		SourceCareOfferingIDs: row.SourceCareOfferingIDs, SourceGradeLevels: row.SourceGradeLevels,
 		SourceSchoolClasses: row.SourceSchoolClasses, Notes: row.Notes, IncludeClosingDays: row.IncludeClosingDays,
-		SeriesLastDay: dateOnlyPtr(row.SeriesLastDay),
+		SeriesLastDay: dateOnlyPtr((*string)(row.SeriesLastDay)),
 	}
 	if withCategory {
 		group.Category = &domain.Category{ID: row.CategoryID, TenantID: row.TenantID,

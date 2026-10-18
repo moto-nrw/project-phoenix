@@ -34,16 +34,15 @@ func newOperatorProvisioning(
 			sessions: identity, invitations: identity, provisioning: identity,
 			administration: identity, schoolIdentity: identity, roles: identity, accounts: accounts,
 		},
-		Devices:             adapters.Devices,
-		People:              adapters.People,
-		Presence:            adapters.Presence,
-		Categories:          adapters.Categories,
-		Settings:            provisioningSettings{settings: settings},
-		Audit:               adapters.Audit,
-		Secrets:             provisioningSecrets{},
-		Logger:              logger,
-		ActiveAccountCounts: adapters.ActiveAccountCounts,
-	})
+		Devices:    adapters.Devices,
+		People:     adapters.People,
+		Presence:   adapters.Presence,
+		Categories: adapters.Categories,
+		Settings:   provisioningSettings{settings: settings},
+		Audit:      adapters.Audit,
+		Secrets:    provisioningSecrets{},
+		Logger:     logger,
+	}, newOperatorDashboard(adapters.ActiveAccountCounts))
 }
 
 // provisioningSecrets draws the provisioning secrets from Security Runtime.

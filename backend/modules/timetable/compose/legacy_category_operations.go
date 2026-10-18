@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -17,13 +18,8 @@ const (
 	opRestoreCategory = "restore category"
 )
 
-// CategoryInput carries the editable fields of a category. Description and
+// activityContract.CategoryInput carries the editable fields of a category. Description and
 // Color are optional; an empty Color clears it back to the display default.
-type CategoryInput struct {
-	Name        string
-	Description string
-	Color       string
-}
 
 // CategoryUsageCounts reports how many activity groups (Aktivitäten and
 // Termin-Vorlagen alike) reference each category of the current tenant, keyed
@@ -33,11 +29,11 @@ type CategoryInput struct {
 // an extra tenant-wide scan that only that one screen needs (#2131).
 func (s *Service) CategoryUsageCounts(ctx context.Context) (map[int64]int, error) {
 	if s.timetable == nil {
-		return nil, &ActivityError{Op: "category usage counts", Err: errors.New("category capability is required")}
+		return nil, &activityContract.ActivityError{Op: "category usage counts", Err: errors.New("category capability is required")}
 	}
 	counts, err := s.timetable.CountCategoryUsage(ctx)
 	if err != nil {
-		return nil, &ActivityError{Op: "category usage counts", Err: err}
+		return nil, &activityContract.ActivityError{Op: "category usage counts", Err: err}
 	}
 	return counts, nil
 }
@@ -45,7 +41,7 @@ func (s *Service) CategoryUsageCounts(ctx context.Context) (map[int64]int, error
 // UpdateCategory renames a category and updates its description/color.
 // System categories (Schulhof, WC) are auto-provisioned infrastructure and
 // stay untouchable; archived ones must be restored before they can be edited.
-func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryInput) (*activities.Category, error) {
+func (s *Service) UpdateCategory(ctx context.Context, id int64, input activityContract.CategoryInput) (*activityContract.Category, error) {
 	updated, err := s.timetable.UpdateCategory(ctx, timetable.UpdateCategory{
 		ID: id, Name: input.Name, Description: input.Description, Color: input.Color,
 	})
@@ -59,7 +55,7 @@ func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryIn
 // Aktivitäten keep their category_id and stay valid, the category just stops
 // being offered for new assignments. Archiving an already-archived category is
 // a no-op so a double click cannot fail.
-func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Category, error) {
+func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activityContract.Category, error) {
 	category, err := s.timetable.ArchiveCategory(ctx, id)
 	if err != nil {
 		return nil, categoryActivityError(opArchiveCategory, err)
@@ -71,7 +67,7 @@ func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Ca
 // when an active category has meanwhile taken the same case-insensitive name —
 // the partial unique index on (tenant_id, LOWER(name)) WHERE archived_at IS
 // NULL detects that, so the check cannot race a concurrent create.
-func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Category, error) {
+func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activityContract.Category, error) {
 	category, err := s.timetable.RestoreCategory(ctx, id)
 	if err != nil {
 		return nil, categoryActivityError(opRestoreCategory, err)
@@ -79,20 +75,20 @@ func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Ca
 	return application.LegacyServiceCategory(category), nil
 }
 
-func categoryActivityError(operation string, err error) *ActivityError {
+func categoryActivityError(operation string, err error) *activityContract.ActivityError {
 	switch {
 	case errors.Is(err, timetable.ErrCategoryNotFound):
-		err = ErrCategoryNotFound
+		err = activityContract.ErrCategoryNotFound
 	case errors.Is(err, timetable.ErrSystemCategoryProtected):
-		err = ErrSystemCategoryProtected
+		err = activityContract.ErrSystemCategoryProtected
 	case errors.Is(err, timetable.ErrSystemCategoryName):
-		err = ErrSystemCategoryNameReserved
+		err = activityContract.ErrSystemCategoryNameReserved
 	case errors.Is(err, timetable.ErrCategoryNameExists):
-		err = ErrCategoryNameExists
+		err = activityContract.ErrCategoryNameExists
 	case errors.Is(err, timetable.ErrCategoryArchived):
-		err = ErrCategoryArchived
+		err = activityContract.ErrCategoryArchived
 	case errors.Is(err, timetable.ErrUnknownCategoryIDs):
-		err = activities.ErrUnknownCategoryIDs
+		err = activityContract.ErrUnknownCategoryIDs
 	}
-	return &ActivityError{Op: operation, Err: err}
+	return &activityContract.ActivityError{Op: operation, Err: err}
 }

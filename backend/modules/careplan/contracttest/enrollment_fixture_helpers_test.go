@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -34,11 +35,11 @@ func uniqueSchemaName(prefix string) string {
 	return strings.ReplaceAll(prefix, " ", "-") + "-" + time.Now().Format("150405.000000")
 }
 
-func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
+func makeOffering(phaseID int64, name string) *offeringContract.CareOfferingRecord {
+	return &offeringContract.CareOfferingRecord{
 		PhaseID:        phaseID,
 		Name:           name,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
@@ -46,9 +47,9 @@ func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
 
 func makeOwnerEligibilityPhase(name string) *enrollmentTest.Phase {
 	return &enrollmentTest.Phase{
-		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
+		Name: name, Kind: enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date("2026-09-01"), ServiceEndDate: enrollmentTest.Date("2027-07-31"),
-		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		IsActive: true, CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 }
 

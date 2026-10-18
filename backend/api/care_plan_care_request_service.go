@@ -10,9 +10,9 @@ import (
 	"log/slog"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -50,7 +50,7 @@ type careRequestOptions struct {
 	today func() timezone.Date
 	// shares answers who the parent explicitly shared a request with; nil
 	// means nobody was, so every co-guardian gets the neutral line.
-	shares communicationCompose.ParentShareVisibilityResolver
+	shares eventContract.ShareVisibilityResolver
 }
 
 // CareRequestOption configures an optional collaborator of the care request
@@ -66,7 +66,7 @@ func WithCareRequestToday(today func() timezone.Date) CareRequestOption {
 // WithRequestShareVisibility wires the sharing resolver Care Plan's
 // co-guardian notices (#2267) read. The composition root passes a resolver
 // that reaches the later-built parents service lazily.
-func WithRequestShareVisibility(resolver communicationCompose.ParentShareVisibilityResolver) CareRequestOption {
+func WithRequestShareVisibility(resolver eventContract.ShareVisibilityResolver) CareRequestOption {
 	return func(o *careRequestOptions) { o.shares = resolver }
 }
 
@@ -99,7 +99,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	pickupAutoExcusal careplan.PickupAutoExcusal,
 	dayLocker careplan.CareDayLocker,
 	userContext CareRequestStaff,
-	emitter *communicationCompose.ParentEventEmitter,
+	emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	permissions func(context.Context) []string,
@@ -193,10 +193,10 @@ func newRequestCapabilities(s *careScheduleRequestService, messenger compose.Req
 // not exist stays unbound and its effect is skipped.
 func newCareRequestEffects(
 	s *careScheduleRequestService,
-	emitter *communicationCompose.ParentEventEmitter,
+	emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster,
 	ledger *ParentRequestLedger,
-	shares communicationCompose.ParentShareVisibilityResolver,
+	shares eventContract.ShareVisibilityResolver,
 ) (compose.RequestMessenger, compose.CareRequestEffects, error) {
 	ports := compose.CareRequestEffectPorts{Records: s.requestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, Logger: s.logger}
 	var messenger compose.RequestMessenger

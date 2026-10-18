@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
@@ -14,7 +16,7 @@ type staffActivityGroupRepository struct {
 	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
-func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
+func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, error) {
 	group, supervisors, err := r.GroupRepository.FindWithSupervisors(ctx, groupID)
 	if err != nil {
 		return nil, nil, err
@@ -50,7 +52,7 @@ type staffSupervisorPlannedRepository struct {
 	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
-func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.SupervisorPlanned, error) {
 	rows, err := r.SupervisorPlannedRepository.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
@@ -58,7 +60,7 @@ func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, gro
 	return rows, attachPlannedSupervisorStaff(ctx, r.membership, rows, true)
 }
 
-func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityContract.SupervisorPlanned, error) {
 	rows, err := r.SupervisorPlannedRepository.FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
@@ -66,7 +68,7 @@ func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, gr
 	return rows, attachPlannedSupervisorStaff(ctx, r.membership, rows, true)
 }
 
-func attachPlannedSupervisorStaff(ctx context.Context, staffPersons func(context.Context, []int64, bool) (map[int64]int64, error), rows []*activitiesModels.SupervisorPlanned, includeDeleted bool) error {
+func attachPlannedSupervisorStaff(ctx context.Context, staffPersons func(context.Context, []int64, bool) (map[int64]int64, error), rows []*activityContract.SupervisorPlanned, includeDeleted bool) error {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {

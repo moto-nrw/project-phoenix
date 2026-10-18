@@ -6,7 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,22 +35,22 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 	t.Parallel()
 
 	templateID := int64(921)
-	previous := []*activitiesModel.Schedule{
-		{Weekday: activitiesModel.WeekdayFriday},
-		{Weekday: activitiesModel.WeekdaySaturday},
-		{Weekday: activitiesModel.WeekdaySunday},
+	previous := []*activityContract.Schedule{
+		{Weekday: activityContract.WeekdayFriday},
+		{Weekday: activityContract.WeekdaySaturday},
+		{Weekday: activityContract.WeekdaySunday},
 	}
 
 	t.Run("deletes only removed legacy weekend days", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
 		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
-		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday, activitiesModel.WeekdaySunday})
+		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday, activityContract.WeekdaySunday})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, repo.calls)
 		assert.Equal(t, templateID, repo.template)
-		assert.Equal(t, []int{activitiesModel.WeekdaySaturday}, repo.weekdays)
+		assert.Equal(t, []int{activityContract.WeekdaySaturday}, repo.weekdays)
 	})
 
 	t.Run("broadcasts after deleting materialized instances", func(t *testing.T) {
@@ -62,7 +63,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		})
 		ctx := tenant.WithTenantID(context.Background(), 314)
 
-		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(ctx, templateID, previous, []int{activitiesModel.WeekdayFriday}))
+		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(ctx, templateID, previous, []int{activityContract.WeekdayFriday}))
 
 		require.Equal(t, []staffingAnnouncement{{tenantID: 314, source: "template_legacy_weekend_cleanup"}}, announcer.calls)
 	})
@@ -71,7 +72,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
 		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
-		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday, activitiesModel.WeekdaySaturday, activitiesModel.WeekdaySunday}))
+		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday, activityContract.WeekdaySaturday, activityContract.WeekdaySunday}))
 		assert.Zero(t, repo.calls)
 	})
 
@@ -79,7 +80,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{deleteErr: errors.New("delete failed")}
 		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
-		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday})
+		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "delete removed legacy weekend instances")
@@ -89,17 +90,17 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 func TestValidateLegacyTemplateWeekdays(t *testing.T) {
 	t.Parallel()
 
-	existing := []*activitiesModel.Schedule{
-		{Weekday: activitiesModel.WeekdayFriday},
-		{Weekday: activitiesModel.WeekdaySaturday},
+	existing := []*activityContract.Schedule{
+		{Weekday: activityContract.WeekdayFriday},
+		{Weekday: activityContract.WeekdaySaturday},
 	}
 
 	assert.NoError(t, validateLegacyTemplateWeekdays(existing, []int{
-		activitiesModel.WeekdayFriday,
-		activitiesModel.WeekdaySaturday,
+		activityContract.WeekdayFriday,
+		activityContract.WeekdaySaturday,
 	}))
 	assert.ErrorIs(t, validateLegacyTemplateWeekdays(existing, []int{
-		activitiesModel.WeekdayFriday,
-		activitiesModel.WeekdaySunday,
+		activityContract.WeekdayFriday,
+		activityContract.WeekdaySunday,
 	}), timetable.ErrTemplateWeekendWeekday)
 }

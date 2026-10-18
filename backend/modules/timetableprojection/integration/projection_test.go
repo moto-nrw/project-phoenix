@@ -41,10 +41,10 @@ func projectionReads(id int64, ids []int64) map[string]projectionRead {
 			return timetableprojection.ActivityGroupsByID(ctx, db, tenantID, ids)
 		}),
 		"lock course groups": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.LockCourseGroups(ctx, db, tenantID, ids)
+			return (timetableprojection.Reader{}).LockCourseGroups(ctx, db, tenantID, ids)
 		}),
 		"course occupancy": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
+			return (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
 		}),
 		"request enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
@@ -107,11 +107,11 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, groups)
 	assert.Empty(t, groups)
-	locked, err := timetableprojection.LockCourseGroups(ctx, tx, testpkg.Tenant(t), nil)
+	locked, err := (timetableprojection.Reader{}).LockCourseGroups(ctx, tx, testpkg.Tenant(t), nil)
 	require.NoError(t, err)
 	assert.NotNil(t, locked)
 	assert.Empty(t, locked)
-	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, calendar.NewDate(2026, 9, 4), calendar.NewDate(2026, 9, 5), 0)
+	courseCounts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, calendar.NewDate(2026, 9, 4), calendar.NewDate(2026, 9, 5), 0)
 	require.NoError(t, err)
 	assert.NotNil(t, courseCounts)
 	assert.Empty(t, courseCounts)
@@ -163,7 +163,7 @@ func TestLockCourseGroupsReturnsOnlyTheNamedTenantsCourses(t *testing.T) {
 	require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM activities.groups WHERE id IN (?)`, bun.List(ids)).Scan(ctx, &visible))
 	require.Equal(t, 2, visible, "the transaction sees both tenants without an explicit predicate")
 
-	locked, err := timetableprojection.LockCourseGroups(ctx, tx, testpkg.Tenant(t), ids)
+	locked, err := (timetableprojection.Reader{}).LockCourseGroups(ctx, tx, testpkg.Tenant(t), ids)
 
 	require.NoError(t, err)
 	limit := own.MaxParticipants
@@ -187,7 +187,7 @@ func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	counts, err := timetableprojection.CountActiveCourseEnrollments(
+	counts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(
 		ctx, db, testpkg.Tenant(t), []int64{group.ID}, date, date.AddDays(1), approving.ID,
 	)
 
@@ -219,7 +219,7 @@ func TestCourseOccupancyUsesThePeakAcrossTheEnrollmentWindow(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	counts, err := timetableprojection.CountActiveCourseEnrollments(
+	counts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(
 		ctx, db, testpkg.Tenant(t), []int64{group.ID}, from, until, 0,
 	)
 

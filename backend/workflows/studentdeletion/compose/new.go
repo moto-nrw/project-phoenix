@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -93,21 +92,9 @@ func Authorize(ctx context.Context, isVerifiedStaff func(context.Context) (bool,
 	return studentdeletion.Actor{TenantID: principal.TenantID(), AccountID: principal.AccountID()}, nil
 }
 
-func ambientTransaction(ctx context.Context) (bun.IDB, int64) {
-	value, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, 0
-	}
-	tx, ok := value.(bun.Tx)
-	if !ok {
-		return nil, 0
-	}
-	return tx, tenant.FromContext(ctx)
-}
-
 // New constructs only the required owner capabilities, without a factory.
-func New(deps Dependencies) (*studentdeletion.Workflow, error) {
-	assembled, err := Assemble(deps)
+func New(deps Dependencies, enrollments studentdeletion.ActivityEnrollments) (*studentdeletion.Workflow, error) {
+	assembled, err := Assemble(deps, enrollments)
 	if err != nil {
 		return nil, err
 	}
@@ -116,9 +103,9 @@ func New(deps Dependencies) (*studentdeletion.Workflow, error) {
 
 // Assemble binds the workflow ports without constructing the workflow, so a
 // test can wrap one owner command and still run every other owner for real.
-func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
+func Assemble(deps Dependencies, enrollments studentdeletion.ActivityEnrollments) (studentdeletion.Dependencies, error) {
 	for name, missing := range map[string]bool{
-		"database": deps.DB == nil, "people directory": deps.Directory == nil, "care plan": deps.CarePlan == nil,
+		"database": deps.DB == nil, "activity enrollments": enrollments == nil, "people directory": deps.Directory == nil, "care plan": deps.CarePlan == nil,
 		"timetable": deps.Timetable == nil, "feedback": deps.Feedback == nil,
 		"staff verification": deps.IsVerifiedStaff == nil, "care booking lock": deps.LockCareBookingWrites == nil,
 		"school structure": deps.Owners.Structure == nil, "conversations": deps.Owners.Conversations == nil,
@@ -153,16 +140,10 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		Today: today, Now: now,
 		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: owners.Structure,
 		Conversations: owners.Conversations, Enrollment: owners.Enrollment,
-		CountAttendance: owners.Attendance,
-		CountVisits:     owners.Visits,
-		CountConsents:   owners.Consents,
-		CountActivityEnrollments: func(ctx context.Context, studentID int64) (int, error) {
-			db, tenantID := ambientTransaction(ctx)
-			if db == nil {
-				return 0, errors.New("student deletion: activity enrollment count requires a tenant transaction")
-			}
-			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, studentID)
-		},
+		CountAttendance:          owners.Attendance,
+		CountVisits:              owners.Visits,
+		CountConsents:            owners.Consents,
+		CountActivityEnrollments: enrollments.CountStudentEnrollments,
 		CountAppointments:        owners.Appointments,
 		CountFeedback:            deps.Feedback.CountForStudent,
 		CountAuditReferences:     owners.AuditReferences,
@@ -215,5 +196,20 @@ func appendDeletionAudit(audit AuditLog, owners Owners) func(context.Context, st
 			}
 		}
 		return nil
+	}
+}
+
+// EnrollmentDatabase supplies the deletion's strict ambient transaction to the root.
+func EnrollmentDatabase() func(context.Context) (bun.IDB, int64, error) {
+	return func(ctx context.Context) (bun.IDB, int64, error) {
+		value, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, 0, errors.New("student deletion: activity enrollment count requires a tenant transaction")
+		}
+		tx, ok := value.(bun.Tx)
+		if !ok {
+			return nil, 0, errors.New("student deletion: activity enrollment count requires a tenant transaction")
+		}
+		return tx, tenant.FromContext(ctx), nil
 	}
 }

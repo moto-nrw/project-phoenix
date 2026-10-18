@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -32,7 +34,7 @@ func NewParentEventEmitter(
 	},
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-) *communicationCompose.ParentEventEmitter {
+) eventContract.Emitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
 		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,

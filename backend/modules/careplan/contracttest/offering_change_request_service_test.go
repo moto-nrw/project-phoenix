@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -16,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -82,8 +82,8 @@ type offeringChangeFixture struct {
 	requestID    int64
 	childID      int64
 	studentID    int64
-	oldOffering  *enrollmentModels.CareOffering
-	newOffering  *enrollmentModels.CareOffering
+	oldOffering  *offeringContract.CareOfferingRecord
+	newOffering  *offeringContract.CareOfferingRecord
 	oldGroupID   int64
 	newGroupID   int64
 	switchDate   calendar.Date
@@ -98,17 +98,17 @@ func setupOfferingChangeFixture(
 	t.Helper()
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeOld"+label)
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeNew"+label)
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 201
 	})
-	newOffering := createAdjustmentCareOfferingWith(t, env, "Neu "+label, func(o *enrollmentModels.CareOffering) {
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Neu "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &newGroup.ID
 		o.SortOrder = 202
 	})
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "offer-change-"+label+"@example.com", "OfferChange"+label,
-		[]*enrollmentModels.CareOffering{oldOffering},
+		[]*offeringContract.CareOfferingRecord{oldOffering},
 	)
 	return &offeringChangeFixture{
 		requestID:    requestID,
@@ -143,7 +143,7 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, row.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, row.Status)
 	assert.Equal(t, fx.childID, row.RequestChildID)
 	assert.Equal(t, fx.switchDate, calendar.Date(row.EffectiveFrom))
 	require.NotNil(t, row.ParentNote)
@@ -173,11 +173,11 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	group.Type = timetable.GroupTypeActivity
 	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, group))
 	zero := 0
-	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
+	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &group.ID
 		o.Capacity = &zero
 		o.SortOrder = 203
-		o.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+		o.DaysOfWeekMode = offeringContract.DaysOfWeekModeFixed
 		o.AvailableDays = []string{"mon"}
 	})
 	_, err := svc.CreateCourseRequest(ctx, careplan.CreateCourseRequestInput{
@@ -215,7 +215,7 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PayloadAuto")
-	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch PayloadAuto", func(o *enrollmentModels.CareOffering) {
+	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch PayloadAuto", func(o *offeringContract.CareOfferingRecord) {
 		o.AutoAddTriggerOfferingIDs = []int64{fx.newOffering.ID}
 		o.SortOrder = 203
 	})
@@ -253,7 +253,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "ChangedCurrentAuto")
-	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch ChangedCurrentAuto", func(o *enrollmentModels.CareOffering) {
+	automatic := createAdjustmentCareOfferingWith(t, env, "Automatisch ChangedCurrentAuto", func(o *offeringContract.CareOfferingRecord) {
 		o.SortOrder = 203
 	})
 
@@ -438,7 +438,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
 	require.NotNil(t, decided.AppliedAt)
 
 	// The old group is capped at the switch date instead of deleted, the new one
@@ -579,7 +579,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(phaseStart)
 	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
-	require.NoError(t, env.repos.CarePlan().UpdateOfferingChangeEffectiveFrom(ctx, row.ID, string(enrollmentModels.OfferingChangeDate(fx.pastSwitchAt))))
+	require.NoError(t, env.repos.CarePlan().UpdateOfferingChangeEffectiveFrom(ctx, row.ID, string(offeringContract.OfferingChangeDate(fx.pastSwitchAt))))
 
 	pending, _, err := offeringReviewQueueForTest(t, env).ListPending(ctx, careplan.RequestQueueFilter{})
 	require.NoError(t, err)
@@ -697,7 +697,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNothing(t *testing.T) {
@@ -735,7 +735,7 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, decided.Status)
 	assert.Nil(t, decided.AppliedAt, "a rejection must not stamp applied_at")
 
 	// The booking is untouched: still exactly the original group.
@@ -779,7 +779,7 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 	// request marked done that never applied.
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
 	require.Len(t, rows, 1, "a refused approval must not change the booking")
 }
@@ -817,7 +817,7 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering(t *testing.T) {
@@ -850,7 +850,7 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
 }
 
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
@@ -919,7 +919,7 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 	require.NotNil(t, view, "a decided request must still be reported")
 	assert.Nil(t, view.Request, "no request is open anymore")
 	require.NotNil(t, view.LastDecision)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, view.LastDecision.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, view.LastDecision.Status)
 	assert.Equal(t, "Gruppe ist voll", view.LastDecision.Reason)
 	assert.Equal(t, fx.switchDate, view.LastDecision.EffectiveFrom)
 	// The request itself is read back from the payload: a rejection is only
@@ -971,7 +971,7 @@ func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.
 
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
 	assert.Equal(t, confirmed, calendar.Date(decided.EffectiveFrom),
 		"the request must record the date the office confirmed, not the parents' wish")
 
@@ -1022,7 +1022,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeToday(t 
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status,
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status,
 		"a refused date leaves the request open")
 }
 
@@ -1057,7 +1057,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateAfterTheCarePe
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 // Nothing takes effect on a rejection, so a date on one is a caller mistake.
@@ -1208,10 +1208,10 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PreviewManualPlanning")
-	fx.newOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+	fx.newOffering.DaysOfWeekMode = offeringContract.DaysOfWeekModeFixed
 	fx.newOffering.AvailableDays = []string{"mon"}
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.newOffering))
-	fx.oldOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+	fx.oldOffering.DaysOfWeekMode = offeringContract.DaysOfWeekModeFixed
 	fx.oldOffering.AvailableDays = []string{"mon", "wed", "thu"}
 	fx.oldOffering.CountsAsCare = true
 	fx.oldOffering.CountsAsCareSet = true
@@ -1250,7 +1250,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	parentChoiceGroup.Type = timetable.GroupTypeCare
 	parentChoiceGroup.IsTemplate = true
 	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, parentChoiceGroup))
-	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *enrollmentModels.CareOffering) {
+	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
@@ -1424,7 +1424,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateWithoutCapacit
 
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
 	require.Len(t, rows, 1, "a refused approval must not change the booking")
 }
@@ -1467,7 +1467,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 }
 
 func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {

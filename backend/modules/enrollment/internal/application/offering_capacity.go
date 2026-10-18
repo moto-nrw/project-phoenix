@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"sort"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -19,13 +21,13 @@ const waitlistEnabledSettingKey = "enrollment.waitlist_enabled"
 // CapacityOfferings locks the care offerings a capacity check counts, by
 // ascending id.
 type CapacityOfferings interface {
-	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
 }
 
 // CapacityPeaks reads an offering's peak occupancy in a date window,
 // excluding the claims of the replaced request children.
 type CapacityPeaks interface {
-	OfferingCapacityPeak(ctx context.Context, offeringID int64, replacedRequestChildIDs []int64, from, until enrollment.Date) (int, error)
+	OfferingCapacityPeak(ctx context.Context, offeringID int64, replacedRequestChildIDs []int64, from, until enrollmentNative.Date) (int, error)
 }
 
 // OfferingCapacity is the shared capacity gate behind every path that
@@ -45,7 +47,7 @@ type OfferingCapacity struct {
 	waitlistEnabled func(context.Context) (bool, error)
 }
 
-var _ enrollment.OfferingCapacity = (*OfferingCapacity)(nil)
+var _ enrollmentNative.OfferingCapacity = (*OfferingCapacity)(nil)
 
 // NewOfferingCapacity composes the gate. A nil waitlistEnabled fails a
 // waitlist-mode phase with a configuration error; nil peaks disable the gate.
@@ -55,7 +57,7 @@ func NewOfferingCapacity(offerings CapacityOfferings, peaks CapacityPeaks, waitl
 
 // ApplyCapacityOverflow runs the gate and maps each over-capacity child's
 // position to the status it must take instead of submitted.
-func (c *OfferingCapacity) ApplyCapacityOverflow(ctx context.Context, check enrollment.CapacityCheck) (map[int]string, error) {
+func (c *OfferingCapacity) ApplyCapacityOverflow(ctx context.Context, check enrollmentNative.CapacityCheck) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if c.peaks == nil || len(check.Claims) == 0 {
 		return overrides, nil
@@ -91,7 +93,7 @@ func (c *OfferingCapacity) ApplyCapacityOverflow(ctx context.Context, check enro
 // the locked rows count here, so a concurrent capacity reduction or
 // deactivation cannot be missed between selection validation and booking
 // creation.
-func (c *OfferingCapacity) lockClaimedOfferings(ctx context.Context, claims [][]enrollment.OfferingClaim) (map[int64]*enrollmentModels.CareOffering, error) {
+func (c *OfferingCapacity) lockClaimedOfferings(ctx context.Context, claims [][]enrollmentNative.OfferingClaim) (map[int64]*offeringContract.CareOfferingRecord, error) {
 	selectedIDs := make([]int64, 0)
 	seen := make(map[int64]bool)
 	for _, childClaims := range claims {
@@ -120,12 +122,12 @@ func (c *OfferingCapacity) lockClaimedOfferings(ctx context.Context, claims [][]
 // overflowMode resolves the phase's overflow mode. A tenant-wide waitlist
 // disable wins: overflow remains deterministic and safe, accepting above
 // capacity instead of manufacturing a forbidden status.
-func (c *OfferingCapacity) overflowMode(ctx context.Context, phase *enrollment.Phase) (string, error) {
+func (c *OfferingCapacity) overflowMode(ctx context.Context, phase *enrollmentNative.Phase) (string, error) {
 	mode := phase.CareOverflowMode
 	if mode == "" {
-		mode = enrollment.PhaseCareOverflowWaitlist
+		mode = enrollmentNative.PhaseCareOverflowWaitlist
 	}
-	if mode != enrollment.PhaseCareOverflowWaitlist {
+	if mode != enrollmentNative.PhaseCareOverflowWaitlist {
 		return mode, nil
 	}
 	if c.waitlistEnabled == nil {
@@ -136,14 +138,14 @@ func (c *OfferingCapacity) overflowMode(ctx context.Context, phase *enrollment.P
 		return "", fmt.Errorf("resolve %s: %w", waitlistEnabledSettingKey, err)
 	}
 	if !waitlistEnabled {
-		return enrollment.PhaseCareOverflowAllow, nil
+		return enrollmentNative.PhaseCareOverflowAllow, nil
 	}
 	return mode, nil
 }
 
 // careOfferingsByID indexes offerings by id, skipping nil rows.
-func careOfferingsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
-	byID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+func careOfferingsByID(offerings []*offeringContract.CareOfferingRecord) map[int64]*offeringContract.CareOfferingRecord {
+	byID := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
 			byID[offering.ID] = offering
@@ -168,8 +170,8 @@ type peakKey struct {
 type capacityRun struct {
 	ctx       context.Context
 	peaks     CapacityPeaks
-	openByID  map[int64]*enrollmentModels.CareOffering
-	check     enrollment.CapacityCheck
+	openByID  map[int64]*offeringContract.CareOfferingRecord
+	check     enrollmentNative.CapacityCheck
 	window    dateInterval
 	peakCache map[peakKey]int
 	// queuedByOffering holds the clamped intervals of claims from earlier
@@ -181,7 +183,7 @@ type capacityRun struct {
 	preservedRemaining map[int64]int
 }
 
-func newCapacityRun(ctx context.Context, peaks CapacityPeaks, phase *enrollment.Phase, openByID map[int64]*enrollmentModels.CareOffering, check enrollment.CapacityCheck) *capacityRun {
+func newCapacityRun(ctx context.Context, peaks CapacityPeaks, phase *enrollmentNative.Phase, openByID map[int64]*offeringContract.CareOfferingRecord, check enrollmentNative.CapacityCheck) *capacityRun {
 	// The phase's remaining capacity window; every claim interval is
 	// clamped into it before counting.
 	capacityFrom := calendar.TodayDate()
@@ -207,8 +209,8 @@ func (r *capacityRun) apply(mode string, overrides map[int]string) (map[int]stri
 		if err != nil {
 			return nil, err
 		}
-		if childOver && mode == enrollment.PhaseCareOverflowWaitlist {
-			overrides[childIdx] = enrollment.ChildStatusWaitlisted
+		if childOver && mode == enrollmentNative.PhaseCareOverflowWaitlist {
+			overrides[childIdx] = enrollmentNative.ChildStatusWaitlisted
 		}
 	}
 	return overrides, nil
@@ -217,7 +219,7 @@ func (r *capacityRun) apply(mode string, overrides map[int]string) (map[int]stri
 // childOverCapacity checks and queues every claim of one child. Waitlisted
 // children keep occupying: the DB peak counts waitlisted claims too, so the
 // in-run queue must as well.
-func (r *capacityRun) childOverCapacity(mode string, childClaims []enrollment.OfferingClaim) (bool, error) {
+func (r *capacityRun) childOverCapacity(mode string, childClaims []enrollmentNative.OfferingClaim) (bool, error) {
 	childOver := false
 	for _, claim := range childClaims {
 		window, ok := r.clampClaim(claim)
@@ -235,8 +237,8 @@ func (r *capacityRun) childOverCapacity(mode string, childClaims []enrollment.Of
 		}
 		if over {
 			childOver = true
-			if mode == enrollment.PhaseCareOverflowReject {
-				return false, fmt.Errorf("%w: offering %d", enrollment.ErrCareOfferingFull, claim.OfferingID)
+			if mode == enrollmentNative.PhaseCareOverflowReject {
+				return false, fmt.Errorf("%w: offering %d", enrollmentNative.ErrCareOfferingFull, claim.OfferingID)
 			}
 		}
 		r.queuedByOffering[claim.OfferingID] = append(r.queuedByOffering[claim.OfferingID], window)
@@ -246,7 +248,7 @@ func (r *capacityRun) childOverCapacity(mode string, childClaims []enrollment.Of
 
 // claimOver decides one claim: unlimited offerings and slots the replaced
 // request already held never overflow.
-func (r *capacityRun) claimOver(offering *enrollmentModels.CareOffering, offeringID int64, window dateInterval) (bool, error) {
+func (r *capacityRun) claimOver(offering *offeringContract.CareOfferingRecord, offeringID int64, window dateInterval) (bool, error) {
 	if offering.Capacity == nil {
 		return false, nil
 	}
@@ -260,7 +262,7 @@ func (r *capacityRun) claimOver(offering *enrollmentModels.CareOffering, offerin
 // clampClaim reduces a claim's interval to the remaining capacity window; ok
 // is false when nothing of the interval lies inside it — such a claim holds
 // no future slot.
-func (r *capacityRun) clampClaim(claim enrollment.OfferingClaim) (dateInterval, bool) {
+func (r *capacityRun) clampClaim(claim enrollmentNative.OfferingClaim) (dateInterval, bool) {
 	window := r.window
 	if claim.ValidFrom != nil && claim.ValidFrom.After(window.from) {
 		window.from = *claim.ValidFrom
@@ -276,7 +278,7 @@ func (r *capacityRun) countPeak(offeringID int64, from, until calendar.Date) (in
 	if cached, ok := r.peakCache[key]; ok {
 		return cached, nil
 	}
-	count, err := r.peaks.OfferingCapacityPeak(r.ctx, offeringID, r.check.ReplacedRequestChildIDs, enrollment.Date(from), enrollment.Date(until))
+	count, err := r.peaks.OfferingCapacityPeak(r.ctx, offeringID, r.check.ReplacedRequestChildIDs, enrollmentNative.Date(from), enrollmentNative.Date(until))
 	if err != nil {
 		return 0, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 	}

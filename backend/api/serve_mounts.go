@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -25,7 +29,6 @@ import (
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
@@ -92,8 +95,8 @@ import (
 	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -497,7 +500,7 @@ func mountStudentRoutes(
 	persons peopledirectory.Capability, services PeopleServices, membership *schoolMembershipModule.Module, caller *CallerRows,
 	reviewPolicy *ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
 	companions carePlanModule.StudentCompanions, schedules CarePlanSchedules, requests CarePlanRequests, planning TimetablePlanning,
-	emitter *communicationCompose.ParentEventEmitter, activities timetableCompose.ActivityService, lifecycle TimetableLifecycle,
+	emitter eventContract.Emitter, activities activityContract.ActivityService, lifecycle TimetableLifecycle,
 	reports PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
 	statusDays studentpresence.StatusDays, absences deliveryCompose.AbsenceNotifier, deletion *studentdeletion.Workflow,
 	groupLive grouplive.Query, decisions enrollmentOwner.Decisions, active studentpresence.Presence,
@@ -628,9 +631,9 @@ func mountPresenceRoutes(
 	deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, active studentpresence.Presence,
 	facilities *facilitiesModule.Module, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
 	days TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *CallerRows,
-	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter *communicationCompose.ParentEventEmitter,
+	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter eventContract.Emitter,
 	groupLive grouplive.Query, dashboard supervisiondashboard.Query, yard FacilitiesYard, iot devicefleetCompose.IoTService,
-	activities timetableCompose.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
+	activities activityContract.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback *feedbackModule.Module,
 	organizations organizationtenancy.Query,
 ) error {
@@ -693,7 +696,7 @@ func newIoTResource(
 	db transactionruntime.Database, logger *slog.Logger, errorReportDSN string, deviceAuth *deviceauth.Authenticators,
 	presence *studentpresence.Module, openRoomMove openroommove.Command, sessionEnd sessionend.Command,
 	iot devicefleetCompose.IoTService, facilities *facilitiesModule.Module, active studentpresence.Presence,
-	users peoplePorts.PersonDirectory, activities timetableCompose.ActivityService, timetableOwner timetableModule.Capability,
+	users peoplePorts.PersonDirectory, activities activityContract.ActivityService, timetableOwner timetableModule.Capability,
 	timetableRepos timetableCompose.Repositories, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	settings settingsCompose.SettingsService, timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms,
 	feedback *feedbackModule.Module, organizations organizationtenancy.Query, hub *realtime.Hub,
@@ -863,13 +866,12 @@ func newTimetableResource(
 func mountSchoolRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities *facilitiesModule.Module, rooms FacilitiesRooms,
 	settings settingsCompose.SettingsService, caller *CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
-	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities timetableCompose.ActivityService,
+	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
 	planning TimetablePlanning, careOfferings carePlanModule.CareOfferingCapability, settingsWrites SettingsWrites,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 ) {
-	pool := db.Pool()
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(facilities, roomsHTTPAdapter.Dependencies{
 		Facilities:          rooms.RoomService,
 		RoomHistorySettings: NewRoomHistorySettings(settings, logger.With("handler", "rooms"), settingsFacts.PrefetchSettings),
@@ -878,7 +880,7 @@ func mountSchoolRoutes(
 		ListExport: renderer,
 	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, transactionFailures.IsConstraintViolation).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
-	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, pool).Router(ProtectedTenantRoutes))
+	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
@@ -891,7 +893,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(calendar, timetableOwner, TimeframeChangeGuard(
 		planning.Planning.RecurrenceLock.LockRecurrenceWrites,
 		careOfferings.ValidateTimeframeChange,
-	), pool).Router(ProtectedTenantRoutes))
+	), TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(settings)
 	tenant.Mount("/settings", newSettingsResource(settingsWrites.Tenant, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -19,13 +21,13 @@ import (
 // read at to yield the booking in force now. A dated change splits the links
 // into intervals, so reading them without a date or at the service start
 // would mix the superseded booking into "the current selection".
-func (s *Intake) currentOfferingSelectionDate(phase *enrollment.Phase) calendar.Date {
+func (s *Intake) currentOfferingSelectionDate(phase *enrollmentNative.Phase) calendar.Date {
 	return offeringSelectionDateOn(phase, calendar.TodayDate())
 }
 
 // nativeOfferingCatalog describes enrollment offering rows in the terms of
 // the selection engine.
-func nativeOfferingCatalog(catalog map[int64]*enrollmentModels.CareOffering) map[int64]*selection.Offering {
+func nativeOfferingCatalog(catalog map[int64]*offeringContract.CareOfferingRecord) map[int64]*selection.Offering {
 	result := make(map[int64]*selection.Offering, len(catalog))
 	for id, offering := range catalog {
 		if offering == nil {
@@ -76,7 +78,7 @@ func applyNativeSelection(child *SubmitChild, native selection.Child) {
 // materializeChildrenOfferingSelections validates every child's picks
 // against the open catalog and replaces them with their materialization,
 // including the automatic shares.
-func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, selectionMode string) ([][]selection.Selection, error) {
+func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord, selectionMode string) ([][]selection.Selection, error) {
 	native := make([]selection.Child, len(children))
 	for i, child := range children {
 		native[i] = nativeSelectionChild(child)
@@ -90,7 +92,7 @@ func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[
 
 // materializeChildOfferingSelection validates one child's picks against its
 // own catalog, the way a change request validates each child.
-func materializeChildOfferingSelection(index int, child *SubmitChild, catalog map[int64]*enrollmentModels.CareOffering, selectionMode string) ([]selection.Selection, error) {
+func materializeChildOfferingSelection(index int, child *SubmitChild, catalog map[int64]*offeringContract.CareOfferingRecord, selectionMode string) ([]selection.Selection, error) {
 	native := nativeSelectionChild(*child)
 	selections, err := selection.MaterializeChild(index, &native, nativeOfferingCatalog(catalog), selectionMode)
 	if err != nil {
@@ -119,7 +121,7 @@ func childrenWithMaterializedOfferingSelections(children []SubmitChild, material
 // preservedOfferingSelections copies the stored links onto replacement child
 // rows while the catalog is disabled. The parent cannot see or change them,
 // but re-enabling the setting restores them intact.
-func preservedOfferingSelections(existingChildren []*RequestChild, incoming []SubmitChild, links []*enrollment.RequestChildOfferingRecord) [][]selection.Selection {
+func preservedOfferingSelections(existingChildren []*RequestChild, incoming []SubmitChild, links []*enrollmentNative.RequestChildOfferingRecord) [][]selection.Selection {
 	byChild := make(map[int64][]selection.Selection, len(existingChildren))
 	for _, link := range links {
 		byChild[link.RequestChildID] = append(byChild[link.RequestChildID], selection.Selection{
@@ -149,12 +151,12 @@ func copyDays(days []string) []string {
 
 // fullWindowClaims converts submit-time selections into capacity claims
 // spanning the whole phase window.
-func fullWindowClaims(children []SubmitChild) [][]enrollment.OfferingClaim {
-	claims := make([][]enrollment.OfferingClaim, len(children))
+func fullWindowClaims(children []SubmitChild) [][]enrollmentNative.OfferingClaim {
+	claims := make([][]enrollmentNative.OfferingClaim, len(children))
 	for i, child := range children {
-		childClaims := make([]enrollment.OfferingClaim, 0, len(child.OfferingIDs))
+		childClaims := make([]enrollmentNative.OfferingClaim, 0, len(child.OfferingIDs))
 		for _, offeringID := range child.OfferingIDs {
-			childClaims = append(childClaims, enrollment.OfferingClaim{OfferingID: offeringID})
+			childClaims = append(childClaims, enrollmentNative.OfferingClaim{OfferingID: offeringID})
 		}
 		claims[i] = childClaims
 	}
@@ -166,11 +168,11 @@ func fullWindowClaims(children []SubmitChild) [][]enrollment.OfferingClaim {
 // submitted, sparse by child index. preservedClaims keeps the slots an edit
 // already held; replacedRequestChildIDs excludes the claims an approval
 // replaces.
-func (s *Intake) applyCapacityOverflow(ctx context.Context, phase *enrollment.Phase, children []SubmitChild, preservedClaims map[int64]int, replacedRequestChildIDs []int64) (map[int]string, error) {
+func (s *Intake) applyCapacityOverflow(ctx context.Context, phase *enrollmentNative.Phase, children []SubmitChild, preservedClaims map[int64]int, replacedRequestChildIDs []int64) (map[int]string, error) {
 	if s.deps.Capacity == nil {
 		return nil, errors.New("care offering capacity gate is not configured")
 	}
-	return s.deps.Capacity.ApplyCapacityOverflow(ctx, enrollment.CapacityCheck{
+	return s.deps.Capacity.ApplyCapacityOverflow(ctx, enrollmentNative.CapacityCheck{
 		Phase: phase, Claims: fullWindowClaims(children),
 		PreservedClaims: preservedClaims, ReplacedRequestChildIDs: replacedRequestChildIDs,
 	})
@@ -178,7 +180,7 @@ func (s *Intake) applyCapacityOverflow(ctx context.Context, phase *enrollment.Ph
 
 // recordOfferingSubmission records a child's submitted offering choices in
 // Enrollment and the effective bookings of the phase window in Care Plan.
-func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, selections []selection.Selection, from, through enrollment.Date) error {
+func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, selections []selection.Selection, from, through enrollmentNative.Date) error {
 	if len(selections) == 0 {
 		return nil
 	}
@@ -186,15 +188,15 @@ func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, se
 		return errors.New("request submission requires Care Plan booking commands")
 	}
 	start, until := calendar.Date(from), calendar.Date(through).AddDays(1)
-	choices := make([]enrollment.SubmittedOfferingChoice, 0, len(selections))
-	bookings := make([]enrollment.CareBookingInput, 0, len(selections))
+	choices := make([]enrollmentNative.SubmittedOfferingChoice, 0, len(selections))
+	bookings := make([]enrollmentNative.CareBookingInput, 0, len(selections))
 	for _, pick := range selections {
 		manual := pick.ManualSelectedDays
 		if len(manual) == 0 && len(pick.AutomaticSelectedDays) == 0 {
 			manual = pick.SelectedDays
 		}
-		choices = append(choices, enrollment.SubmittedOfferingChoice{CareOfferingID: pick.OfferingID, SelectedDays: manual})
-		bookings = append(bookings, enrollment.CareBookingInput{
+		choices = append(choices, enrollmentNative.SubmittedOfferingChoice{CareOfferingID: pick.OfferingID, SelectedDays: manual})
+		bookings = append(bookings, enrollmentNative.CareBookingInput{
 			CareOfferingID: pick.OfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 			ValidFrom: &start, ValidUntil: &until,
 		})
@@ -210,7 +212,7 @@ func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, se
 
 // selectedOfferingNames resolves a child's picks to the lower-cased offering
 // names the care-offering conditions of the form match on.
-func selectedOfferingNames(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+func selectedOfferingNames(child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) map[string]bool {
 	names := make(map[string]bool, len(child.OfferingIDs))
 	for _, id := range child.OfferingIDs {
 		if o, ok := openByID[id]; ok {
@@ -221,8 +223,8 @@ func selectedOfferingNames(child SubmitChild, openByID map[int64]*enrollmentMode
 }
 
 // offeringsByID indexes offering rows by id.
-func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
-	byID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+func offeringsByID(offerings []*offeringContract.CareOfferingRecord) map[int64]*offeringContract.CareOfferingRecord {
+	byID := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, offering := range offerings {
 		byID[offering.ID] = offering
 	}

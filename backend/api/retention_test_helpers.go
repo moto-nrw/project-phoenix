@@ -125,7 +125,7 @@ func NewStudentTestRetention(db transactionruntime.Database, audit *auditCompose
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return false, nil },
 		LockCareBookingWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 		Audit:                 audit,
-	})
+	}, NewStudentActivityEnrollments())
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -443,7 +444,7 @@ func TestTimetableOperationsPlannedNowDayScopeFollowsOperationalOverview(t *test
 	deps.staffRepo.byInstance[382] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
 
 	deps.tracks.byID[trackID] = timetable.PlanningTrack{ID: trackID, Name: "Angebote", Color: "#5080D8"}
-	activityGroup := &activitiesModels.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
+	activityGroup := &activityContract.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
 	activityGroup.ID = activityGroupID
 	deps.activityGroups.byID[activityGroupID] = activityGroup
 	deps.groups.names[educationGroupID] = "Gruppe Sonne"

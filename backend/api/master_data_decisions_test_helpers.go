@@ -6,11 +6,12 @@ import (
 	"errors"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -43,7 +44,7 @@ type MasterDataDecisionTestPeople struct {
 // nil emitter or broadcaster is skipped.
 func NewTestMasterDataDecisions(
 	options MasterDataDecisionTestOptions, people MasterDataDecisionTestPeople,
-	emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster,
+	emitter eventContract.Emitter, broadcaster realtime.Broadcaster,
 ) (*carePlanCompose.MasterDataDecisions, error) {
 	if options.CarePlan == nil || people.People == nil || people.Students == nil || people.Persons == nil {
 		return nil, errors.New("test master data decisions: care plan capability, field review, student and person repositories are required")

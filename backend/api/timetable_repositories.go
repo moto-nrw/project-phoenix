@@ -49,7 +49,7 @@ func NewTimetableRepositoriesWithPresence(
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
 		DB: db.Pool(), Timetable: capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
 		Calendar: calendar, Directories: timetableDirectories(students, groups, rooms, membership, workTime),
-	})
+	}, MustPresenceReads(db))
 }
 
 // NewUnobservedTimetable composes the unobserved Timetable owner for test

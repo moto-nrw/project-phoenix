@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
@@ -85,17 +84,17 @@ func (r *messageRepository) DeleteStaffMessagesBefore(ctx context.Context, befor
 
 // NewStaffMessageReadRepository binds the existing cursors and inbox to the
 // exact colleague relation supplied by People Directory at the root.
-func NewStaffMessageReadRepository(db *bun.DB, colleagues communication.StaffColleagueReads) communication.StaffReadRecords {
+func NewStaffMessageReadRepository(db *bun.DB, colleagues communication.StaffColleagueReads, inbox StaffInbox) communication.StaffReadRecords {
 	if colleagues == nil {
 		panic("communication staff store: colleague directory is required")
 	}
-	return &readRepository{StaffColleagueReads: colleagues, cursors: staffpostgres.NewReadCursorStore(postgresDatabase(db)), inbox: staffinbox.New(inboxDatabase(db))}
+	return &readRepository{StaffColleagueReads: colleagues, cursors: staffpostgres.NewReadCursorStore(postgresDatabase(db)), inbox: inbox}
 }
 
 type readRepository struct {
 	communication.StaffColleagueReads
 	cursors *staffpostgres.ReadCursorStore
-	inbox   *staffinbox.Projection
+	inbox   StaffInbox
 }
 
 func (r *readRepository) MarkStaffReadUpTo(ctx context.Context, id, accountID int64, at time.Time, messageID int64) error {

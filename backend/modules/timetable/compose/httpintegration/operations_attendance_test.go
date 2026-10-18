@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -180,7 +181,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		originGroup := &studentpresence.LiveGroup{ActivityGroupID: testpkg.Int64Ptr(640), RoomID: 810}
 		originGroup.ID = originActiveGroupID
 		deps.activeGroups.byID = map[int64]*studentpresence.LiveGroup{originActiveGroupID: originGroup}
-		activityGroup := &activitiesModels.Group{Name: "Fußball AG"}
+		activityGroup := &activityContract.Group{Name: "Fußball AG"}
 		activityGroup.ID = 640
 		deps.activityGroups.byID[640] = activityGroup
 

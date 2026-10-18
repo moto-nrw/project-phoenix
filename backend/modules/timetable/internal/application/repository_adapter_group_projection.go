@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
@@ -60,18 +62,18 @@ type groupActivityGroupRepository struct {
 	groups func(context.Context, []int64) (map[int64]string, error)
 }
 
-func (r groupActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
+func (r groupActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error) {
 	byGroup, err := r.activityGroupTargets.FindTargetsByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	all := make([]*activitiesModels.GroupTarget, 0, len(byGroup))
+	all := make([]*activityContract.GroupTarget, 0, len(byGroup))
 	for _, targets := range byGroup {
 		all = append(all, targets...)
 	}
 	if _, err := enrichGroupNames(ctx, r.groups, all,
-		func(row *activitiesModels.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
-		func(row *activitiesModels.GroupTarget, name string) { row.EducationGroupName = name },
+		func(row *activityContract.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
+		func(row *activityContract.GroupTarget, name string) { row.EducationGroupName = name },
 		"", "template targets"); err != nil {
 		return nil, err
 	}

@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -248,14 +249,14 @@ type predecessorRosterRow struct {
 	validUntil *calendar.Date
 }
 
-func enrollmentRosterRow(row *activitiesModel.StudentEnrollment) predecessorRosterRow {
+func enrollmentRosterRow(row *activityContract.StudentEnrollment) predecessorRosterRow {
 	return predecessorRosterRow{
 		personID: row.StudentID, periodID: row.CalendarPeriodID, weekday: row.Weekday,
 		validFrom: calendar.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
 	}
 }
 
-func supervisorRosterRow(row *activitiesModel.SupervisorPlanned) predecessorRosterRow {
+func supervisorRosterRow(row *activityContract.SupervisorPlanned) predecessorRosterRow {
 	return predecessorRosterRow{
 		personID: row.StaffID, periodID: row.CalendarPeriodID, weekday: row.Weekday,
 		validFrom: calendar.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
@@ -297,7 +298,7 @@ func (s *TemplateService) reconcilePredecessorSegmentRoster(
 	protectedCoverage := buildProtectedStudentCoverage(
 		protectedPredecessorEnrollments(priorEnrollments, window.from, window.until),
 		window.weekdays.edited,
-		func(row *activitiesModel.StudentEnrollment) bool {
+		func(row *activityContract.StudentEnrollment) bool {
 			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID)
 		},
 	)
@@ -323,9 +324,9 @@ func (s *TemplateService) reconcilePredecessorOccurrences(
 	templateID int64,
 	from calendar.Date,
 	touchedStudents []int64,
-	priorEnrollments []*activitiesModel.StudentEnrollment,
+	priorEnrollments []*activityContract.StudentEnrollment,
 	touchedStaff []int64,
-	priorSupervisors []*activitiesModel.SupervisorPlanned,
+	priorSupervisors []*activityContract.SupervisorPlanned,
 ) error {
 	if len(touchedStudents) > 0 && s.deps.ActivityInstanceRepo != nil && s.deps.InstanceStudentRepo != nil {
 		if _, _, err := s.newRosterReconciler().reconcileSourcedTemplateRosters(
@@ -353,7 +354,7 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 	seg *templateSeriesSegment,
 	window predecessorWindow,
 	want map[seriesWeekdayPerson]bool,
-	priorRows []*activitiesModel.StudentEnrollment,
+	priorRows []*activityContract.StudentEnrollment,
 	scope map[int64]struct{},
 ) ([]int64, error) {
 	satisfied := make(map[seriesWeekdayPerson]bool)
@@ -382,10 +383,10 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 
 	for _, key := range missingSeriesWants(want, satisfied, scope) {
 		weekday := key.weekday
-		enrollment := &activitiesModel.StudentEnrollment{
+		enrollment := &activityContract.StudentEnrollment{
 			StudentID:        key.personID,
 			ActivityGroupID:  seg.Group.ID,
-			ValidFrom:        activitiesModel.Date(window.from),
+			ValidFrom:        activityContract.Date(window.from),
 			ValidUntil:       activityDatePtr(window.until),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          &weekday,
@@ -404,7 +405,7 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 // and reports false.
 func (s *TemplateService) retirePredecessorEnrollment(
 	ctx context.Context,
-	row *activitiesModel.StudentEnrollment,
+	row *activityContract.StudentEnrollment,
 	judged predecessorRosterRow,
 	window predecessorWindow,
 ) (bool, error) {
@@ -414,7 +415,7 @@ func (s *TemplateService) retirePredecessorEnrollment(
 			return false, &ports.ScheduleError{Op: "update template: delete predecessor enrollment", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(window.from)); err != nil {
+		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(window.from)); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: close predecessor enrollment", Err: err}
 		}
 	default:
@@ -434,7 +435,7 @@ func (s *TemplateService) reconcilePredecessorSupervisorRows(
 	window predecessorWindow,
 	staffRows []resolvedRosterRow,
 	want map[seriesWeekdayPerson]bool,
-	priorRows []*activitiesModel.SupervisorPlanned,
+	priorRows []*activityContract.SupervisorPlanned,
 	scope map[int64]struct{},
 ) ([]int64, error) {
 	primaryWanted := predecessorPrimaryWanted(in.SeriesRosterPrimaryChanged, staffRows, window.weekdays.edited)
@@ -465,11 +466,11 @@ func (s *TemplateService) reconcilePredecessorSupervisorRows(
 
 	for _, key := range missingSeriesWants(want, satisfied, scope) {
 		weekday := key.weekday
-		supervisor := &activitiesModel.SupervisorPlanned{
+		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:          key.personID,
 			GroupID:          seg.Group.ID,
 			IsPrimary:        primaryWanted[key],
-			ValidFrom:        activitiesModel.Date(window.from),
+			ValidFrom:        activityContract.Date(window.from),
 			ValidUntil:       activityDatePtr(window.until),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          &weekday,
@@ -508,7 +509,7 @@ func predecessorPrimaryWanted(primaryChanged bool, staffRows []resolvedRosterRow
 // retirePredecessorSupervisor is the staff twin of retirePredecessorEnrollment.
 func (s *TemplateService) retirePredecessorSupervisor(
 	ctx context.Context,
-	row *activitiesModel.SupervisorPlanned,
+	row *activityContract.SupervisorPlanned,
 	judged predecessorRosterRow,
 	window predecessorWindow,
 ) (bool, error) {
@@ -518,7 +519,7 @@ func (s *TemplateService) retirePredecessorSupervisor(
 			return false, &ports.ScheduleError{Op: "update template: delete predecessor supervisor", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(window.from)); err != nil {
+		if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(window.from)); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: close predecessor supervisor", Err: err}
 		}
 	default:
@@ -534,7 +535,7 @@ func supervisorPrimaryStaysCorrect(
 	primaryChanged bool,
 	primaryWanted map[seriesWeekdayPerson]bool,
 	covered []int,
-	row *activitiesModel.SupervisorPlanned,
+	row *activityContract.SupervisorPlanned,
 ) bool {
 	return !primaryChanged || primaryFlagMatches(primaryWanted, covered, row.StaffID, row.IsPrimary)
 }

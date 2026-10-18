@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -39,7 +41,7 @@ func buildParentPortal(
 	people PeopleRows, portal carePlanCompose.ParentPortalRepositories, messaging parentStore.MessagingRepositories,
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan *mealplanModule.Module, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
-	emitter *communicationCompose.ParentEventEmitter, notifications DeliveryNotifications, identity *identityaccess.Module,
+	emitter eventContract.Emitter, notifications DeliveryNotifications, identity *identityaccess.Module,
 	enrollment EnrollmentRows, notices EnrollmentNotices,
 ) (*parentportal.Portal, error) {
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})

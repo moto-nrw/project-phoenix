@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
@@ -234,10 +233,10 @@ func ensureRequiredConsentFlags(flags map[string]any, legalBlocks []enrollment.L
 // filtered consent flags into the append-only evidence entry of the request
 // (Art. 5 Abs. 2, Art. 7 Abs. 1 DSGVO). It is the only reliable record of the
 // wording the family saw and the answers it gave at that moment.
-func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, at time.Time) (enrollmentModels.LegalBlocksSnapshotEntry, error) {
-	snapshot := make([]enrollmentModels.LegalBlockSnapshot, 0, len(blocks))
+func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, at time.Time) (LegalBlocksSnapshotEntry, error) {
+	snapshot := make([]LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
-		snapshot = append(snapshot, enrollmentModels.LegalBlockSnapshot{
+		snapshot = append(snapshot, LegalBlockSnapshot{
 			Key: block.Key, Kind: block.Kind, Title: block.Title, Label: block.Label, Text: block.Text,
 			Required: block.Required, Source: block.Source, Translations: block.Translations.Texts(),
 		})
@@ -247,9 +246,9 @@ func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]a
 	}
 	frozenFlags, err := json.Marshal(flags)
 	if err != nil {
-		return enrollmentModels.LegalBlocksSnapshotEntry{}, err
+		return LegalBlocksSnapshotEntry{}, err
 	}
-	return enrollmentModels.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
+	return LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
 }
 
 // normalizeSubmissionForCapabilities drops the grade and class when the grade

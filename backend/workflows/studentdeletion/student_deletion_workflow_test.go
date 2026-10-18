@@ -86,7 +86,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableOwner, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
 		LockCareBookingWrites: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
-	})
+	}, api.NewStudentActivityEnrollments())
 	require.NoError(t, err)
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {
 		return studentdeletion.Actor{TenantID: tenant.FromContext(ctx), AccountID: actor.ID}, nil

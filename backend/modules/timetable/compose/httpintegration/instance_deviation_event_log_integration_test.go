@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	seedDeviatedOccurrence(t, s, date)
@@ -59,7 +60,7 @@ func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	seedDeviatedOccurrence(t, s, date)

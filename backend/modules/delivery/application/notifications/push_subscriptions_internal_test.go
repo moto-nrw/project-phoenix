@@ -33,7 +33,7 @@ type recordingPushRepository struct {
 	deleteFailAfter int
 }
 
-func (r *recordingPushRepository) Upsert(_ context.Context, sub *deliveryModels.PushSubscription) error {
+func (r *recordingPushRepository) RegisterSubscription(_ context.Context, sub *deliveryModels.PushSubscription) error {
 	r.upserted = append(r.upserted, sub)
 	r.operations = append(r.operations, fmt.Sprintf("upsert:%d", sub.TenantID))
 	if r.failAfter > 0 && len(r.upserted) < r.failAfter {

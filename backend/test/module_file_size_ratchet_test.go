@@ -57,7 +57,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1699,
-	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {

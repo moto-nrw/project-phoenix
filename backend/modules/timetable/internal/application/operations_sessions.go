@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -186,7 +187,7 @@ func (s *operations) templatesAddressingClass(ctx context.Context, groupIDs []in
 // templateAddressesClass reports whether the template names the normalized
 // class in its own target, one of its dynamic targets, or its offering class
 // filter.
-func (s *operations) templateAddressesClass(group *activitiesModels.Group, targets []*activitiesModels.GroupTarget, key string) bool {
+func (s *operations) templateAddressesClass(group *activityContract.Group, targets []*activityContract.GroupTarget, key string) bool {
 	if group.TargetSchoolClass != nil && s.deps.NormalizeSchoolClass(*group.TargetSchoolClass) == key {
 		return true
 	}

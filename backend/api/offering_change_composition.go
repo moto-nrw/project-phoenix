@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -33,7 +34,7 @@ func offeringChangeOwners(
 	carePlan careplan.Capability, catalog carePlanCompose.OfferingChangeCatalog, enrollment OfferingChangeEnrollmentReads,
 	students offeringChangeStudentRows, withdrawals offeringChangeWithdrawalRows, settings OfferingChangeSettingsReads,
 	reviews OfferingChangeReviewPolicy, permissions func(context.Context) []string,
-	emitter *communicationCompose.ParentEventEmitter, events peopledirectory.ParentRequestEvents,
+	emitter eventContract.Emitter, events peopledirectory.ParentRequestEvents,
 ) (carePlanCompose.OfferingChangeDependencies, error) {
 	if carePlan == nil || enrollment == nil || students == nil || reviews == nil || permissions == nil {
 		return carePlanCompose.OfferingChangeDependencies{}, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
@@ -485,7 +486,7 @@ func NewParentRequestLedger(repo peopledirectory.ParentRequestEvents) *ParentReq
 // excusedRequestMessenger maps the workflow's request events onto the
 // Communication parent-event emitter.
 type excusedRequestMessenger struct {
-	emitter *communicationCompose.ParentEventEmitter
+	emitter eventContract.Emitter
 }
 
 func (m excusedRequestMessenger) EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) error {
@@ -510,14 +511,14 @@ func (m excusedRequestMessenger) ResolveDecisionAudience(ctx context.Context, st
 }
 
 func (m excusedRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience carePlanCompose.DecisionAudience, full, neutral carePlanCompose.RequestEvent) {
-	m.emitter.EmitDecisionAudience(tenantID, studentID, communicationCompose.ParentDecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
+	m.emitter.EmitDecisionAudience(tenantID, studentID, eventContract.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
 }
 
-func childEvent(event carePlanCompose.RequestEvent) communicationCompose.ParentChildEvent {
-	result := communicationCompose.ParentChildEvent{
+func childEvent(event carePlanCompose.RequestEvent) eventContract.ChildEvent {
+	result := eventContract.ChildEvent{
 		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID, Body: event.Body,
 		RequestType: event.RequestType, RequestStatus: event.RequestStatus, DecisionReason: event.DecisionReason,
-		RefTable: event.RefTable, Payload: event.Payload,
+		RefTable: event.RefTable, Payload: eventContract.NewChildEventPayload(json.Marshal(event.Payload)),
 	}
 	if event.RefID > 0 {
 		refID := event.RefID
@@ -528,7 +529,7 @@ func childEvent(event carePlanCompose.RequestEvent) communicationCompose.ParentC
 
 // NewExcusedRequestMessenger maps Care Plan's request events onto the
 // Communication parent-event emitter, for the root's Stammdaten decision.
-func NewExcusedRequestMessenger(emitter *communicationCompose.ParentEventEmitter) carePlanCompose.RequestMessenger {
+func NewExcusedRequestMessenger(emitter eventContract.Emitter) carePlanCompose.RequestMessenger {
 	return excusedRequestMessenger{emitter: emitter}
 }
 

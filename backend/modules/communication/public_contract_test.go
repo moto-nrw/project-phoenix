@@ -22,7 +22,7 @@ func TestPublicCommunicationContractPersistsNormalizedAnnouncement(t *testing.T)
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	var audited []compose.AuditEntry
-	module, err := compose.New(compose.Dependencies{DB: db, Organizations: organizations, Viewers: noViewerNames{}, Audit: compose.AuditFunc(func(_ context.Context, entry compose.AuditEntry) error { audited = append(audited, entry); return nil }), Observe: func(compose.Observation) {}})
+	module, err := api.NewCommunicationAnnouncements(compose.Dependencies{DB: db, Organizations: organizations, Viewers: noViewerNames{}, Audit: compose.AuditFunc(func(_ context.Context, entry compose.AuditEntry) error { audited = append(audited, entry); return nil }), Observe: func(compose.Observation) {}})
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
 	row := &communication.Announcement{Title: "  Wartung  ", Content: "  Heute Abend  ", Type: communication.TypeMaintenance, Severity: communication.SeverityWarning, CreatedBy: operator.ID}
