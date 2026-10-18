@@ -337,28 +337,7 @@ func (s careOfferingCatalogSettings) GradeLevelMax(ctx context.Context) (int, er
 type careOfferingCatalogTranslations struct{}
 
 func (careOfferingCatalogTranslations) NormalizeTranslations(raw json.RawMessage) (json.RawMessage, bool, error) {
-	var translations enrollmentOwner.Translations
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &translations); err != nil {
-			return nil, false, nil
-		}
-	}
-	normalized, err := translations.Normalize(
-		enrollmentOwner.TranslationAttrName,
-		enrollmentOwner.TranslationAttrDescription,
-		enrollmentOwner.TranslationAttrSelectionGroup,
-	)
-	if err != nil {
-		return nil, true, err
-	}
-	if normalized == nil {
-		return nil, true, nil
-	}
-	encoded, err := json.Marshal(normalized)
-	if err != nil {
-		return nil, true, fmt.Errorf("encode care offering translations: %w", err)
-	}
-	return encoded, true, nil
+	return enrollmentOwner.NormalizeOfferingTranslations(raw)
 }
 
 // careOfferingSourceRules is the Timetable owner's offering-source contract.
