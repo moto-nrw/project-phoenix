@@ -65,6 +65,11 @@ func (i GuardianInvitation) ApprovalAllowsRedemption() bool {
 	return i.ApprovalStatus == GuardianInvitationApprovalNotRequired || i.ApprovalStatus == GuardianInvitationApprovalApproved
 }
 
+// IsRejected reports whether the school rejected the invitation request.
+func (i GuardianInvitation) IsRejected() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalRejected
+}
+
 // GuardianInvitationRequest issues an invitation for a guardian contact that
 // has an address on file and no account yet. The school comes from the
 // tenant in context.
