@@ -54,11 +54,13 @@ func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.
 	return result, nil
 }
 
+// CreateMirroredSessionInstance records a running kiosk session as a
+// spontaneous, active instance whatever the input says about either.
 func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input timetable.ScheduledInstance) (int64, error) {
 	row := &schedule.ActivityInstance{
 		Date: schedule.Date(input.Date), ActivityGroupID: input.ActivityGroupID, CalendarPeriodID: input.CalendarPeriodID, Title: input.Title, Description: input.Description,
 		StartTime: calendar.NormalizeWallClock(input.StartTime), EndTime: calendar.NormalizeWallClock(input.EndTime), RoomID: input.RoomID,
-		Status: schedule.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, IsSpontaneous: input.IsSpontaneous,
+		Status: schedule.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, IsSpontaneous: true,
 		CreatedBy: input.CreatedBy, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
 		RequiredStaff: input.RequiredStaff, ListKind: input.ListKind, UnderstaffedAck: input.UnderstaffedAck,
 		UnderstaffedNote: input.UnderstaffedNote, CancelReason: input.CancelReason, Notes: input.Notes,

@@ -61,6 +61,16 @@ type Group struct {
 	Category              *Category  `json:"category,omitempty"`
 }
 
+// ParticipantLimit is the group's participant cap; MaxParticipants 0 means
+// the group has none.
+func (g Group) ParticipantLimit() *int {
+	if g.MaxParticipants <= 0 {
+		return nil
+	}
+	limit := g.MaxParticipants
+	return &limit
+}
+
 // GroupFilter is the bounded compatibility filter used by activity listings.
 type GroupFilter struct {
 	Name              string

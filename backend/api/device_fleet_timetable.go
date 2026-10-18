@@ -24,11 +24,7 @@ func (r fleetTemplateReader) ListActivityTemplates(ctx context.Context) ([]devic
 	}
 	templates := make([]devicefleetCompose.ActivityTemplate, 0, len(groups))
 	for _, group := range groups {
-		template := devicefleetCompose.ActivityTemplate{ID: group.ID, Name: group.Name, ParticipantLimit: nil}
-		if group.MaxParticipants > 0 {
-			limit := group.MaxParticipants
-			template.ParticipantLimit = &limit
-		}
+		template := devicefleetCompose.ActivityTemplate{ID: group.ID, Name: group.Name, ParticipantLimit: group.ParticipantLimit()}
 		if group.Category != nil {
 			name := group.Category.Name
 			template.CategoryName = &name
@@ -56,7 +52,7 @@ func (r fleetInstanceReader) ListPlannedActivities(ctx context.Context, today ti
 		planned = append(planned, devicefleetCompose.PlannedActivity{
 			ID: instance.ID, Title: instance.Title, RoomID: instance.RoomID,
 			ActivityGroupID: instance.ActivityGroupID, ActiveGroupID: instance.ActiveGroupID,
-			Planned:        instance.Status == timetable.InstanceStatusPlanned,
+			Planned:        timetable.IsPlannedInstanceStatus(instance.Status),
 			StartWallClock: calendar.NormalizeWallClock(instance.StartTime),
 		})
 	}
