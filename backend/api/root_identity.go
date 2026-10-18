@@ -84,39 +84,37 @@ func buildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa, Lifecycle: lifecycle}, AccountAuthenticationWiring{
-		Repos:              sessionRepos,
-		Codec:              tokens.SessionTokens,
-		Settings:           settings,
-		Audit:              audit.Command,
-		Logger:             authLogger,
-		observe:            env.Observe.IdentityAccess,
-		Operators:          operators,
-		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
-		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),
-		operatorLinks: &operatorLinkWiring{
-			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
-			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
-			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
-			logger: platformLogger,
-		},
-		Resets: &PasswordResetWiring{
+	demo, err := demoDependencies(
+		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
+		organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")), organizations)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The deliveries record their outcome through the recorder the
+	// composition hands them at construction.
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: requiredIdentityAccessObservation(env.Observe.IdentityAccess), TenantRuntime: unit,
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom,
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-		Invitations: &InvitationWiring{
+		}, authLogger),
+		Invitations: invitationDependencies(&InvitationWiring{
 			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
 			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
 			Settings:     settings,
 			Outbox:       outbox,
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-	})
+		}, tokens.SessionTokens, authLogger),
+		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
+			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
+			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
+			logger: platformLogger,
+		}, authLogger),
+	}, sessionRepos, tokens.SessionTokens, settings, audit.Command, authLogger)
 	if err != nil {
-		return nil, nil, err
-	}
-	if err := module.SetTenantRuntime(unit); err != nil {
 		return nil, nil, err
 	}
 	// The caller context (#3501) resolves the caller's chain through the

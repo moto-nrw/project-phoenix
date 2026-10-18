@@ -111,35 +111,34 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	if err != nil {
 		return IdentityComposition{}, nil, err
 	}
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: r.db.Pool(), MFA: mfa, Lifecycle: lifecycle}, AccountAuthenticationWiring{
-		Repos:              sessionRepos,
-		Codec:              r.tokens.SessionTokens,
-		Settings:           m.Settings,
-		Audit:              m.Audit,
-		Logger:             authLogger,
-		observe:            m.Observe,
-		Operators:          operators,
-		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), m.Dispatcher, m.DefaultFrom, m.FrontendURL, viper.GetInt("demo_max_active_schools"), r.tokens, authLogger),
-		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),
-		operatorLinks: &operatorLinkWiring{
-			dispatcher: m.Dispatcher, defaultFrom: m.DefaultFrom,
-			frontendURL: m.FrontendURL, operatorFrontendURL: operatorFrontendURL,
-			invitationExpiry: m.InvitationExpiry, emailChangeExpiry: emailChangeExpiry(m.PasswordResetExpiry, m.Logger),
-			logger: platformLogger,
-		},
-		Resets: &PasswordResetWiring{
+	demo, err := demoDependencies(
+		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), m.Dispatcher, m.DefaultFrom, m.FrontendURL, viper.GetInt("demo_max_active_schools"), r.tokens, authLogger),
+		organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")), m.Organizations)
+	if err != nil {
+		return IdentityComposition{}, nil, err
+	}
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: r.db.Pool(), Observe: requiredIdentityAccessObservation(m.Observe),
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom,
 			StaffURL: m.FrontendURL, ParentsURL: m.ParentsURL, SchoolURL: m.SchoolURL,
 			Expiry: m.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-		Invitations: &InvitationWiring{
+		}, authLogger),
+		Invitations: invitationDependencies(&InvitationWiring{
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, StaffURL: m.FrontendURL, SchoolURL: m.SchoolURL,
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
 			Outbox:       lateMailOutbox{m.Outbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-	})
+		}, r.tokens.SessionTokens, authLogger),
+		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
+			dispatcher: m.Dispatcher, defaultFrom: m.DefaultFrom,
+			frontendURL: m.FrontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: m.InvitationExpiry, emailChangeExpiry: emailChangeExpiry(m.PasswordResetExpiry, m.Logger),
+			logger: platformLogger,
+		}, authLogger),
+	}, sessionRepos, r.tokens.SessionTokens, m.Settings, m.Audit, authLogger)
 	if err != nil {
 		return IdentityComposition{}, nil, err
 	}

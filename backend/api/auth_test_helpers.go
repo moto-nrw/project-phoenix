@@ -273,30 +273,32 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa, Lifecycle: lifecycle}, AccountAuthenticationWiring{
-		Repos: sessionRepos, Codec: codec, Settings: settings.Settings, Audit: command, Logger: logger,
-		Operators: operators,
-		DemoAccess: &DemoAccessWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
-			Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
-			OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
-			NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
-		},
-		DemoStandingSchool: settingsOverrides.standingDemo,
-		Resets: &PasswordResetWiring{
+	demo, err := demoDependencies(&DemoAccessWiring{
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
+		Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
+		OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
+		NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
+	}, settingsOverrides.standingDemo, organizations)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
-		},
-		Invitations: &InvitationWiring{
+		}, logger),
+		Invitations: invitationDependencies(&InvitationWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
 			Outbox:       OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-	})
+		}, codec, logger),
+	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -357,15 +359,14 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 	if err != nil {
 		return nil, err
 	}
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa, Lifecycle: lifecycle}, AccountAuthenticationWiring{
-		Repos: sessionRepos, Codec: codec, Settings: cfg.Settings,
-		Audit: cfg.Audit, Logger: logger,
-		Resets: &PasswordResetWiring{
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-	})
+		}, logger),
+	}, sessionRepos, codec, cfg.Settings, cfg.Audit, logger)
 	if err != nil {
 		return nil, err
 	}
