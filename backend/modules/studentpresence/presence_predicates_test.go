@@ -40,3 +40,9 @@ func TestLiveGroupStartedOnItsStartDay(t *testing.T) {
 	assert.True(t, studentpresence.LiveGroup{StartTime: start}.StartedOn("2026-10-19"))
 	assert.False(t, studentpresence.LiveGroup{StartTime: start}.StartedOn("2026-10-20"))
 }
+
+func TestOnlyChildrenOfAnotherSchoolAreVisitors(t *testing.T) {
+	t.Parallel()
+	assert.True(t, studentpresence.VisitsFromAnotherSchool(21, 31))
+	assert.False(t, studentpresence.VisitsFromAnotherSchool(31, 31))
+}

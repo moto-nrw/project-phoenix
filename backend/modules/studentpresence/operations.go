@@ -309,6 +309,12 @@ type UnclaimedSession struct {
 	Activity *SessionActivitySummary
 }
 
+// VisitsFromAnotherSchool reports whether a child of the home school is a
+// visitor at the hosting school: only a child of another school is.
+func VisitsFromAnotherSchool(homeTenantID, hostingTenantID int64) bool {
+	return homeTenantID != hostingTenantID
+}
+
 // CrossTenantStudent is a child hosted from another school.
 type CrossTenantStudent struct {
 	StudentID  int64
