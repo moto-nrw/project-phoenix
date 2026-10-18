@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -130,8 +131,9 @@ func (r TimetableTestRepositories) withDeviationAudit(events auditModels.Deviati
 		StaffShift: r.StaffShift, ShiftType: r.ShiftType, CalendarRows: r.CalendarRows,
 		CareScheduleRepositories: r.CareScheduleRepositories,
 		rosterStudents:           r.rosterStudents, educationGroups: r.educationGroups,
-		educationGroupNames: r.educationGroupNames, ownerRooms: r.ownerRooms,
-		deviationEvents: reader, deviations: protocol,
+		educationGroupNames: r.educationGroupNames,
+		ownerRooms:          r.ownerRooms,
+		deviationEvents:     reader, deviations: protocol,
 	}
 }
 
@@ -256,6 +258,16 @@ func NewTimetableSchoolCalendar(db transactionruntime.Database) (TimetableSchool
 		return TimetableSchoolCalendar{}, err
 	}
 	return TimetableSchoolCalendar{schoolCalendar: calendar}, nil
+}
+
+// MustNewTimetableSchoolCalendar is NewTimetableSchoolCalendar for suites
+// that cannot handle a composition error.
+func MustNewTimetableSchoolCalendar(db transactionruntime.Database) TimetableSchoolCalendar {
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		panic(fmt.Sprintf("timetable test rows: compose school calendar: %v", err))
+	}
+	return calendar
 }
 
 // SchoolCalendar returns the calendar owner.

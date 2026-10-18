@@ -36,7 +36,7 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlow
 		Children:  env.repos.Enrollment(),
 		Phases:    env.repos.Enrollment(),
 		Schemas:   env.repos.Enrollment(),
-		Offerings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		People: api.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),
@@ -73,7 +73,7 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.E
 		Children:  env.repos.Enrollment(),
 		Phases:    env.repos.Enrollment(),
 		Schemas:   failingSchemaRepo{env.repos.Enrollment()},
-		Offerings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		People: api.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),
@@ -88,7 +88,7 @@ func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.En
 		Children:  env.repos.Enrollment(),
 		Phases:    failingPhaseRepo{env.repos.Enrollment()},
 		Schemas:   env.repos.Enrollment(),
-		Offerings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		People: api.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),

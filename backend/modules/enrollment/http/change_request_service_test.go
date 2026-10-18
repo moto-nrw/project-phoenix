@@ -33,15 +33,17 @@ func newChangeRequestServiceForTestWithAuthorizer(
 	authorizer enrollmentCompose.GuardianStudentAuthorizer,
 ) enrollmentAPI.ChangeRequestService {
 	repoFactory := env.repos
+	repoFactoryCare := env.reposCare
+	repoFactorySchools := env.reposSchools
 	return newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
 		LateInviteRepo:      repoFactory.Enrollment(),
-		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Catalog:             repoFactory.Enrollment(),
-		Notifications:       testNotifications(repoFactory.Enrollment(), env.settings, env.outbox, factorySchools{repos: repoFactory}),
+		Notifications:       testNotifications(repoFactory.Enrollment(), env.settings, env.outbox, factorySchools{repos: repoFactorySchools}),
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		GuardianPhoneRepo:   repoFactory.GuardianPhoneNumber,
 		StudentRepo:         repoFactory.Student,
@@ -105,9 +107,9 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		Children:            env.repos.Enrollment(),
 		Guardians:           env.repos.Enrollment(),
 		LateInviteRepo:      env.repos.Enrollment(),
-		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		Catalog:             env.repos.Enrollment(),
-		Notifications:       testNotifications(requests, env.settings, env.outbox, factorySchools{repos: env.repos}),
+		Notifications:       testNotifications(requests, env.settings, env.outbox, factorySchools{repos: env.reposSchools}),
 		GuardianProfileRepo: env.repos.GuardianProfile,
 		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
 		StudentRepo:         env.repos.Student,
@@ -245,7 +247,7 @@ func proposedChangeSubmission(t *testing.T, env *requestTestEnv, result *enrollm
 func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 	t.Helper()
 	reason := "Warteliste"
-	require.NoError(t, flowRepositories(t, env.db).Enrollment().UpdateChildStatus(
+	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment().UpdateChildStatus(
 		testpkg.Ctx(t),
 		childID,
 		enrollmentModels.ChildStatusWaitlisted,
@@ -464,7 +466,7 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 	newer, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, repoFactory.Enrollment(), result.Request.ID)
 	require.NoError(t, err)
 	newer.GuardianLastName = "Neuer"
@@ -520,7 +522,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, capability.ErrDuplicateEnrollment))
 
-	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), firstResult.Children[0].ID)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), firstResult.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Lina", child.FirstName)
 }
@@ -542,7 +544,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 	profile := &usersModels.GuardianProfile{
 		FirstName:              "Opa",
 		LastName:               "Schmidt",
@@ -617,7 +619,7 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := flowRepositories(t, env.db)
+	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
 	req := validSubmission(t, env.phaseID)
@@ -628,7 +630,7 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Update(ctx, offering))
 
 	phone := "+49 221 222333"
 	proposed := proposedChangeSubmission(t, env, result)
@@ -650,11 +652,11 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := flowRepositories(t, env.db)
+	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	env.settings.boolValues[settingKeyCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Update(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "inactive-conditional-change-request@example.com"
@@ -665,7 +667,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Update(ctx, offering))
 
 	phone := "+49 221 222334"
 	proposed := proposedChangeSubmission(t, env, result)
@@ -691,7 +693,7 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
 	request := validSubmission(t, env.phaseID)
@@ -1361,11 +1363,11 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := flowRepositories(t, env.db)
+	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	firstOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering.Name = "Second inactive slot"
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, secondOffering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Update(ctx, secondOffering))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "cross-child-inactive-offering@example.com"
@@ -1383,7 +1385,7 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	secondOffering.IsActive = false
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, secondOffering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Update(ctx, secondOffering))
 
 	proposed := req
 	proposed.Children[0].ID = result.Children[0].ID
@@ -1439,7 +1441,7 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 	result, err := env.svc.Submit(ctx, base)
 	require.NoError(t, err)
 	require.Len(t, result.Children, 2)
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 	reason := "kein Platz"
 	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID))
 	svc := newChangeRequestServiceForTest(env)
@@ -1476,7 +1478,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 
 	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-waitlist@example.com"
@@ -1537,7 +1539,7 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "preserved-capacity-change-request@example.com"
@@ -1598,7 +1600,7 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	repoFactory := flowRepositories(t, env.db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 
 	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-reject@example.com"
@@ -1675,7 +1677,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	studentID := *outcome.Child.CreatedStudentID
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, 14, rows[0].PickupTime.Hour())
@@ -1730,7 +1732,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	changeRequest, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 	assert.Equal(t, capability.ChangeRequestStatusPendingReview, changeRequest.Status)
-	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err = env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "failed replacement sync must roll back the schedule delete")
 	assert.Equal(t, 14, rows[0].PickupTime.Hour())

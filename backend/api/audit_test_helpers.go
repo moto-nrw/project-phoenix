@@ -100,18 +100,7 @@ func withEnrollmentTestAudit(db transactionruntime.Database, command auditModels
 // NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
 // repositories with the audit repositories the flows read and write.
 func NewEnrollmentFlowTestRepositories(db transactionruntime.Database) (*EnrollmentFlowTestRepositories, error) {
-	result, err := NewEnrollmentFlowTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
-	if err != nil {
-		return nil, err
-	}
-	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
-	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
-	audits := NewTestAuditPersistence(db, nil)
-	result.EnrollmentOfferingAdjustment = audits.EnrollmentOfferingAdjustment
-	result.EnrollmentRestorationAudit = audits.EnrollmentRestorationAudit
-	result.EnrollmentDeletionAudit = audits.EnrollmentDeletionAudit
-	result.StudentFieldEdit = audits.StudentFieldEdit
-	return result, nil
+	return NewEnrollmentFlowTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 }
 
 // NewCareLifecycleTestRepositories composes the care-lifecycle test graph with

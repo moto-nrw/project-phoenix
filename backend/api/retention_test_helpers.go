@@ -82,6 +82,8 @@ func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings 
 	if err != nil {
 		return nil, err
 	}
+	reposAudit := NewEnrollmentFlowAuditRows(db)
+	reposCare := NewEnrollmentFlowCarePlanRows(db)
 	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
@@ -92,9 +94,9 @@ func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings 
 	}
 	return NewEnrollmentDeletionModule(EnrollmentDeletionSources{
 		Owner: repos.Enrollment(), Guardians: enrollmentGuardianDirectory{guardians: people},
-		CountAuditAdjustments: repos.EnrollmentOfferingAdjustment.CountForDeletion,
-		CountBookings:         repos.CarePlan().CountCareOfferingBookings,
-		Audit:                 repos.EnrollmentDeletionAudit,
+		CountAuditAdjustments: reposAudit.EnrollmentOfferingAdjustment.CountForDeletion,
+		CountBookings:         reposCare.CarePlan.CountCareOfferingBookings,
+		Audit:                 reposAudit.EnrollmentDeletionAudit,
 		Delivery:              enrollmentDeliveryAdapter{module: deliveries},
 		Settings:              settings,
 	}).Cleanup, nil
