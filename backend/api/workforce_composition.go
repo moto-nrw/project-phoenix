@@ -67,32 +67,25 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 		StaffAdmin: func(sources WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error) {
 			return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 				DB: db.Pool(), Logger: sources.Logger, Now: sources.Now,
-			}, staffAdminOwners{
-				Staff: sources.Staff, Persons: staffAdminPersons{rows: sources.Persons, details: persons}, Membership: membership,
-				MasterDataAudit: sources.Audits.StaffMasterDataChange, PersonnelNumber: sources.Audits.PersonnelNumberChange, DataAccessLog: sources.Audits.DataAccessLog,
-			})
+			}, sources.Staff, sources.Persons, persons, membership,
+				sources.Audits.StaffMasterDataChange, sources.Audits.PersonnelNumberChange, sources.Audits.DataAccessLog,
+			)
 		},
 		TimeTracking: func(sources WorkforceTimeTrackingSources) (*workforceCompose.TimeTracking, error) {
 			employment := workforceCompose.MustNewStaffEmployment(db.Pool())
-			return newTimeTracking(timeTrackingPortDependencies{
-				Workforce: workTime,
-				Bound: workforceCompose.TimeTrackingPorts{
-					Absences: staffAbsences, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
-					Staff:        WorkSessionStaff(sources.Staff, employment, membership),
-					Supervisions: sources.Supervisions, SessionRecords: sources.SessionRecords, Holidays: sources.Holidays,
-					Events: timeTrackingEvents(sources.Broadcaster), AbsenceEmail: timeTrackingAbsenceEmail(sources, organizations),
-					ShiftPlanSync: sources.ShiftPlanSync,
-				},
-				Audits: timeTrackingAudits{
-					WorkSessionEdit: sources.Audits.WorkSessionEdit, TimeTrackingDeletion: sources.Audits.TimeTrackingDeletion,
-					DataAccessLog: sources.Audits.DataAccessLog, TimeTrackingAuditLog: sources.Audits.TimeTrackingAuditLog,
-				},
-				Staff: sources.Staff, People: sources.People, StaffEmployment: employment,
-				WorkSchedules:  NewStaffWorkScheduleRepository(workTime),
-				WorkTimeModels: NewWorkTimeModelRepository(workTime),
-				Settings:       sources.Settings, Payroll: sources.Payroll,
-				DB: db, Logger: sources.Logger,
-			})
+			return newTimeTracking(workTime, workforceCompose.TimeTrackingPorts{
+				Absences: staffAbsences, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
+				Staff:        WorkSessionStaff(sources.Staff, employment, membership),
+				Supervisions: sources.Supervisions, SessionRecords: sources.SessionRecords, Holidays: sources.Holidays,
+				Events: timeTrackingEvents(sources.Broadcaster), AbsenceEmail: timeTrackingAbsenceEmail(sources, organizations),
+				ShiftPlanSync: sources.ShiftPlanSync, Logger: sources.Logger,
+			}, timeTrackingAudits{
+				WorkSessionEdit: sources.Audits.WorkSessionEdit, TimeTrackingDeletion: sources.Audits.TimeTrackingDeletion,
+				DataAccessLog: sources.Audits.DataAccessLog, TimeTrackingAuditLog: sources.Audits.TimeTrackingAuditLog,
+			}, sources.Staff, sources.People, employment,
+				NewStaffWorkScheduleRepository(workTime), NewWorkTimeModelRepository(workTime),
+				sources.Settings, sources.Payroll, db,
+			)
 		},
 	}
 }

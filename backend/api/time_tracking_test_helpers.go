@@ -45,20 +45,14 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		return nil, err
 	}
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
-	return newTimeTracking(timeTrackingPortDependencies{
-		Workforce: repos.Workforce,
-		Bound: workforceCompose.TimeTrackingPorts{
-			Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
-			Staff:        WorkSessionStaff(repos.Staff, employment, membership),
-			Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
-			Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync,
-		},
-		Audits: graph.Audits,
-		Staff:  repos.Staff, People: graph.People, StaffEmployment: employment,
-		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel,
-		Settings: graph.Settings, Payroll: payroll,
-		DB: db, Logger: graph.Logger, Today: graph.Today,
-	})
+	return newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
+		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
+		Staff:        WorkSessionStaff(repos.Staff, employment, membership),
+		Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
+		Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync, Logger: graph.Logger, Today: graph.Today,
+	}, graph.Audits, repos.Staff, graph.People, employment, repos.StaffWorkSchedule, repos.WorkTimeModel,
+		graph.Settings, payroll, db,
+	)
 }
 
 // noHolidays is the calendar of a test graph that composes no School
