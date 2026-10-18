@@ -297,6 +297,7 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 	absenceSvc := timetracking.NewStaffAbsenceService(
 		f.repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas,
 		workforceCompose.NewStaffAbsenceAuditRepository(f.workforce), wtmIntSettings{}, f.monthSvc,
+		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 	)
 
 	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{})
@@ -729,3 +730,18 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 }
 
 func monthOfDate(d calendar.Date) int { return d.Year()*12 + int(d.Month()) }
+
+// noSickCascade is the sick cascade of a suite without shift plans: a sick
+// report leaves the plans untouched.
+type noSickCascade struct{}
+
+func (noSickCascade) MarkSickForRange(context.Context, timetracking.SickCascadeInput) error {
+	return nil
+}
+func (noSickCascade) ClearSickForRange(context.Context, timetracking.SickCascadeInput) error {
+	return nil
+}
+func (noSickCascade) ReconcileSickRange(context.Context, timetracking.SickCascadeInput, timetracking.SickCascadeInput) error {
+	return nil
+}
+func (noSickCascade) ReassignSickStamps(context.Context, int64, int64) error { return nil }

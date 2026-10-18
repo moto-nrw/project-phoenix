@@ -408,15 +408,6 @@ func (s *staffAbsenceService) broadcastTimeTrackingChanged(ctx context.Context) 
 	queueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
-// planSyncer is nil-safe: bare-constructed services (unit tests) cascade into
-// a no-op.
-func (s *staffAbsenceService) planSyncer() ShiftPlanSyncer {
-	if s.shiftPlanSyncer != nil {
-		return s.shiftPlanSyncer
-	}
-	return noopShiftPlanSyncer{}
-}
-
 // NewStaffAbsenceService creates a new staff absence service
 func NewStaffAbsenceService(
 	absenceRepo StaffAbsenceRepository,
@@ -437,6 +428,9 @@ func NewStaffAbsenceService(
 	}
 	for _, opt := range opts {
 		opt(service)
+	}
+	if service.shiftPlanSyncer == nil {
+		panic("staff absence service: the sick cascade is required")
 	}
 	return service
 }

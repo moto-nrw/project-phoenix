@@ -44,7 +44,7 @@ func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOf
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
 		Settings: settings.Settings, People: identity.Users, Holidays: noHolidays{},
-		Events: timeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), Logger: slog.Default(),
+		Events: timeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), ShiftPlanSync: noSickCascade{}, Logger: slog.Default(),
 	})
 	if err != nil {
 		return WorkSessionTestModule{}, err

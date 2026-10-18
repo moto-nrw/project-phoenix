@@ -91,9 +91,7 @@ type Ports struct {
 	Events         EventPublisher
 	// AbsenceEmail is optional: nil sends no absence email.
 	AbsenceEmail *AbsenceEmailDeps
-	// ShiftPlanSync is optional: nil leaves the shift plans untouched.
-	ShiftPlanSync ShiftPlanSyncer
-	Logger        *slog.Logger
+	Logger       *slog.Logger
 	// Today is optional and pins the absence and ledger calendar day.
 	Today func() calendar.Date
 }
@@ -118,22 +116,11 @@ type Services struct {
 	AuditLog TimeTrackingAuditLogService
 }
 
-// New builds the work session, month, absence, ledger, month-close,
-// overview, export and audit-log services over one dependency set and binds
-// them to each other.
-func New(deps Dependencies) (*Services, error) {
-	clock, err := NewClock(deps)
-	if err != nil {
-		return nil, err
-	}
-	return clock.WithAbsences(deps.ShiftPlanSync), nil
-}
-
 // Clock is every service but the absence lifecycle. The absence lifecycle
 // cascades a sick report through the plans (#1843), and the cascade's
 // Timetable side reaches Student Presence, which stamps through the work
 // sessions; the clock exists first so the cascade can be built over it.
-// Clock ignores Ports.ShiftPlanSync; WithAbsences takes the cascade.
+// WithAbsences takes the cascade.
 type Clock struct {
 	deps     Dependencies
 	services Services
@@ -173,7 +160,7 @@ func (c *Clock) Sessions() WorkSessionService {
 }
 
 // WithAbsences builds the absence lifecycle over the clock's month service
-// and returns every service. A nil syncer leaves the shift plans untouched.
+// and the required sick cascade, and returns every service.
 func (c *Clock) WithAbsences(syncer ShiftPlanSyncer) *Services {
 	deps, services := c.deps, c.services
 	services.Absences = NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, services.Months,
@@ -268,10 +255,8 @@ func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots Month
 		// Absence email notifications (#1419 4d).
 		options = append(options, WithAbsenceEmail(*deps.AbsenceEmail))
 	}
-	if syncer != nil {
-		// The #1843 sick cascade.
-		options = append(options, WithAbsenceShiftPlanSyncer(syncer))
-	}
+	// The #1843 sick cascade.
+	options = append(options, WithAbsenceShiftPlanSyncer(syncer))
 	return options
 }
 
