@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
 
 // CareRequestResponse is the staff-facing projection of one parent
@@ -55,7 +54,7 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, requestreviewcompose.ToCareRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreview.ToCareRequestResponse(item), "Decision applied")
 }
 
 func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (carerequests.DecideInput, bool) {

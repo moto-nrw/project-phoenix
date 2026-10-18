@@ -69,7 +69,7 @@ func excusedPendingRow(item *excusedrequests.ReviewItem, today excusedrequests.D
 		ConflictKeys:         item.Request.ConflictKeys(),
 		CurrentValueChanged:  item.CurrentValueChanged,
 		CurrentStatusByDate:  item.CurrentStatusByDate,
-		Data:                 ToStaffExcusedRequestResponse(item),
+		Data:                 requestreview.ToStaffExcusedRequestResponse(item),
 	}
 }
 
@@ -82,8 +82,8 @@ func excusedHistoryRow(item *excusedrequests.HistoryItem) requestreview.Row {
 		StudentID:   item.Request.StudentID,
 		StudentName: item.FirstName + " " + item.LastName,
 		Status:      item.Request.Status,
-		DecidedAt:   HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		DecidedAt:   requestreview.HistoryDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
 		CanCorrect:  item.Request.CanCorrect(),
-		Data:        ToStaffExcusedHistoryResponse(item),
+		Data:        requestreview.ToStaffExcusedHistoryResponse(item),
 	}
 }

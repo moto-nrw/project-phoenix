@@ -1,14 +1,12 @@
-package compose
+package requestreview
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 func HistoryDecidedAt(reviewedAt *time.Time, updatedAt time.Time) time.Time {
@@ -18,10 +16,10 @@ func HistoryDecidedAt(reviewedAt *time.Time, updatedAt time.Time) time.Time {
 	return updatedAt
 }
 
-func ToCareRequestDiffResponses(entries []careplan.CareRequestDiffEntry) []requestreview.CareRequestDiffResponse {
-	out := make([]requestreview.CareRequestDiffResponse, 0, len(entries))
+func ToCareRequestDiffResponses(entries []careplan.CareRequestDiffEntry) []CareRequestDiffResponse {
+	out := make([]CareRequestDiffResponse, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, requestreview.CareRequestDiffResponse{
+		out = append(out, CareRequestDiffResponse{
 			Label:    e.Label,
 			Old:      e.Old,
 			New:      e.New,
@@ -35,9 +33,9 @@ func ToCareRequestDiffResponses(entries []careplan.CareRequestDiffEntry) []reque
 }
 
 // ToCareRequestResponse maps one care-schedule request with its live diff.
-func ToCareRequestResponse(item *careplan.CareScheduleReviewItem) requestreview.CareRequestResponse {
+func ToCareRequestResponse(item *careplan.CareScheduleReviewItem) CareRequestResponse {
 	r := item.Request
-	return requestreview.CareRequestResponse{
+	return CareRequestResponse{
 		ID:              strconv.FormatInt(r.ID, 10),
 		StudentID:       strconv.FormatInt(r.StudentID, 10),
 		FirstName:       item.FirstName,
@@ -55,10 +53,10 @@ func ToCareRequestResponse(item *careplan.CareScheduleReviewItem) requestreview.
 	}
 }
 
-func toAffectedCareBlocks(blocks []careplan.CareReviewBlock) []requestreview.AffectedCareBlock {
-	out := make([]requestreview.AffectedCareBlock, 0, len(blocks))
+func toAffectedCareBlocks(blocks []careplan.CareReviewBlock) []AffectedCareBlock {
+	out := make([]AffectedCareBlock, 0, len(blocks))
 	for _, block := range blocks {
-		out = append(out, requestreview.AffectedCareBlock{
+		out = append(out, AffectedCareBlock{
 			ID:        strconv.FormatInt(block.ID, 10),
 			Title:     block.Title,
 			StartTime: block.StartTime.Format("15:04"),
@@ -69,14 +67,14 @@ func toAffectedCareBlocks(blocks []careplan.CareReviewBlock) []requestreview.Aff
 }
 
 // ToCareRequestHistoryResponse maps one decided care-schedule request (#2432).
-func ToCareRequestHistoryResponse(item *careplan.CareScheduleHistoryItem) requestreview.CareRequestHistoryResponse {
+func ToCareRequestHistoryResponse(item *careplan.CareScheduleHistoryItem) CareRequestHistoryResponse {
 	req := item.Request
 	requested := ToCareRequestDiffResponses(item.Requested)
-	var diff []requestreview.CareRequestDiffResponse
+	var diff []CareRequestDiffResponse
 	if len(item.Diff) > 0 {
 		diff = ToCareRequestDiffResponses(item.Diff)
 	}
-	return requestreview.CareRequestHistoryResponse{
+	return CareRequestHistoryResponse{
 		ID:             strconv.FormatInt(req.ID, 10),
 		StudentID:      strconv.FormatInt(req.StudentID, 10),
 		FirstName:      item.FirstName,
@@ -96,13 +94,5 @@ func careImpactToken(item *careplan.CareScheduleReviewItem) string {
 	if !item.ImpactAvailable {
 		return ""
 	}
-	return pickupImpactFingerprint(carerequests.PickupImpactContent(item.AffectedBlocks))
-}
-
-// pickupImpactFingerprint must stay byte-identical to securityruntime.Fingerprint,
-// which the approval side compares the token against. This package may not
-// import that owner (policy rule request-review-view.compose.impact-token);
-// TestPickupImpactFingerprintIsLowercaseSHA256Hex pins the encoding.
-func pickupImpactFingerprint(content []byte) string {
-	return fmt.Sprintf("%x", sha256.Sum256(content))
+	return securityruntime.Fingerprint(carerequests.PickupImpactContent(item.AffectedBlocks))
 }

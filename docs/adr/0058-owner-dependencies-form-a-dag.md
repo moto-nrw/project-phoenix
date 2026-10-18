@@ -155,3 +155,115 @@ A per-owner rule is added in the change that first uses it. The composition's
 rule into the same target goes once the composition no longer needs it.
 Projection, workflow and platform sources, other targets, external classes
 and test scopes stay under the ordinary loosening guards.
+
+## Addendum (#4314): owners of the cross-owner HTTP aggregates
+
+Decision of 2026-10-18 for [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079).
+The existing projections own the cross-domain reads; no new owner is created.
+
+- `presenceprojection` (`presence-legacy-view`) owns the student
+  attendance-history, day-log and export joins, including
+  `attendanceHistorySources` and `dayLogData`.
+- `timetableprojection` (`timetable-legacy-view`) owns the enriched weekly
+  instance list, including `enrichedInstance` and `weeklyInstancesResponse`.
+- Care Plan's `http` role owns `CompanionConflictResponse`; its native
+  `common.ErrResponse` envelope belongs to Tenant Runtime's `http` role.
+
+The root only mounts and binds. Domain HTTP adapters use consumer-owned
+reader ports bound by the root, or the projection serves the endpoint through
+its own `http` role. Projection ownership permits cross-domain reads, not
+writes. Layering B remains unchanged: People Directory lowest, Care Plan
+above it, Enrollment above Care Plan, Workforce above Student Presence.
+
+The widened implementation approval permits every actually used edge from a
+projection to a domain or platform `public` or `contract` role, including
+`presence-legacy-view -> document-rendering/contract`. Platforms sit below
+all other owner kinds, so this is a downward edge. It permits neither reverse
+edges nor dependencies into `application`, `postgres`, `compose` or `http`.
+Use an existing reviewed acceptor where possible; otherwise add a narrow
+acceptor with table tests for accepted cases and rejected reverse/private-role
+cases. Record every added and deleted rule here and in the single cutover PR.
+No new Root composition fields, aliases, cloned DTOs or larger budgets are
+approved.
+
+### Unpublished candidate: boundaries outside that approval
+
+A local candidate moved the native attendance/day-log/export joins into
+`modules/presenceprojection/history` and the weekly joins into
+`modules/timetableprojection/weekly`, with Root operation bindings. Compilation,
+focused behavior tests and the production router golden passed. Normalizing
+only the middleware package-path renames reproduced every original golden
+byte. The architecture check did not pass; the candidate was archived locally
+and reversed, not committed or published.
+
+The check exposed two dependencies outside the widened class:
+
+- The native shared envelope `common.ErrResponse` is declared in
+  `api/common/errors.go`. Policy classifies `api/common` as
+  `tenant-runtime/http`, not `public`. Moving the companion response unchanged
+  to Care Plan HTTP would need `care-plan/http -> tenant-runtime/http`.
+  The candidate's child-document HTTP lifecycle reached the same package and
+  also required a new Care Plan HTTP permission into `tenant-runtime/public`.
+  No such rule is retained. A consumer-bound HTTP surface or a native public
+  envelope cutover needs to be designed before this candidate can proceed.
+- The student listing/export sorts still call `internal/collation`, classified
+  as `legacy-shared/domain`. Their existing People Directory import is exact
+  #4076 debt. Moving that transport into Root creates a new
+  `api/students -> internal/collation` key; the package-only relocation path
+  cannot carry it across an owner/role change. No private-role rule or new
+  legacy key is retained. The sorting boundary also needs a valid binding.
+
+The candidate also had unresolved test-fixture/operation-port composition
+fields and stale rules. Its passing focused tests do not establish completion.
+At that stop, the retained implementation had **no added or deleted rules**;
+all 15 #4079 keys and the previous composition surface remained. The widened
+projection-to-domain/platform approval is not revoked by this stop.
+
+
+### Round-16 resolutions and bounded delivery
+
+The implementation session explicitly approves Care Plan HTTP's same-shape,
+per-owner `tenant-runtime/http` rule, restricted to `api/common`, as held by
+People Directory and the other HTTP owners. Add it only when that cutover
+actually uses it. No such rule is needed by this delivery.
+
+Students HTTP stays in `modules/peopledirectory/inbound/students`; it must
+consume projection readers through consumer-owned ports bound by Root.
+Its existing collation debt stays at that package. A future path-only move
+uses ADR 0020, retaining ownership, roles and exact debt. The retained-layout
+work remains with #4086; this change does not reassign baseline carriers.
+Projection readers must use existing Root values or owner constructors,
+never new Root fields. These resolutions supersede the stops above, not the
+no-growth and no-private-reach constraints.
+
+The full archived candidate still required `api -> api/presence` between
+Root `compose` packages and new moved-suite imports, including
+`api/timetable` internal tests into `timetable-activities/port`. Neither is
+covered by projection-to-public/contract approval. Its 228 new composition
+keys are also not approved. The scope fallback therefore ships only the
+clean `students -> requestreview/compose` retirement. #4079 remains open.
+The ownership decision requested by #4314 is settled by this addendum;
+settling it does not claim the other 14 imports have been removed.
+
+Request Review now owns its native care/master-data/excused response mapping
+and offering-day labels in its public capability, rather than its composition.
+The original implementations move, without aliases, forwarding shims or DTO
+copies. The care-impact response uses Security Runtime's existing lowercase
+SHA-256 primitive; the approval composition's existing fingerprint is unchanged.
+Students HTTP and queue composition call these same native mappers.
+
+Policy epoch 72 → 73; keys 101 → 100 (#4079: 15 → 14); rules 827 → 830.
+Added rules, each production-only, per-owner and from `request-review-view/public`:
+
+- `request-review-view.public.care-plan.public`
+- `request-review-view.public.care-plan.contract`
+- `request-review-view.public.security-runtime.public`
+
+Deleted rules: none. The narrow tested acceptor admits only a projection's
+public source into domain/platform public or contract targets; epoch review,
+acyclicity and private-role guards remain enforced. Root composition stays
+1,652. Request Review compose LOC falls 1,255 → 1,069; the total compose cap
+falls 34,483 → 34,297. Routes, responses, IoT and goldens remain unchanged.
+
+[Remaining exact keys and alternatives](../architecture/4079-remaining-http-edges.md)
+record the delivery boundary without another probe round.
