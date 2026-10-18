@@ -11,5 +11,5 @@ import (
 // NewTimetableRoomNames names and locks the Facilities rooms for the
 // Timetable owner rows (#3551).
 func NewTimetableRoomNames(rooms facilitiesModule.Capability) timetableCompose.OwnerRooms {
-	return facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRepository(rooms))
+	return facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRecords(rooms))
 }

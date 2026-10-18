@@ -125,7 +125,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(members.Staff), CalendarPeriods: schoolCalendar.SchoolCalendar(), ShiftMoveAudit: NewShiftMoveAudit(NewTimetableDeviationAudit(db).DeviationEvent),
 		Instances: timetableCompose.NewTimetableInstanceReads(ttRows.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(ttRows.InstanceStaff),
-		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(ttRows.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records), ActivityGroups: timetableCompose.NewTimetableGroupReads(ttRows.ActivityGroup),
 		WorkSchedules: repos.Workforce, WorkModels: repos.Workforce, Holidays: nonWorkingDayService,
 		DB: db.Pool(), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})

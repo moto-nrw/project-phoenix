@@ -83,7 +83,7 @@ func buildActivePresence(
 		CrossTenantRepo: presencePeople.CrossTenantStudents, Schools: presencePeople.PresenceSchools,
 		StudentRepo: presencePeople.PresenceStudents, StaffRepo: presence.AttendanceStaff,
 		RoomRepo:      facilitiesLegacy.NewAttendanceRooms(facilitiesCompose.NewRoomRecords(rooms)),
-		YardRoomColor: facilitiesCompose.YardRoomColor(rooms), ActivityGroupRepo: presence.AttendanceActivities,
+		YardRoomColor: facilitiesModule.YardRoomColor(rooms), ActivityGroupRepo: presence.AttendanceActivities,
 		ActivityCatRepo:    arrivalTimetable.NewCategoryCount(repos.ActivityCategory),
 		EducationGroupRepo: presence.AttendanceEducationGroups,
 		DeviceRepo:         NewSessionDeviceDirectory(devicefleetRepositoryAdapter.NewDeviceRepository(devices), settings, logger),

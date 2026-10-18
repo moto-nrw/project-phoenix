@@ -3,27 +3,18 @@ package compose
 import (
 	"context"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 )
 
 // RoomNameDirectory names and locks the retained Facilities rooms for the
 // Timetable owner's operational day and instance lifecycle, which may not
 // name the room rows themselves (#3551).
 type RoomNameDirectory struct {
-	rooms RoomNameRows
+	rooms *repositoryadapter.Records
 }
 
-// RoomNameRows are the retained room reads the directory names rooms from;
-// the room repository and the room records serve them.
-type RoomNameRows interface {
-	FindByID(context.Context, any) (*facilitiesModels.Room, error)
-	List(context.Context, map[string]any) ([]*facilitiesModels.Room, error)
-	FindByIDs(context.Context, []int64) ([]*facilitiesModels.Room, error)
-	FindByIDForUpdate(context.Context, int64) (*facilitiesModels.Room, error)
-}
-
-// NewRoomNameDirectory binds the directory to the retained room rows.
-func NewRoomNameDirectory(rooms RoomNameRows) RoomNameDirectory {
+// NewRoomNameDirectory binds the directory to the retained room records.
+func NewRoomNameDirectory(rooms *repositoryadapter.Records) RoomNameDirectory {
 	return RoomNameDirectory{rooms: rooms}
 }
 

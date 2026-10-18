@@ -13,6 +13,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -236,7 +237,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		PrincipalReader: devicescanCompose.AttendancePrincipal,
 		StudentDisplay:  StudentDisplayProjection{Students: students, Groups: displayGroups},
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
-		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
+		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
 		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rRooms.Room),

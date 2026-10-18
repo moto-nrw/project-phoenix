@@ -15,9 +15,8 @@ import (
 
 type Observation = ports.Observation
 
-// RoomUsage is the Facilities port the root binds to the owners that can
-// still need a room: Student Presence for running sessions, Care Plan for
-// care offerings.
+// RoomUsage is the room deletion's question to Student Presence (running
+// sessions) and Care Plan (care offerings).
 type RoomUsage = ports.RoomUsage
 
 type Dependencies struct {
@@ -28,15 +27,10 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-// RoomsDependencies bind the Rooms: every room operation but the deletion.
-type RoomsDependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
-}
-
-// NewRooms composes the Facilities Catalog without the room deletion, for
-// the owners a root builds before the deletion guard's (#4080); New adds it.
-func NewRooms(dependencies RoomsDependencies) (*facilities.Rooms, error) {
+// NewRooms composes the Facilities Catalog without the room deletion over
+// DB and Observe alone, for the owners a root builds before the deletion
+// guard's (#4080); New adds it.
+func NewRooms(dependencies Dependencies) (*facilities.Rooms, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
@@ -45,9 +39,8 @@ func NewRooms(dependencies RoomsDependencies) (*facilities.Rooms, error) {
 	return facilities.NewRooms(engine{Engine: application.NewEngine(service, observe)}), nil
 }
 
-// New composes the Facilities module. Every operation requires an explicit
-// caller tenant, including operations using an ambient transaction. The store
-// also applies that tenant as a defense-in-depth predicate.
+// New composes the Facilities module. Every operation requires the caller's
+// tenant, which the store also applies as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
