@@ -42,18 +42,34 @@ type ParticipationData struct {
 	SickDays  []SickDay
 }
 
+// ParticipationDay is one meal day of a child as the parent portal shows
+// it. RegisterUntil and CancelUntil are the deadlines of that day; the Can
+// flags say whether the parent may still use them.
 type ParticipationDay struct {
 	Date          Date
 	Participating bool
 	Source        ParticipationSource
-	Changeable    bool
+	CanRegister   bool
+	CanCancel     bool
+	RegisterUntil time.Time
+	CancelUntil   time.Time
 }
+
+// Changeable reports whether the parent may still change the day at all.
+func (d ParticipationDay) Changeable() bool { return d.CanRegister || d.CanCancel }
 
 type ParticipationPlan struct {
 	Weekdays      []Weekday
 	EffectiveFrom Date
 	CutoffTime    string
-	Days          []ParticipationDay
+	// Model is the school's registration model; ScheduleChangeable says
+	// whether the parent may still change the weekly pattern.
+	Model              RegistrationModel
+	ScheduleChangeable bool
+	// Sick says whether an absence after the cancellation deadline still
+	// cancels the meal.
+	Sick SickMode
+	Days []ParticipationDay
 }
 
 type DailyCandidate struct {
@@ -104,22 +120,4 @@ func SortDailyParticipants(participants []DailyParticipant) {
 func CutoffAt(date Date, cutoffTime string) time.Time {
 	clock, _ := time.Parse("15:04", cutoffTime)
 	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, calendar.Berlin)
-}
-
-func Changeable(now time.Time, date Date, cutoffTime string) bool {
-	now = now.In(calendar.Berlin)
-	today := Date(now.Format("2006-01-02"))
-	return !date.Before(today) && !now.After(CutoffAt(date, cutoffTime))
-}
-
-func NextEffectiveDate(now time.Time, cutoffTime string) Date {
-	now = now.In(calendar.Berlin)
-	date := Date(now.Format("2006-01-02"))
-	if now.After(CutoffAt(date, cutoffTime)) {
-		date = date.AddDays(1)
-	}
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDays(1)
-	}
-	return date
 }

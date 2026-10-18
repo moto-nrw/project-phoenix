@@ -34,13 +34,20 @@ type MealParticipationDay struct {
 	Participating bool
 	Source        string
 	Changeable    bool
+	CanRegister   bool
+	CanCancel     bool
+	RegisterUntil time.Time
+	CancelUntil   time.Time
 }
 
 type MealParticipationPlan struct {
-	Weekdays      []MealWeekday
-	EffectiveFrom string
-	CutoffTime    string
-	Days          []MealParticipationDay
+	Weekdays           []MealWeekday
+	EffectiveFrom      string
+	CutoffTime         string
+	Model              string
+	ScheduleChangeable bool
+	SickCancels        bool
+	Days               []MealParticipationDay
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

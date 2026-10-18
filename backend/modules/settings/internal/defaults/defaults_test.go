@@ -158,6 +158,21 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.meal_plan_enabled",
 		"operations.meal_registration_enabled",
 		"operations.meal_registration_cutoff_time",
+		// Meal ordering rules (#3873).
+		"operations.meal_registration_model",
+		"operations.meal_registration_deadline_kind",
+		"operations.meal_registration_lead_days",
+		"operations.meal_registration_deadline_weekday",
+		"operations.meal_cancellation_deadline_kind",
+		"operations.meal_cancellation_lead_days",
+		"operations.meal_cancellation_deadline_weekday",
+		"operations.meal_cancellation_cutoff_time",
+		"operations.meal_annual_registration_deadline",
+		"operations.meal_annual_changes",
+		"operations.meal_sick_after_deadline",
+		"operations.meal_order_rhythm",
+		"operations.meal_order_detail",
+		"gdpr.meal_caterer_names_enabled",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
@@ -295,10 +310,66 @@ func TestMealRegistrationSettings(t *testing.T) {
 	require.NotNil(t, cutoff)
 	assert.Equal(t, config.FieldTime, cutoff.Type)
 	assert.Equal(t, "09:00", cutoff.Default)
+	// #3873: the clock time belongs to the registration deadline and shows
+	// with its kind, which the annual model hides.
 	require.NotNil(t, cutoff.DependsOn)
-	assert.Equal(t, config.KeyMealRegistrationEnabled, cutoff.DependsOn.Key)
-	assert.Equal(t, "eq", cutoff.DependsOn.Condition)
-	assert.Equal(t, true, cutoff.DependsOn.Value)
+	assert.Equal(t, config.KeyMealRegistrationDeadlineKind, cutoff.DependsOn.Key)
+	assert.Equal(t, "not_empty", cutoff.DependsOn.Condition)
+	for _, key := range []string{config.KeyMealPlanEnabled, config.KeyMealRegistrationEnabled, config.KeyMealRegistrationCutoffTime} {
+		assert.Equal(t, "meals", config.GetDefinition(key).Tab, key)
+	}
+}
+
+// #3873: the ordering rules default to the behaviour before them — one
+// deadline on the meal day, absences after it keep the meal, a daily order.
+func TestMealOrderingSettingsDefaultToTheSingleSameDayDeadline(t *testing.T) {
+	t.Parallel()
+
+	defaults := map[string]any{
+		config.KeyMealRegistrationModel:           config.MealRegistrationModelSingle,
+		config.KeyMealRegistrationDeadlineKind:    config.MealDeadlineDaysBefore,
+		config.KeyMealRegistrationLeadDays:        0,
+		config.KeyMealRegistrationDeadlineWeekday: config.MealWeekdayThursday,
+		config.KeyMealCancellationDeadlineKind:    config.MealDeadlineDaysBefore,
+		config.KeyMealCancellationLeadDays:        0,
+		config.KeyMealCancellationDeadlineWeekday: config.MealWeekdayThursday,
+		config.KeyMealCancellationCutoffTime:      "09:00",
+		config.KeyMealAnnualRegistrationDeadline:  "",
+		config.KeyMealAnnualChanges:               config.MealAnnualChangesParentsCancel,
+		config.KeyMealSickAfterDeadline:           config.MealSickStaysOrdered,
+		config.KeyMealOrderRhythm:                 config.MealOrderRhythmDaily,
+		config.KeyMealOrderDetail:                 config.MealOrderDetailByClass,
+	}
+	for key, want := range defaults {
+		def := config.GetDefinition(key)
+		require.NotNil(t, def, key)
+		assert.Equal(t, want, def.Default, key)
+		assert.Equal(t, "meals", def.Tab, key)
+		assert.Equal(t, "config:update", def.WritePermission, key)
+		assert.Equal(t, config.AccessShared, def.AccessPolicy, key)
+		require.NotNil(t, def.DependsOn, "%s only shows with the registration", key)
+	}
+	for _, key := range []string{config.KeyMealRegistrationLeadDays, config.KeyMealCancellationLeadDays} {
+		def := config.GetDefinition(key)
+		require.NotNil(t, def.Validation)
+		assert.InDelta(t, 0, *def.Validation.Min, 0)
+		assert.InDelta(t, 30, *def.Validation.Max, 0)
+	}
+	assert.Equal(t, config.DependsOnEq(config.KeyMealRegistrationModel, config.MealRegistrationModelAnnual), config.GetDefinition(config.KeyMealAnnualRegistrationDeadline).DependsOn)
+	assert.Equal(t, config.DependsOnNeq(config.KeyMealRegistrationModel, config.MealRegistrationModelSingle), config.GetDefinition(config.KeyMealCancellationDeadlineKind).DependsOn)
+}
+
+// #3873: the caterer sees names only after an admin switches it on.
+func TestMealCatererNamesAreAnAdminOnlyPrivacySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyMealCatererNamesEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+	assert.Equal(t, "gdpr", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy)
 }
 
 // #3163: the same-day pickup cutoff is off unless a school sets a time, and it

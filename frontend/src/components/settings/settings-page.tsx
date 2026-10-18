@@ -49,6 +49,7 @@ const logger = createLogger({ component: "SettingsPage" });
 // Tab label mapping (German)
 const TAB_LABELS: Record<string, string> = {
   operations: "Betrieb",
+  meals: "Mittagessen",
   reminders: "Erinnerungen",
   gdpr: "Datenschutz",
   devices: "Geräte",
@@ -482,6 +483,7 @@ export function useSettingsTabs(): {
   const defaultTabConcept: MotoConceptKey = "settings";
   const tabConcepts: Record<string, MotoConceptKey> = {
     operations: "settings",
+    meals: "mealPlan",
     reminders: "notifications",
     notifications: "notifications",
     gdpr: "permissions",

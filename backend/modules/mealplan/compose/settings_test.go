@@ -12,7 +12,7 @@ func TestNewBoundSettingsResolvesThroughTheBoundResolvers(t *testing.T) {
 	t.Parallel()
 	enabled := func(context.Context) (bool, error) { return true, nil }
 	registration := func(context.Context) (bool, error) { return false, nil }
-	cutoff := func(context.Context) (string, error) { return "08:30", nil }
+	cutoff := func(context.Context) (OrderingSettings, error) { return singleDeadlineSettings("08:30"), nil }
 
 	for name, construct := range map[string]func() (*Settings, error){
 		"plan toggle":         func() (*Settings, error) { return NewBoundSettings(nil, registration, cutoff) },
@@ -32,7 +32,7 @@ func TestNewBoundSettingsResolvesThroughTheBoundResolvers(t *testing.T) {
 	registrationEnabled, err := settings.MealRegistrationEnabled(ctx)
 	require.NoError(t, err)
 	assert.False(t, registrationEnabled)
-	registrationCutoff, err := settings.MealRegistrationCutoff(ctx)
+	ordering, err := settings.MealOrderingSettings(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "08:30", registrationCutoff)
+	assert.Equal(t, "08:30", ordering.RegistrationTime)
 }

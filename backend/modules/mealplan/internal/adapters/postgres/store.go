@@ -268,6 +268,36 @@ func (s *Store) UpsertParticipationOverride(ctx context.Context, studentID, acco
 	return stats, nil
 }
 
+// UpsertParticipationOverrides writes the same exception for several days in
+// one statement.
+func (s *Store) UpsertParticipationOverrides(ctx context.Context, studentID, accountID int64, dates []domain.Date, participating bool) (domain.OperationStats, error) {
+	if len(dates) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	rows := make([]participationOverrideRow, 0, len(dates))
+	for _, date := range dates {
+		rows = append(rows, participationOverrideRow{TenantID: tenantID, StudentID: studentID, Date: date, Participating: participating, ChangedBy: accountID})
+	}
+	stats := domain.OperationStats{}
+	started := time.Now()
+	result, err := db.NewInsert().Model(&rows).
+		ModelTableExpr(`schedule.meal_participation_overrides`).
+		On(`CONFLICT (tenant_id, student_id, date) DO UPDATE`).
+		Set(`participating = EXCLUDED.participating, changed_by_account_id = EXCLUDED.changed_by_account_id, updated_at = NOW()`).
+		Exec(ctx)
+	stats.Queries = 1
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("meal plan postgres: save participation overrides: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
 func (s *Store) DeleteParticipationOverride(ctx context.Context, studentID int64, date domain.Date) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

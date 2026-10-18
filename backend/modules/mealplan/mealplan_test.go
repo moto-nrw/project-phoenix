@@ -14,6 +14,7 @@ type recordingEngine struct {
 	entries   []mealplan.Entry
 	replaced  mealplan.ReplaceDay
 	weekdays  []mealplan.Weekday
+	weekOf    string
 }
 
 func (e *recordingEngine) Available(context.Context) (bool, error) { return e.available, nil }
@@ -35,6 +36,10 @@ func (e *recordingEngine) ReplaceParticipationSchedule(_ context.Context, _ int6
 }
 func (e *recordingEngine) SetParticipationDay(context.Context, int64, int64, string, bool) error {
 	return nil
+}
+func (e *recordingEngine) SetParticipationWeek(_ context.Context, _ int64, _ int64, monday string, _ bool) (mealplan.WeekChange, error) {
+	e.weekOf = monday
+	return mealplan.WeekChange{}, nil
 }
 func (e *recordingEngine) ClearParticipationDay(context.Context, int64, int64, string) error {
 	return nil
@@ -121,5 +126,29 @@ func TestModuleNormalizesDishesAtPublicSeam(t *testing.T) {
 	}
 	if engine.replaced.Dishes[0].Note == nil || *engine.replaced.Dishes[0].Note != "vegetarisch" {
 		t.Fatalf("normalized note = %#v", engine.replaced.Dishes[0].Note)
+	}
+}
+
+func TestModuleAnchorsWeekChangesOnMonday(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{available: true}
+	module := mealplan.NewModule(engine)
+	if _, err := module.SetParticipationForWeek(context.Background(), mealplan.SetParticipationWeek{
+		StudentID: 42, GuardianAccountID: 7, WeekOf: "2026-09-10", Participating: false,
+	}); err != nil {
+		t.Fatalf("SetParticipationForWeek() error = %v", err)
+	}
+	if engine.weekOf != "2026-09-07" {
+		t.Fatalf("week anchored on %s, want the Monday 2026-09-07", engine.weekOf)
+	}
+	for _, command := range []mealplan.SetParticipationWeek{
+		{StudentID: 0, GuardianAccountID: 7, WeekOf: "2026-09-10"},
+		{StudentID: 42, GuardianAccountID: 0, WeekOf: "2026-09-10"},
+		{StudentID: 42, GuardianAccountID: 7, WeekOf: "10.09.2026"},
+	} {
+		if _, err := module.SetParticipationForWeek(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("SetParticipationForWeek(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
 	}
 }

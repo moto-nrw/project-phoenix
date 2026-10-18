@@ -4015,6 +4015,48 @@ function mealPlanTopic(): HelpTopic {
 }
 
 /**
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
+ */
+function mealOrderingTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealOrdering,
+    title: "Fristen für das Mittagessen festlegen",
+    question: "Bis wann melden Eltern ihr Kind zum Essen an oder ab?",
+    summary:
+      "Sie legen fest, wie Eltern anmelden und bis wann sie ändern dürfen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Hourglass",
+    requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
+    steps: [
+      "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
+      "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
+      "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
+      "Wählen Sie bei `Krank nach der Abmeldefrist`, was mit dem Essen passiert.",
+    ],
+    result:
+      "Eltern sehen bei jedem Tag, bis wann sie an- oder abmelden können.",
+    notes: [
+      "`Laufend, eine Frist` ist der Standard: Bis zur Frist dürfen Eltern an- und abmelden.",
+      "`Laufend, mit eigener Abmeldefrist` passt, wenn der Caterer früh bestellt, Abmelden aber später noch geht.",
+      "`Für das Schuljahr`: Eltern melden bis zum `Anmeldeschluss für das Schuljahr` an. Danach meldet nur die Schule an.",
+      "Bei `Abmelden nach dem Anmeldeschluss` legen Sie fest, ob Eltern danach noch Tage oder Wochen abmelden.",
+    ],
+    differences: [
+      "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
+      "Die Schule kann eine Anmeldung auch nach der Frist ändern.",
+    ],
+    troubleshootingDetails: [
+      "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
+    ],
+    related: [HELP_TOPICS.leadMealPlan, HELP_TOPICS.settings],
+  };
+}
+
+/**
  * Bankverbindungen unter `/eltern/bankverbindungen`. Reine Leseansicht mit
  * Export; die IBAN pflegen die Eltern selbst im Portal. Sichtbar nur mit
  * `guardians:financial` (sidebar.tsx, PARENT_SUB_PAGES-Filter).
@@ -5369,7 +5411,7 @@ function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Der Essensplan ist ein eigener Schalter.",
+      "Essensplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -5758,6 +5800,7 @@ function leadTopics(
     parentSurveyTopic(),
     parentDeclarationTopic(),
     mealPlanTopic(),
+    mealOrderingTopic(),
     bankDetailsTopic(),
 
     // --- Anmeldungen ---
@@ -6518,18 +6561,46 @@ function parentMealPlanTopic(): HelpTopic {
     group: "nachrichten",
     audience: "parent",
     icon: "UtensilsCrossed",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Mittagessen`.",
-      "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Plan ansehen",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Mittagessen`.",
+          "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+        ],
+      },
+      {
+        title: "Einen Tag an- oder abmelden",
+        description:
+          "Das geht nur, wenn Ihre OGS die Anmeldung zum Mittagessen nutzt.",
+        steps: [
+          "Wählen Sie beim Tag `Ändern`.",
+          "Wählen Sie `Anmelden` oder `Abmelden`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Eine ganze Woche abmelden",
+        steps: [
+          "Wählen Sie mit den Pfeilen die Woche.",
+          "Wählen Sie `Woche abmelden`.",
+          "Bestätigen Sie mit `Abmelden`.",
+        ],
+      },
     ],
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
+      "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 12:00`.",
+      "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Essensplan gibt es für diese und nächste Woche.",
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
+      "Fehlt `Ändern` bei den festen Tagen? Dann ist die Anmeldung für das Schuljahr abgeschlossen. Die festen Tage ändert jetzt die Schule.",
+      "Nach `Woche abmelden` bleiben Tage angemeldet, deren Frist schon vorbei ist. moto nennt sie.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Essensplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",

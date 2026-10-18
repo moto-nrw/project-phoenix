@@ -1110,6 +1110,7 @@ PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/children/{studentId}/master-data/requests/{requestId}
 PUT /parent/me/children/{studentId}/meal-participation
+PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}
 PUT /parent/me/children/{studentId}/meal-participation/{date}
 PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}

@@ -152,15 +152,16 @@ var moduleLegacyFileBudgets = map[string]int{
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 31146
+// like every entry; raised by ADR 0063 and ADR 0066.
+const moduleComposeBudgetTotal = 31198
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
 // packages, 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
-// keeps its LOC counted.
+// keeps its LOC counted. ADR 0066 raised modules/mealplan/compose and
+// workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                    528,
 	"modules/auditlog/compose":                        251,
@@ -185,7 +186,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
 	"modules/identityaccess/compose":                  1754,
-	"modules/mealplan/compose":                        242,
+	"modules/mealplan/compose":                        269, // raised by ADR 0066
 	"modules/organizationtenancy/compose":             479,
 	"modules/parentrequestfeedprojection/compose":     11,
 	"modules/peopledirectory/compose":                 2576,
@@ -211,7 +212,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose":                       1170,
 	"workflows/gradetransition/compose":               145,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  450,
+	"workflows/parentportal/compose":                  475, // raised by ADR 0066
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 166,

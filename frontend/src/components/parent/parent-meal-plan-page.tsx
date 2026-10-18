@@ -11,7 +11,9 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -32,6 +34,7 @@ import {
   listMyChildren,
   replaceMealParticipationSchedule,
   setMealParticipationDay,
+  setMealParticipationWeek,
   clearMealParticipationDay,
   type MealParticipation,
   type MealPlanEntry,
@@ -50,6 +53,12 @@ interface ChildOption {
   childName: string;
   registrationEnabled: boolean;
 }
+
+// Parents read the meal plan for this and next week; with the registration on
+// they reach four weeks, so deadlines with a lead time stay reachable (#3873).
+type WeekOffset = 0 | 1 | 2 | 3;
+const LAST_MEAL_PLAN_WEEK: WeekOffset = 1;
+const LAST_PARTICIPATION_WEEK: WeekOffset = 3;
 
 function mondayISOFromOffset(todayISO: string, weekOffset: number): string {
   const base = parseISODate(todayISO);
@@ -194,18 +203,26 @@ function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
 
 function WeekNavigation({
   weekOffset,
+  lastWeek,
   mondayISO,
   weekRange,
   weekReady,
   onWeekChange,
 }: Readonly<{
-  weekOffset: 0 | 1;
+  weekOffset: WeekOffset;
+  lastWeek: WeekOffset;
   mondayISO: string;
   weekRange: string;
   weekReady: boolean;
-  onWeekChange: (offset: 0 | 1) => void;
+  onWeekChange: (offset: WeekOffset) => void;
 }>) {
   const t = useTranslations("parentMealPlan");
+  const weekLabel =
+    weekOffset === 0
+      ? t("thisWeek")
+      : weekOffset === 1
+        ? t("nextWeek")
+        : t("inWeeks", { count: weekOffset });
 
   return (
     <nav
@@ -219,7 +236,7 @@ function WeekNavigation({
         className="min-h-11 min-w-11"
         aria-label={t("previousWeek")}
         disabled={!weekReady || weekOffset === 0}
-        onClick={() => onWeekChange(0)}
+        onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
       >
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -231,9 +248,7 @@ function WeekNavigation({
       >
         <p className="text-sm font-semibold text-gray-900">
           {t("calendarWeek", { week: isoWeek(mondayISO) })}
-          <span className="ml-1.5 text-gray-500">
-            · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
-          </span>
+          <span className="ml-1.5 text-gray-500">· {weekLabel}</span>
         </p>
         <p className="text-xs text-gray-500">{weekRange}</p>
       </div>
@@ -243,8 +258,8 @@ function WeekNavigation({
         size="icon"
         className="min-h-11 min-w-11"
         aria-label={t("nextWeek")}
-        disabled={!weekReady || weekOffset === 1}
-        onClick={() => onWeekChange(1)}
+        disabled={!weekReady || weekOffset >= lastWeek}
+        onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
       >
         <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -350,6 +365,7 @@ function ParticipationWeek({
   weekReady,
   weekError,
   dishesByDate,
+  planLater,
   onWeekChange,
   onEditingChange,
 }: Readonly<{
@@ -357,13 +373,15 @@ function ParticipationWeek({
   childName: string;
   today: string;
   weekDates: string[];
-  weekOffset: 0 | 1;
+  weekOffset: WeekOffset;
   mondayISO: string;
   weekRange: string;
   weekReady: boolean;
   weekError: FormErrorInput;
   dishesByDate: ReadonlyMap<string, MealPlanEntry[]>;
-  onWeekChange: (offset: 0 | 1) => void;
+  // The week lies beyond the meal plan parents may read.
+  planLater: boolean;
+  onWeekChange: (offset: WeekOffset) => void;
   onEditingChange: (editing: boolean) => void;
 }>) {
   const t = useTranslations("parentMealPlan");
@@ -380,6 +398,11 @@ function ParticipationWeek({
   const [dayChange, setDayChange] = useState<DraftDayChange | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmingWeek, setConfirmingWeek] = useState(false);
+  const [weekResult, setWeekResult] = useState<{
+    readonly monday: string;
+    readonly locked: string[];
+  } | null>(null);
   const {
     error: loadError,
     show: showLoadError,
@@ -426,8 +449,10 @@ function ParticipationWeek({
 
   const range = useMemo(() => {
     const monday = mondayISOFromOffset(today, 0);
-    const end = parseISODate(monday);
-    end.setDate(end.getDate() + 11);
+    const end = parseISODate(
+      mondayISOFromOffset(today, LAST_PARTICIPATION_WEEK),
+    );
+    end.setDate(end.getDate() + 4);
     return { from: monday, to: toISODate(end) };
   }, [today]);
 
@@ -597,6 +622,33 @@ function ParticipationWeek({
     setSaving(false);
   }
 
+  async function cancelWeek() {
+    setSaving(true);
+    clearSaveError();
+    try {
+      const change = await setMealParticipationWeek(
+        studentId,
+        mondayISO,
+        false,
+      );
+      setWeekResult({ monday: mondayISO, locked: change.locked });
+    } catch (err) {
+      logger.error("parent_meal_participation_week_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSaveError(err, {
+        object: t("errorObjectWeekCancel"),
+        retry: () => void cancelWeek(),
+      });
+      setSaving(false);
+      setConfirmingWeek(false);
+      return;
+    }
+    setConfirmingWeek(false);
+    await load();
+    setSaving(false);
+  }
+
   useLayoutEffect(() => {
     retrySaveRef.current = () =>
       void (editingRegularDays ? saveRegularDays() : saveDayChange());
@@ -627,6 +679,52 @@ function ParticipationWeek({
       day: "numeric",
       month: "long",
     });
+  // A deadline is an instant; parents read it in Berlin wall-clock time.
+  const deadline = (instant: string) =>
+    new Date(instant).toLocaleString(locale, {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Berlin",
+    });
+  const deadlineLines = (day: MealParticipation["days"][number]) => {
+    if (!day.changeable) return [];
+    if (
+      day.can_register &&
+      day.can_cancel &&
+      day.register_until === day.cancel_until
+    ) {
+      return [t("deadlineBoth", { date: deadline(day.cancel_until) })];
+    }
+    return [
+      ...(day.can_register
+        ? [t("deadlineRegister", { date: deadline(day.register_until) })]
+        : []),
+      ...(day.can_cancel
+        ? [t("deadlineCancel", { date: deadline(day.cancel_until) })]
+        : []),
+    ];
+  };
+  // Whether the parent may still move the day to participating (true) or
+  // away from it (false).
+  const mayChangeTo = (
+    day: MealParticipation["days"][number],
+    participating: boolean,
+  ) => (participating ? day.can_register : day.can_cancel);
+  const weekCancellable =
+    !isEditing &&
+    weekDates.some((date) => {
+      const day = participationByDate.get(date);
+      return day?.participating === true && day.can_cancel;
+    });
+  const lockedLabel = (dates: string[]) =>
+    new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(
+      dates.map((date) =>
+        parseISODate(date).toLocaleDateString(locale, { weekday: "long" }),
+      ),
+    );
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
@@ -703,7 +801,7 @@ function ParticipationWeek({
                     </p>
                   ) : null}
                 </div>
-                {!editingDate ? (
+                {!editingDate && participation.schedule_changeable ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -717,12 +815,17 @@ function ParticipationWeek({
                 ) : null}
               </div>
             )}
+            {!participation.schedule_changeable ? (
+              <p className="mt-2 text-sm text-gray-600">
+                {t("scheduleLocked")}
+              </p>
+            ) : null}
           </div>
         )}
 
         {participation ? (
           <p className="mt-3 text-sm text-gray-600">
-            {t("participationCutoff", { time: participation.cutoff_time })}
+            {t("participationDeadlines")}
           </p>
         ) : null}
       </div>
@@ -730,12 +833,67 @@ function ParticipationWeek({
       <div className="border-t border-gray-200">
         <WeekNavigation
           weekOffset={weekOffset}
+          lastWeek={LAST_PARTICIPATION_WEEK}
           mondayISO={mondayISO}
           weekRange={weekRange}
           weekReady={weekReady && !isEditing}
           onWeekChange={onWeekChange}
         />
       </div>
+
+      {weekReady &&
+      !loading &&
+      (weekCancellable || weekResult?.monday === mondayISO) ? (
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
+          {weekResult?.monday === mondayISO ? (
+            <Alert
+              type="success"
+              message={
+                weekResult.locked.length > 0
+                  ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                  : t("cancelWeekDone")
+              }
+            />
+          ) : null}
+          {weekCancellable ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                className="min-h-11"
+                disabled={saving}
+                onClick={() => {
+                  clearSaveError();
+                  setConfirmingWeek(true);
+                }}
+              >
+                {t("cancelWeek")}
+              </Button>
+            </div>
+          ) : null}
+          {!isEditing && saveError ? (
+            <FormErrorAlert message={saveError} />
+          ) : null}
+        </div>
+      ) : null}
+
+      <ConfirmationModal
+        isOpen={confirmingWeek}
+        onClose={() => setConfirmingWeek(false)}
+        onConfirm={() => void cancelWeek()}
+        title={t("cancelWeekTitle")}
+        confirmText={t("cancelWeekConfirm")}
+        cancelText={t("cancel")}
+        confirmVariant="danger"
+        isConfirmLoading={saving}
+        isDismissDisabled={saving}
+        loadingText={t("saving")}
+      >
+        <p className="text-sm text-gray-700">
+          {t("cancelWeekText", { name: childName })}
+        </p>
+      </ConfirmationModal>
 
       {!weekReady ? (
         <MealParticipationDaysSkeleton loadingLabel={t("loading")} />
@@ -806,6 +964,10 @@ function ParticipationWeek({
                       <p className="text-sm text-gray-500">
                         {t("mealUnavailable")}
                       </p>
+                    ) : planLater ? (
+                      <p className="text-sm text-gray-400">
+                        {t("mealPlanLater")}
+                      </p>
                     ) : dishes.length > 0 ? (
                       <div className="space-y-1.5">
                         {dishes.map((entry) => (
@@ -864,6 +1026,16 @@ function ParticipationWeek({
                         {t("closed")}
                       </p>
                     ) : null}
+                    {day && editingDate !== date
+                      ? deadlineLines(day).map((line) => (
+                          <p
+                            key={line}
+                            className="mt-1.5 text-xs text-gray-500"
+                          >
+                            {line}
+                          </p>
+                        ))
+                      : null}
                     {editingDate === date &&
                     day?.changeable &&
                     day.source !== "sick" ? (
@@ -876,25 +1048,30 @@ function ParticipationWeek({
                           {t("editDayRegistration", { date: fullDate(date) })}
                         </legend>
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant={
-                              displayedParticipation
-                                ? "outline_danger"
-                                : "success"
-                            }
-                            size="compact"
-                            className="min-h-11"
-                            disabled={saving}
-                            onClick={() =>
-                              stageDayChange(day, !displayedParticipation)
-                            }
-                          >
-                            {displayedParticipation
-                              ? t("unregister")
-                              : t("register")}
-                          </Button>
-                          {displayedSource === "override" ? (
+                          {mayChangeTo(day, !displayedParticipation) ||
+                          draftChange !== null ? (
+                            <Button
+                              type="button"
+                              variant={
+                                displayedParticipation
+                                  ? "outline_danger"
+                                  : "success"
+                              }
+                              size="compact"
+                              className="min-h-11"
+                              disabled={saving}
+                              onClick={() =>
+                                stageDayChange(day, !displayedParticipation)
+                              }
+                            >
+                              {displayedParticipation
+                                ? t("unregister")
+                                : t("register")}
+                            </Button>
+                          ) : null}
+                          {displayedSource === "override" &&
+                          (regularParticipation === day.participating ||
+                            mayChangeTo(day, regularParticipation)) ? (
                             <Button
                               type="button"
                               variant="ghost"
@@ -907,6 +1084,11 @@ function ParticipationWeek({
                             </Button>
                           ) : null}
                         </div>
+                        {deadlineLines(day).map((line) => (
+                          <p key={line} className="mt-2 text-xs text-gray-500">
+                            {line}
+                          </p>
+                        ))}
                         <p className="mt-2 text-xs text-gray-500">
                           {t("finishEdit")}
                         </p>
@@ -930,7 +1112,9 @@ function ParticipationWeek({
 
       {participation ? (
         <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">
-          {t("participationSickness", { time: participation.cutoff_time })}
+          {participation.sick_cancels_after_deadline
+            ? t("participationSicknessDay")
+            : t("participationSicknessDeadline")}
         </p>
       ) : null}
     </section>
@@ -944,7 +1128,7 @@ export function ParentMealPlanPage() {
   const [schools, setSchools] = useState<ChildOption[]>([]);
   const [hasLinkedChildren, setHasLinkedChildren] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
-  const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
+  const [weekOffset, setWeekOffset] = useState<WeekOffset>(0);
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
   // The Monday the current `entries` were loaded for. Used to detect when
   // `entries` belongs to a previous week (a slower request still in flight, or
@@ -1051,11 +1235,29 @@ export function ParentMealPlanPage() {
   // Load the selected school's week. A slower response from a previous
   // school/week selection must never overwrite the current one, so each run
   // captures a `cancelled` flag the cleanup flips when the inputs change.
+  // A school without the registration only shows the meal plan, so a week
+  // beyond it cannot stay selected after switching to that school.
+  useEffect(() => {
+    if (selectedSchool && !selectedSchool.registrationEnabled) {
+      setWeekOffset((offset) =>
+        offset > LAST_MEAL_PLAN_WEEK ? LAST_MEAL_PLAN_WEEK : offset,
+      );
+    }
+  }, [selectedSchool]);
+
+  // Beyond next week parents only see their registration; the meal plan for
+  // those weeks is not public yet, so it is not loaded.
+  const planLater = weekOffset > LAST_MEAL_PLAN_WEEK;
   useEffect(() => {
     if (!selectedSchool) return;
     let cancelled = false;
     const { studentId } = selectedSchool;
     clearWeekError();
+    if (planLater) {
+      setEntries([]);
+      setLoadedMonday(mondayISO);
+      return;
+    }
     void (async () => {
       try {
         const rows = await getChildMealPlan(studentId, mondayISO);
@@ -1087,6 +1289,7 @@ export function ParentMealPlanPage() {
   }, [
     clearWeekError,
     mondayISO,
+    planLater,
     selectedSchool,
     showWeekError,
     t,
@@ -1208,6 +1411,7 @@ export function ParentMealPlanPage() {
           weekReady={weekReady}
           weekError={weekError}
           dishesByDate={dishesByDate}
+          planLater={planLater}
           onWeekChange={setWeekOffset}
           onEditingChange={setParticipationEditing}
         />
@@ -1215,6 +1419,7 @@ export function ParentMealPlanPage() {
         <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
           <WeekNavigation
             weekOffset={weekOffset}
+            lastWeek={LAST_MEAL_PLAN_WEEK}
             mondayISO={mondayISO}
             weekRange={weekRange}
             weekReady={weekReady}

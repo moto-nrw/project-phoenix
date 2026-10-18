@@ -56,7 +56,7 @@ func TestResolveParticipationUsesScheduleForNextEffectiveDate(t *testing.T) {
 				data,
 				domain.Date("2026-09-07"),
 				domain.Date("2026-09-11"),
-				"09:00",
+				domain.DefaultOrderingRules("09:00"),
 			)
 
 			assert.Equal(t, test.wantEffective, plan.EffectiveFrom)

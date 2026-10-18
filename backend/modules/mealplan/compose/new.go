@@ -23,6 +23,9 @@ func (fn TransactionFunc) Run(ctx context.Context, callback func(context.Context
 
 type Observation = ports.Observation
 
+// OrderingSettings are the school's meal ordering settings as stored.
+type OrderingSettings = ports.OrderingSettings
+
 type ParticipantCandidate struct {
 	StudentID   int64
 	FirstName   string
@@ -37,7 +40,7 @@ type Dependencies struct {
 	Settings interface {
 		MealPlanEnabled(context.Context) (bool, error)
 		MealRegistrationEnabled(context.Context) (bool, error)
-		MealRegistrationCutoff(context.Context) (string, error)
+		MealOrderingSettings(context.Context) (OrderingSettings, error)
 	}
 	Observe      func(Observation)
 	Now          func() time.Time
@@ -90,16 +93,16 @@ func (d participantDirectory) FindDailyCandidates(ctx context.Context, date doma
 type Settings struct {
 	mealPlanEnabled         func(context.Context) (bool, error)
 	mealRegistrationEnabled func(context.Context) (bool, error)
-	mealRegistrationCutoff  func(context.Context) (string, error)
+	orderingSettings        func(context.Context) (OrderingSettings, error)
 }
 
 // NewBoundSettings binds the resolvers; a missing one is a construction
 // error.
-func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) (*Settings, error) {
-	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
+func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), orderingSettings func(context.Context) (OrderingSettings, error)) (*Settings, error) {
+	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || orderingSettings == nil {
 		return nil, errors.New("meal plan settings: resolvers are required")
 	}
-	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, mealRegistrationCutoff: mealRegistrationCutoff}, nil
+	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, orderingSettings: orderingSettings}, nil
 }
 
 func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) { return s.mealPlanEnabled(ctx) }
@@ -108,8 +111,8 @@ func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
 	return s.mealRegistrationEnabled(ctx)
 }
 
-func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, error) {
-	return s.mealRegistrationCutoff(ctx)
+func (s *Settings) MealOrderingSettings(ctx context.Context) (OrderingSettings, error) {
+	return s.orderingSettings(ctx)
 }
 
 type engine struct{ service *application.Service }
@@ -190,6 +193,26 @@ func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID in
 	return mapError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating))
 }
 
+func (e engine) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday string, participating bool) (mealplan.WeekChange, error) {
+	parsed, err := domain.ParseDate(monday)
+	if err != nil {
+		return mealplan.WeekChange{}, err
+	}
+	changed, locked, err := e.service.SetParticipationWeek(ctx, studentID, accountID, parsed, participating)
+	if err != nil {
+		return mealplan.WeekChange{}, mapError(err)
+	}
+	return mealplan.WeekChange{Changed: publicDates(changed), Locked: publicDates(locked)}, nil
+}
+
+func publicDates(dates []domain.Date) []mealplan.Date {
+	result := make([]mealplan.Date, 0, len(dates))
+	for _, date := range dates {
+		result = append(result, mealplan.Date(date.String()))
+	}
+	return result
+}
+
 func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string) error {
 	parsed, err := domain.ParseDate(date)
 	if err != nil {
@@ -215,12 +238,16 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 }
 
 func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {
-	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.CutoffTime, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
+	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.CutoffTime, Model: mealplan.RegistrationModel(plan.Model), ScheduleChangeable: plan.ScheduleChangeable, SickCancels: plan.Sick == domain.SickCancelled, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
 	for _, weekday := range plan.Weekdays {
 		result.Weekdays = append(result.Weekdays, mealplan.Weekday(weekday))
 	}
 	for _, day := range plan.Days {
-		result.Days = append(result.Days, mealplan.ParticipationDay{Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source), Changeable: day.Changeable})
+		result.Days = append(result.Days, mealplan.ParticipationDay{
+			Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source),
+			Changeable: day.Changeable(), CanRegister: day.CanRegister, CanCancel: day.CanCancel,
+			RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
+		})
 	}
 	return result
 }

@@ -551,6 +551,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation"}:                        notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/meal-participation/{date}"}:              notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/{date}"}:                 notCaptured,
+	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/weeks/{date}"}:           notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/pickup-change-requests/{requestId}"}:        notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/related-accounts"}:                         notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/related-accounts/{guardianProfileId}"}:   notCaptured,

@@ -14,6 +14,7 @@ type Store interface {
 	FindParticipation(context.Context, int64, domain.Date, domain.Date) (domain.ParticipationData, domain.OperationStats, error)
 	InsertParticipationSchedule(context.Context, int64, int64, domain.Date, []domain.Weekday) (domain.OperationStats, error)
 	UpsertParticipationOverride(context.Context, int64, int64, domain.Date, bool) (domain.OperationStats, error)
+	UpsertParticipationOverrides(context.Context, int64, int64, []domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
 }
@@ -25,7 +26,26 @@ type Directory interface {
 type Settings interface {
 	MealPlanEnabled(context.Context) (bool, error)
 	MealRegistrationEnabled(context.Context) (bool, error)
-	MealRegistrationCutoff(context.Context) (string, error)
+	MealOrderingSettings(context.Context) (OrderingSettings, error)
+}
+
+// OrderingSettings are the school's meal ordering settings as stored (#3873).
+// The application parses and validates them into domain.OrderingRules.
+type OrderingSettings struct {
+	Model                string
+	RegistrationKind     string
+	RegistrationLeadDays int
+	RegistrationWeekday  string
+	RegistrationTime     string
+	CancellationKind     string
+	CancellationLeadDays int
+	CancellationWeekday  string
+	CancellationTime     string
+	AnnualDeadline       string
+	AnnualChanges        string
+	SickAfterDeadline    string
+	OrderRhythm          string
+	OrderDetail          string
 }
 
 type Transaction interface {

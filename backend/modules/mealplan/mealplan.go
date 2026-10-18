@@ -59,24 +59,61 @@ const (
 	ParticipationSick     ParticipationSource = "sick"
 )
 
+// RegistrationModel is how a school's parents register for lunch (#3873).
+type RegistrationModel string
+
+const (
+	RegistrationModelSingle RegistrationModel = "ongoing_single"
+	RegistrationModelSplit  RegistrationModel = "ongoing_split"
+	RegistrationModelAnnual RegistrationModel = "annual"
+)
+
+// ParticipationDay is one meal day of a child. Changeable is true while the
+// parent may still register or cancel it; RegisterUntil and CancelUntil are
+// the deadlines of the day.
 type ParticipationDay struct {
 	Date          Date
 	Participating bool
 	Source        ParticipationSource
 	Changeable    bool
+	CanRegister   bool
+	CanCancel     bool
+	RegisterUntil time.Time
+	CancelUntil   time.Time
 }
 
 type ParticipationPlan struct {
-	Weekdays      []Weekday
-	EffectiveFrom Date
-	CutoffTime    string
-	Days          []ParticipationDay
+	Weekdays           []Weekday
+	EffectiveFrom      Date
+	CutoffTime         string
+	Model              RegistrationModel
+	ScheduleChangeable bool
+	// SickCancels is true when an absence reported after the cancellation
+	// deadline still cancels the meal.
+	SickCancels bool
+	Days        []ParticipationDay
 }
 
 type ReplaceParticipationSchedule struct {
 	StudentID         int64
 	GuardianAccountID int64
 	Weekdays          []Weekday
+}
+
+// SetParticipationWeek registers or cancels the remaining weekdays of the
+// week of WeekOf.
+type SetParticipationWeek struct {
+	StudentID         int64
+	GuardianAccountID int64
+	WeekOf            Date
+	Participating     bool
+}
+
+// WeekChange reports which days a week change changed and which it left
+// because their deadline had passed.
+type WeekChange struct {
+	Changed []Date
+	Locked  []Date
 }
 
 type SetParticipationDay struct {
@@ -131,6 +168,7 @@ type engine interface {
 	Participation(context.Context, int64, string, string) (ParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, int64, int64, []Weekday) (Date, error)
 	SetParticipationDay(context.Context, int64, int64, string, bool) error
+	SetParticipationWeek(context.Context, int64, int64, string, bool) (WeekChange, error)
 	ClearParticipationDay(context.Context, int64, int64, string) error
 	DailyParticipants(context.Context, string) (DailyList, error)
 }
@@ -215,6 +253,14 @@ func (m *Module) SetParticipationForDay(ctx context.Context, command SetParticip
 		return ErrInvalidParticipation
 	}
 	return m.engine.SetParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), command.Participating)
+}
+
+func (m *Module) SetParticipationForWeek(ctx context.Context, command SetParticipationWeek) (WeekChange, error) {
+	date, err := calendar.ParseDate(string(command.WeekOf))
+	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
+		return WeekChange{}, ErrInvalidParticipation
+	}
+	return m.engine.SetParticipationWeek(ctx, command.StudentID, command.GuardianAccountID, date.StartOfISOWeek().String(), command.Participating)
 }
 
 func (m *Module) ClearParticipationForDay(ctx context.Context, command SetParticipationDay) error {

@@ -18,6 +18,7 @@ type MealPlanProvider interface {
 	Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error)
 	SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+	SetParticipationForWeek(context.Context, mealplanModule.SetParticipationWeek) (mealplanModule.WeekChange, error)
 	ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
 }
 
@@ -53,16 +54,22 @@ func (m mealPlan) Participation(ctx context.Context, studentID int64, from, to c
 		return care.MealParticipationPlan{}, mealPlanError(err)
 	}
 	out := care.MealParticipationPlan{
-		EffectiveFrom: string(plan.EffectiveFrom),
-		CutoffTime:    plan.CutoffTime,
-		Weekdays:      make([]care.MealWeekday, 0, len(plan.Weekdays)),
-		Days:          make([]care.MealParticipationDay, 0, len(plan.Days)),
+		EffectiveFrom:      string(plan.EffectiveFrom),
+		CutoffTime:         plan.CutoffTime,
+		Model:              string(plan.Model),
+		ScheduleChangeable: plan.ScheduleChangeable,
+		SickCancels:        plan.SickCancels,
+		Weekdays:           make([]care.MealWeekday, 0, len(plan.Weekdays)),
+		Days:               make([]care.MealParticipationDay, 0, len(plan.Days)),
 	}
 	for _, weekday := range plan.Weekdays {
 		out.Weekdays = append(out.Weekdays, care.MealWeekday(weekday))
 	}
 	for _, day := range plan.Days {
-		out.Days = append(out.Days, care.MealParticipationDay{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
+		out.Days = append(out.Days, care.MealParticipationDay{
+			Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable,
+			CanRegister: day.CanRegister, CanCancel: day.CanCancel, RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
+		})
 	}
 	return out, nil
 }
@@ -80,6 +87,24 @@ func (m mealPlan) ReplaceParticipationSchedule(ctx context.Context, schedule car
 
 func (m mealPlan) SetParticipationForDay(ctx context.Context, change care.MealParticipationChange) error {
 	return mealPlanError(m.provider.SetParticipationForDay(ctx, mealParticipationDay(change)))
+}
+
+func (m mealPlan) SetParticipationForWeek(ctx context.Context, change care.MealParticipationChange) (care.MealWeekChange, error) {
+	result, err := m.provider.SetParticipationForWeek(ctx, mealplanModule.SetParticipationWeek{
+		StudentID: change.StudentID, GuardianAccountID: change.GuardianAccountID,
+		WeekOf: mealplanModule.Date(change.Date.String()), Participating: change.Participating,
+	})
+	if err != nil {
+		return care.MealWeekChange{}, mealPlanError(err)
+	}
+	out := care.MealWeekChange{Changed: make([]string, 0, len(result.Changed)), Locked: make([]string, 0, len(result.Locked))}
+	for _, date := range result.Changed {
+		out.Changed = append(out.Changed, string(date))
+	}
+	for _, date := range result.Locked {
+		out.Locked = append(out.Locked, string(date))
+	}
+	return out, nil
 }
 
 func (m mealPlan) ClearParticipationForDay(ctx context.Context, change care.MealParticipationChange) error {

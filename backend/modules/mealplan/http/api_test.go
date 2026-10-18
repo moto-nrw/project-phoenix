@@ -90,6 +90,9 @@ func (e engine) ReplaceParticipationSchedule(context.Context, int64, int64, []me
 func (e engine) SetParticipationDay(context.Context, int64, int64, string, bool) error {
 	return nil
 }
+func (e engine) SetParticipationWeek(context.Context, int64, int64, string, bool) (mealplanModule.WeekChange, error) {
+	return mealplanModule.WeekChange{}, nil
+}
 func (e engine) ClearParticipationDay(context.Context, int64, int64, string) error {
 	return nil
 }
