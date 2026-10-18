@@ -100,3 +100,35 @@ func (send communicationDecisionNotification) Notify(ctx context.Context, event 
 		DeepLink: event.DeepLink, SchoolDeepLink: event.SchoolDeepLink, Data: event.Data, Portal: event.Portal,
 	})
 }
+
+// ParentStoreGuardianMessagesFixture reads the actual native store in the
+// caller's tenant transaction. Assertions and transaction ownership stay with
+// the calling suite.
+func ParentStoreGuardianMessagesFixture(run func(func(context.Context) error) error, threads communication.ParentThreadRecords, messages communication.ParentMessageRecords, studentID, guardianAccountID int64, limit int) ([]*communication.PortalParentMessage, error) {
+	var rows []*communication.PortalParentMessage
+	err := run(func(ctx context.Context) error {
+		thread, err := threads.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID)
+		if err != nil || thread == nil {
+			return err
+		}
+		rows, err = messages.ParentMessageListByThread(ctx, thread.ID, limit)
+		return err
+	})
+	return rows, err
+}
+
+// ParentStoreLastGuardianEventFixture selects the same last event from the
+// complete ordered native message snapshot.
+func ParentStoreLastGuardianEventFixture(run func(func(context.Context) error) error, threads communication.ParentThreadRecords, messages communication.ParentMessageRecords, studentID, guardianAccountID int64, eventType string) (*communication.PortalParentMessage, error) {
+	rows, err := ParentStoreGuardianMessagesFixture(run, threads, messages, studentID, guardianAccountID, 50)
+	if err != nil {
+		return nil, err
+	}
+	var pill *communication.PortalParentMessage
+	for _, message := range rows {
+		if message.EventType == eventType {
+			pill = message
+		}
+	}
+	return pill, nil
+}

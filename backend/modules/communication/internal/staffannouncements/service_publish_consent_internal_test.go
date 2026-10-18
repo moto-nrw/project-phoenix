@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -72,7 +71,7 @@ func consentTestService(repo *fakeAnnouncementRepo, notifier *fakeNotifier, pref
 func consentTestRepo() *fakeAnnouncementRepo {
 	return &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
-		audience: []*usersModels.AnnouncementRecipientStatus{
+		audience: []*AnnouncementRecipientStatus{
 			{AccountID: 101},
 			{AccountID: 202},
 		},
@@ -135,7 +134,7 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: "one@example.test"},
 		{AccountID: 202, Email: "two@example.test"},
 	}
@@ -179,7 +178,7 @@ func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: "one@example.test"},
 		{AccountID: 202, Email: "two@example.test"},
 	}
@@ -216,7 +215,7 @@ func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 202, Email: "two@example.test"},
 	}
 	outbox := &fakeOutbox{}
@@ -244,7 +243,7 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 
 	repo := consentTestRepo()
 	repo.announcement = draftAnnouncement(true)
-	repo.recipients = []*usersModels.AnnouncementRecipient{
+	repo.recipients = []*AnnouncementRecipient{
 		{AccountID: 101, Email: " Family@Example.Test "},
 		{AccountID: 202, Email: "family@example.test"},
 	}
@@ -295,7 +294,7 @@ func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := consentTestRepo()
 			repo.announcement = draftAnnouncement(true)
-			repo.recipients = []*usersModels.AnnouncementRecipient{
+			repo.recipients = []*AnnouncementRecipient{
 				{AccountID: 202, Email: "two@example.test"},
 			}
 			notifier := &fakeNotifier{err: tt.notifierErr}

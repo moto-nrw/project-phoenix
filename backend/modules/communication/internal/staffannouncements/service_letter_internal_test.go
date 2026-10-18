@@ -3,8 +3,6 @@ package announcement
 import (
 	"errors"
 	"testing"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // letterInput builds a minimal valid Elternbrief input. Every test starts from
@@ -13,9 +11,9 @@ func letterInput() Input {
 	return Input{
 		Title:        "Ausflug am Freitag",
 		Body:         "Liebe Eltern, am Freitag fahren wir in den Zoo.",
-		DeliveryMode: usersModels.ParentAnnouncementDeliveryLetter,
+		DeliveryMode: ParentAnnouncementDeliveryLetter,
 		Targets: []TargetInput{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+			{TargetType: AnnouncementTargetSchoolAll},
 		},
 	}
 }
@@ -68,16 +66,16 @@ func TestNormalizeDeliveryDefaults(t *testing.T) {
 	in := Input{
 		Title:   "Info",
 		Body:    "Text",
-		Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 	if err := normalizeDelivery(&in); err != nil {
 		t.Fatalf("normalizeDelivery: unexpected error: %v", err)
 	}
-	if in.DeliveryMode != usersModels.ParentAnnouncementDeliveryStandard {
-		t.Errorf("delivery_mode = %q, want %q", in.DeliveryMode, usersModels.ParentAnnouncementDeliveryStandard)
+	if in.DeliveryMode != ParentAnnouncementDeliveryStandard {
+		t.Errorf("delivery_mode = %q, want %q", in.DeliveryMode, ParentAnnouncementDeliveryStandard)
 	}
-	if in.EmailAudience != usersModels.EmailAudiencePortalOnly {
-		t.Errorf("email_audience = %q, want %q", in.EmailAudience, usersModels.EmailAudiencePortalOnly)
+	if in.EmailAudience != EmailAudiencePortalOnly {
+		t.Errorf("email_audience = %q, want %q", in.EmailAudience, EmailAudiencePortalOnly)
 	}
 	// A plain Mitteilung must keep its opt-in semantics — normalization may not
 	// turn on channels the author did not ask for.
@@ -112,8 +110,8 @@ func TestNormalizeDeliveryRejectsLetterPoll(t *testing.T) {
 	t.Parallel()
 
 	for _, responseType := range []string{
-		usersModels.ParentAnnouncementResponseSingleChoice,
-		usersModels.ParentAnnouncementResponseMultiChoice,
+		ParentAnnouncementResponseSingleChoice,
+		ParentAnnouncementResponseMultiChoice,
 	} {
 		in := letterInput()
 		in.ResponseType = responseType
@@ -122,7 +120,7 @@ func TestNormalizeDeliveryRejectsLetterPoll(t *testing.T) {
 		}
 	}
 	// "none" and "" are both plain-Mitteilung spellings and must pass.
-	for _, responseType := range []string{"", usersModels.ParentAnnouncementResponseNone} {
+	for _, responseType := range []string{"", ParentAnnouncementResponseNone} {
 		in := letterInput()
 		in.ResponseType = responseType
 		if err := normalizeDelivery(&in); err != nil {
@@ -139,7 +137,7 @@ func TestNormalizeDeliveryRejectsLetterToPendingEnrollment(t *testing.T) {
 
 	in := letterInput()
 	in.Targets = append(in.Targets, TargetInput{
-		TargetType: usersModels.AnnouncementTargetPendingEnrollment,
+		TargetType: AnnouncementTargetPendingEnrollment,
 	})
 	if err := normalizeDelivery(&in); !errors.Is(err, ErrValidation) {
 		t.Fatalf("error = %v, want ErrValidation", err)
@@ -147,7 +145,7 @@ func TestNormalizeDeliveryRejectsLetterToPendingEnrollment(t *testing.T) {
 
 	// The same target stays legal for a plain Mitteilung.
 	std := in
-	std.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
+	std.DeliveryMode = ParentAnnouncementDeliveryStandard
 	if err := normalizeDelivery(&std); err != nil {
 		t.Fatalf("standard Mitteilung to pending enrollment: unexpected error: %v", err)
 	}
@@ -162,9 +160,9 @@ func TestNormalizeDeliveryRejectsWideAudienceWithoutEmail(t *testing.T) {
 	in := Input{
 		Title:         "Info",
 		Body:          "Text",
-		EmailAudience: usersModels.EmailAudienceAllContacts,
+		EmailAudience: EmailAudienceAllContacts,
 		SendEmail:     false,
-		Targets:       []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Targets:       []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 	if err := normalizeDelivery(&in); !errors.Is(err, ErrValidation) {
 		t.Fatalf("error = %v, want ErrValidation", err)
@@ -173,7 +171,7 @@ func TestNormalizeDeliveryRejectsWideAudienceWithoutEmail(t *testing.T) {
 	// A letter forces send_email on, so the wide audience is fine there even
 	// though the client never set the flag itself.
 	letter := letterInput()
-	letter.EmailAudience = usersModels.EmailAudienceAllContacts
+	letter.EmailAudience = EmailAudienceAllContacts
 	if err := normalizeDelivery(&letter); err != nil {
 		t.Fatalf("letter with all_contacts: unexpected error: %v", err)
 	}
@@ -185,10 +183,10 @@ func TestNormalizeDeliveryRejectsWideAudienceForStandardAnnouncement(t *testing.
 	in := Input{
 		Title:         "Info",
 		Body:          "Text",
-		DeliveryMode:  usersModels.ParentAnnouncementDeliveryStandard,
-		EmailAudience: usersModels.EmailAudienceAllContacts,
+		DeliveryMode:  ParentAnnouncementDeliveryStandard,
+		EmailAudience: EmailAudienceAllContacts,
 		SendEmail:     true,
-		Targets:       []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Targets:       []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 	if err := normalizeDelivery(&in); !errors.Is(err, ErrValidation) {
 		t.Fatalf("error = %v, want ErrValidation", err)
@@ -207,7 +205,7 @@ func TestNormalizeInputAppliesDeliveryRules(t *testing.T) {
 	if !in.SendEmail || !in.RequiresAcknowledgement {
 		t.Error("normalizeInput must apply the Elternbrief channel rules")
 	}
-	if in.EmailAudience != usersModels.EmailAudiencePortalOnly {
+	if in.EmailAudience != EmailAudiencePortalOnly {
 		t.Errorf("email_audience = %q, want the narrow default", in.EmailAudience)
 	}
 }
@@ -215,9 +213,9 @@ func TestNormalizeInputAppliesDeliveryRules(t *testing.T) {
 func TestAnnouncementLetterHelpers(t *testing.T) {
 	t.Parallel()
 
-	letter := &usersModels.ParentAnnouncement{
-		DeliveryMode:  usersModels.ParentAnnouncementDeliveryLetter,
-		EmailAudience: usersModels.EmailAudienceAllContacts,
+	letter := &ParentAnnouncement{
+		DeliveryMode:  ParentAnnouncementDeliveryLetter,
+		EmailAudience: EmailAudienceAllContacts,
 	}
 	if !letter.IsLetter() {
 		t.Error("IsLetter() = false for a letter")
@@ -226,9 +224,9 @@ func TestAnnouncementLetterHelpers(t *testing.T) {
 		t.Error("ReachesContactsWithoutPortal() = false for all_contacts")
 	}
 
-	standard := &usersModels.ParentAnnouncement{
-		DeliveryMode:  usersModels.ParentAnnouncementDeliveryStandard,
-		EmailAudience: usersModels.EmailAudiencePortalOnly,
+	standard := &ParentAnnouncement{
+		DeliveryMode:  ParentAnnouncementDeliveryStandard,
+		EmailAudience: EmailAudiencePortalOnly,
 	}
 	if standard.IsLetter() {
 		t.Error("IsLetter() = true for a standard Mitteilung")

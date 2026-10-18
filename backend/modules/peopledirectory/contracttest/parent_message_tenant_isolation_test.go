@@ -3,6 +3,7 @@ package contracttest_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -30,9 +31,9 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	repos := parentRepos(t, db)
 	homeCtx := tenantCtx(t)
 
-	thread := newThread(t, chain.StudentID, chain.AccountID)
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
 	require.NoError(t, repos.Thread.Create(homeCtx, thread))
-	message := newMessage(t, thread.ID, chain.StudentID, chain.AccountID,
+	message := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID,
 		userModels.ParentMessageSenderGuardian, "Nur fuer diese Schule")
 	require.NoError(t, repos.Message.Create(homeCtx, message))
 	advanced, err := repos.Read.MarkReadUpTo(

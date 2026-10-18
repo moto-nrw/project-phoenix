@@ -3,14 +3,13 @@ package announcement
 import (
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
 // optional: nil delivery dependencies leave the in-app feed working.
 type ServiceConfig struct {
-	Repo       usersModels.ParentAnnouncementRepository
+	Repo       ParentAnnouncementRepository
 	Settings   Settings
 	Outbox     OutboxEnqueuer
 	PushOutbox PushOutboxCanceller

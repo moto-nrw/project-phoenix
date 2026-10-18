@@ -3,8 +3,6 @@ package announcement
 import (
 	"errors"
 	"testing"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func strptr(s string) *string { return &s }
@@ -63,10 +61,10 @@ func TestNormalizeInput_Valid(t *testing.T) {
 		Body:     "  Bitte Regenjacke mitgeben.  ",
 		Priority: "", // defaults to info
 		Targets: []TargetInput{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
-			{TargetType: usersModels.AnnouncementTargetClass, RefText: strptr(" 1a ")},
-			{TargetType: usersModels.AnnouncementTargetGroup, RefID: i64ptr(7)},
-			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+			{TargetType: AnnouncementTargetSchoolAll},
+			{TargetType: AnnouncementTargetClass, RefText: strptr(" 1a ")},
+			{TargetType: AnnouncementTargetGroup, RefID: i64ptr(7)},
+			{TargetType: AnnouncementTargetPendingEnrollment},
 		},
 	}
 	targets, err := normalizeInput(&in)
@@ -76,7 +74,7 @@ func TestNormalizeInput_Valid(t *testing.T) {
 	if in.Title != "Ausflug am Freitag" || in.Body != "Bitte Regenjacke mitgeben." {
 		t.Fatalf("expected trimmed title/body, got %q / %q", in.Title, in.Body)
 	}
-	if in.Priority != usersModels.ParentAnnouncementPriorityInfo {
+	if in.Priority != ParentAnnouncementPriorityInfo {
 		t.Fatalf("expected default priority info, got %q", in.Priority)
 	}
 	if len(targets) != 4 {
@@ -84,7 +82,7 @@ func TestNormalizeInput_Valid(t *testing.T) {
 	}
 	// class ref_text trimmed
 	for _, target := range targets {
-		if target.TargetType == usersModels.AnnouncementTargetClass {
+		if target.TargetType == AnnouncementTargetClass {
 			if target.TargetRefText == nil || *target.TargetRefText != "1a" {
 				t.Fatalf("expected class ref_text '1a', got %v", target.TargetRefText)
 			}
@@ -99,14 +97,14 @@ func TestNormalizeInput_Errors(t *testing.T) {
 		name string
 		in   Input
 	}{
-		{"empty title", Input{Title: "  ", Body: "x", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
-		{"empty body", Input{Title: "t", Body: "  ", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
-		{"body too long", Input{Title: "t", Body: "x" + string(make([]byte, maxBodyLen)), Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
-		{"bad priority", Input{Title: "t", Body: "b", Priority: "urgent", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
+		{"empty title", Input{Title: "  ", Body: "x", Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}}}},
+		{"empty body", Input{Title: "t", Body: "  ", Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}}}},
+		{"body too long", Input{Title: "t", Body: "x" + string(make([]byte, maxBodyLen)), Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}}}},
+		{"bad priority", Input{Title: "t", Body: "b", Priority: "urgent", Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}}}},
 		{"no targets", Input{Title: "t", Body: "b"}},
 		{"unknown target", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: "everyone"}}}},
-		{"class without text", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetClass}}}},
-		{"group without id", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetGroup}}}},
+		{"class without text", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: AnnouncementTargetClass}}}},
+		{"group without id", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: AnnouncementTargetGroup}}}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -124,10 +122,10 @@ func TestNormalizeInput_DedupesTargets(t *testing.T) {
 	in := Input{
 		Title: "t", Body: "b",
 		Targets: []TargetInput{
-			{TargetType: usersModels.AnnouncementTargetGroup, RefID: i64ptr(3)},
-			{TargetType: usersModels.AnnouncementTargetGroup, RefID: i64ptr(3)},
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+			{TargetType: AnnouncementTargetGroup, RefID: i64ptr(3)},
+			{TargetType: AnnouncementTargetGroup, RefID: i64ptr(3)},
+			{TargetType: AnnouncementTargetSchoolAll},
+			{TargetType: AnnouncementTargetSchoolAll},
 		},
 	}
 	targets, err := normalizeInput(&in)
@@ -144,7 +142,7 @@ func TestNormalizeInput_SendEmailPassesThrough(t *testing.T) {
 
 	in := Input{
 		Title: "t", Body: "b", SendEmail: true,
-		Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Targets: []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 	if _, err := normalizeInput(&in); err != nil {
 		t.Fatalf("unexpected error: %v", err)

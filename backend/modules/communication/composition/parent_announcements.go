@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
@@ -30,7 +29,7 @@ type ParentAnnouncementDeliveryRecorder interface {
 }
 
 type ParentAnnouncementConfig struct {
-	Repo             usersModels.ParentAnnouncementRepository
+	Repo             deliveryPorts.StaffAnnouncementSource
 	Settings         staff.Settings
 	Outbox           ParentAnnouncementOutbox
 	PushOutbox       ParentAnnouncementPushOutbox
@@ -51,7 +50,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime,
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
-		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
+		Repo: staff.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
 		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
@@ -342,11 +341,11 @@ func mapParentAnnouncementInput(input communication.ParentAnnouncementInput) sta
 		ResponseDeadline: input.ResponseDeadline, Options: input.Options,
 		DeliveryMode: input.DeliveryMode, EmailAudience: input.EmailAudience,
 		ReminderAt: input.ReminderAt, ReminderText: input.ReminderText,
-		Declaration: usersModels.AnnouncementDeclarationSettings(input.Declaration),
+		Declaration: staff.AnnouncementDeclarationSettings(input.Declaration),
 	}
 }
 
-func mapParentAnnouncement(row *usersModels.ParentAnnouncement) *communication.ParentAnnouncement {
+func mapParentAnnouncement(row *staff.ParentAnnouncement) *communication.ParentAnnouncement {
 	if row == nil {
 		return nil
 	}
