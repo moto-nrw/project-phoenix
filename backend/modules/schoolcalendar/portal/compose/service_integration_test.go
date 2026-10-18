@@ -41,19 +41,19 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 	t.Helper()
-	repos := calendarTestRepositories(t, db)
+	_, reposPeople, reposCalendar, reposTimetable, reposAppointments, reposParents, reposRooms := calendarTestRepositories(t, db)
 	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	userContext := identity.Caller()
 
-	cfg := api.NewCalendarFacts(repos.Staff, repos.Student,
-		api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		repos.StudentGuardian, repos.ParentChildLinks(), api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
-	cfg = api.BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
+	cfg := api.NewCalendarFacts(reposPeople.Staff, reposPeople.Student,
+		api.NewCalendarGuardianDirectory(reposPeople.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
+		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
+	cfg = api.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	cfg = api.BindCalendarCaller(cfg, userContext)
-	cfg.Appointments = repos.Appointments()
+	cfg.Appointments = reposAppointments.Appointments()
 	cfg.Runtime = calendarCompose.NewTenantRuntime(db)
-	cfg.CalendarRenderer = calendarCompose.NewCalendarRenderer(repos.SchoolCalendar())
+	cfg.CalendarRenderer = calendarCompose.NewCalendarRenderer(reposCalendar.SchoolCalendar())
 	return cfg
 }
 func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
@@ -451,7 +451,7 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OptOut", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -483,10 +483,10 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	// concurrent callers gate notifications so no duplicate cancellation e-mail is
 	// sent.
 	fresh := newSilentAppointment("Zweiter", 2)
-	first, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
+	first, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.True(t, first, "first cancel performs the transition")
-	second, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
+	second, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
 }
@@ -497,7 +497,7 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "DeleteRace", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -518,15 +518,15 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 
 	// Simulate a delete landing after a cancel request loaded the still-live
 	// appointment: soft-delete it directly.
-	require.NoError(t, repos.Appointments().SoftDeleteAppointment(testpkg.Ctx(t), detail.Appointment.ID))
+	require.NoError(t, reposAppointments.Appointments().SoftDeleteAppointment(testpkg.Ctx(t), detail.Appointment.ID))
 
 	// The cancel transition must now match zero rows (deleted_at guard) and report
 	// no transition, so CancelStaffAppointment skips the guardian notice.
-	transitioned, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	transitioned, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, transitioned, "cancel must not transition an appointment a concurrent delete removed")
 
-	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := reposAppointments.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.DeletedAt, "the appointment stays deleted")
@@ -601,7 +601,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	// The feed counts its window from today; the appointments below sit on
@@ -706,10 +706,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -756,10 +756,10 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.CalDAVPolicy = fixedCalDAVSettings{enabled: true}
 	cfg.FrontendURL = "https://moto.test"
 	cfg.CalDAVURL = "https://api.moto.test"
@@ -839,10 +839,10 @@ func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvai
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.CalDAVPolicy = fixedCalDAVSettings{err: errors.New("setting unavailable")}
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
@@ -862,9 +862,9 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -882,10 +882,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.ParentsURL = "https://parents.test"
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
@@ -926,10 +926,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -981,10 +981,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1011,11 +1011,11 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	assert.Contains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
 	assert.Contains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
 
-	storedAssignment, err := repos.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
+	storedAssignment, err := reposTimetable.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
 	require.NoError(t, err)
 	storedAssignment.StaffID = otherStaff.ID
-	require.NoError(t, repos.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
-	require.NoError(t, repos.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
+	require.NoError(t, reposTimetable.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
+	require.NoError(t, reposTimetable.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
@@ -1028,10 +1028,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1064,10 +1064,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 		Where("id = ?", instance.ID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
-	storedShift, err := repos.StaffShift.FindByID(testpkg.Ctx(t), shift.ID)
+	storedShift, err := reposTimetable.StaffShift.FindByID(testpkg.Ctx(t), shift.ID)
 	require.NoError(t, err)
 	storedShift.Cancelled = true
-	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), storedShift))
+	require.NoError(t, reposTimetable.StaffShift.Update(testpkg.Ctx(t), storedShift))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
@@ -1080,10 +1080,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, repos.Person)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1128,9 +1128,9 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	_, _, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Cleanup", "Feed")
@@ -1173,7 +1173,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	room := testpkg.CreateTestRoom(t, db, "Cleanup-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{})
 	assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	require.NoError(t, repos.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
+	require.NoError(t, reposTimetable.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
 
 	expired := time.Now().AddDate(0, 0, -91)
 	_, err = db.NewUpdate().Table("calendar.appointments").
@@ -1221,7 +1221,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	// The feed counts its window from today; the appointments below sit on
@@ -1294,7 +1294,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Teacher")
 
@@ -1321,7 +1321,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	// neither reactivates the appointment nor overwrites its content.
 	stale := *detail.Appointment
 	stale.Title = "Edited concurrently"
-	_, err = repos.Appointments().UpdateAppointment(testpkg.Ctx(t), appointments.UpdateAppointment{
+	_, err = reposAppointments.Appointments().UpdateAppointment(testpkg.Ctx(t), appointments.UpdateAppointment{
 		ID: stale.ID,
 		AppointmentFields: appointments.AppointmentFields{
 			OrganizerStaffID: stale.OrganizerStaffID, Title: stale.Title, Description: stale.Description,
@@ -1334,7 +1334,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	require.Error(t, err)
 	assert.ErrorIs(t, err, calModels.ErrAppointmentLifecycleConflict)
 
-	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := reposAppointments.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.CancelledAt, "the cancellation stands")
@@ -1347,7 +1347,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
@@ -2042,7 +2042,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MultiDay", "Organizer")
 
 	endsOn := portalDate(2026, 1, 31)
@@ -2076,7 +2076,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 		OccurrenceDate: calModels.NewDate(2026, 1, 31),
 		Cancelled:      true,
 	}
-	require.NoError(t, repos.Appointments().CreateOccurrenceOverride(calendarContext(t, organizerAccount.ID), cancelledOverride))
+	require.NoError(t, reposAppointments.Appointments().CreateOccurrenceOverride(calendarContext(t, organizerAccount.ID), cancelledOverride))
 
 	events, err = service.ListMyStaffEvents(
 		calendarContext(t, organizerAccount.ID),
@@ -2175,7 +2175,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -2202,46 +2202,46 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 
 	ctx := calendarContext(t, organizerAccount.ID)
-	emptyGuardianAppointments, err := repos.Appointments().ListAppointmentsVisibleToGuardians(ctx, nil, nil, calModels.NewDate(2026, 2, 13), calModels.NewDate(2026, 2, 13))
+	emptyGuardianAppointments, err := reposAppointments.Appointments().ListAppointmentsVisibleToGuardians(ctx, nil, nil, calModels.NewDate(2026, 2, 13), calModels.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	assert.Empty(t, emptyGuardianAppointments)
 
-	recurrence, err := repos.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
+	recurrence, err := reposAppointments.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, recurrence)
 	assert.Equal(t, calModels.RecurrenceFrequencyWeekly, recurrence.Frequency)
 
-	emptyRecurrences, err := repos.Appointments().FindRecurrenceRules(ctx, nil)
+	emptyRecurrences, err := reposAppointments.Appointments().FindRecurrenceRules(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyRecurrences)
 
-	targets, err := repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
+	targets, err := reposAppointments.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
-	recipients, err := repos.Appointments().FindAppointmentRecipients(ctx, detail.Appointment.ID)
+	recipients, err := reposAppointments.Appointments().FindAppointmentRecipients(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		recipientIDs = append(recipientIDs, recipient.ID)
 	}
-	links, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, recipientIDs)
+	links, err := reposAppointments.Appointments().FindAppointmentRecipientStudents(ctx, recipientIDs)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, parentChain.StudentID, links[0].StudentID)
 
-	emptyLinks, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, nil)
+	emptyLinks, err := reposAppointments.Appointments().FindAppointmentRecipientStudents(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyLinks)
 
-	_, err = repos.Appointments().ReplaceAppointmentTargets(ctx, detail.Appointment.ID, nil)
+	_, err = reposAppointments.Appointments().ReplaceAppointmentTargets(ctx, detail.Appointment.ID, nil)
 	require.NoError(t, err)
-	targets, err = repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
+	targets, err = reposAppointments.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Empty(t, targets)
 
-	require.NoError(t, repos.Appointments().DeleteRecurrenceRule(ctx, detail.Appointment.ID))
-	recurrence, err = repos.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
+	require.NoError(t, reposAppointments.Appointments().DeleteRecurrenceRule(ctx, detail.Appointment.ID))
+	recurrence, err = reposAppointments.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Nil(t, recurrence)
 }
@@ -2349,7 +2349,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
@@ -2943,7 +2943,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
@@ -3006,7 +3006,7 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	appointmentCapability := calendarTestRepositories(t, db).Appointments()
+	appointmentCapability := api.NewCalendarAppointmentRows(testpkg.NewDatabase(t, db)).Appointments()
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Invitee")
 
@@ -3183,9 +3183,12 @@ func portalDate(year int, month time.Month, day int) appointments.Date {
 	return appointments.NewDate(year, month, day)
 }
 
-func calendarTestRepositories(t *testing.T, db *bun.DB) api.CalendarTestRepositories {
+func calendarTestRepositories(t *testing.T, db *bun.DB) (api.CalendarTestRepositories, api.MembershipTestRepositories, api.CalendarSchoolRows, api.TimetableTestRepositories, api.CalendarAppointmentRows, api.CalendarParentRows, api.TimetableRoomRows) {
 	t.Helper()
-	repositories, err := api.NewCalendarTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	database := testpkg.NewDatabase(t, db)
+	members := api.MustNewMembershipTestRepositories(database)
+	repositories, err := api.NewCalendarTestRepositories(database, members)
 	require.NoError(t, err)
-	return repositories
+	return repositories, members, api.NewCalendarSchoolRows(database), api.NewCalendarTimetableRows(database, members),
+		api.NewCalendarAppointmentRows(database), api.NewCalendarParentRows(database, members), api.MustNewTimetableRoomRows(database)
 }
