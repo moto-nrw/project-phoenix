@@ -82,7 +82,7 @@ func TestSchulhofProvisioningPreservesAnExplicitDeactivation(t *testing.T) {
 	}
 	rooms := &roomServiceStub{schulhof: deactivated}
 	activities := &activityCatalogStub{
-		activities: []SystemActivity{{
+		activities: []facilitiesModule.SystemActivity{{
 			ID: 71, Name: facilitiesModule.SchulhofActivityName,
 			PlannedRoomID: &roomID, IsSystem: true,
 		}},
@@ -112,7 +112,7 @@ func TestSchulhofProvisioningPreservesAnExistingRelease(t *testing.T) {
 	}
 	rooms := &roomServiceStub{schulhof: released}
 	activities := &activityCatalogStub{
-		activities: []SystemActivity{{
+		activities: []facilitiesModule.SystemActivity{{
 			ID: 71, Name: facilitiesModule.SchulhofActivityName,
 			PlannedRoomID: &roomID, IsSystem: true,
 		}},

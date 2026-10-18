@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -79,19 +81,7 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 	if err != nil {
 		return nil, categoryActivityError("create category", err)
 	}
-	return categoryFromOwner(created), nil
-}
-
-// GetCategory retrieves a category by ID
-func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
-	if s.timetable == nil {
-		return nil, &ActivityError{Op: opGetCategory, Err: timetable.ErrCategoryNotFound}
-	}
-	category, err := s.timetable.FindCategory(ctx, id)
-	if err != nil {
-		return nil, categoryActivityError(opGetCategory, err)
-	}
-	return categoryFromOwner(category), nil
+	return application.LegacyServiceCategory(created), nil
 }
 
 // ListCategories lists all activity categories
@@ -105,7 +95,7 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 	}
 	result := make([]*activities.Category, 0, len(categories))
 	for _, category := range categories {
-		result = append(result, categoryFromOwner(category))
+		result = append(result, application.LegacyServiceCategory(category))
 	}
 	return result, nil
 }
@@ -173,7 +163,7 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 	if err != nil {
 		return categoryActivityError("validate category", err)
 	}
-	group.Category = categoryFromOwner(category)
+	group.Category = application.LegacyServiceCategory(category)
 	return nil
 }
 
@@ -224,7 +214,7 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
 	}
 
-	return groupFromOwner(group), nil
+	return application.LegacyServiceGroup(group), nil
 }
 
 // findMutableActivityGroup resolves the persisted group and rejects timetable
@@ -387,13 +377,13 @@ func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQue
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups", Err: err}
 	}
-	return groupsFromOwner(groups), nil
+	return application.LegacyServiceGroups(groups), nil
 }
 
-// ListGroupsWithOccupancy returns all activity groups with their active
+// ListOccupiedGroups returns all activity groups with their active
 // session status. Duties (#3822) are left out: nobody checks children into a
 // Busaufsicht, so the kiosk must not offer one as an activity.
-func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error) {
+func (s *Service) ListOccupiedGroups(ctx context.Context) ([]timetable.OccupiedGroup, error) {
 	listed, err := s.groupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups with occupancy", Err: err}
@@ -406,7 +396,7 @@ func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupW
 	}
 
 	if len(groups) == 0 {
-		return []ActivityGroupWithOccupancy{}, nil
+		return []timetable.OccupiedGroup{}, nil
 	}
 
 	// Collect all activity group IDs
@@ -422,10 +412,10 @@ func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupW
 	}
 
 	// Combine
-	result := make([]ActivityGroupWithOccupancy, len(groups))
+	result := make([]timetable.OccupiedGroup, len(groups))
 	for i, g := range groups {
-		result[i] = ActivityGroupWithOccupancy{
-			Group:      g,
+		result[i] = timetable.OccupiedGroup{
+			Group:      application.CatalogGroup(g),
 			IsOccupied: occupiedMap[g.ID],
 		}
 	}
@@ -447,7 +437,7 @@ func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*acti
 		return nil, &ActivityError{Op: opFindByCategory, Err: err}
 	}
 
-	return groupsFromOwner(groups), nil
+	return application.LegacyServiceGroups(groups), nil
 }
 
 // GetGroupWithDetails retrieves a group with its supervisors and schedules
@@ -468,7 +458,7 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 		if err != nil {
 			return nil, nil, nil, &ActivityError{Op: opGetCategory, Err: err}
 		}
-		group.Category = categoryFromOwner(category)
+		group.Category = application.LegacyServiceCategory(category)
 	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)

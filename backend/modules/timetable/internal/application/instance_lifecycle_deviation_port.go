@@ -11,10 +11,15 @@ import (
 // cancellation and the acknowledgement to; its errors pass through
 // unchanged.
 func (s *InstanceLifecycleService) DeviationLifecycle() ports.DeviationLifecycle {
-	return deviationLifecycle{lifecycle: s}
+	return deviationLifecycle{lifecycle: s, deviationAckClearer: s}
+}
+
+type deviationAckClearer interface {
+	ClearUnderstaffedAckIfStaffed(context.Context, int64, *int64) error
 }
 
 type deviationLifecycle struct {
+	deviationAckClearer
 	lifecycle *InstanceLifecycleService
 }
 
@@ -33,8 +38,4 @@ func (l deviationLifecycle) CancelBlock(ctx context.Context, in ports.DeviationC
 func (l deviationLifecycle) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) error {
 	_, err := l.lifecycle.SetUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID)
 	return err
-}
-
-func (l deviationLifecycle) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64, actorAccountID *int64) error {
-	return l.lifecycle.ClearUnderstaffedAckIfStaffed(ctx, instanceID, actorAccountID)
 }

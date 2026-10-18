@@ -137,25 +137,25 @@ func (s *roomServiceStub) CreateRoom(_ context.Context, room *facilitiesModule.R
 }
 
 type activityCatalogStub struct {
-	activities []SystemActivity
-	categories []SystemCategory
+	activities []facilitiesModule.SystemActivity
+	categories []facilitiesModule.SystemCategory
 }
 
-func (s *activityCatalogStub) ListActivities(context.Context, string) ([]SystemActivity, error) {
+func (s *activityCatalogStub) ListActivities(context.Context, string) ([]facilitiesModule.SystemActivity, error) {
 	return s.activities, nil
 }
 
-func (s *activityCatalogStub) CreateActivity(_ context.Context, activity SystemActivity) (SystemActivity, error) {
+func (s *activityCatalogStub) CreateActivity(_ context.Context, activity facilitiesModule.SystemActivity) (facilitiesModule.SystemActivity, error) {
 	activity.ID = 71
 	s.activities = append(s.activities, activity)
 	return activity, nil
 }
 
-func (s *activityCatalogStub) ListCategories(context.Context) ([]SystemCategory, error) {
+func (s *activityCatalogStub) ListCategories(context.Context) ([]facilitiesModule.SystemCategory, error) {
 	return s.categories, nil
 }
 
-func (s *activityCatalogStub) CreateCategory(_ context.Context, category SystemCategory) (SystemCategory, error) {
+func (s *activityCatalogStub) CreateCategory(_ context.Context, category facilitiesModule.SystemCategory) (facilitiesModule.SystemCategory, error) {
 	category.ID = 61
 	s.categories = append(s.categories, category)
 	return category, nil
@@ -199,7 +199,7 @@ func TestSchulhofStatusPrefersCallersSupervisedGroup(t *testing.T) {
 
 	roomID := int64(41)
 	rooms := &roomServiceStub{schulhof: &facilitiesModule.Room{ID: roomID, Name: facilitiesModule.SchulhofRoomName, IsSystem: true}}
-	activities := &activityCatalogStub{activities: []SystemActivity{{ID: 71, Name: facilitiesModule.SchulhofActivityName, PlannedRoomID: &roomID, IsSystem: true}}}
+	activities := &activityCatalogStub{activities: []facilitiesModule.SystemActivity{{ID: 71, Name: facilitiesModule.SchulhofActivityName, PlannedRoomID: &roomID, IsSystem: true}}}
 	now := time.Now()
 	groups := openGroupCatalogStub{
 		groups:      []OpenGroup{{ID: 81, StartTime: now.Add(-time.Hour), IsToday: true}, {ID: 82, StartTime: now, IsToday: true}},

@@ -11,7 +11,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+type templateAdministrationQueries interface {
+	ArchiveTemplate(context.Context, int64) (int64, error)
+	ResolveLivingTemplateSegment(context.Context, int64) (int64, bool, error)
+	ValidateTemplateEducationGroup(context.Context, *int64) error
+	FindOrCreateTimeframe(context.Context, time.Time, time.Time, string) (int64, error)
+}
+
 type templateAdministration struct {
+	templateAdministrationQueries
 	templates *TemplateService
 	split     *TemplateSplitService
 }
@@ -48,30 +56,8 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 	if err != nil {
 		return nil, err
 	}
-	return &templateAdministration{
-		templates: NewTemplateService(TemplateServiceDependencies{
-			InstanceStudentRepo:    deps.Participants,
-			ActivityInstanceRepo:   deps.Instances,
-			ActivityScheduleRepo:   deps.Schedules,
-			InstanceStaffRepo:      deps.InstanceStaff,
-			ActivityCategoryRepo:   deps.Categories,
-			PlanningTracks:         deps.PlanningTracks,
-			ActivityGroupRepo:      deps.Groups,
-			ActivitySupervisorRepo: deps.Supervisors,
-			StudentEnrollmentRepo:  deps.Enrollments,
-			TimeframeRepo:          deps.Timeframes,
-			EducationGroups:        deps.EducationGroups,
-			CareOfferings:          deps.CareOfferings,
-			ResyncOfferingRoster:   deps.ResyncOfferingRoster,
-			RecurrenceLock:         deps.RecurrenceLock,
-			SchoolClasses:          deps.SchoolClasses,
-			Staffing:               deps.Staffing,
-			Logger:                 deps.Logger,
-			Transactions:           deps.Transactions,
-			Today:                  deps.Today,
-		}),
-		split: split,
-	}, nil
+	templates := newTemplateAdministrationService(deps)
+	return &templateAdministration{templateAdministrationQueries: templates, templates: templates, split: split}, nil
 }
 
 func (a *templateAdministration) CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error) {
@@ -82,28 +68,12 @@ func (a *templateAdministration) UpdateTemplate(ctx context.Context, cmd timetab
 	return a.templates.UpdateTemplate(ctx, templateUpdateInput(cmd))
 }
 
-func (a *templateAdministration) ArchiveTemplate(ctx context.Context, templateID int64) (int64, error) {
-	return a.templates.ArchiveTemplate(ctx, templateID)
-}
-
 func (a *templateAdministration) SplitTemplate(ctx context.Context, cmd timetable.SplitTemplateCommand) (*timetable.SplitTemplateResult, error) {
 	return a.split.Split(ctx, templateSplitInput(cmd))
 }
 
 func (a *templateAdministration) EndTemplateFromDate(ctx context.Context, cmd timetable.EndTemplateCommand) (*timetable.EndTemplateResult, error) {
 	return a.split.EndFromDate(ctx, cmd)
-}
-
-func (a *templateAdministration) ResolveLivingTemplateSegment(ctx context.Context, templateID int64) (int64, bool, error) {
-	return a.templates.ResolveLivingTemplateSegment(ctx, templateID)
-}
-
-func (a *templateAdministration) ValidateTemplateEducationGroup(ctx context.Context, groupID *int64) error {
-	return a.templates.ValidateTemplateEducationGroup(ctx, groupID)
-}
-
-func (a *templateAdministration) FindOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	return a.templates.FindOrCreateTimeframe(ctx, start, end, descHint)
 }
 
 func (a *templateAdministration) TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error) {
@@ -343,4 +313,28 @@ func templateSplitInput(cmd timetable.SplitTemplateCommand) TemplateSplitInput {
 		GradeLevelMax:                 cmd.GradeLevelMax,
 		ActorAccountID:                cmd.ActorAccountID,
 	}
+}
+
+func newTemplateAdministrationService(deps ports.TemplateAdministrationDependencies) *TemplateService {
+	return NewTemplateService(TemplateServiceDependencies{
+		InstanceStudentRepo:    deps.Participants,
+		ActivityInstanceRepo:   deps.Instances,
+		ActivityScheduleRepo:   deps.Schedules,
+		InstanceStaffRepo:      deps.InstanceStaff,
+		ActivityCategoryRepo:   deps.Categories,
+		PlanningTracks:         deps.PlanningTracks,
+		ActivityGroupRepo:      deps.Groups,
+		ActivitySupervisorRepo: deps.Supervisors,
+		StudentEnrollmentRepo:  deps.Enrollments,
+		TimeframeRepo:          deps.Timeframes,
+		EducationGroups:        deps.EducationGroups,
+		CareOfferings:          deps.CareOfferings,
+		ResyncOfferingRoster:   deps.ResyncOfferingRoster,
+		RecurrenceLock:         deps.RecurrenceLock,
+		SchoolClasses:          deps.SchoolClasses,
+		Staffing:               deps.Staffing,
+		Logger:                 deps.Logger,
+		Transactions:           deps.Transactions,
+		Today:                  deps.Today,
+	})
 }

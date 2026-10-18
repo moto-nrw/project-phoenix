@@ -137,68 +137,6 @@ type Visits interface {
 	Record(ctx context.Context, studentID, sessionID int64) (int64, error)
 }
 
-// Activity is one activity template of the timetable.
-type Activity struct {
-	ID              int64
-	Name            string
-	MaxParticipants int
-	PlannedRoomID   *int64
-	IsSystem        bool
-	IsOpen          bool
-}
-
-// HasParticipantLimit reports a bounded activity.
-func (a Activity) HasParticipantLimit() bool { return a.MaxParticipants > 0 }
-
-// Session is one running or ended room session.
-type Session struct {
-	ID         int64
-	RoomID     int64
-	StartTime  time.Time
-	EndTime    *time.Time
-	DeviceID   *int64
-	TemplateID *int64
-	// Activity is the loaded template when the source carried it.
-	Activity *Activity
-	// RoomName and ActivityName are set by lookups that join the names.
-	RoomName     string
-	ActivityName string
-}
-
-// Supervisor is one staff assignment of a session.
-type Supervisor struct {
-	StaffID int64
-	Ended   bool
-}
-
-// NewSession describes the session a special room provisions on scan.
-type NewSession struct {
-	ActivityID int64
-	RoomID     int64
-}
-
-// Sessions are the room session transitions of the retained presence service.
-type Sessions interface {
-	// ListOpenInRoom returns the running sessions of a room, without names.
-	ListOpenInRoom(ctx context.Context, roomID int64) ([]Session, error)
-	// FindDeviceSessionInRoom is nil, nil when the device runs no session there.
-	FindDeviceSessionInRoom(ctx context.Context, roomID, deviceID int64) (*Session, error)
-	// Current is the device's running session with its names; nil, nil when none.
-	Current(ctx context.Context, deviceID int64) (*Session, error)
-	Start(ctx context.Context, session NewSession) (Session, error)
-	// EnsureRoomSession returns the room's open session of a system
-	// activity, creating a device-less one next to running activity
-	// sessions (ADR 0018). It does not report whether it created the row.
-	EnsureRoomSession(ctx context.Context, session NewSession) (Session, error)
-	Delete(ctx context.Context, sessionID int64) error
-	// End closes a session; an already ended session is not an error.
-	End(ctx context.Context, sessionID int64) error
-	// Touch refreshes the session heartbeat.
-	Touch(ctx context.Context, sessionID int64) error
-	Supervisors(ctx context.Context, sessionID int64) ([]Supervisor, error)
-	ReplaceSupervisors(ctx context.Context, sessionID int64, staffIDs []int64) error
-}
-
 // AttendanceState is today's attendance row of a student.
 type AttendanceState struct {
 	Status       string
@@ -217,39 +155,6 @@ type Attendance interface {
 	Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error)
 	// ConfirmDailyCheckout resolves the deferred "nach Hause" decision.
 	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (string, error)
-}
-
-// Category is one activity category.
-type Category struct {
-	ID   int64
-	Name string
-}
-
-// NewCategory describes a system category to provision.
-type NewCategory struct {
-	Name        string
-	Description string
-	Color       string
-	IsSystem    bool
-}
-
-// NewActivity describes a system activity to provision.
-type NewActivity struct {
-	Name            string
-	MaxParticipants int
-	IsOpen          bool
-	CategoryID      int64
-	PlannedRoomID   *int64
-	IsSystem        bool
-}
-
-// Activities is the activity catalog the special rooms provision from.
-type Activities interface {
-	Find(ctx context.Context, id int64) (*Activity, error)
-	ListByName(ctx context.Context, name string) ([]Activity, error)
-	ListCategories(ctx context.Context) ([]Category, error)
-	CreateCategory(ctx context.Context, category NewCategory) (Category, error)
-	CreateActivity(ctx context.Context, activity NewActivity) (Activity, error)
 }
 
 // Rosters reads the day rosters of running timetable blocks.

@@ -41,7 +41,7 @@ type checkinResult struct {
 
 // selectedSession is the session chosen (or provisioned) for a check-in.
 type selectedSession struct {
-	Session      ports.Session
+	Session      devicescan.Session
 	RoomName     string
 	DeviceScoped bool
 	created      bool
@@ -296,7 +296,7 @@ func (s *Service) checkRoomCapacity(ctx context.Context, room facilities.Room) e
 
 // checkActivityCapacity validates that the session's activity has room for
 // another child. Spontaneous sessions (no template) are unsupported here.
-func (s *Service) checkActivityCapacity(ctx context.Context, session *ports.Session) error {
+func (s *Service) checkActivityCapacity(ctx context.Context, session *devicescan.Session) error {
 	activity := session.Activity
 	if activity == nil {
 		if session.TemplateID == nil {
@@ -409,9 +409,9 @@ func (s *Service) findOrCreateSessionForRoom(ctx context.Context, room facilitie
 	return s.createSpecialRoomSession(ctx, room)
 }
 
-func (s *Service) sessionsStartedToday(sessions []ports.Session, now time.Time) []ports.Session {
+func (s *Service) sessionsStartedToday(sessions []devicescan.Session, now time.Time) []devicescan.Session {
 	today := s.clock.Day(now)
-	current := make([]ports.Session, 0, len(sessions))
+	current := make([]devicescan.Session, 0, len(sessions))
 	for _, session := range sessions {
 		if session.EndTime != nil || s.clock.Day(session.StartTime) != today {
 			continue
@@ -421,7 +421,7 @@ func (s *Service) sessionsStartedToday(sessions []ports.Session, now time.Time) 
 	return current
 }
 
-func (s *Service) endPreviousDaySessions(ctx context.Context, sessions []ports.Session, now time.Time) error {
+func (s *Service) endPreviousDaySessions(ctx context.Context, sessions []devicescan.Session, now time.Time) error {
 	today := s.clock.Day(now)
 	for _, session := range sessions {
 		if session.EndTime != nil || !s.clock.Day(session.StartTime).Before(today) {
@@ -439,7 +439,7 @@ func (s *Service) endPreviousDaySessions(ctx context.Context, sessions []ports.S
 // deliberate: since the Schulhof became a plannable room several open
 // sessions can coexist in one room, and the lookup carries no order, so the
 // first row would make the scan target a coin flip.
-func (s *Service) useExistingSession(ctx context.Context, sessions []ports.Session, room facilities.Room, deviceID int64) *selectedSession {
+func (s *Service) useExistingSession(ctx context.Context, sessions []devicescan.Session, room facilities.Room, deviceID int64) *selectedSession {
 	selected := sessions[0]
 	deviceMatched := false
 	for _, candidate := range sessions {
@@ -480,7 +480,7 @@ func isSelfProvisioningRoom(room facilities.Room) bool {
 // (released Schulhof, WC). The session belongs to the room, never to the
 // scanning device: a device link would hijack the device's own session.
 func (s *Service) createSpecialRoomSession(ctx context.Context, room facilities.Room) (*selectedSession, error) {
-	var activity *ports.Activity
+	var activity *devicescan.Activity
 	var err error
 	switch {
 	case isReleasedSchulhofRoom(room):
@@ -508,7 +508,7 @@ func (s *Service) createSpecialRoomSession(ctx context.Context, room facilities.
 		return nil, devicescan.NotFoundWithCode(devicescan.MessageNoGroupsInRoom, devicescan.CodeNoGroupsInRoom)
 	}
 
-	session, err := s.sessions.Start(ctx, ports.NewSession{ActivityID: activity.ID, RoomID: room.ID})
+	session, err := s.sessions.Start(ctx, devicescan.NewSession{ActivityID: activity.ID, RoomID: room.ID})
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create active group for special room",
 			slog.String("room_name", room.Name),
@@ -570,7 +570,7 @@ func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checki
 	return s.activeStudentCountForRoom(ctx, roomID)
 }
 
-func (s *Service) deviceSessionInRoom(ctx context.Context, roomID, deviceID int64) *ports.Session {
+func (s *Service) deviceSessionInRoom(ctx context.Context, roomID, deviceID int64) *devicescan.Session {
 	session, err := s.sessions.FindDeviceSessionInRoom(ctx, roomID, deviceID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to find active group for room and device",
