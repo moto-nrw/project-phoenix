@@ -13,7 +13,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -527,22 +526,4 @@ func NewExcusedRequestMessenger(emitter *communicationCompose.ParentEventEmitter
 
 type BookingSettingsReads interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
-}
-
-// BookingSettings resolves the tenant settings; without a settings service
-// the registry defaults apply.
-type BookingSettings struct{ Settings BookingSettingsReads }
-
-func (s BookingSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return true, nil
-	}
-	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
-}
-
-func (s BookingSettings) BookingsAuthoritative(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return false, nil
-	}
-	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 }

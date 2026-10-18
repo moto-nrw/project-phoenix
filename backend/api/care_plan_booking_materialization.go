@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -70,7 +72,7 @@ func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.Bo
 		Periods:     bookingPeriods{calendar: inputs.Periods},
 		Enrollment:  bookingEnrollment{owner: inputs.Enrollment, approved: inputs.Approved},
 		Students:    bookingStudents{people: inputs.Students},
-		Settings:    BookingSettings{Settings: inputs.Settings},
+		Settings:    settingsModule.NewCareBookingValues(inputs.Settings),
 		Bookings:    inputs.Bookings,
 		Withdrawals: inputs.Withdrawals,
 		Audit:       bookingAdjustmentAudit{repo: inputs.Adjustments, persons: inputs.Persons, accounts: inputs.Accounts},
