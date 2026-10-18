@@ -71,7 +71,8 @@ func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.Gu
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
@@ -85,11 +86,11 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		StudentRepo:         api.NewParentStudentReads(members.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(members.GuardianProfile),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
@@ -191,7 +192,8 @@ func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.Guar
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
-	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
@@ -205,11 +207,11 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		StudentRepo:         api.NewParentStudentReads(members.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(members.GuardianProfile),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),

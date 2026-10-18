@@ -28,13 +28,13 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	reviewer := testpkg.CreateTestAccount(t, db, "co-guardian-notice-reviewer")
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	full := parentmessaging.ChildEvent{
@@ -54,7 +54,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 
 	// The other guardian gets exactly one line, and it carries nothing that
 	// belongs to the submitting parent.
-	_, otherPills := threadPills(t, db, repos, other)
+	_, otherPills := threadPills(t, db, reposMessages, other)
 	require.Len(t, otherPills, 1)
 	assert.Equal(t, "Betreuungsstand geändert: Krankmeldung 01.09.2026", otherPills[0].Body)
 	assert.Empty(t, otherPills[0].DecisionReason, "the staff reason belongs to the submitting guardian")
@@ -63,7 +63,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 
 	// The submitter is skipped here: their full pill comes from the decision
 	// itself, so a fan-out line would duplicate it.
-	submitterThread, _ := threadPills(t, db, repos, submitter)
+	submitterThread, _ := threadPills(t, db, reposMessages, submitter)
 	assert.Nil(t, submitterThread, "the submitter must not receive the neutral fan-out")
 }
 
@@ -73,11 +73,11 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
@@ -88,7 +88,7 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 			Body: "Betreuungsstand geändert: Krankmeldung 01.09.2026",
 		})
 
-	thread, _ := threadPills(t, db, repos, submitter)
+	thread, _ := threadPills(t, db, reposMessages, submitter)
 	assert.Nil(t, thread, "no other guardian means no pill and no thread")
 }
 
@@ -120,7 +120,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	shared := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Mitleser")
 	uninvolved := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Rita", "Ohnezugang")
@@ -153,7 +153,7 @@ func TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 

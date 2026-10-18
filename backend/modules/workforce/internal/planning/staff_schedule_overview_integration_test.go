@@ -19,9 +19,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, api.TimetableRepositories, *planning.ShiftRows, workforce.Capability) {
+func overviewRepositories(db *bun.DB) (*api.PeopleRepositorySuiteFactory, api.TimetableRepositories, *planning.ShiftRows, workforce.Capability) {
 	workTime := api.MustNewWorkforce(testpkg.MustDatabase(db))
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db)), api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+	return api.NewPeopleRepositorySuiteFactory(testpkg.MustDatabase(db)), api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		planning.NewShiftRows(workTime), workTime
 }
 

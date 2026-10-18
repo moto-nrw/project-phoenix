@@ -59,7 +59,7 @@ func createSourceCareOfferingOnDays(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db))
+	repos := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
@@ -889,7 +889,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 		IsActive:        true,
 	}
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 

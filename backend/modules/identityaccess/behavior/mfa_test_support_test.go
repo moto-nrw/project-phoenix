@@ -36,7 +36,7 @@ func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityacc
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
-	return module.MFA, module.Repos, db
+	return module.MFA, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db
 }
 
 // withDeliveringMailer prepends a mailer that accepts, because the composed
@@ -79,7 +79,7 @@ func newMFATestScenario(t *testing.T, options ...api.AuthTestOption) mfaTestScen
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
 	account := testpkg.CreateTestAccount(t, db, "mfa-extra")
 	return mfaTestScenario{
-		MFA: module.MFA, Repos: module.Repos, TokenAuth: challengeTokenAuth(t, module),
+		MFA: module.MFA, Repos: api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), TokenAuth: challengeTokenAuth(t, module),
 		DB: db, AccountID: account.ID,
 	}
 }

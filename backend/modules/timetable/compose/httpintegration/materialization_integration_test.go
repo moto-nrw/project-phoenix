@@ -76,13 +76,13 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 
-	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -384,8 +384,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	// Use a fresh tenant id that we know has no active periods.
 	//
@@ -415,8 +415,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
@@ -664,21 +664,21 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 // rules the period editor enforces.
 func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod
+	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Create(ctx, period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.
 func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod
+	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Update(ctx, period))
 }
 
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,

@@ -38,15 +38,16 @@ type offboardingIdentity interface {
 }
 
 type offboardingScenario struct {
-	db        *bun.DB
-	repos     *api.RepositoryTestFactory
-	timetable api.TimetableRepositories
-	workTime  workforce.Capability
-	rows      api.TimetableTestRepositories
-	authSvc   offboardingIdentity
-	svc       *offboardingTestRunner
-	deps      offboardingcompose.Dependencies
-	ctx       context.Context
+	db          *bun.DB
+	repos       *api.RepositoryTestFactory
+	reposPeople *api.PeopleRepositorySuiteFactory
+	timetable   api.TimetableRepositories
+	workTime    workforce.Capability
+	rows        api.TimetableTestRepositories
+	authSvc     offboardingIdentity
+	svc         *offboardingTestRunner
+	deps        offboardingcompose.Dependencies
+	ctx         context.Context
 }
 
 func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
@@ -62,12 +63,13 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
-		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, testpkg.NewDatabase(t, db), nil)
+		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
+	}, testpkg.TenantRuntime(t, db),
+		testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
+		testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
@@ -85,15 +87,16 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
-		db:        db,
-		repos:     repos,
-		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
-		workTime:  api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
-		rows:      rows,
-		authSvc:   authService,
-		svc:       svc,
-		deps:      deps,
-		ctx:       testpkg.Ctx(t),
+		db:          db,
+		repos:       repos,
+		reposPeople: reposPeople,
+		timetable:   api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		workTime:    api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		rows:        rows,
+		authSvc:     authService,
+		svc:         svc,
+		deps:        deps,
+		ctx:         testpkg.Ctx(t),
 	}
 }
 
@@ -136,8 +139,9 @@ func TestOffboardStaff_ConcurrentSupervisionCannotAttachAfterRetirement(t *testi
 func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
-	active, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	require.NoError(t, err)
+	activePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent supervision")
@@ -156,10 +160,10 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "replace" {
-					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
+					_, err := activePresence.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
 					return err
 				}
-				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
+				return activePresence.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
 					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: calendar.TodayDate().String(),
 				})
 			})
@@ -197,13 +201,13 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return failure }
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, failure)
-	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	_, err = sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
 	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
 	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
-	person, err := sc.repos.Person.FindByID(sc.ctx, staff.PersonID)
+	person, err := sc.reposPeople.Person.FindByID(sc.ctx, staff.PersonID)
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
@@ -673,9 +677,9 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, peoplePorts.ErrStaffInUse)
 
-	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
+	_, err = sc.reposPeople.GroupSubstitution.FindByID(sc.ctx, handover.ID)
 	require.NoError(t, err)
-	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	_, err = sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
 }
 
@@ -843,13 +847,13 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	listed, err := sc.repos.Staff.ListAllWithPerson(sc.ctx)
+	listed, err := sc.reposPeople.Staff.ListAllWithPerson(sc.ctx)
 	require.NoError(t, err)
 	for _, s := range listed {
 		assert.NotEqual(t, staff.ID, s.ID, "offboarded staff must not appear in the staff list")
 	}
 
-	found, err := sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	found, err := sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	assert.Error(t, err, "FindByID must not return soft-deleted staff")
 	assert.Nil(t, found)
 }

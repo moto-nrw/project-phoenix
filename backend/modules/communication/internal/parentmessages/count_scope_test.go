@@ -60,15 +60,17 @@ func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
 func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
-		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
-		Persons:     newPersons(repos, db),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: bc,
 

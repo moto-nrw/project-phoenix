@@ -20,8 +20,8 @@ import (
 func TestUploadRefusalsAnswerWithRegisteredCodes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	_, module := setupImportModule(t, db)
-	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(module.PeopleDirectory, module.Membership, nil)})
+	_, module, people, membership := setupImportModule(t, db)
+	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(people, membership, nil)})
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Upload", "Admin")
 
 	cases := []struct {

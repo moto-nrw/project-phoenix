@@ -11,7 +11,7 @@ import (
 func TestTeachingAssignmentAdaptersPreserveLegacyContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Assignment", "Contract")
 	classAssignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, " 1A ")

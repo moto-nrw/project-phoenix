@@ -29,9 +29,9 @@ type staffClockFixtures struct {
 
 func setupStaffClockRoute(t *testing.T) (*staffclockAPI.Resource, staffClockFixtures) {
 	t.Helper()
-	db, module := setupWorkSessionModule(t)
+	db, staffClock := setupWorkSessionModule(t)
 	testDevice := testpkg.CreateTestDevice(t, db, "staff-clock-device")
-	resource := staffclockAPI.NewResource(module.StaffClock, staffclockAPI.Runtime{
+	resource := staffclockAPI.NewResource(staffClock, staffclockAPI.Runtime{
 		Success: testutil.RespondSuccess,
 		Failure: testutil.RespondCoded,
 	})

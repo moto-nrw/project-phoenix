@@ -16,9 +16,9 @@ import (
 // open the package's test database and compose the module through the root,
 // the others work on the database their caller opened (#4005).
 
-func parentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, accountID int64) []int64 {
+func parentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, live api.ActiveTestModule, accountID int64) []int64 {
 	t.Helper()
-	portal, err := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module)
+	portal, err := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live, api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)))
 	require.NoError(t, err)
 	children, err := portal.ListChildrenForAccount(ctx, accountID)
 	require.NoError(t, err)
@@ -52,14 +52,14 @@ func setupInvitationModule(t *testing.T) (*bun.DB, api.InvitationTestModule) {
 	return db, module
 }
 
-func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.StudentTestModule) {
+func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.StudentTestModule, api.ActiveTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	module, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	module, live, _, _, _, _, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, live
 }
 
 func storeRawTenantSetting(t *testing.T, db *bun.DB, tenantID int64, key string, raw json.RawMessage) {
@@ -69,9 +69,9 @@ func storeRawTenantSetting(t *testing.T, db *bun.DB, tenantID int64, key string,
 		"store raw %s override", key)
 }
 
-func submitParentCareScheduleRequest(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, accountID, studentID int64, payload map[string]any) (requestID int64, err error) {
+func submitParentCareScheduleRequest(t *testing.T, ctx context.Context, db *bun.DB, module api.StudentTestModule, live api.ActiveTestModule, accountID, studentID int64, payload map[string]any) (requestID int64, err error) {
 	t.Helper()
-	portal, composeErr := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module)
+	portal, composeErr := api.NewParentCareScheduleTestService(testpkg.NewDatabase(t, db), module, live, api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)))
 	require.NoError(t, composeErr)
 	view, err := portal.CreateCareScheduleRequest(ctx, accountID, studentID, payload)
 	if err != nil {

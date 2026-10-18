@@ -60,7 +60,7 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
@@ -94,7 +94,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
-	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	pendingCompletions, _, err := env.reposPeople.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
-	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	pendingCompletions, _, err = env.reposPeople.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 
 func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int64) {
 	t.Helper()
-	pending, _, err := env.repos.CareWithdrawal.ListPending(
+	pending, _, err := env.reposPeople.CareWithdrawal.ListPending(
 		testpkg.Ctx(t),
 		userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1},
 	)
@@ -181,7 +181,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	require.NoError(t, err)
 	require.NotNil(t, view.LastDecision)
 	assert.False(t, view.LastDecision.CompleteWithdrawal)
-	_, total, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	_, total, err := env.reposPeople.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 1,
 	})
 	require.NoError(t, err)
@@ -259,7 +259,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	require.NoError(t, err)
 	require.NotNil(t, view, "the status remains while the completion task is open")
 
-	changed, err := env.repos.CareWithdrawal.MarkObsoleteForRebooking(
+	changed, err := env.reposPeople.CareWithdrawal.MarkObsoleteForRebooking(
 		ctx, fx.studentID, calendar.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
 	)
 	require.NoError(t, err)
@@ -322,7 +322,7 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RequiredFullWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 

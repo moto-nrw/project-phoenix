@@ -13,7 +13,6 @@ import (
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -170,10 +169,10 @@ type DeliveryRuntime struct {
 
 // buildDeliveryRuntime composes Delivery's module before Identity & Access;
 // the recipients' names come from the People Directory's guardian rows.
-func buildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, guardians peoplePorts.GuardianProfileRepository) (DeliveryRuntime, error) {
+func buildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, guardians GuardianDisplayQuery) (DeliveryRuntime, error) {
 	observe := env.Observe.DurableDelivery
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db.Pool(), People: GuardianDisplayRows{Profiles: guardians},
+		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians},
 		Observe: func(observation deliveryModule.Observation) {
 			observe(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
 		},

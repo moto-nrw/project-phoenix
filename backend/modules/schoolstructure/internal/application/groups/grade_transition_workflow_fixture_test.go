@@ -41,10 +41,10 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	t.Helper()
 	f := &transitionFixture{db: db, tenantID: testpkg.Tenant(t), now: time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)}
 	clock := func() time.Time { return f.now }
-	owners, err := api.NewGradeTransitionSuiteOwners(testpkg.NewDatabase(t, db), clock)
+	owners, people, membership, err := api.NewGradeTransitionSuiteOwners(testpkg.NewDatabase(t, db), clock)
 	require.NoError(t, err)
-	f.people = owners.People
-	f.membership = owners.Membership
+	f.people = people
+	f.membership = membership
 	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
 	structure, presence, err := api.NewGradeTransitionOwners(testpkg.NewDatabase(t, db))

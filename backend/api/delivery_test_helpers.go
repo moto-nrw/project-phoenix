@@ -100,11 +100,8 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
-	if err != nil {
-		return DeliveryTestModule{}, err
-	}
-	sse, err := deliveryCompose.NewTenantSSEChannel(unit, deliveryCompose.NewRealtimeHub(logger), db.Pool(), parents.StudentGuardian, logger)
+	parentMembers := MustNewMembershipTestRepositories(db)
+	sse, err := deliveryCompose.NewTenantSSEChannel(unit, deliveryCompose.NewRealtimeHub(logger), db.Pool(), parentMembers.StudentGuardian, logger)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}

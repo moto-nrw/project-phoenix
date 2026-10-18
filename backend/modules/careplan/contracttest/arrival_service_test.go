@@ -245,7 +245,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")

@@ -88,6 +88,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	var records api.ParentCareExceptionSource = repos.CarePlan()
 	if w.pickup != nil {
 		records = w.pickup(records)
@@ -109,7 +110,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(records),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
@@ -137,6 +138,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -152,7 +154,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
@@ -845,6 +847,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 
 	// Delete via a service whose arrival reads fail.
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -858,7 +861,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(stubArrivalRepo{ParentCareExceptionSource: repos.CarePlan(), findErr: errBoom}),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},

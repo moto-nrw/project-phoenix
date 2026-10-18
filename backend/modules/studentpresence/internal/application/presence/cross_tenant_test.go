@@ -128,9 +128,10 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	// Visitor names come from the People Directory composition (#2661), so
 	// the test drives the composed repository the service graph uses.
-	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	_, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	factoryPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	repo := factory.CrossTenant
+	repo := factoryPresence.CrossTenant
 
 	t.Run("rejects a hosting tenant outside the caller context", func(t *testing.T) {
 		results, err := repo.FindCrossTenantStudents(testpkg.TenantContext(tenantVisitor), tenantHost)

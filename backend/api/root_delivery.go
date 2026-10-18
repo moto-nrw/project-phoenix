@@ -40,7 +40,7 @@ func buildDeliveryNotifications(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport, module *deliveryModule.Module,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity *identityaccess.Module, people PeopleRows, structure StructureRows, workTime workforce.Capability,
-	threads parentStore.ParentMessageThreadRepository,
+	messaging parentStore.MessagingRepositories,
 ) (DeliveryNotifications, error) {
 	logger := env.Logger
 	if !transport.VAPID.Configured() {
@@ -71,7 +71,7 @@ func buildDeliveryNotifications(
 		Notifier:    notifier,
 		Preferences: preferences,
 		StaffParentMessages: deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
-			threads, db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
+			messaging.ParentMessageThread, db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
 		AbsenceNotifier: absences,
 	}, nil
 }

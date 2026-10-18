@@ -310,7 +310,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *goldenRuntime) *caregi
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestUnlinker())
+	module, hub, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestUnlinker())
 	require.NoError(t, err)
 	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
@@ -321,7 +321,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 	})
 	require.True(t, ok)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: module.RealtimeHub}
+	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: hub}
 }
 
 func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router {

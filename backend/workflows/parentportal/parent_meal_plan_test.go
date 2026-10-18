@@ -45,6 +45,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 		mealPlan = moduleOverride[0]
 	}
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -58,7 +59,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		MealPlan:        mealPlan,
 		Settings:        settings,
 		StudentUpdates:  api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),

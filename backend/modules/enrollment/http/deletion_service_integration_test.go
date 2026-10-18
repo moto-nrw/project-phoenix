@@ -26,17 +26,20 @@ import (
 )
 
 type deletionTestFixture struct {
-	t     *testing.T
-	db    *bun.DB
-	repos *api.EnrollmentFlowTestRepositories
-	scope testpkg.TenantScope
-	actor int64
-	phase int64
+	t          *testing.T
+	db         *bun.DB
+	repos      *api.EnrollmentFlowTestRepositories
+	reposAudit *api.EnrollmentFlowAuditRows
+	reposCare  api.TimetableCarePlanRows
+	scope      testpkg.TenantScope
+	actor      int64
+	phase      int64
 }
 
 func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTestFixture {
 	t.Helper()
-	f := &deletionTestFixture{t: t, db: db, repos: flowRepositories(t, db), scope: testpkg.NewTenantScope(t, db)}
+	repos, reposCare, reposAudit, _, _, _ := flowRepositories(t, db)
+	f := &deletionTestFixture{t: t, db: db, repos: repos, reposAudit: reposAudit, reposCare: reposCare, scope: testpkg.NewTenantScope(t, db)}
 	account := testpkg.CreateTestAccount(t, db, "enrollment-deletion-"+label)
 	f.actor = account.ID
 	phase := &capability.Phase{
@@ -99,7 +102,7 @@ func (f *deletionTestFixture) service(auditRepo api.EnrollmentFlowDeletionAudits
 // root does; requestRepo replaces the owner's request lock.
 func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) api.EnrollmentDeletionSources {
 	if auditRepo == nil {
-		auditRepo = f.repos.EnrollmentDeletionAudit
+		auditRepo = f.reposAudit.EnrollmentDeletionAudit
 	}
 	if requestRepo == nil {
 		requestRepo = f.repos.Enrollment()
@@ -107,8 +110,8 @@ func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits
 	return api.EnrollmentDeletionSources{
 		Owner:                 requestRepo,
 		Guardians:             f.guardians(),
-		CountAuditAdjustments: f.repos.EnrollmentOfferingAdjustment.CountForDeletion,
-		CountBookings:         f.repos.CarePlan().CountCareOfferingBookings,
+		CountAuditAdjustments: f.reposAudit.EnrollmentOfferingAdjustment.CountForDeletion,
+		CountBookings:         f.reposCare.CarePlan.CountCareOfferingBookings,
 		Audit:                 auditRepo,
 		Delivery:              newTestEnrollmentDelivery(f.t, f.db),
 		Logger:                slog.New(slog.DiscardHandler),
@@ -141,7 +144,7 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	other := f.request("other", nil)
 	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
-	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
+	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
 	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
@@ -236,7 +239,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), coGuardian))
 
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: enrollmentModels.SelectionRuleOptional}
-	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
+	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
 	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []capability.SubmittedOfferingChoice{
 		{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}},
 	}))
@@ -244,7 +247,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	require.NoError(t, requestTestBookingCommands().RecordCareBookings(f.scope.Context(), child.ID, []capability.CareBookingInput{
 		{CareOfferingID: offering.ID, ManualSelectedDays: []string{"mon"}, ValidFrom: &start, ValidUntil: &until},
 	}))
-	bookings, err := f.repos.CarePlan().CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
+	bookings, err := f.reposCare.CarePlan.CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
 	require.NoError(t, err)
 	require.Len(t, bookings, 1)
 	childOffering := bookings[0]
@@ -258,7 +261,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("request-%d", request.ID), map[string]any{"request_id": request.ID})
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Adjustment", "Student", "1a")
 	adjustment := &api.EnrollmentFlowOfferingAdjustmentAudit{RequestID: request.ID, RequestChildID: child.ID, StudentID: student.ID, ActorAccountID: f.actor, ActorRole: "admin", Reason: "test adjustment", Before: json.RawMessage(`{}`), After: json.RawMessage(`{}`), ChangedAt: time.Now()}
-	require.NoError(t, f.repos.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
+	require.NoError(t, f.reposAudit.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
 
 	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
 		return f.service(nil, nil).PreviewRequest(ctx, request.ID)

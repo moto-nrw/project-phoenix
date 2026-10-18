@@ -40,7 +40,7 @@ func newCompanionSyncApplier(
 	bc *testpkg.RecordingBroadcaster,
 ) enrollmentAPI.ChangeRequestDecisionApplier {
 	t.Helper()
-	repoFactory := testRepositories(t, env.db)
+	repoFactory, repoFactoryCare, repoFactoryAudit, repoFactoryTimetable, _, _ := testRepositories(t, env.db)
 	bookings := testBookings(t, env.rolloverTestEnv, nil)
 	studentEnrollment := testStudentEnrollment(env.db)
 	decisions := newTestDecisions(enrollmentCompose.DecisionDependencies{
@@ -49,17 +49,17 @@ func newCompanionSyncApplier(
 		Guardians:      repoFactory.Enrollment(),
 		Phases:         repoFactory.Enrollment(),
 		Schemas:        repoFactory.Enrollment(),
-		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Bookings:       bookings,
 		GuardianAccess: testGuardianAccess(env.db),
 		People: api.EnrollmentDecisionPeopleDirectory(
 			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
-		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactory.CarePlan()), repoFactory.CarePlan().DeleteCompanionEdges),
-		PickupSchedules:   repoFactory.EnrollmentPickupSchedules(),
-		ArrivalSchedules:  repoFactory.EnrollmentArrivalSchedules(),
-		Adjustments:       api.EnrollmentDecisionAdjustments(repoFactory.EnrollmentOfferingAdjustment),
+		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:   repoFactoryTimetable.EnrollmentPickupSchedules(),
+		ArrivalSchedules:  repoFactoryTimetable.EnrollmentArrivalSchedules(),
+		Adjustments:       api.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
 		Broadcasts:        api.EnrollmentDecisionBroadcasts(bc),
 		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		Logger:            slog.Default(),
@@ -155,7 +155,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 
 	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(env.reposCare.CarePlan), studentID,
 		[]*usersModels.StudentCompanion{edge}))
 
 	if !withOwnNote {
@@ -235,7 +235,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	require.NoError(t, ferr)
 	assert.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
-	edges, eerr := api.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
+	edges, eerr := api.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)
 	require.Len(t, edges, 1, "the refused correction must not drop the link")
 	far, ok := edges[0].Other(studentID)
@@ -286,7 +286,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := api.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
+		edges, err := api.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

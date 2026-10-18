@@ -20,7 +20,7 @@ import (
 )
 
 func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).StudentPickupException
+	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentPickupException
 }
 
 func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {

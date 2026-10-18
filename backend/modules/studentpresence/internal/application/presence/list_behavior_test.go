@@ -40,7 +40,7 @@ func TestPresenceSupervisionQueryComposesDateAndStaffFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionSupervisors(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).ActiveGroup)
+	repo := sessionSupervisors(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	start := calendar.NewDate(2020, 1, 1)

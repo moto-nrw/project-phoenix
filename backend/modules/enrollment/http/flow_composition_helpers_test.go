@@ -14,7 +14,7 @@ import (
 // Organisation & Tenancy capability, the owner the serving root binds.
 // Callers pass a factory built on the pool from testpkg.SetupTestDB.
 type factorySchools struct {
-	repos *api.EnrollmentFlowTestRepositories
+	repos *api.OrganizationTestRows
 }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {

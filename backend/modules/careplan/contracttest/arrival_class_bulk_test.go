@@ -47,6 +47,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -71,12 +72,12 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	})
 
 	t.Run("an own time remains while an inherited row follows the class", func(t *testing.T) {
-		firstRows, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, first.ID)
+		firstRows, storeErr := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, first.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, firstRows, 1)
 		assert.Equal(t, "12:15", firstRows[0].ExpectedArrival.Format("15:04"))
 
-		secondRows, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, second.ID)
+		secondRows, storeErr := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, second.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, secondRows, 1)
 		assert.True(t, secondRows[0].InheritsClassTime())
@@ -416,6 +417,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	wantErr := errors.New("class-time lookup failed")
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), failingClassArrivalPlans{ArrivalClassPlans: nativeClassArrivalPlans(t), err: wantErr}, nil)
@@ -432,7 +434,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, wantErr)
-	stored, findErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, findErr := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, findErr)
 	assert.Empty(t, stored, "a failed class-time check must not persist a false deviation")
 }
@@ -442,6 +444,7 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), bookingMondayBaseline{}, nativeClassArrivalPlans(t), nil)
 
@@ -452,7 +455,7 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 
 	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID, nil))
 
-	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, err := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2)
 	assert.Equal(t, scheduleModel.WeekdayMonday, stored[0].Weekday)
@@ -469,6 +472,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -484,7 +488,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 			{StudentID: student.ID, Weekday: scheduleModel.WeekdayTuesday, ExpectedArrival: deviating, CreatedBy: staff.ID},
 		}))
 
-	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, err := reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2)
 	byWeekday := map[int]*scheduleModel.StudentArrivalSchedule{}

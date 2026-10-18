@@ -540,7 +540,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected old session supervisor history to be preserved")
 		assert.Equal(t, oldSupervisor.ID, allOldSupervisors[0].StaffID)
@@ -594,7 +594,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected supervisor row to remain on old session")
 		assert.Equal(t, staff.ID, allOldSupervisors[0].StaffID)

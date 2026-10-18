@@ -24,6 +24,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
@@ -49,7 +50,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			CareProfiles:    careProfiles(t, db),
 			ChildRepo:       repos.ParentChildReads(),
 			StatusDayRepo:   repos.StudentStatusDay,
-			StudentRepo:     api.NewParentStudentReads(repos.Student),
+			StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 			CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{

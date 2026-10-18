@@ -38,7 +38,8 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	g := NewGuardianTestRepositories(db, command)
+	g := NewGuardianTestRepositoriesWithoutAudit(db)
+	audits := NewTestAuditPersistence(db, command)
 	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err
@@ -52,7 +53,7 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		GuardianInvitations: NewGuardianInvitationReads(auth.AccountAuthentication),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
-		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),
+		GuardianFinancialAudit: NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: NewGuardianDataAccessLog(audits.DataAccessLog),
 		RolePresets: guardianRolePresets}, db.Pool())
 	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
 	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil

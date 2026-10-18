@@ -53,7 +53,7 @@
     "source": "Local run on the PR branch. The workflow receives owners built by the same constructors over the same pool; only the constructing package moves. The evidence is the suites and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/api/grade_transition_owners.go",
-      "backend/api/service_graph_compose_requests.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose_requests.go",
       "backend/workflows/gradetransition/compose/new.go",
       "backend/api/parent_guardian_changes.go",
       "backend/workflows/parentportal/compose/new.go",

@@ -32,6 +32,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -48,7 +49,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    api.NewParentStudentReads(repos.Student),
+		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions: api.NewParentCareExceptions(repos.CarePlan()),
 
 		Settings: parentSettingsStub{

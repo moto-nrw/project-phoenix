@@ -26,7 +26,7 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchema
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := flowRepositories(t, db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, db)
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")

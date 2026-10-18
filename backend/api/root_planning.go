@@ -5,7 +5,6 @@ import (
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -73,7 +72,8 @@ func buildShiftPlanning(
 
 // payrollStatus is the one payroll-status instance: the /payroll page and
 // the DATEV writers must judge completeness identically.
-func payrollStatus(settings settingsCompose.BatchSettingsService, staff peoplePorts.StaffRepository) settingsCompose.PayrollStatusGetter {
+func payrollStatus(settings settingsCompose.BatchSettingsService, people PeopleRows) settingsCompose.PayrollStatusGetter {
+	staff := people.Staff
 	return settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
 		members, err := staff.List(ctx, nil)
 		if err != nil {

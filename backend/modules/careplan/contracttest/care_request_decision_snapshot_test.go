@@ -126,7 +126,7 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
 	rejectingService := newCareScheduleRequestService(
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.persons,
 		f.schedules.Arrivals,
 		failingPickupReadService{PickupScheduleService: f.schedules.Pickups, err: readErr},

@@ -33,6 +33,10 @@ type rolloverTestEnv struct {
 	tb             testing.TB
 	db             *bun.DB
 	repos          *api.EnrollmentFlowTestRepositories
+	reposCare      api.TimetableCarePlanRows
+	reposTimetable api.TimetableTestRepositories
+	reposAudit     *api.EnrollmentFlowAuditRows
+	reposSchools   *api.OrganizationTestRows
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentAPI.RolloverService
 	requestSvc     enrollmentAPI.RequestService
@@ -56,7 +60,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	// into subsequent tests in the package-isolated database.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	repoFactory := flowRepositories(t, db)
+	repoFactory, repoFactoryCare, repoFactoryAudit, repoFactoryTimetable, _, repoFactorySchools := flowRepositories(t, db)
 	settings := newStubRequestSettings()
 	settings.boolValues[settingKeyEnrollmentEnabled] = true
 	settings.boolValues[settingKeyAllowSubmissionEdit] = true
@@ -84,9 +88,9 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Catalog:          repoFactory.Enrollment(),
-		SchoolRepo:       factorySchools{repos: repoFactory},
+		SchoolRepo:       factorySchools{repos: repoFactorySchools},
 		RateLimitRepo:    repoFactory.Enrollment(),
 		LateInviteRepo:   repoFactory.Enrollment(),
 		OutboxEnqueuer:   outbox,
@@ -135,7 +139,11 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       repoFactory.Timetable,
+		reposCare:       repoFactoryCare,
+		reposTimetable:  repoFactoryTimetable,
+		reposAudit:      repoFactoryAudit,
+		reposSchools:    repoFactorySchools,
+		timetable:       repoFactoryTimetable.Timetable,
 		rolloverSvc:     rolloverSvc,
 		requestSvc:      requestSvc,
 		offeringCloner:  offeringCloner,

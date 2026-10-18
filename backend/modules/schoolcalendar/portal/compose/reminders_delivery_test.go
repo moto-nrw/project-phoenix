@@ -154,7 +154,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.Contains(t, reminder.Payload, "student_ids")
 
 	runtime := calendarCompose.NewTenantRuntime(db)
-	guardians := calendarTestRepositories(t, db).StudentGuardian
+	guardians := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
 	render := func() (bool, error) {
 		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), runtime, guardians, parentChain.TenantID, reminder.Kind, reminder.Payload)
 	}

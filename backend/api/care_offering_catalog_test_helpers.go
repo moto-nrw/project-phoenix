@@ -48,7 +48,7 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 		}
 		settings = module.Settings
 	}
-	catalog, err := newTestCareOfferingCatalog(r, settings, options)
+	catalog, err := newTestCareOfferingCatalog(db, r, settings, options)
 	if err != nil {
 		return CareOfferingCatalogTestModule{}, err
 	}
@@ -56,11 +56,19 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 }
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
-// repository set.
-func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+// repository set, with the Care Plan and School Calendar owners over db.
+func newTestCareOfferingCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	care, err := NewTimetableCarePlanRows(db, r, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return nil, err
+	}
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return nil, err
+	}
 	return newCareOfferingCatalog(careOfferingCatalogInputs{
-		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
-		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,
+		Records: care.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
+		Timetable: r.Timetable, Calendar: calendar.SchoolCalendar(), Settings: settings,
 		SourcedTemplates: func() careplanCompose.SourcedTemplateResyncer { return options.SourcedTemplates },
 		Pickup:           func() careplanCompose.PickupResyncer { return options.Pickup },
 		LockRecurrence:   options.LockRecurrence,

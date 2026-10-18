@@ -64,6 +64,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -119,7 +121,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy:   admin.ID,
 	}
 	absence.SetTenantID(tenantID)
-	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
+	require.NoError(t, reposAbsences.StaffAbsence.Create(ctx, absence))
 	fromStatus := workforce.AbsenceStatusReported
 	absenceAudit := &timetracking.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
@@ -170,7 +172,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(api.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), api.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(api.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), api.StaffDisplayNames(reposPeople.Staff), nil),
 	}
 }
 

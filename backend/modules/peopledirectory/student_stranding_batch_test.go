@@ -58,13 +58,14 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
 
 	giveAccompaniedMonday(t, ctx, factory, first.ID)
 	giveAccompaniedMonday(t, ctx, factory, second.ID)
-	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), first.ID,
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factoryCare.CarePlan()), first.ID,
 		companionEdge(t, api.NewPeopleRepositorySuiteCompanionEdge, first.ID, second.ID, 1)))
 	// Neither child has any other "mit wem" detail than the shared edge.
 	testpkg.ClearTestStudentCompanionNote(t, db, first.ID)
@@ -85,7 +86,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	// ASSERT — the batch verdict passes and the shared edge is gone.
 	require.NoError(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx))
 
-	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, first.ID)
+	edges, err := api.NewPeopleRepositorySuiteCompanions(factoryCare.CarePlan()).ListForStudent(ctx, first.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "the edge lost its basis on both sides and must be gone")
 }
@@ -101,13 +102,14 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
 
 	giveAccompaniedMonday(t, ctx, factory, subject.ID)
 	giveAccompaniedMonday(t, ctx, factory, companion.ID)
-	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID,
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factoryCare.CarePlan()), subject.ID,
 		companionEdge(t, api.NewPeopleRepositorySuiteCompanionEdge, subject.ID, companion.ID, 1)))
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
 	testpkg.ClearTestStudentCompanionNote(t, db, companion.ID)

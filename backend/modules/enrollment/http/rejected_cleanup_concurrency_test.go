@@ -64,7 +64,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
-	repos := flowRepositories(t, db)
+	repos, _, _, _, _, _ := flowRepositories(t, db)
 
 	phase := &capability.Phase{
 		Name:             fmt.Sprintf("cleanup-concurrency-%d", scope.TenantID),
@@ -181,7 +181,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repos := flowRepositories(t, db)
+	repos, _, _, _, _, _ := flowRepositories(t, db)
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
 	var _, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
 	defer func() {

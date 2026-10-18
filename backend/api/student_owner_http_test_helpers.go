@@ -10,14 +10,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peopleStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
@@ -40,7 +43,7 @@ import (
 
 // NewStudentHTTPTestResources uses the same owner bindings and tenant mounts as production.
 // The caller supplies its existing fixture reader and actor, not a second row model.
-func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule,
+func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveEducation ActiveEducation, liveCaller *CallerRows, livePeople ActivePeople, livePresence ActivePresence, liveTimetable ActiveTimetable, peopleServices StudentTestPeople, audit auditModels.Command, groupLive grouplive.Query,
 	broadcaster realtime.Broadcaster, caller peopleStudentsHTTP.CallerContext, studentRows carePlanCompose.StudentDirectory,
 	feedback studentdeletioncompose.Feedback, auditActor peoplePorts.RequestAuditActor,
 	authenticateDevice common.Middleware, deviceID peopleStudentsHTTP.DeviceIdentity, authoritative *bool, clock func() time.Time,
@@ -49,18 +52,26 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	if clock == nil {
 		clock = time.Now
 	}
-	repoFactory, err := NewStudentHTTPTestRows(store, svc.Audit)
+	students, repoFactory, err := NewStudentHTTPTestRows(store, audit)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	parentEventEmitter := NewParentEventEmitter(store, unit, repoFactory.ParentMessageThread, repoFactory.ParentMessage, svc.Settings, broadcaster, slog.Default())
+	repoFactoryTimetable := NewEnrollmentTimetableRows(store)
+	repoFactoryCare := NewEnrollmentCarePlanRows(store)
+	repoFactoryRooms := MustNewTimetableRoomRows(store)
+	schools, err := NewOrganizationTenancy(store)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	messages := NewStudentMessageRows(store)
+	parentEventEmitter := NewParentEventEmitter(store, unit, messages.ParentMessageThread, messages.ParentMessage, liveSettings.Settings, broadcaster, slog.Default())
 	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
-	schoolGroups := studentSchoolGroups{GroupManagement: svc.Education}
+	schoolGroups := studentSchoolGroups{GroupManagement: liveEducation.Education}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: store.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	requestReview, careReviews, err := newStudentHTTPTestReviews(store, svc, studentRows, clock)
+	requestReview, careReviews, err := newStudentHTTPTestReviews(store, svc, liveCaller, liveSettings, peopleServices, studentRows, clock)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -73,9 +84,9 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: store.Pool(), Owners: deletionOwners, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
-		Feedback: feedback, IsVerifiedStaff: svc.UserContext.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
-		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit, Now: clock,
+		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactoryTimetable.Timetable,
+		Feedback: feedback, IsVerifiedStaff: liveCaller.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
+		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: audit, Now: clock,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
@@ -104,22 +115,22 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			AuthenticatedDevice: deviceID,
 			ChildQuota:          childQuotaStudentsReader{usages: usages},
 			DeviceAuthenticator: authenticateDevice,
-			FamilyProtection:    svc.PeopleDirectory,
+			FamilyProtection:    peopleServices.PeopleDirectory,
 			Logger:              slog.Default(),
-			PeopleDirectory:     svc.PeopleDirectory,
-			Persons:             svc.StudentRoutePersons(),
-			StudentAuditService: svc.PeopleDirectory,
-			StudentPhotos:       svc.PeopleDirectory,
+			PeopleDirectory:     peopleServices.PeopleDirectory,
+			Persons:             peopleCompose.NewStudentRoutePersons(livePeople.Users),
+			StudentAuditService: peopleServices.PeopleDirectory,
+			StudentPhotos:       peopleServices.PeopleDirectory,
 			Uploads:             nativeUploads.UploadFiles{},
 			UserContextService:  caller,
 		},
 		careStudentsHTTP.ResourceConfig{
-			ArrivalScheduleService:   svc.ArrivalSchedule,
+			ArrivalScheduleService:   live.ArrivalSchedule,
 			Broadcaster:              broadcaster,
 			CareLifecycleService:     lifecycle,
 			CareRequestReviews:       careReviews,
 			CareRequestService:       svc.CareRequests,
-			CompanionService:         NewStudentHTTPTestCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
+			CompanionService:         NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
 			ExcusedRequestService:    svc.ExcusedRequests,
 			Logger:                   slog.Default(),
 			MasterDataReviewService:  svc.MasterDataReview,
@@ -128,38 +139,38 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			ParentEventEmitter:       parentEventEmitter,
 			ParentRequestBulkService: svc.ParentRequests,
 			PartialAbsenceService:    svc.PartialAbsence,
-			PeopleDirectory:          svc.PeopleDirectory,
-			Persons:                  svc.StudentRoutePersons(),
+			PeopleDirectory:          peopleServices.PeopleDirectory,
+			Persons:                  peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PickupAdjustmentService:  svc.PickupAdjustments,
-			PickupScheduleService:    svc.PickupSchedule,
-			SettingsService:          svc.Settings,
-			StudentAuditService:      svc.PeopleDirectory,
+			PickupScheduleService:    live.PickupSchedule,
+			SettingsService:          liveSettings.Settings,
+			StudentAuditService:      peopleServices.PeopleDirectory,
 			StudentConsents:          NewStudentHTTPTestConsents(store),
-			StudentPhotos:            svc.PeopleDirectory,
+			StudentPhotos:            peopleServices.PeopleDirectory,
 			UserContextService:       caller,
-			WeekdayPickupNotes:       repoFactory.CarePlan,
+			WeekdayPickupNotes:       students.CarePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
-			ActiveService:          svc.Active,
-			ArrivalScheduleService: svc.ArrivalSchedule,
-			CareDayService:         svc.CareDay,
+			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(livePeople)),
+			ActiveService:          livePresence.Active,
+			ArrivalScheduleService: live.ArrivalSchedule,
+			CareDayService:         live.CareDay,
 			CareLifecycleService:   lifecycle,
-			CompanionService:       NewStudentHTTPTestCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
+			CompanionService:       NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
 			ExcusedRequestService:  svc.ExcusedRequests,
-			InstanceService:        svc.Instance,
+			InstanceService:        liveTimetable.Instance,
 			ListExportService:      lists.NewRenderer(),
 			Logger:                 slog.Default(),
 			Now:                    clock,
-			PeopleDirectory:        svc.PeopleDirectory,
-			Persons:                svc.StudentRoutePersons(),
-			PickupScheduleService:  svc.PickupSchedule,
+			PeopleDirectory:        peopleServices.PeopleDirectory,
+			Persons:                peopleCompose.NewStudentRoutePersons(livePeople.Users),
+			PickupScheduleService:  live.PickupSchedule,
 			SchoolGroups:           schoolGroups,
-			SchoolService:          studentSchoolDirectory{schools: svc.Schools},
-			SettingsService:        svc.Settings,
+			SchoolService:          studentSchoolDirectory{schools: schools},
+			SettingsService:        liveSettings.Settings,
 			StudentConsents:        NewStudentHTTPTestConsents(store),
 			StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
-				rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
+				rooms, err := repoFactoryRooms.Room.FindByIDs(ctx, ids)
 				if err != nil {
 					return nil, err
 				}
@@ -168,34 +179,34 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 					names[room.ID] = room.Name
 				}
 				return names, nil
-			}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
-			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), store.Pool(), repoFactory.CarePlan.LockExceptionDay),
+			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent)),
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
 		presenceStudentsHTTP.ResourceConfig{
-			ActiveService:           svc.Active,
+			ActiveService:           livePresence.Active,
 			Broadcaster:             broadcaster,
 			Logger:                  slog.Default(),
 			Now:                     clock,
 			ParentEventEmitter:      parentEventEmitter,
-			PeopleDirectory:         svc.PeopleDirectory,
-			Persons:                 svc.StudentRoutePersons(),
+			PeopleDirectory:         peopleServices.PeopleDirectory,
+			Persons:                 peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PrivacyConsents:         presence,
-			SettingsService:         svc.Settings,
-			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), store.Pool(), repoFactory.CarePlan.LockExceptionDay),
+			SettingsService:         liveSettings.Settings,
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
 		deleteStudentsHTTP.ResourceConfig{
 			CareLifecycleService: lifecycle,
 			ConstraintViolation:  transactionFailures.IsConstraintViolation,
-			PeopleDirectory:      svc.PeopleDirectory,
+			PeopleDirectory:      peopleServices.PeopleDirectory,
 			StudentDeletion:      studentDeletion,
 			UserContextService:   caller,
 		},
 		reviewStudentsHTTP.ResourceConfig{
-			PeopleDirectory:     svc.PeopleDirectory,
+			PeopleDirectory:     peopleServices.PeopleDirectory,
 			RequestReview:       requestReview,
-			RequestReviewAccess: NewParentRequestReviewPolicy(svc.UserContext.Caller().ParentRequestReviews),
+			RequestReviewAccess: NewParentRequestReviewPolicy(liveCaller.Caller().ParentRequestReviews),
 		},
 	)
 
@@ -206,17 +217,17 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			status.Now = transportClock
 		}
 
-		return people.Router(ProtectedTenantRoutesWith(care.Register, projection.Register, status.Register, deletion.Register, review.Register, groupLiveHTTP.NewResource(svc.OGSGroupLive).Register))
+		return people.Router(ProtectedTenantRoutesWith(care.Register, projection.Register, status.Register, deletion.Register, review.Register, groupLiveHTTP.NewResource(groupLive).Register))
 	}
 	return people, care, projection, status, deletion, review, router, nil
 
 }
-func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
+func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live *CallerRows, liveSettings ActiveSettings, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
 	reviewGroups, err := NewSchoolStructure(store)
 	if err != nil {
 		return nil, nil, err
 	}
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(svc.PeopleDirectory, reviewGroups)
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(peopleServices.PeopleDirectory, reviewGroups)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -226,13 +237,13 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	}
 	// The production root binds the same Identity & Access policy for the
 	// projection as for the decisions (#3804).
-	reviews := svc.UserContext.Caller().ParentRequestReviews
+	reviews := live.Caller().ParentRequestReviews
 	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, sessiontoken.PermissionsFromCtx(ctx))
 		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(store.Pool(), studentRows, svc.PeopleDirectory,
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(store.Pool(), studentRows, peopleServices.PeopleDirectory,
 		reviewScope, func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
@@ -241,16 +252,17 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		return nil, nil, err
 	}
 	careReviews, err := requestreviewcompose.NewScheduleReviews(store.Pool(), studentRows, requestreviewcompose.ScheduleReviewDependencies{
-		People: svc.PeopleDirectory,
+		People: peopleServices.PeopleDirectory,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
-			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+			return liveSettings.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
-		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
-		Blocks: NewStudentHTTPTestPickupReviewBlocks(store),
+		ObserveCare:      func(requestreviewcompose.CareObservation) {},
+		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		Blocks:           NewStudentHTTPTestPickupReviewBlocks(store),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -262,12 +274,13 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		return nil, nil, err
 	}
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(store.Pool(), requestreviewcompose.OfferingReviewDependencies{
-		People: svc.PeopleDirectory,
+		People: peopleServices.PeopleDirectory,
 		Scope:  reviewScope,
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
-		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		ObserveCare:      func(requestreviewcompose.CareObservation) {},
+		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
 	})
 	if err != nil {
 		return nil, nil, err
@@ -282,8 +295,8 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, svc.PeopleDirectory, func(ctx context.Context) bool {
-		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, peopleServices.PeopleDirectory, func(ctx context.Context) bool {
+		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, live.HasCurrentStaff)
 	})
 	if err != nil {
 		return nil, nil, err
@@ -300,7 +313,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	}
 	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
-		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory),
+		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(peopleServices.PeopleDirectory),
 		Today: func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
 	})
 	if err != nil {

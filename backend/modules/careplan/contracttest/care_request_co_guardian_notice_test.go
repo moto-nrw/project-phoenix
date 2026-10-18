@@ -57,7 +57,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 
 		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
 			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
-		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
 		require.NoError(t, err)
 		require.Len(t, pills, 1, "the other guardian hears about the decision exactly once")
 		assert.Contains(t, pills[0].Body, "Betreuungsstand geändert")
@@ -79,7 +79,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 
 		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
 			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
-		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
 		require.NoError(t, err)
 		require.Len(t, pills, 1)
 		assert.Equal(t, "Passt so", pills[0].DecisionReason,
@@ -93,9 +93,9 @@ func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith [
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
 	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		f.repos.CarePlan(), f.persons,
+		f.reposCare.CarePlan(), f.persons,
 		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
-		f.repos.CarePlan(),
+		f.reposCare.CarePlan(),
 		f.caller, emitter, nil,
 		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.caller}, testpkg.PermissionsFromContext,
 		nil, slog.Default(), f.services.StudentAudit,

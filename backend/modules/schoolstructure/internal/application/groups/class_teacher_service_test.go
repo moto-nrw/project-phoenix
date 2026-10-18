@@ -12,12 +12,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *api.PeopleRepositorySuiteFactory) {
+func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *api.SchoolStructureSuiteRepositories, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	// Same wiring the service factory uses: assignment rewrites must land in
 	// the Stammdaten audit trail.
-	return api.NewEducationSuiteService(repos, testpkg.NewDatabase(t, db)), repos
+	return api.NewEducationSuiteService(repos, testpkg.NewDatabase(t, db)), reposStructure, repos
 }
 
 func TestSetStaffSchoolClasses(t *testing.T) {
@@ -25,7 +26,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	svc, repos := setupClassTeacherService(t, db)
+	svc, repos, reposPeople := setupClassTeacherService(t, db)
 	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "class-teacher-actor@test.local")
@@ -170,7 +171,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		ghostID := ghost.ID
 		// Deleting the staff row is the ARRANGE step: both calls must report
 		// ErrStaffNotFound for an ID that no longer exists (#2419).
-		require.NoError(t, repos.Staff.Delete(ctx, ghostID))
+		require.NoError(t, reposPeople.Staff.Delete(ctx, ghostID))
 
 		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)
