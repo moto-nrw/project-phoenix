@@ -31,13 +31,13 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 		WithdrawalConfirmedRole: "admin",
 		WithdrawalConfirmedAt:   time.Now(),
 	}
-	require.NoError(t, repo.UpsertPending(ctx, first))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, first))
 	firstID := first.ID
 
 	second := *first
 	second.ID = 0
 	second.FirstBookinglessDay = firstGap.AddDays(2)
-	require.NoError(t, repo.UpsertPending(ctx, &second))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &second))
 	assert.Equal(t, firstID, second.ID)
 
 	rows, total, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
@@ -61,7 +61,7 @@ func TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap(t *
 
 	create := func() {
 		t.Helper()
-		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 			StudentID: &studentID, FirstBookinglessDay: firstGap,
 			Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 			WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -93,10 +93,10 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repo.UpsertPending(ctx, completion))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, completion))
 	completion.ID = 0
 	completion.FirstBookinglessDay = calendar.NewDate(2026, 8, 24).AddDays(5)
-	require.NoError(t, repo.UpsertPending(ctx, completion))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, completion))
 	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
@@ -125,9 +125,9 @@ func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t 
 			Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
 			WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 		}
-		require.NoError(t, repo.UpsertPending(ctx, confirmed))
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, confirmed))
 
-		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 			StudentID: &studentID, FirstBookinglessDay: gap.AddDays(3),
 			Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
 		}))
@@ -149,9 +149,9 @@ func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t 
 			StudentID: &studentID, FirstBookinglessDay: gap,
 			Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
 		}
-		require.NoError(t, repo.UpsertPending(ctx, expired))
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, expired))
 
-		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 			StudentID: &studentID, FirstBookinglessDay: gap,
 			Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
 			WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -184,7 +184,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	studentID := student.ID
 	firstGap := calendar.NewDate(2026, 8, 24).AddDays(4)
 
-	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -204,7 +204,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	}
 	upsert := func(studentID int64, gap calendar.Date, trigger string) {
 		t.Helper()
-		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 			StudentID: &studentID, FirstBookinglessDay: gap,
 			Trigger: trigger, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 		}))
@@ -249,14 +249,14 @@ func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testin
 	student := testpkg.CreateTestStudent(t, db, "Mia", "Wochenplan", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "weekly-plan-actor")
 	studentID := student.ID
-	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: calendar.TodayDate(),
 		Trigger:               userModels.CareWithdrawalTriggerBookingExpired,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}))
 	direct := testpkg.CreateTestStudent(t, db, "Noah", "Direkt", "2b")
 	directID := direct.ID
-	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &directID, FirstBookinglessDay: calendar.TodayDate(),
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -287,7 +287,7 @@ func TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent(t *test
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repo.UpsertPending(ctx, original))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, original))
 	resolved, err := repo.MarkResolved(ctx, original.ID, actor.ID, time.Now())
 	require.NoError(t, err)
 	require.True(t, resolved)

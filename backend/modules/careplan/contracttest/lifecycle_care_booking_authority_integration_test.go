@@ -279,7 +279,7 @@ func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Live", "Sicher", "2a")
 	studentID := student.ID
 	firstGap := calendar.TodayDate().AddDays(2)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
 		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
@@ -307,7 +307,7 @@ func TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority(t *testing.T) {
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	require.NoError(t, repos.CareWithdrawal.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repos.CareWithdrawal, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -385,7 +385,7 @@ func TestNaturalSchedulerPreservesConfirmedWithdrawalAudit(t *testing.T) {
 	createCareBooking(t, db, scope, student.ID, "audit", nil, &gap)
 	studentID := student.ID
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
-	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now().Add(-time.Hour),
 	}))
@@ -421,7 +421,7 @@ func TestOverdueRebookingReplacesTheStaleCompletion(t *testing.T) {
 	createCareBooking(t, db, scope, student.ID, "renewed", &oldGap, &newGap)
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
 	studentID := student.ID
-	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: oldGap,
 		Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -535,7 +535,7 @@ func assertNonCareMutationKeepsConfirmedWithdrawal(t *testing.T, authoritative b
 	studentID := student.ID
 	gap := calendar.TodayDate().AddDays(4)
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
-	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -622,7 +622,7 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	resolvedStudent := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Erledigt", "Aufgabe", "4b")
 	for _, id := range []int64{openStudent.ID, resolvedStudent.ID} {
 		studentID := id
-		require.NoError(t, repos.CareWithdrawal.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repos.CareWithdrawal, &userModels.CareWithdrawalCompletion{
 			StudentID: &studentID, FirstBookinglessDay: today,
 			Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
 			WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
