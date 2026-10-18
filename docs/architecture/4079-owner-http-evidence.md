@@ -14,11 +14,11 @@ Branch created from fresh `origin/development` after verifying that merge.
 - `TestFullProductionRouterGolden` passed. Route and middleware goldens are byte-identical to the #4318 base; normalized diff is empty with zero substitutions.
   Route SHA-256: `bd2a1e176eb9f77f5f8170294440134edc0cc3e560a0cc4ece052a1450136b61`.
   Middleware SHA-256: `8aac8ecab2b289d4672a132a762e8dea6b5f6d2400495c262c178cf322eece45`.
-- Architecture check passed: 76 → 62 legacy keys; root composition 1,644 unchanged. Lint and no-fast changed-package final verification pending.
+- Architecture check passed: 76 → 62 legacy keys; root composition 1,644 unchanged. Full lint passed with zero issues. The required no-fast changed-package gate passed across 178 packages. Backend quality passed: production build, source ratchets, migration validation/collisions, dead-code guards and license policy.
 - No app servers or production requests are required.
 
 
-Development was integrated locally at `ad49606eae`; register-only conflicts
+Development was integrated locally through `a70bde6878`; register-only conflicts
 were resolved as base plus both deltas, retaining all unrelated retirements.
 
 ## Policy rules

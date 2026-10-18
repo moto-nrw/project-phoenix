@@ -3,24 +3,24 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 18.10.2026 · Ratchet 101 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
-0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.534 in `compose`
+Stand 18.10.2026 · Ratchet 62 · Composition 1.644 · Policy-Epoche 74 ·
+0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 1.138 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
+33.216 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 13 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 67 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 44 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule | 0 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
-| [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 101 |
+| [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 2 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 62 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
