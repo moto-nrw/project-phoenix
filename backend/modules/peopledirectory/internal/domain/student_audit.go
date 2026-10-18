@@ -12,7 +12,6 @@ import (
 // recorded data, not a display concern.
 const (
 	StudentFieldStatus                 = "status"
-	StudentFieldSupervisorNotes        = "supervisor_notes"
 	StudentFieldExtraInfo              = "extra_info"
 	StudentFieldHealthInfo             = "health_info"
 	StudentFieldPickupStatus           = "pickup_status"
@@ -40,7 +39,6 @@ type StudentAuditSnapshot struct {
 	// CareEnd is the last care day as a calendar date (YYYY-MM-DD), empty
 	// when the child has no recorded end of care.
 	CareEnd                string
-	SupervisorNotes        *string
 	ExtraInfo              *string
 	HealthInfo             *string
 	PickupStatus           *string
@@ -82,7 +80,6 @@ func DiffStudentFields(before, after StudentAuditSnapshot) []StudentFieldChange 
 	}
 
 	add(StudentFieldStatus, studentStatusLabel(before.Status), studentStatusLabel(after.Status))
-	add(StudentFieldSupervisorNotes, derefString(before.SupervisorNotes), derefString(after.SupervisorNotes))
 	add(StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
 	add(StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
 	add(StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))

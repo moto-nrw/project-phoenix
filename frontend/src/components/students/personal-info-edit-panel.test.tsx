@@ -152,7 +152,6 @@ describe("PersonalInfoEditPanel", () => {
     address_city: "Köln",
     address_postal_code: "50667",
     health_info: "Keine Allergien",
-    supervisor_notes: "Betreuernotiz",
     extra_info: "Elternnotiz",
     ...overrides,
   });

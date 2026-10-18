@@ -8,14 +8,13 @@ import (
 // StudentCareProfile holds only Care Plan's fields. MembershipID is obtained
 // from School Membership; it is not the public student/profile ID.
 type StudentCareProfile struct {
-	MembershipID    int64
-	SupervisorNotes *string
-	HealthInfo      *string
-	PickupStatus    *string
-	Sick            bool
-	SickSince       *time.Time
-	Excused         bool
-	ExcusedSince    *time.Time
+	MembershipID int64
+	HealthInfo   *string
+	PickupStatus *string
+	Sick         bool
+	SickSince    *time.Time
+	Excused      bool
+	ExcusedSince *time.Time
 }
 
 type StudentDeparturePlan struct {

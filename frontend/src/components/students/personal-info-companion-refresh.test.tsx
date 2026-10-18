@@ -42,7 +42,6 @@ const student: ExtendedStudent = {
   address_street: undefined,
   address_city: undefined,
   address_postal_code: undefined,
-  supervisor_notes: undefined,
   extra_info: undefined,
   sick: false,
   sick_since: undefined,

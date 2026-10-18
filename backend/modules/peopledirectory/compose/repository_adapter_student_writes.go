@@ -153,10 +153,9 @@ func studentModelToRecord(student *userModels.Student) peopleModule.StudentRecor
 		AddressCity:       student.AddressCity,
 		AddressPostalCode: student.AddressPostalCode,
 
-		ExtraInfo:       student.ExtraInfo,
-		SupervisorNotes: student.SupervisorNotes,
-		HealthInfo:      student.HealthInfo,
-		PickupStatus:    student.PickupStatus,
+		ExtraInfo:    student.ExtraInfo,
+		HealthInfo:   student.HealthInfo,
+		PickupStatus: student.PickupStatus,
 
 		DepartureCompanionNote: student.DepartureCompanionNote,
 

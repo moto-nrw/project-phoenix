@@ -14,5 +14,4 @@ var ErrStudentNoteDeletionAuditUnavailable = errors.New("people directory: stude
 // Audit Platform owns audit.data_deletions and records the durable evidence.
 type StudentNoteDeletionAudit interface {
 	RecordStudentNoteDeletion(context.Context, int64, int64, int64) error
-	RecordLegacyStudentNoteDeletion(context.Context, int64, int64) error
 }

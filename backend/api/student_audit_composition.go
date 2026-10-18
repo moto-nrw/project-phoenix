@@ -93,7 +93,6 @@ func studentAuditSnapshot(student *userModels.Student) peopleModule.StudentAudit
 	snapshot := peopleModule.StudentAuditSnapshot{
 		StudentID:              student.ID,
 		Status:                 string(student.Status),
-		SupervisorNotes:        student.SupervisorNotes,
 		ExtraInfo:              student.ExtraInfo,
 		HealthInfo:             student.HealthInfo,
 		PickupStatus:           student.PickupStatus,

@@ -299,7 +299,6 @@ describe("buildBackendStudentRequest", () => {
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
-      supervisor_notes: "Extra care",
       pickup_status: "Authorized",
     };
 
@@ -318,7 +317,6 @@ describe("buildBackendStudentRequest", () => {
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
-      supervisor_notes: "Extra care",
       pickup_status: "Authorized",
     });
   });

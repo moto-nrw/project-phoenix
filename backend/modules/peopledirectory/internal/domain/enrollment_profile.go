@@ -7,9 +7,6 @@ func ApplyEnrollmentPatch(record *StudentRecord, patch EnrollmentProfilePatch) {
 	if patch.HealthInfoSet {
 		record.HealthInfo = patch.HealthInfo
 	}
-	if patch.SupervisorNotesSet {
-		record.SupervisorNotes = patch.SupervisorNotes
-	}
 	if patch.GroupIDSet {
 		record.GroupID = patch.GroupID
 	}
