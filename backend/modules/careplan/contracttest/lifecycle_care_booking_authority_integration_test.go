@@ -10,7 +10,6 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -138,7 +137,7 @@ func createCareBookingSource(
 	require.NoError(t, owner.InsertRequest(ctx, request))
 	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
+		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentFixture.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
@@ -262,7 +261,7 @@ func TestBookingAuthorityExcludesUnapprovedBookingForExistingStudent(t *testing.
 	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
 		Set("created_student_id = NULL").
 		Set("matched_student_id = ?", student.ID).
-		Set("status = ?", enrollmentModels.ChildStatusSubmitted).
+		Set("status = ?", enrollmentFixture.ChildStatusSubmitted).
 		Where("id = ?", child.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)

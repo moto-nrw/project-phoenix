@@ -41,9 +41,9 @@ const (
 // them.
 type TimetableRows interface {
 	AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error
-	GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error)
+	FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error)
 	GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*timetable.ScheduledInstance, error)
-	GetInstanceStaff(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
+	FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
 }
 
 // SickStamps are the sick-report provenance stamps on block assignments: the
@@ -246,7 +246,7 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 	}
-	rows, err := s.timetableData.GetInstanceStaffByStaffAndDate(ctx, report.subjectStaffID, day)
+	rows, err := s.timetableData.FindByStaffAndDate(ctx, report.subjectStaffID, day)
 	if err != nil {
 		return fmt.Errorf("sick cascade: load assignments %s: %w", day.String(), err)
 	}
@@ -657,7 +657,7 @@ func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID, toA
 }
 
 func (s *sickCascade) instanceHasActiveSubstitute(ctx context.Context, instanceID int64) (bool, error) {
-	allRows, err := s.timetableData.GetInstanceStaff(ctx, instanceID)
+	allRows, err := s.timetableData.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return false, fmt.Errorf("sick clear: load instance staff %d: %w", instanceID, err)
 	}

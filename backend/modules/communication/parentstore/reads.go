@@ -2,13 +2,14 @@ package parentstore
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	parentinbox "github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/contract"
 	"github.com/uptrace/bun"
 )
 
@@ -21,16 +22,16 @@ import (
 type ParentMessageReads struct {
 	cursors *parentpostgres.ReadCursorStore
 	threads *parentpostgres.ThreadStore
-	inbox   *parentinbox.Projection
+	inbox   ParentInbox
 }
 
 // NewParentMessageReadRepository builds the read-side store over the
 // guardian-link row source.
-func NewParentMessageReadRepository(db *bun.DB, links GuardianLinkRows) *ParentMessageReads {
+func NewParentMessageReadRepository(db *bun.DB, inbox ParentInbox) *ParentMessageReads {
 	return &ParentMessageReads{
 		cursors: parentpostgres.NewReadCursorStore(postgresDatabase(db)),
 		threads: parentpostgres.NewThreadStore(postgresDatabase(db)),
-		inbox:   parentinbox.New(inboxDatabase(db), links),
+		inbox:   inbox,
 	}
 }
 
@@ -142,7 +143,11 @@ func inboxModels(rows []*parentinbox.ParentInboxThread) ([]*communication.Portal
 	}
 	threads := make([]*communication.PortalInboxThread, 0, len(rows))
 	for _, row := range rows {
-		payload, err := values.ParentPayloadFromFacts(row.LastMessagePayload)
+		var facts map[string]any
+		if err := json.Unmarshal(row.LastMessagePayload, &facts); err != nil && len(row.LastMessagePayload) > 0 {
+			return nil, err
+		}
+		payload, err := values.ParentPayloadFromFacts(facts)
 		if err != nil {
 			return nil, err
 		}

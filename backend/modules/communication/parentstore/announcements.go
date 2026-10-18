@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	valuesPolicy "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	parentaudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
 	"github.com/uptrace/bun"
 )
 
@@ -38,48 +38,16 @@ type PendingApplicantSource interface {
 //
 // SchoolName is not served here: the school's name belongs to Organisation
 // and Tenancy, and the composition root decorates it exactly as before.
-func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) ParentAnnouncementRepository {
-	if applicants == nil {
-		panic("communication parent store: pending applicant source is required")
+func NewParentAnnouncementRepository(db *bun.DB, audience AnnouncementAudienceReads) ParentAnnouncementRepository {
+	if audience == nil {
+		panic("communication parent store: audience is required")
 	}
-	return &announcementRepository{
-		store:    parentpostgres.NewAnnouncementStore(postgresDatabase(db)),
-		audience: parentaudience.New(audienceDatabase(db), audienceApplicants{source: applicants}, links, clocks...),
-	}
-}
-
-// audienceApplicants hands Enrollment's applicants to the audience
-// projection in the projection's vocabulary.
-type audienceApplicants struct{ source PendingApplicantSource }
-
-func (a audienceApplicants) PendingAnnouncementApplicants(ctx context.Context) ([]parentaudience.PendingAnnouncementApplicant, error) {
-	rows, err := a.source.PendingAnnouncementApplicants(ctx)
-	return audienceApplicantRows(rows), err
-}
-
-func (a audienceApplicants) PendingAnnouncementApplicantsForSchools(ctx context.Context, schoolIDs []int64) ([]parentaudience.PendingAnnouncementApplicant, error) {
-	rows, err := a.source.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
-	return audienceApplicantRows(rows), err
-}
-
-func audienceApplicantRows(rows []PendingAnnouncementApplicant) []parentaudience.PendingAnnouncementApplicant {
-	if rows == nil {
-		return nil
-	}
-	values := make([]parentaudience.PendingAnnouncementApplicant, 0, len(rows))
-	for _, row := range rows {
-		values = append(values, parentaudience.PendingAnnouncementApplicant(row))
-	}
-	return values
-}
-
-func audienceDatabase(db *bun.DB) parentaudience.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
+	return &announcementRepository{store: parentpostgres.NewAnnouncementStore(postgresDatabase(db)), audience: audience}
 }
 
 type announcementRepository struct {
 	store    *parentpostgres.AnnouncementStore
-	audience *parentaudience.Projection
+	audience AnnouncementAudienceReads
 }
 
 func (r *announcementRepository) Create(ctx context.Context, a *communication.PortalParentAnnouncement) error {

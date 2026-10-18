@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -26,7 +28,7 @@ import (
 // schedule validity envelope. ValidUntil == nil marks the living segment —
 // the only one PUT /timetable/templates/{id} may edit.
 type templateSeriesSegment struct {
-	Group      *activitiesModel.Group
+	Group      *activityContract.Group
 	Weekdays   []int // distinct schedule weekdays, ascending
 	ValidFrom  *calendar.Date
 	ValidUntil *calendar.Date
@@ -63,7 +65,7 @@ func loadTemplateSeriesSegments(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "load template series: load schedules", Err: err}
 	}
-	schedulesByGroup := make(map[int64][]*activitiesModel.Schedule, len(groups))
+	schedulesByGroup := make(map[int64][]*activityContract.Schedule, len(groups))
 	for _, row := range scheduleRows {
 		schedulesByGroup[row.ActivityGroupID] = append(schedulesByGroup[row.ActivityGroupID], row)
 	}
@@ -88,8 +90,8 @@ func loadTemplateSeriesSegments(
 // cannot be the living segment either; it is skipped like a sibling with an
 // inconsistent envelope.
 func templateSeriesSegmentOf(
-	group *activitiesModel.Group,
-	schedules []*activitiesModel.Schedule,
+	group *activityContract.Group,
+	schedules []*activityContract.Schedule,
 	templateID int64,
 	logger *slog.Logger,
 ) (templateSeriesSegment, bool, error) {

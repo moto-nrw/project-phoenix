@@ -5,6 +5,8 @@ import (
 	"context"
 	"slices"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -16,8 +18,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -52,14 +52,14 @@ func createSourcedTemplate(
 	return group
 }
 
-func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *enrollmentModels.CareOffering {
+func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *offeringContract.CareOfferingRecord {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: activityGroupID,
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
@@ -1191,10 +1191,10 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
-	offeringA := &enrollmentModels.CareOffering{
+	offeringA := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName("DriftBreitQuelleA-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
@@ -2185,11 +2185,11 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 
 	latePhase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("late-phase-" + t.Name()),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2027, 9, 1)),
 		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2028, 7, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 	latePhase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, insertOwnerPhaseForTest(ctx, env.reposEnrollment.Enrollment(), latePhase))

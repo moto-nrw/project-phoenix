@@ -33,8 +33,8 @@ type GroupNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 // NewStaffParentMessageReadRepository completes the read store's repository
 // contract: the staff-gated projections read the live staff accounts of each
 // school through members, their login accounts through persons.
-func NewStaffParentMessageReadRepository(db *bun.DB, links GuardianLinkRows, members StaffMembers, persons StaffPersons) ParentMessageReadRepository {
-	return parentMessageStaffRepository{ParentMessageReads: NewParentMessageReadRepository(db, links), members: members, persons: persons}
+func NewStaffParentMessageReadRepository(db *bun.DB, inbox ParentInbox, members StaffMembers, persons StaffPersons) ParentMessageReadRepository {
+	return parentMessageStaffRepository{ParentMessageReads: NewParentMessageReadRepository(db, inbox), members: members, persons: persons}
 }
 
 // WithInboxGroupNames names the group of every inbox row through groups.

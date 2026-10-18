@@ -12,8 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -306,7 +304,7 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
 func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) parentStore.ParentAnnouncementRepository {
-	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), guardianLinkView.NewReader(), clocks...)
+	return parentStore.NewParentAnnouncementRepository(db.Pool(), newParentAnnouncementAudience(db, ParentAnnouncementApplicants(audience), clocks...))
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding

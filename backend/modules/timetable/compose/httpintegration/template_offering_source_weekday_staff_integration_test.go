@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,7 +40,7 @@ type sourcedWeekdayStaffFixture struct {
 
 func makeSourcedWeekdayStaffFixture(t *testing.T, monday calendar.Date) *sourcedWeekdayStaffFixture {
 	t.Helper()
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	offering := createSourceCareOfferingOnDays(t, s,
 		calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate), []string{"mon", "tue"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1c")
@@ -63,16 +64,16 @@ func makeSourcedWeekdayStaffFixture(t *testing.T, monday calendar.Date) *sourced
 }
 
 func (f *sourcedWeekdayStaffFixture) weekdays() []int {
-	return []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday, activitiesModels.WeekdayWednesday}
+	return []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday, activityContract.WeekdayWednesday}
 }
 
 // staffOnlyAssignments is the payload the editor sends for a sourced series:
 // per-weekday staff, no per-weekday children.
 func (f *sourcedWeekdayStaffFixture) staffOnlyAssignments() []timetable.WeekdayRosterAssignment {
 	return []timetable.WeekdayRosterAssignment{
-		{Weekday: activitiesModels.WeekdayMonday, StaffIDs: []int64{f.staffMon}, PrimaryStaffID: &f.staffMon},
-		{Weekday: activitiesModels.WeekdayTuesday, StaffIDs: []int64{f.staffTue}, PrimaryStaffID: &f.staffTue},
-		{Weekday: activitiesModels.WeekdayWednesday, StaffIDs: []int64{f.staffWed}, PrimaryStaffID: &f.staffWed},
+		{Weekday: activityContract.WeekdayMonday, StaffIDs: []int64{f.staffMon}, PrimaryStaffID: &f.staffMon},
+		{Weekday: activityContract.WeekdayTuesday, StaffIDs: []int64{f.staffTue}, PrimaryStaffID: &f.staffTue},
+		{Weekday: activityContract.WeekdayWednesday, StaffIDs: []int64{f.staffWed}, PrimaryStaffID: &f.staffWed},
 	}
 }
 
@@ -112,7 +113,7 @@ func TestTemplateOfferingSource_CreateWithWeekdayStaffMaterializesEachDaysSuperv
 
 	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -120,7 +121,7 @@ func TestTemplateOfferingSource_CreateWithWeekdayStaffMaterializesEachDaysSuperv
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),
@@ -149,7 +150,7 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 	}
 	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:               name,
-		Type:               activitiesModels.GroupTypeCare,
+		Type:               activityContract.GroupTypeCare,
 		Weekdays:           f.weekdays(),
 		StartTime:          clockTime(13, 0),
 		EndTime:            clockTime(14, 0),
@@ -157,7 +158,7 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 		CategoryID:         f.s.categoryID,
 		MaxParticipants:    20,
 		CalendarPeriodID:   &f.s.period.ID,
-		TargetGroupType:    activitiesModels.TargetGroupTypeNone,
+		TargetGroupType:    activityContract.TargetGroupTypeNone,
 		WeekdayAssignments: manualAssignments,
 		RosterValidFrom:    f.monday.AddDays(-30),
 		GradeLevelMax:      testpkg.MaxSchoolGradeLevel,
@@ -169,12 +170,12 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            f.s.categoryID,
 			RoomID:                f.s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &f.s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{f.offeringID},
 			SourceSchoolClasses:   []string{"1c"},
 		},
@@ -204,7 +205,7 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 	name := fmt.Sprintf("Randstunde-%d", time.Now().UnixNano())
 	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -212,7 +213,7 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),
@@ -227,14 +228,14 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    effective,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
+		Type:             activityContract.GroupTypeCare,
 		Weekdays:         f.weekdays(),
 		StartTime:        clockTime(13, 30),
 		EndTime:          clockTime(14, 30),
 		RoomID:           f.s.roomID,
 		CategoryID:       f.s.categoryID,
 		CalendarPeriodID: &f.s.period.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
 		// The editor's payload for a sourced series: explicit empty shared
 		// lists, staff per weekday, children from the source.
 		StudentIDs:         []int64{},
@@ -279,7 +280,7 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 
 	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -287,7 +288,7 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),

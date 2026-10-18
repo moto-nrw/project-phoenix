@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -63,7 +62,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			{student: fridayStudent, day: "fri"},
 		} {
 			child := makeChild(request.ID, fixture.day, "Child")
-			child.Status = enrollmentModels.ChildStatusApproved
+			child.Status = capability.ChildStatusApproved
 			child.CreatedStudentID = &fixture.student.ID
 			if err := childRepo.InsertChild(ctx, child); err != nil {
 				return err
@@ -184,7 +183,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		return err
 	}))
 	child := makeChild(request.ID, "Expiry", "Student")
-	child.Status = enrollmentModels.ChildStatusApproved
+	child.Status = capability.ChildStatusApproved
 	child.CreatedStudentID = &student.ID
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertChild(ctx, child)
@@ -263,7 +262,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, capability.ChildStatusSubmitted, nil, 0)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -277,7 +276,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, err)
 	assert.Empty(t, snapshots, "a non-approved request child must not trigger a warning")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, capability.ChildStatusApproved, nil, 0)
 	}))
 	offering.IsActive = false
 	secondOffering.IsActive = false

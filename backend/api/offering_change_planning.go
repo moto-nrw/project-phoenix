@@ -42,7 +42,7 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 		return nil, err
 	}
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
-	rows, err := presenceProjection.Reader{}.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
+	rows, err := presenceProjection.New().ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 // LockCourseGroups locks the course groups for the caller's capacity check.
 func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
-	groups, err := timetableProjection.LockCourseGroups(ctx, db, tenant.FromContext(ctx), groupIDs)
+	groups, err := timetableProjection.New().LockCourseGroups(ctx, db, tenant.FromContext(ctx), groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) (
 // in the window, without the excluded child.
 func (q PlanningQuery) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
-	return timetableProjection.CountActiveCourseEnrollments(ctx, db, tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID)
+	return timetableProjection.New().CountActiveCourseEnrollments(ctx, db, tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID)
 }
 
 var _ carePlanCompose.OfferingChangePlanning = ManualPlanningReader{}

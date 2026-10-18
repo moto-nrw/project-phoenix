@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,9 +26,9 @@ func TestTimelinePillsShareTriggeringTransactionAndOnlySSEWaitsForCommit(t *test
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 			broadcaster := testpkg.NewRecordingBroadcaster()
 			emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)), &toggleSettings{enabled: true}, broadcaster, slog.Default())
-			event := parentmessaging.ChildEvent{EventType: kind, ActorKind: messaging.ParentMessageSenderGuardian, ActorAccountID: chain.AccountID, Body: "Transactional timeline fixture"}
+			event := eventContract.ChildEvent{EventType: kind, ActorKind: messaging.ParentMessageSenderGuardian, ActorAccountID: chain.AccountID, Body: "Transactional timeline fixture"}
 			want := 1
-			audience := parentmessaging.DecisionAudience{}
+			audience := eventContract.DecisionAudience{}
 			if kind == "request_created" || kind == "request_status" {
 				event.RequestType = messaging.ParentMessageRequestMasterData
 				event.RequestStatus = messaging.ParentMessageRequestStatusOpen
@@ -38,7 +38,7 @@ func TestTimelinePillsShareTriggeringTransactionAndOnlySSEWaitsForCommit(t *test
 			}
 			if kind == "co_guardians" {
 				other := testpkg.CreateTestCoGuardianForStudent(t, db, chain.StudentID, "Atomic", "Guardian")
-				audience = parentmessaging.DecisionAudience{Full: []int64{chain.AccountID}, Neutral: []int64{other.AccountID}}
+				audience = eventContract.DecisionAudience{Full: []int64{chain.AccountID}, Neutral: []int64{other.AccountID}}
 				event.EventType = "care_exception"
 				want = 2
 			}

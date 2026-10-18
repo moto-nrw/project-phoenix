@@ -8,10 +8,9 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,12 +18,12 @@ import (
 // approval is the state one change-request approval works on.
 type approval struct {
 	row               *ChangeRequest
-	input             enrollment.ReviewChangeRequestInput
-	req               *enrollmentModels.Request
+	input             enrollmentNative.ReviewChangeRequestInput
+	req               *Request
 	children          []*RequestChild
 	prepared          *proposal
-	capabilities      enrollment.FormCapabilities
-	previousGuardians []*enrollment.RequestGuardian
+	capabilities      enrollmentNative.FormCapabilities
+	previousGuardians []*enrollmentNative.RequestGuardian
 	overrides         map[int]string
 	// eligibilityEnforced is false for trusted-source and rollover-generated
 	// requests, which bypassed the self-service gates at creation.
@@ -35,7 +34,7 @@ type approval struct {
 // applyApprovedChange applies an approved proposal to the request, its
 // children, co-guardians, bookings and the students an approval created, in
 // the locked transaction.
-func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeRequest, input enrollment.ReviewChangeRequestInput) error {
+func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) error {
 	// Take the global gates before the first request or student row lock:
 	// booking writers hold the recurrence gate while their FK checks touch
 	// request_children, so taking it later would invert the order.
@@ -75,7 +74,7 @@ func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeReq
 // loadApproval locks the request and its children, refuses a stale base
 // snapshot and prepares the stored proposal with the capability pinned at
 // creation.
-func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, input enrollment.ReviewChangeRequestInput) (*approval, error) {
+func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) (*approval, error) {
 	req, children, err := s.lockApprovalRequest(ctx, row)
 	if err != nil {
 		return nil, err
@@ -103,7 +102,7 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 
 // lockApprovalRequest locks the request and its children and refuses a
 // withdrawn child or a base snapshot that no longer matches.
-func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeRequest) (*enrollmentModels.Request, []*RequestChild, error) {
+func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeRequest) (*Request, []*RequestChild, error) {
 	req, err := s.requestByID(ctx, row.RequestID, true)
 	if err != nil {
 		return nil, nil, err
@@ -113,8 +112,8 @@ func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeReq
 		return nil, nil, fmt.Errorf("change request approve: lock children: %w", err)
 	}
 	for _, child := range children {
-		if child.Status == enrollmentModels.ChildStatusWithdrawn {
-			return nil, nil, enrollment.ErrChangeRequestNotAllowed
+		if child.Status == enrollmentNative.ChildStatusWithdrawn {
+			return nil, nil, enrollmentNative.ErrChangeRequestNotAllowed
 		}
 	}
 	current, err := s.currentSnapshot(ctx, req, children)
@@ -122,7 +121,7 @@ func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeReq
 		return nil, nil, err
 	}
 	if !jsonEqual(current, row.BaseSnapshot) {
-		return nil, nil, enrollment.ErrChangeRequestConflict
+		return nil, nil, enrollmentNative.ErrChangeRequestConflict
 	}
 	return req, children, nil
 }
@@ -201,12 +200,12 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 // change must not discard a reviewed offering change.
 func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, existing *RequestChild, selections []selection.Selection) error {
 	if run.row.CareOfferingsEnabledAtCreation {
-		offeringInput := enrollment.UpdateChildOfferingsInput{
+		offeringInput := enrollmentNative.UpdateChildOfferingsInput{
 			RequestID: run.req.ID, ChildID: existing.ID, Reason: run.input.Note,
 			ActorAccountID: run.input.ActorAccountID, ActorRole: run.input.ActorRole,
 		}
 		for _, pick := range selections {
-			offeringInput.Offerings = append(offeringInput.Offerings, enrollment.OfferingAdjustmentSelection{OfferingID: pick.OfferingID, SelectedDays: pick.SelectedDays})
+			offeringInput.Offerings = append(offeringInput.Offerings, enrollmentNative.OfferingAdjustmentSelection{OfferingID: pick.OfferingID, SelectedDays: pick.SelectedDays})
 		}
 		if _, err := s.deps.Decisions.ApplyChangeRequestOfferings(ctx, offeringInput); err != nil {
 			return err
@@ -216,7 +215,7 @@ func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, e
 	if err != nil {
 		return err
 	}
-	_, err = s.deps.Decisions.SyncApprovedChildData(ctx, enrollment.ApprovedChildSync{
+	_, err = s.deps.Decisions.SyncApprovedChildData(ctx, enrollmentNative.ApprovedChildSync{
 		RequestID: run.req.ID, ChildID: existing.ID, ActorAccountID: run.input.ActorAccountID,
 		ReplaceTargetedData: true, PreviousSnapshot: snapshot, PreviousRequestGuardians: run.previousGuardians,
 	})
@@ -227,9 +226,9 @@ func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, e
 // applies its capacity override, or reopens a rejected child whose own data
 // changed.
 func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval, i int, existing *RequestChild) error {
-	replacement := make([]*enrollment.RequestChildOfferingRecord, 0, len(run.prepared.selections[i]))
+	replacement := make([]*enrollmentNative.RequestChildOfferingRecord, 0, len(run.prepared.selections[i]))
 	for _, pick := range run.prepared.selections[i] {
-		replacement = append(replacement, &enrollment.RequestChildOfferingRecord{
+		replacement = append(replacement, &enrollmentNative.RequestChildOfferingRecord{
 			RequestChildID: existing.ID, CareOfferingID: pick.OfferingID, SelectedDays: pick.SelectedDays,
 			ManualSelectedDays: pick.ManualSelectedDays, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 		})
@@ -244,25 +243,25 @@ func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval,
 		if err := s.deps.Children.UpdateChildStatus(ctx, existing.ID, status, nil, run.input.ActorAccountID); err != nil {
 			return err
 		}
-		if status == enrollmentModels.ChildStatusWaitlisted {
+		if status == enrollmentNative.ChildStatusWaitlisted {
 			run.newlyWaitlisted[existing.ID] = struct{}{}
 		}
 		return nil
 	}
-	if existing.Status == enrollmentModels.ChildStatusRejected && childSnapshotChanged(run.row.BaseSnapshot, run.row.ProposedSnapshot, existing.ID) {
-		return s.deps.Children.UpdateChildStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, run.input.ActorAccountID)
+	if existing.Status == enrollmentNative.ChildStatusRejected && childSnapshotChanged(run.row.BaseSnapshot, run.row.ProposedSnapshot, existing.ID) {
+		return s.deps.Children.UpdateChildStatus(ctx, existing.ID, enrollmentNative.ChildStatusUnderReview, nil, run.input.ActorAccountID)
 	}
 	return nil
 }
 
 // changeCareBookings replaces a request child's Care Plan bookings with the
 // approved selection over the phase window.
-func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase *enrollment.Phase, selections []*enrollment.RequestChildOfferingRecord) error {
+func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase *enrollmentNative.Phase, selections []*enrollmentNative.RequestChildOfferingRecord) error {
 	if commands == nil {
 		return errors.New("offering adjustment requires Care Plan booking commands")
 	}
 	start, until := calendar.Date(phase.ServiceStartDate), calendar.Date(phase.ServiceEndDate).AddDays(1)
-	bookings := make([]enrollment.CareBookingInput, 0, len(selections))
+	bookings := make([]enrollmentNative.CareBookingInput, 0, len(selections))
 	for _, pick := range selections {
 		if pick == nil {
 			return errors.New("care booking cannot be nil")
@@ -278,7 +277,7 @@ func changeCareBookings(ctx context.Context, commands CareBookingChanges, childI
 		if len(manual) == 0 && len(pick.AutomaticSelectedDays) == 0 {
 			manual = pick.SelectedDays
 		}
-		bookings = append(bookings, enrollment.CareBookingInput{
+		bookings = append(bookings, enrollmentNative.CareBookingInput{
 			CareOfferingID: pick.CareOfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 			ValidFrom: &from, ValidUntil: &end,
 		})
@@ -410,7 +409,7 @@ func (s *ChangeRequests) capacityCandidates(run *approval) ([]SubmitChild, []int
 		if s.approvedChildUsesDecisionSync(child) {
 			continue
 		}
-		reopensRejected := child.Status == enrollmentModels.ChildStatusRejected &&
+		reopensRejected := child.Status == enrollmentNative.ChildStatusRejected &&
 			childSnapshotChanged(run.row.BaseSnapshot, run.row.ProposedSnapshot, child.ID)
 		if !childStatusCountsForCapacity(child.Status) && !reopensRejected {
 			continue
@@ -426,7 +425,7 @@ func (s *ChangeRequests) capacityCandidates(run *approval) ([]SubmitChild, []int
 
 func (s *ChangeRequests) approvedChildUsesDecisionSync(child *RequestChild) bool {
 	return child != nil &&
-		child.Status == enrollmentModels.ChildStatusApproved &&
+		child.Status == enrollmentNative.ChildStatusApproved &&
 		child.CreatedStudentID != nil &&
 		s.deps.Decisions != nil
 }
@@ -438,8 +437,8 @@ func postApprovalChildStatus(row *ChangeRequest, existing *RequestChild, overrid
 	if status, ok := overrides[index]; ok {
 		return status
 	}
-	if existing.Status == enrollmentModels.ChildStatusRejected && childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
-		return enrollmentModels.ChildStatusUnderReview
+	if existing.Status == enrollmentNative.ChildStatusRejected && childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
+		return enrollmentNative.ChildStatusUnderReview
 	}
 	return existing.Status
 }
@@ -456,7 +455,7 @@ func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *appro
 	if existing.CreatedStudentID != nil || existing.RolloverSourceChildID != nil {
 		return nil
 	}
-	if phase.Audience != enrollment.PhaseAudienceExistingStudents && existing.MatchedStudentID == nil {
+	if phase.Audience != enrollmentNative.PhaseAudienceExistingStudents && existing.MatchedStudentID == nil {
 		return nil
 	}
 	pin, err := s.reconciledPin(ctx, run, existing, next, index)
@@ -491,7 +490,7 @@ func (s *ChangeRequests) reconciledPin(ctx context.Context, run *approval, exist
 	if pin != nil && !sameSubmittedIdentity(existing, next) {
 		pin = nil
 	}
-	if phase.Audience == enrollment.PhaseAudienceExistingStudents {
+	if phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
 		resolved, err := s.intake.resolveMatchedStudentID(ctx, req.TenantID, phase, index, next)
 		if err != nil {
 			return nil, err
@@ -525,14 +524,14 @@ func ptrInt64Equal(a, b *int64) bool {
 }
 
 func childStatusCountsForCapacity(status string) bool {
-	return status != enrollmentModels.ChildStatusRejected && status != enrollmentModels.ChildStatusWithdrawn
+	return status != enrollmentNative.ChildStatusRejected && status != enrollmentNative.ChildStatusWithdrawn
 }
 
 // ensureNoActiveDuplicateForApproval applies the duplicate policy to the
 // approved identities under the submission's dedup lock.
-func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
+func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context, req *Request, prepared SubmitRequest) error {
 	emailLC := lowerTrim(req.GuardianEmail)
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, enrollment.SubmissionDedupLockKey(emailLC)); err != nil {
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
 	dupes, err := s.deps.Requests.ActiveDuplicateChildren(ctx, req.PhaseID, req.GuardianEmail, duplicateChildKeys(prepared.Children), req.ID)
@@ -551,7 +550,7 @@ func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context,
 	}
 	switch policy {
 	case duplicateHandlingBlock:
-		return enrollment.ErrDuplicateEnrollment
+		return enrollmentNative.ErrDuplicateEnrollment
 	case duplicateHandlingWarn:
 		s.deps.Logger.WarnContext(ctx, "change request approved with active duplicate", slog.Int64("request_id", req.ID))
 		return nil
@@ -562,7 +561,7 @@ func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context,
 	}
 }
 
-func matchingPreviousGuardianProfileID(previous []*enrollment.RequestGuardian, guardian SubmitGuardian) *int64 {
+func matchingPreviousGuardianProfileID(previous []*enrollmentNative.RequestGuardian, guardian SubmitGuardian) *int64 {
 	key := guardianProfileCarryKey(guardian.FirstName, guardian.LastName, guardian.Email, guardian.Phone)
 	for _, row := range previous {
 		if row == nil || row.GuardianProfileID == nil || *row.GuardianProfileID <= 0 {

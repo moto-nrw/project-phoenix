@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -89,7 +90,7 @@ func (s *materializationService) DetectEditedInWindow(
 // loadDetectionTemplate loads the template to compare against. A template
 // not visible to this tenant (or deleted) yields nil: there is nothing to
 // compare against, so no edits are reported rather than blocking the caller.
-func (s *materializationService) loadDetectionTemplate(ctx context.Context, templateID int64) (*activities.Group, error) {
+func (s *materializationService) loadDetectionTemplate(ctx context.Context, templateID int64) (*activityContract.Group, error) {
 	tmpl, err := s.groupRepo.FindByID(ctx, templateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
@@ -144,7 +145,7 @@ type templateProjection struct {
 
 func (s *materializationService) loadTemplateProjection(
 	ctx context.Context,
-	tmpl *activities.Group,
+	tmpl *activityContract.Group,
 	ids []int64,
 ) (*templateProjection, error) {
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, tmpl.ID)
@@ -185,7 +186,7 @@ func (s *materializationService) loadTemplateProjection(
 // editedOccurrences diffs every planned occurrence against its template
 // projection.
 func (p *templateProjection) editedOccurrences(
-	tmpl *activities.Group,
+	tmpl *activityContract.Group,
 	planned []*schedule.ActivityInstance,
 	exceptionIdx map[exceptionKey]*schedule.ActivityException,
 ) []timetable.EditedOccurrence {
@@ -234,7 +235,7 @@ func (p *templateProjection) editedOccurrences(
 
 // deletedOccurrences reports the individually deleted occurrences (cancelled
 // exceptions). There is no instance row, so InstanceID 0 signals a deletion.
-func deletedOccurrences(tmpl *activities.Group, exceptions []*schedule.ActivityException) []timetable.EditedOccurrence {
+func deletedOccurrences(tmpl *activityContract.Group, exceptions []*schedule.ActivityException) []timetable.EditedOccurrence {
 	deleted := make([]timetable.EditedOccurrence, 0)
 	for _, exc := range exceptions {
 		if exc == nil || exc.ExceptionType != schedule.ActivityExceptionCancelled {
@@ -260,7 +261,7 @@ func deletedOccurrences(tmpl *activities.Group, exceptions []*schedule.ActivityE
 // are not expected either: treating them as expected would hide the warning
 // that a re-plan removes a retained weekend instance without recreating it.
 func (p *templateProjection) expectedSlotsOn(
-	tmpl *activities.Group,
+	tmpl *activityContract.Group,
 	exc *schedule.ActivityException,
 	date calendar.Date,
 ) []materialParams {
@@ -319,7 +320,7 @@ func diffOccurrenceWithExpectedStudents(
 	inst *schedule.ActivityInstance,
 	templateTitle string,
 	expectedStudentIDs []int64,
-	supervisors []*activities.SupervisorPlanned,
+	supervisors []*activityContract.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
 	studentRows []*schedule.InstanceStudent,
 	expected []materialParams,
@@ -373,7 +374,7 @@ func diffOccurrenceSlot(inst *schedule.ActivityInstance, expected []materialPara
 
 func staffRosterChanged(
 	inst *schedule.ActivityInstance,
-	supervisors []*activities.SupervisorPlanned,
+	supervisors []*activityContract.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
 	weekendFollowsFriday bool,
 ) bool {

@@ -6,15 +6,16 @@ import (
 	"strconv"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 type classRosterApprovedEnrollment struct {
-	request   *enrollmentModels.Request
+	request   *Request
 	child     *reportChild
-	links     []*enrollment.RequestChildOfferingRecord
-	guardians []*enrollment.RequestGuardian
+	links     []*enrollmentNative.RequestChildOfferingRecord
+	guardians []*enrollmentNative.RequestGuardian
 }
 
 func classRosterStudentIDs(students []*RosterStudent) []int64 {
@@ -84,7 +85,7 @@ func classRosterGroupName(student *RosterStudent, groups map[int64]string) strin
 	return groups[*student.GroupID]
 }
 
-func classRosterRequestIDs(requests []*enrollmentModels.Request) []int64 {
+func classRosterRequestIDs(requests []*Request) []int64 {
 	ids := make([]int64, 0, len(requests))
 	seen := map[int64]bool{}
 	for _, req := range requests {
@@ -97,8 +98,8 @@ func classRosterRequestIDs(requests []*enrollmentModels.Request) []int64 {
 	return ids
 }
 
-func classRosterRequestsByID(requests []*enrollmentModels.Request) map[int64]*enrollmentModels.Request {
-	out := make(map[int64]*enrollmentModels.Request, len(requests))
+func classRosterRequestsByID(requests []*Request) map[int64]*Request {
+	out := make(map[int64]*Request, len(requests))
 	for _, req := range requests {
 		if req != nil {
 			out[req.ID] = req
@@ -107,8 +108,8 @@ func classRosterRequestsByID(requests []*enrollmentModels.Request) map[int64]*en
 	return out
 }
 
-func requestGuardiansByRequestID(guardians []*enrollment.RequestGuardian) map[int64][]*enrollment.RequestGuardian {
-	out := make(map[int64][]*enrollment.RequestGuardian)
+func requestGuardiansByRequestID(guardians []*enrollmentNative.RequestGuardian) map[int64][]*enrollmentNative.RequestGuardian {
+	out := make(map[int64][]*enrollmentNative.RequestGuardian)
 	for _, guardian := range guardians {
 		if guardian == nil || guardian.RequestID <= 0 {
 			continue
@@ -133,12 +134,12 @@ func classRosterChildrenForStudents(children []*reportChild, studentByID map[int
 
 func classRosterApprovedEnrollments(
 	children []*reportChild,
-	requestByID map[int64]*enrollmentModels.Request,
+	requestByID map[int64]*Request,
 	studentByID map[int64]*RosterStudent,
 ) (map[int64]*classRosterApprovedEnrollment, []int64) {
 	out := make(map[int64]*classRosterApprovedEnrollment)
 	for _, child := range children {
-		if child == nil || child.Status != enrollment.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+		if child == nil || child.Status != enrollmentNative.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
 			continue
 		}
 		studentID := *child.CreatedStudentID
@@ -164,7 +165,7 @@ func classRosterApprovedEnrollments(
 	return out, childIDs
 }
 
-func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateChild *reportChild, currentReq *enrollmentModels.Request, currentChild *reportChild) bool {
+func classRosterChildIsNewer(candidateReq *Request, candidateChild *reportChild, currentReq *Request, currentChild *reportChild) bool {
 	if currentReq == nil {
 		return true
 	}
@@ -183,7 +184,7 @@ func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateCh
 	return candidateChild.ID > currentChild.ID
 }
 
-func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEnrollment, links []*enrollment.RequestChildOfferingRecord) {
+func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEnrollment, links []*enrollmentNative.RequestChildOfferingRecord) {
 	studentIDByChildID := make(map[int64]int64)
 	for studentID, approved := range enrollments {
 		if approved == nil || approved.child == nil || approved.child.ID <= 0 {
@@ -203,7 +204,7 @@ func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEn
 	}
 }
 
-func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprovedEnrollment, guardiansByRequestID map[int64][]*enrollment.RequestGuardian) {
+func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprovedEnrollment, guardiansByRequestID map[int64][]*enrollmentNative.RequestGuardian) {
 	for _, approved := range enrollments {
 		if approved == nil || approved.request == nil {
 			continue
@@ -215,10 +216,10 @@ func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprove
 // row builds the roster row of one student: the live student's name, group,
 // contacts and departure plan, overlaid with the approved enrollment of the
 // phase when there is one.
-func (in *classRosterInputs) row(student *RosterStudent) (enrollment.ClassRosterRow, error) {
+func (in *classRosterInputs) row(student *RosterStudent) (enrollmentNative.ClassRosterRow, error) {
 	studentContactGuardians := normalizeClassRosterGuardians(in.studentGuardians[student.ID])
 	companions := in.companions[student.ID]
-	row := enrollment.ClassRosterRow{
+	row := enrollmentNative.ClassRosterRow{
 		StudentID:           student.ID,
 		SchoolClass:         student.SchoolClass,
 		GroupName:           classRosterGroupName(student, in.groups),
@@ -252,12 +253,12 @@ func (in *classRosterInputs) row(student *RosterStudent) (enrollment.ClassRoster
 
 // applyEnrollment fills the enrollment columns from the approved enrollment's
 // answers and offering selections.
-func (in *classRosterInputs) applyEnrollment(row *enrollment.ClassRosterRow, student *RosterStudent, approved *classRosterApprovedEnrollment) error {
+func (in *classRosterInputs) applyEnrollment(row *enrollmentNative.ClassRosterRow, student *RosterStudent, approved *classRosterApprovedEnrollment) error {
 	pickupByDay, err := careUsagePickupByDay(approved.request, approved.child, in.schemas)
 	if err != nil {
 		return fmt.Errorf("class roster report: child %d pickup schedule: %w", approved.child.ID, err)
 	}
-	arrivalByDay, err := careUsageScheduleByTarget(approved.request, approved.child, in.schemas, enrollment.TargetScheduleArrival)
+	arrivalByDay, err := careUsageScheduleByTarget(approved.request, approved.child, in.schemas, enrollmentNative.TargetScheduleArrival)
 	if err != nil {
 		return fmt.Errorf("class roster report: child %d arrival schedule: %w", approved.child.ID, err)
 	}
@@ -282,19 +283,19 @@ func (in *classRosterInputs) applyEnrollment(row *enrollment.ClassRosterRow, stu
 // classRosterCareDays is the roster-side mirror of the form's relevant care
 // days: booked offering days when the phase has an active catalog (or
 // leftover selections), every weekday when it does not. The form only loads
-// offerings when enrollment.care_offerings_enabled is on, and only active
+// offerings when enrollmentNative.care_offerings_enabled is on, and only active
 // rows; leftover active catalog entries after the setting is turned off must
 // not hide pickup times the form treated as unrestricted. EffectiveDays is
 // derived only from booked offerings and stays empty in the unconstrained
 // case.
-func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*enrollmentModels.CareOffering, careOfferingsEnabled bool) []string {
+func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*offeringContract.CareOfferingRecord, careOfferingsEnabled bool) []string {
 	if (careOfferingsEnabled && classRosterHasActiveOfferings(offeringByID)) || len(effectiveDays) > 0 {
 		return effectiveDays
 	}
 	return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
 }
 
-func classRosterHasActiveOfferings(offeringByID map[int64]*enrollmentModels.CareOffering) bool {
+func classRosterHasActiveOfferings(offeringByID map[int64]*offeringContract.CareOfferingRecord) bool {
 	for _, offering := range offeringByID {
 		if offering != nil && offering.IsActive {
 			return true
@@ -304,7 +305,7 @@ func classRosterHasActiveOfferings(offeringByID map[int64]*enrollmentModels.Care
 }
 
 type classRosterContactAccumulator struct {
-	contacts map[string]enrollment.ClassRosterGuardian
+	contacts map[string]enrollmentNative.ClassRosterGuardian
 	order    []string
 }
 
@@ -325,7 +326,7 @@ func (acc *classRosterContactAccumulator) add(key, name, email, phone string) {
 	acc.contacts[key] = contact
 }
 
-func classRosterStudentGuardianContactsFromRows(rows []GuardianContactRow) map[int64][]enrollment.ClassRosterGuardian {
+func classRosterStudentGuardianContactsFromRows(rows []GuardianContactRow) map[int64][]enrollmentNative.ClassRosterGuardian {
 	byStudent := map[int64]*classRosterContactAccumulator{}
 	for _, row := range rows {
 		if row.StudentID <= 0 {
@@ -339,14 +340,14 @@ func classRosterStudentGuardianContactsFromRows(rows []GuardianContactRow) map[i
 		}
 		acc := byStudent[row.StudentID]
 		if acc == nil {
-			acc = &classRosterContactAccumulator{contacts: map[string]enrollment.ClassRosterGuardian{}}
+			acc = &classRosterContactAccumulator{contacts: map[string]enrollmentNative.ClassRosterGuardian{}}
 			byStudent[row.StudentID] = acc
 		}
 		acc.add(classRosterStudentGuardianContactKey(row), name, email, phone)
 	}
-	out := make(map[int64][]enrollment.ClassRosterGuardian, len(byStudent))
+	out := make(map[int64][]enrollmentNative.ClassRosterGuardian, len(byStudent))
 	for studentID, acc := range byStudent {
-		contacts := make([]enrollment.ClassRosterGuardian, 0, len(acc.order))
+		contacts := make([]enrollmentNative.ClassRosterGuardian, 0, len(acc.order))
 		for _, key := range acc.order {
 			contacts = append(contacts, acc.contacts[key])
 		}
@@ -381,10 +382,10 @@ func joinUnique(values ...string) string {
 	return strings.Join(parts, "; ")
 }
 
-func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*enrollment.RequestGuardian) []enrollment.ClassRosterGuardian {
-	contacts := []enrollment.ClassRosterGuardian{}
+func classRosterEnrollmentGuardians(req *Request, additional []*enrollmentNative.RequestGuardian) []enrollmentNative.ClassRosterGuardian {
+	contacts := []enrollmentNative.ClassRosterGuardian{}
 	if req != nil {
-		contacts = append(contacts, enrollment.ClassRosterGuardian{
+		contacts = append(contacts, enrollmentNative.ClassRosterGuardian{
 			Name:  strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName),
 			Email: strings.TrimSpace(req.GuardianEmail),
 			Phone: stringPtrValue(req.GuardianPhone),
@@ -394,7 +395,7 @@ func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []
 		if guardian == nil {
 			continue
 		}
-		contacts = append(contacts, enrollment.ClassRosterGuardian{
+		contacts = append(contacts, enrollmentNative.ClassRosterGuardian{
 			Name:  strings.TrimSpace(guardian.FirstName + " " + guardian.LastName),
 			Email: stringPtrValue(guardian.Email),
 			Phone: stringPtrValue(guardian.Phone),
@@ -403,11 +404,11 @@ func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []
 	return normalizeClassRosterGuardians(contacts)
 }
 
-func normalizeClassRosterGuardians(contacts []enrollment.ClassRosterGuardian) []enrollment.ClassRosterGuardian {
+func normalizeClassRosterGuardians(contacts []enrollmentNative.ClassRosterGuardian) []enrollmentNative.ClassRosterGuardian {
 	if len(contacts) == 0 {
-		return []enrollment.ClassRosterGuardian{}
+		return []enrollmentNative.ClassRosterGuardian{}
 	}
-	out := make([]enrollment.ClassRosterGuardian, 0, len(contacts))
+	out := make([]enrollmentNative.ClassRosterGuardian, 0, len(contacts))
 	seen := map[string]bool{}
 	for _, contact := range contacts {
 		contact.Name = strings.TrimSpace(contact.Name)
@@ -433,7 +434,7 @@ func stringPtrValue(value *string) string {
 	return strings.TrimSpace(*value)
 }
 
-func classRosterOfferingsByDay(offerings []enrollment.CareUsageRowOffering) map[string][]string {
+func classRosterOfferingsByDay(offerings []enrollmentNative.CareUsageRowOffering) map[string][]string {
 	out := map[string][]string{}
 	seenByDay := map[string]map[string]bool{}
 	for _, offering := range offerings {
@@ -462,11 +463,11 @@ func classRosterOfferingsByDay(offerings []enrollment.CareUsageRowOffering) map[
 	return out
 }
 
-func classRosterMergeOfferingLinks(links []*enrollment.RequestChildOfferingRecord) []*enrollment.RequestChildOfferingRecord {
+func classRosterMergeOfferingLinks(links []*enrollmentNative.RequestChildOfferingRecord) []*enrollmentNative.RequestChildOfferingRecord {
 	if len(links) == 0 {
 		return nil
 	}
-	byID := make(map[int64]*enrollment.RequestChildOfferingRecord, len(links))
+	byID := make(map[int64]*enrollmentNative.RequestChildOfferingRecord, len(links))
 	for _, link := range links {
 		if link == nil || link.CareOfferingID <= 0 {
 			continue
@@ -484,7 +485,7 @@ func classRosterMergeOfferingLinks(links []*enrollment.RequestChildOfferingRecor
 		merged.ManualSelectedDays = mergeDayCodes(merged.ManualSelectedDays, link.ManualSelectedDays)
 		merged.AutomaticSelectedDays = mergeDayCodes(merged.AutomaticSelectedDays, link.AutomaticSelectedDays)
 	}
-	out := make([]*enrollment.RequestChildOfferingRecord, 0, len(byID))
+	out := make([]*enrollmentNative.RequestChildOfferingRecord, 0, len(byID))
 	for _, link := range byID {
 		out = append(out, link)
 	}
@@ -499,7 +500,7 @@ func mergeDayCodes(a, b []string) []string {
 	return sortedDayCodes(combined)
 }
 
-func classRosterIncludedOfferingIDs(links []*enrollment.RequestChildOfferingRecord) map[int64]bool {
+func classRosterIncludedOfferingIDs(links []*enrollmentNative.RequestChildOfferingRecord) map[int64]bool {
 	out := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil && link.CareOfferingID > 0 {
@@ -509,7 +510,7 @@ func classRosterIncludedOfferingIDs(links []*enrollment.RequestChildOfferingReco
 	return out
 }
 
-func classRosterEnrollmentSummary(offerings []enrollment.CareUsageRowOffering) string {
+func classRosterEnrollmentSummary(offerings []enrollmentNative.CareUsageRowOffering) string {
 	names := make([]string, 0, len(offerings))
 	seen := map[string]bool{}
 	for _, offering := range offerings {

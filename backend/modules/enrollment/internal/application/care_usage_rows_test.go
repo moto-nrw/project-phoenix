@@ -3,17 +3,18 @@ package application
 import (
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:                10,
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
@@ -24,21 +25,21 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 		RequestID: 10,
 		FirstName: "Lina",
 		LastName:  "Muster",
-		Status:    enrollmentModels.ChildStatusApproved,
+		Status:    enrollmentNative.ChildStatusApproved,
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
 		1: {
 			Name:           "Regelbetreuung",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		},
 		2: {
 			Name:           "AG",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 			AvailableDays:  []string{"tue", "wed"},
 		},
 	}
-	links := []*enrollment.RequestChildOfferingRecord{
+	links := []*enrollmentNative.RequestChildOfferingRecord{
 		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue"}},
 		{RequestChildID: 20, CareOfferingID: 2},
 	}
@@ -57,7 +58,7 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:                10,
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
@@ -68,16 +69,16 @@ func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
 		RequestID: 10,
 		FirstName: "Lina",
 		LastName:  "Muster",
-		Status:    enrollmentModels.ChildStatusApproved,
+		Status:    enrollmentNative.ChildStatusApproved,
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
 		1: {
 			Name:           "Regelbetreuung",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		},
 	}
-	links := []*enrollment.RequestChildOfferingRecord{
+	links := []*enrollmentNative.RequestChildOfferingRecord{
 		{RequestChildID: 20, CareOfferingID: 1},
 	}
 
@@ -112,12 +113,12 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 
 	grade := int16(2)
 	dayCount := 3
-	row := enrollment.CareUsageRow{
+	row := enrollmentNative.CareUsageRow{
 		ChildFirstName:   "Lina",
 		ChildLastName:    "Muster",
 		TargetGradeLevel: &grade,
-		Status:           enrollmentModels.ChildStatusApproved,
-		Offerings: []enrollment.CareUsageRowOffering{
+		Status:           enrollmentNative.ChildStatusApproved,
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed", "fri"}},
 		},
 		EffectiveDays:     []string{"mon", "wed", "fri"},
@@ -128,34 +129,34 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 		GuardianEmail:     "eva@example.test",
 	}
 
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
-		Status:     enrollmentModels.ChildStatusApproved,
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
+		Status:     enrollmentNative.ChildStatusApproved,
 		DayCount:   &dayCount,
 		GradeLevel: &grade,
 		Search:     "eva@example",
 	}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: enrollmentNative.ChildStatusRejected}))
 	otherDayCount := 4
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "mon"}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00", Search: "unbekannt"}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", PickupTime: "14:30"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "tue"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00", Search: "unbekannt"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "tue"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "14:30"}))
 
 	otherGrade := int16(3)
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Search: "unbekannt"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Search: "unbekannt"}))
 }
 
 func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
 	t.Parallel()
 
-	row := enrollment.CareUsageRow{
-		Status: enrollmentModels.ChildStatusApproved,
-		Offerings: []enrollment.CareUsageRowOffering{
+	row := enrollmentNative.CareUsageRow{
+		Status: enrollmentNative.ChildStatusApproved,
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed", "fri"}},
 			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
 		},
@@ -163,22 +164,22 @@ func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
 		DayCount:      3,
 	}
 
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{11},
 	}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{12},
 	}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{},
 	}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:          "all",
 		CareOfferingIDs: []int64{12},
 	}))
@@ -187,9 +188,9 @@ func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
 func TestCareUsageRowMatchesBookedPickupDayFilters(t *testing.T) {
 	t.Parallel()
 
-	row := enrollment.CareUsageRow{
-		Status: enrollmentModels.ChildStatusApproved,
-		Offerings: []enrollment.CareUsageRowOffering{
+	row := enrollmentNative.CareUsageRow{
+		Status: enrollmentNative.ChildStatusApproved,
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
 			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
 		},
@@ -197,18 +198,18 @@ func TestCareUsageRowMatchesBookedPickupDayFilters(t *testing.T) {
 		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
 	}
 
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "fri"}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", PickupTime: "15:30"}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "15:30"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "14:30"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", PickupTime: "15:30"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "15:30"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "14:30"}))
 }
 
 func TestCareUsageRowMatchesWeekdayWithoutPickupTimes(t *testing.T) {
 	t.Parallel()
 
-	row := enrollment.CareUsageRow{
-		Status: enrollmentModels.ChildStatusApproved,
-		Offerings: []enrollment.CareUsageRowOffering{
+	row := enrollmentNative.CareUsageRow{
+		Status: enrollmentNative.ChildStatusApproved,
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon"}},
 			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
 		},
@@ -216,43 +217,43 @@ func TestCareUsageRowMatchesWeekdayWithoutPickupTimes(t *testing.T) {
 		PickupByDay:   map[string]string{},
 	}
 
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "mon"}))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "fri"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", Weekday: "mon", PickupTime: "14:30"}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", PickupTime: "14:30"}))
-	assert.Empty(t, careUsageBookedPickupDays(row, enrollment.CareUsageFilters{Status: "all"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", Weekday: "mon", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.Empty(t, careUsageBookedPickupDays(row, enrollmentNative.CareUsageFilters{Status: "all"}))
 }
 
 func TestCareUsageRowMatchesScopedBookedPickupDayFilters(t *testing.T) {
 	t.Parallel()
 
-	row := enrollment.CareUsageRow{
-		Status: enrollmentModels.ChildStatusApproved,
-		Offerings: []enrollment.CareUsageRowOffering{
+	row := enrollmentNative.CareUsageRow{
+		Status: enrollmentNative.ChildStatusApproved,
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
 			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
 		},
 		EffectiveDays: []string{"mon", "wed"},
 		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
 	}
-	ogsOnly := enrollment.CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{10}}
-	randstundeOnly := enrollment.CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{11}}
+	ogsOnly := enrollmentNative.CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{10}}
+	randstundeOnly := enrollmentNative.CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{11}}
 
 	assert.Equal(t, []string{"mon", "wed"}, careUsageBookedPickupDays(row, ogsOnly))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{10},
 		Weekday:            "fri",
 	}))
-	assert.False(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.False(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{10},
 		PickupTime:         "15:30",
 	}))
 	assert.Equal(t, []string{"fri"}, careUsageBookedPickupDays(row, randstundeOnly))
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{
 		Status:             "all",
 		CareOfferingIDsSet: true,
 		CareOfferingIDs:    []int64{11},
@@ -265,36 +266,36 @@ func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 	t.Parallel()
 
 	zero := 0
-	row := enrollment.CareUsageRow{
-		Status:        enrollmentModels.ChildStatusApproved,
+	row := enrollmentNative.CareUsageRow{
+		Status:        enrollmentNative.ChildStatusApproved,
 		EffectiveDays: []string{},
 		DayCount:      0,
 	}
 
-	assert.True(t, careUsageRowMatches(row, enrollment.CareUsageFilters{Status: "all", DayCount: &zero}))
+	assert.True(t, careUsageRowMatches(row, enrollmentNative.CareUsageFilters{Status: "all", DayCount: &zero}))
 }
 
 func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{ID: 10}
+	req := &Request{ID: 10}
 	child := &reportChild{
 		ID:     20,
-		Status: enrollmentModels.ChildStatusApproved,
+		Status: enrollmentNative.ChildStatusApproved,
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
 		1: {
 			Name:           "Ganztag",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		},
 		2: {
 			Name:           "Randstunde",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"fri"},
 		},
 	}
-	links := []*enrollment.RequestChildOfferingRecord{
+	links := []*enrollmentNative.RequestChildOfferingRecord{
 		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue", "wed", "thu"}},
 		{RequestChildID: 20, CareOfferingID: 2, SelectedDays: []string{"fri"}},
 	}
@@ -309,8 +310,8 @@ func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 func TestCareUsageBookedPickupDaysIncludesNonCareOfferingDays(t *testing.T) {
 	t.Parallel()
 
-	row := enrollment.CareUsageRow{
-		Offerings: []enrollment.CareUsageRowOffering{
+	row := enrollmentNative.CareUsageRow{
+		Offerings: []enrollmentNative.CareUsageRowOffering{
 			{Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
 			{Name: "Randstunde", Days: []string{"fri"}},
 		},
@@ -318,25 +319,25 @@ func TestCareUsageBookedPickupDaysIncludesNonCareOfferingDays(t *testing.T) {
 		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "14:30"},
 	}
 
-	assert.Equal(t, []string{"mon", "wed", "fri"}, careUsageBookedPickupDays(row, enrollment.CareUsageFilters{Status: "all"}))
+	assert.Equal(t, []string{"mon", "wed", "fri"}, careUsageBookedPickupDays(row, enrollmentNative.CareUsageFilters{Status: "all"}))
 }
 
 func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{ID: 10}
+	req := &Request{ID: 10}
 	child := &reportChild{
 		ID:     20,
-		Status: enrollmentModels.ChildStatusApproved,
+		Status: enrollmentNative.ChildStatusApproved,
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
 		1: {
 			Name:           "Ganztag",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		},
 	}
-	links := []*enrollment.RequestChildOfferingRecord{
+	links := []*enrollmentNative.RequestChildOfferingRecord{
 		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue"}},
 	}
 
@@ -352,7 +353,7 @@ func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.
 func TestNormalizedCareUsageOfferingIDsDefaultsOnlyWhenSelectionIsMissing(t *testing.T) {
 	t.Parallel()
 
-	offerings := []*enrollmentModels.CareOffering{
+	offerings := []*offeringContract.CareOfferingRecord{
 		{ID: 1, Name: "Ganztag", CountsAsCare: true},
 		{ID: 2, Name: "Randstunde", CountsAsCare: false},
 		{ID: 3, Name: "Kurzbetreuung", CountsAsCare: true},
@@ -366,19 +367,19 @@ func TestNormalizedCareUsageOfferingIDsDefaultsOnlyWhenSelectionIsMissing(t *tes
 func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{ID: 10}
+	req := &Request{ID: 10}
 	child := &reportChild{
 		ID:     20,
-		Status: enrollmentModels.ChildStatusApproved,
+		Status: enrollmentNative.ChildStatusApproved,
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
 		1: {
 			Name:           "Randstunde",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		},
 	}
-	links := []*enrollment.RequestChildOfferingRecord{
+	links := []*enrollmentNative.RequestChildOfferingRecord{
 		{
 			RequestChildID:        20,
 			CareOfferingID:        1,

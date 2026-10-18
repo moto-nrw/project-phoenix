@@ -5,7 +5,7 @@ package api
 import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"

@@ -3,12 +3,12 @@ package contracttest_test
 import (
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // TestOfferingChangeRequestService_ListHistory proves the staff history:
@@ -56,7 +56,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		}
 	}
 	require.NotNil(t, got, "the decided request must appear in the history")
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, got.Request.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, got.Request.Status)
 	assert.NotEmpty(t, got.StudentName)
 	assert.Equal(t, "Rollover Tester", got.ReviewerName)
 	require.NotNil(t, got.Request.DecisionReason)
@@ -80,7 +80,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	// Withdrawal was retired in #2267 (guardians edit instead); the status
 	// stays valid for historic rows, so it is written through the repository.
 	require.NoError(t, env.repos.CarePlan().DecideOfferingChange(ctx, careplan.DecideOfferingChange{
-		ID: withdrawn.ID, Status: enrollmentModels.OfferingChangeStatusWithdrawn,
+		ID: withdrawn.ID, Status: offeringContract.OfferingChangeStatusWithdrawn,
 	}))
 
 	items, _, err = offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})

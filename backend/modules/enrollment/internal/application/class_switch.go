@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // planClassSwitch stores the class switch an approval planned for the request
 // child, or clears it when change is nil or keeps the class (#3917).
-func (d *Decisions) planClassSwitch(ctx context.Context, requestChildID int64, change *enrollment.ClassSwitch) error {
+func (d *Decisions) planClassSwitch(ctx context.Context, requestChildID int64, change *enrollmentNative.ClassSwitch) error {
 	if change != nil && change.From == change.To {
 		change = nil
 	}
@@ -40,7 +39,7 @@ func (d *Decisions) replanApprovedChildClass(ctx context.Context, run *approvedC
 		return false, d.planClassSwitch(ctx, run.child.ID, nil)
 	}
 	current := run.student.SchoolClass
-	replanned := &enrollment.ClassSwitch{
+	replanned := &enrollmentNative.ClassSwitch{
 		RequestChildID: run.child.ID, From: current, To: resolveRolloverSchoolClass(run.child, current), On: planned.On,
 	}
 	return true, d.planClassSwitch(ctx, run.child.ID, replanned)
@@ -61,7 +60,7 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 	if err := d.lockExistingStudentGates(ctx); err != nil {
 		return 0, err
 	}
-	due, err := d.deps.Children.DueClassSwitches(ctx, enrollment.Date(asOf.String()))
+	due, err := d.deps.Children.DueClassSwitches(ctx, enrollmentNative.Date(asOf.String()))
 	if err != nil {
 		return 0, fmt.Errorf("class switch: list due switches: %w", err)
 	}
@@ -89,8 +88,8 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 	return applied, nil
 }
 
-func (d *Decisions) applyClassSwitch(ctx context.Context, change enrollment.DueClassSwitch) (bool, error) {
-	if change.ChildStatus != enrollmentModels.ChildStatusApproved || change.CreatedStudentID == nil {
+func (d *Decisions) applyClassSwitch(ctx context.Context, change enrollmentNative.DueClassSwitch) (bool, error) {
+	if change.ChildStatus != enrollmentNative.ChildStatusApproved || change.CreatedStudentID == nil {
 		return false, nil
 	}
 	student, err := d.readEnrollmentStudent(ctx, *change.CreatedStudentID, "update")

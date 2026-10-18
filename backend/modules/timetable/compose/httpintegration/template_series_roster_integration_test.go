@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -87,9 +88,9 @@ func (c *seriesChain) addStaff(t *testing.T, label string) int64 {
 	return staff.ID
 }
 
-func enrollmentsFor(t *testing.T, s *scenarioSetup, groupID, studentID int64) []*activitiesModels.StudentEnrollment {
+func enrollmentsFor(t *testing.T, s *scenarioSetup, groupID, studentID int64) []*activityContract.StudentEnrollment {
 	t.Helper()
-	var out []*activitiesModels.StudentEnrollment
+	var out []*activityContract.StudentEnrollment
 	for _, row := range loadSplitEnrollments(t, s, groupID) {
 		if row.StudentID == studentID {
 			out = append(out, row)
@@ -98,9 +99,9 @@ func enrollmentsFor(t *testing.T, s *scenarioSetup, groupID, studentID int64) []
 	return out
 }
 
-func supervisorsFor(t *testing.T, s *scenarioSetup, groupID, staffID int64) []*activitiesModels.SupervisorPlanned {
+func supervisorsFor(t *testing.T, s *scenarioSetup, groupID, staffID int64) []*activityContract.SupervisorPlanned {
 	t.Helper()
-	var out []*activitiesModels.SupervisorPlanned
+	var out []*activityContract.SupervisorPlanned
 	for _, row := range loadSplitSupervisors(t, s, groupID) {
 		if row.StaffID == staffID {
 			out = append(out, row)
@@ -167,7 +168,7 @@ func deleteInstanceStudentRow(t *testing.T, s *scenarioSetup, groupID, studentID
 func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	kept := []int64{c.students[0], c.students[1]}
@@ -184,11 +185,11 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 	predecessorRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, predecessorRows, 1, "one bounded row per scheduled weekday")
 	row := predecessorRows[0]
-	assert.Equal(t, activitiesModels.Date(c.anchor), row.ValidFrom, "the predecessor row starts at the anchor")
+	assert.Equal(t, activityContract.Date(c.anchor), row.ValidFrom, "the predecessor row starts at the anchor")
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "and ends with the predecessor segment")
+	assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidUntil, "and ends with the predecessor segment")
 	require.NotNil(t, row.Weekday, "predecessor rows are written weekday-explicit")
-	assert.Equal(t, activitiesModels.WeekdayMonday, *row.Weekday)
+	assert.Equal(t, activityContract.WeekdayMonday, *row.Weekday)
 
 	livingRows := enrollmentsFor(t, c.scenarioSetup, c.livingID, added)
 	require.Len(t, livingRows, 1)
@@ -206,7 +207,7 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	removed := c.students[1]
@@ -219,9 +220,9 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.Len(t, rows, 1, "the carried row is closed, not duplicated")
-	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom, "its start stays where it was")
+	assert.Equal(t, activityContract.Date(c.firstBoundary), rows[0].ValidFrom, "its start stays where it was")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.anchor), *rows[0].ValidUntil, "the row now ends at the anchor")
+	assert.Equal(t, activityContract.Date(c.anchor), *rows[0].ValidUntil, "the row now ends at the anchor")
 
 	assert.NotContains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), removed,
 		"the anchor occurrence loses the child")
@@ -236,10 +237,10 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
-	predecessorOnly := c.insertPredecessorEnrollment(t, c.students[2], func(*activitiesModels.StudentEnrollment) {})
+	predecessorOnly := c.insertPredecessorEnrollment(t, c.students[2], func(*activityContract.StudentEnrollment) {})
 	removed := c.students[1]
 
 	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
@@ -257,7 +258,7 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 	removedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.Len(t, removedRows, 1)
 	require.NotNil(t, removedRows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.anchor), *removedRows[0].ValidUntil,
+	assert.Equal(t, activityContract.Date(c.anchor), *removedRows[0].ValidUntil,
 		"the child the edit did touch is still closed at the anchor")
 }
 
@@ -268,7 +269,7 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
@@ -282,10 +283,10 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom,
+	assert.Equal(t, activityContract.Date(c.firstBoundary), rows[0].ValidFrom,
 		"the row starts with the segment, never before it and never in the past")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *rows[0].ValidUntil)
+	assert.Equal(t, activityContract.Date(c.secondBoundary), *rows[0].ValidUntil)
 
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.earlier), added,
 		"the whole predecessor window is covered from its own start")
@@ -297,7 +298,7 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
@@ -335,7 +336,7 @@ func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
 func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	extraStaff := c.addStaff(t, "Planned")
@@ -361,7 +362,7 @@ func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
 func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
@@ -383,16 +384,16 @@ func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
 func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
 	requestChildID := createSplitRequestChild(t, c.scenarioSetup, added)
-	protectedByRequest := c.insertPredecessorEnrollment(t, added, func(row *activitiesModels.StudentEnrollment) {
+	protectedByRequest := c.insertPredecessorEnrollment(t, added, func(row *activityContract.StudentEnrollment) {
 		row.EnrollmentRequestChildID = &requestChildID
 	})
-	protectedByWeekdays := c.insertPredecessorEnrollment(t, c.students[0], func(row *activitiesModels.StudentEnrollment) {
-		row.SelectedWeekdays = []int{activitiesModels.WeekdayMonday}
+	protectedByWeekdays := c.insertPredecessorEnrollment(t, c.students[0], func(row *activityContract.StudentEnrollment) {
+		row.SelectedWeekdays = []int{activityContract.WeekdayMonday}
 	})
 
 	in := c.livingUpdateInput(t,
@@ -401,7 +402,7 @@ func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[0]}
 	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
-	for _, want := range []*activitiesModels.StudentEnrollment{protectedByRequest, protectedByWeekdays} {
+	for _, want := range []*activityContract.StudentEnrollment{protectedByRequest, protectedByWeekdays} {
 		got := c.reloadEnrollment(t, want.ID)
 		assert.Equal(t, want.ValidFrom, got.ValidFrom, "protected row start must survive")
 		assert.Equal(t, want.ValidUntil, got.ValidUntil, "protected row end must survive")
@@ -422,27 +423,27 @@ func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 func (c *seriesChain) insertPredecessorEnrollment(
 	t *testing.T,
 	studentID int64,
-	mutate func(*activitiesModels.StudentEnrollment),
-) *activitiesModels.StudentEnrollment {
+	mutate func(*activityContract.StudentEnrollment),
+) *activityContract.StudentEnrollment {
 	t.Helper()
-	validUntil := activitiesModels.Date(c.secondBoundary)
-	row := &activitiesModels.StudentEnrollment{
+	validUntil := activityContract.Date(c.secondBoundary)
+	row := &activityContract.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: c.middleID,
-		ValidFrom:       activitiesModels.Date(c.firstBoundary),
+		ValidFrom:       activityContract.Date(c.firstBoundary),
 		ValidUntil:      &validUntil,
 	}
 	mutate(row)
 	row.SetTenantID(c.tenantID)
-	_, err := c.db.NewInsert().Model(row).ModelTableExpr(`activities.student_enrollments`).Exec(c.ctx)
+	_, err := c.db.NewInsert().Model(activityStudentEnrollmentFixture(row)).ModelTableExpr(`activities.student_enrollments`).Exec(c.ctx)
 	require.NoError(t, err)
 	return row
 }
 
-func (c *seriesChain) reloadEnrollment(t *testing.T, id int64) *activitiesModels.StudentEnrollment {
+func (c *seriesChain) reloadEnrollment(t *testing.T, id int64) *activityContract.StudentEnrollment {
 	t.Helper()
-	var row activitiesModels.StudentEnrollment
-	err := c.db.NewSelect().Model(&row).
+	var row activityContract.StudentEnrollment
+	err := c.db.NewSelect().Model(activityStudentEnrollmentFixture(&row)).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
 		Where(`"student_enrollment".id = ?`, id).
 		Where(`"student_enrollment".tenant_id = ?`, c.tenantID).
@@ -457,7 +458,7 @@ func (c *seriesChain) reloadEnrollment(t *testing.T, id int64) *activitiesModels
 func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
@@ -481,7 +482,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom, "the widened anchor moved the row start")
+	assert.Equal(t, activityContract.Date(c.firstBoundary), rows[0].ValidFrom, "the widened anchor moved the row start")
 
 	assert.NotContains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added,
 		"a hand-removed occurrence row must not be resurrected")
@@ -494,7 +495,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
@@ -504,7 +505,7 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 
 	in := c.livingUpdateInput(t, shared, []int64{c.staffID}, &c.staffID)
 	in.WeekdayAssignments = []timetable.WeekdayRosterAssignment{{
-		Weekday:        activitiesModels.WeekdayMonday,
+		Weekday:        activityContract.WeekdayMonday,
 		StudentIDs:     append(append([]int64{}, shared...), added),
 		StaffIDs:       []int64{c.staffID},
 		PrimaryStaffID: &c.staffID,
@@ -516,7 +517,7 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1, "only the deviating weekday gets a predecessor row")
 	require.NotNil(t, rows[0].Weekday)
-	assert.Equal(t, activitiesModels.WeekdayMonday, *rows[0].Weekday)
+	assert.Equal(t, activityContract.WeekdayMonday, *rows[0].Weekday)
 
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added,
 		"the Monday occurrence gains the child")
@@ -532,14 +533,14 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday})
 	defer c.runCleanup(t)
 
 	added := c.students[2]
-	wednesday := activitiesModels.WeekdayWednesday
+	wednesday := activityContract.WeekdayWednesday
 	// The child already stands on the predecessor's WEDNESDAY, and no longer
 	// on the successor at all.
-	wednesdayOnly := c.insertPredecessorEnrollment(t, added, func(row *activitiesModels.StudentEnrollment) {
+	wednesdayOnly := c.insertPredecessorEnrollment(t, added, func(row *activityContract.StudentEnrollment) {
 		row.Weekday = &wednesday
 	})
 	sharedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, c.students[1])
@@ -548,7 +549,7 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 	shared := []int64{c.students[0]}
 	in := c.livingUpdateInput(t, shared, []int64{c.staffID}, &c.staffID)
 	in.WeekdayAssignments = []timetable.WeekdayRosterAssignment{{
-		Weekday:        activitiesModels.WeekdayMonday,
+		Weekday:        activityContract.WeekdayMonday,
 		StudentIDs:     []int64{c.students[0], added},
 		StaffIDs:       []int64{c.staffID},
 		PrimaryStaffID: &c.staffID,
@@ -557,7 +558,7 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 	// The planner opened a MONDAY occurrence: they added one child there and
 	// the shared list no longer names students[1].
 	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[1]}
-	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
+	in.SeriesRosterScopeWeekdays = []int{activityContract.WeekdayMonday}
 	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	kept := c.reloadEnrollment(t, wednesdayOnly.ID)
@@ -569,14 +570,14 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 		"a shared row covering Wednesday too is left alone rather than half-retired")
 
 	mondayRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
-	var mondayRow *activitiesModels.StudentEnrollment
+	var mondayRow *activityContract.StudentEnrollment
 	for _, row := range mondayRows {
-		if row.Weekday != nil && *row.Weekday == activitiesModels.WeekdayMonday {
+		if row.Weekday != nil && *row.Weekday == activityContract.WeekdayMonday {
 			mondayRow = row
 		}
 	}
 	require.NotNil(t, mondayRow, "the edited weekday still gains its row")
-	assert.Equal(t, activitiesModels.Date(c.anchor), mondayRow.ValidFrom)
+	assert.Equal(t, activityContract.Date(c.anchor), mondayRow.ValidFrom)
 }
 
 // dropLivingScheduleWeekday narrows the LIVING segment's recurrence while the
@@ -605,10 +606,10 @@ func (c *seriesChain) dropLivingScheduleWeekday(t *testing.T, weekday int) {
 func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday})
 	defer c.runCleanup(t)
 
-	c.dropLivingScheduleWeekday(t, activitiesModels.WeekdayWednesday)
+	c.dropLivingScheduleWeekday(t, activityContract.WeekdayWednesday)
 	added := c.students[2]
 	wednesdayAfterAnchor := c.anchor.AddDays(2)
 	require.Equal(t, time.Wednesday, wednesdayAfterAnchor.Weekday())
@@ -616,7 +617,7 @@ func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testin
 	in := c.livingUpdateInput(t,
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
 	// The body carries the SUCCESSOR's recurrence, which no longer runs Wednesday.
-	in.Weekdays = []int{activitiesModels.WeekdayMonday}
+	in.Weekdays = []int{activityContract.WeekdayMonday}
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{added}
 	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
@@ -627,7 +628,7 @@ func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testin
 		weekdays = append(weekdays, *row.Weekday)
 	}
 	assert.ElementsMatch(t,
-		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday}, weekdays,
+		[]int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday}, weekdays,
 		"the predecessor's own weekdays decide the coverage, not the successor's")
 
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, wednesdayAfterAnchor), added,
@@ -641,19 +642,19 @@ func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testin
 func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday})
 	defer c.runCleanup(t)
 
-	c.dropLivingScheduleWeekday(t, activitiesModels.WeekdayWednesday)
+	c.dropLivingScheduleWeekday(t, activityContract.WeekdayWednesday)
 	removed := c.students[1]
 	sharedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.NotEmpty(t, sharedRows, "the carried row spans both weekdays")
 
 	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
-	in.Weekdays = []int{activitiesModels.WeekdayMonday}
+	in.Weekdays = []int{activityContract.WeekdayMonday}
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{removed}
-	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
+	in.SeriesRosterScopeWeekdays = []int{activityContract.WeekdayMonday}
 	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	assert.Equal(t, sharedRows, enrollmentsFor(t, c.scenarioSetup, c.middleID, removed),
@@ -668,7 +669,7 @@ func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T)
 func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	newLead := c.addStaff(t, "Lead")
@@ -696,7 +697,7 @@ func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T)
 func TestSeriesRoster_PrimaryChangeReachesMaterializedOccurrences(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	newLead := c.addStaff(t, "Wechsel")
@@ -748,7 +749,7 @@ func instanceStaffPrimaryOn(t *testing.T, s *scenarioSetup, groupID int64, date 
 func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	extraStaff := c.addStaff(t, "Sub")
@@ -761,11 +762,11 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 
 	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activitiesModels.Date(c.anchor), rows[0].ValidFrom)
+	assert.Equal(t, activityContract.Date(c.anchor), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *rows[0].ValidUntil)
+	assert.Equal(t, activityContract.Date(c.secondBoundary), *rows[0].ValidUntil)
 	require.NotNil(t, rows[0].Weekday)
-	assert.Equal(t, activitiesModels.WeekdayMonday, *rows[0].Weekday)
+	assert.Equal(t, activityContract.WeekdayMonday, *rows[0].Weekday)
 	assert.False(t, rows[0].IsPrimary, "the primary supervisor did not change")
 
 	assert.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff,
@@ -785,7 +786,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 	rows = supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(c.anchor), *rows[0].ValidUntil, "the predecessor supervision closes at the anchor")
+	assert.Equal(t, activityContract.Date(c.anchor), *rows[0].ValidUntil, "the predecessor supervision closes at the anchor")
 
 	assert.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff,
 		"an absence row is a recorded decision and survives the removal")

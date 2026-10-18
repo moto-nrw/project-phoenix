@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -55,31 +57,31 @@ func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testin
 	t.Parallel()
 
 	periodA, periodB, targetPeriod := int64(11), int64(12), int64(13)
-	activeA := &activitiesModel.StudentEnrollment{
+	activeA := &activityContract.StudentEnrollment{
 		StudentID:                42,
 		CalendarPeriodID:         &periodA,
 		EnrollmentRequestChildID: testInt64Ptr(101),
 	}
-	activeB := &activitiesModel.StudentEnrollment{
+	activeB := &activityContract.StudentEnrollment{
 		StudentID:                42,
 		CalendarPeriodID:         &periodB,
 		EnrollmentRequestChildID: testInt64Ptr(101),
 	}
 
 	err := validateProtectedEnrollmentRebase(
-		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		[]*activityContract.StudentEnrollment{activeA, activeB},
 		&targetPeriod,
 	)
 	require.ErrorIs(t, err, timetable.ErrTemplateRosterRebaseConflict)
 
-	boundedUntil := activitiesModel.Date(calendar.TodayDate().AddDays(30))
+	boundedUntil := activityContract.Date(calendar.TodayDate().AddDays(30))
 	activeB.ValidUntil = &boundedUntil
 	require.NoError(t, validateProtectedEnrollmentRebase(
-		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		[]*activityContract.StudentEnrollment{activeA, activeB},
 		&targetPeriod,
 	), "bounded rows do not collide with the active-row partial unique index")
 	require.NoError(t, validateProtectedEnrollmentRebase(
-		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		[]*activityContract.StudentEnrollment{activeA, activeB},
 		nil,
 	), "without an explicit target period no scoped rows are merged")
 }
@@ -101,7 +103,7 @@ func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 		&templateEndUnitInstanceRepo{},
 	)
 
-	_, err := svc.EndFromDate(context.Background(), timetable.EndTemplateCommand{TemplateID: 201, EffectiveDate: future})
+	_, err := svc.EndTemplateFromDate(context.Background(), timetable.EndTemplateCommand{TemplateID: 201, EffectiveDate: future})
 
 	require.Error(t, err)
 	var scheduleErr *ports.ScheduleError
@@ -128,7 +130,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 		instanceRepo,
 	)
 
-	res, err := svc.EndFromDate(ctx, timetable.EndTemplateCommand{TemplateID: group.ID, EffectiveDate: future})
+	res, err := svc.EndTemplateFromDate(ctx, timetable.EndTemplateCommand{TemplateID: group.ID, EffectiveDate: future})
 
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -220,7 +222,7 @@ func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := templateEndUnitService(tt.groupRepo, tt.scheduleRepo, tt.enrollmentRepo, tt.supervisorRepo, tt.instanceRepo)
 
-			_, err := svc.EndFromDate(ctx, timetable.EndTemplateCommand{TemplateID: 203, EffectiveDate: future})
+			_, err := svc.EndTemplateFromDate(ctx, timetable.EndTemplateCommand{TemplateID: 203, EffectiveDate: future})
 
 			require.Error(t, err)
 			if tt.wantErr != nil {
@@ -255,8 +257,8 @@ func templateEndUnitService(
 	}
 }
 
-func templateEndUnitGroup(id int64) *activitiesModel.Group {
-	group := &activitiesModel.Group{
+func templateEndUnitGroup(id int64) *activityContract.Group {
+	group := &activityContract.Group{
 		Name:       "Template end unit",
 		IsTemplate: true,
 	}
@@ -266,12 +268,12 @@ func templateEndUnitGroup(id int64) *activitiesModel.Group {
 
 type templateEndUnitGroupRepo struct {
 	activitiesModel.GroupRepository
-	group     *activitiesModel.Group
+	group     *activityContract.Group
 	err       error
 	findCalls int
 }
 
-func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activitiesModel.Group, error) {
+func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activityContract.Group, error) {
 	r.findCalls++
 	if r.err != nil {
 		return nil, r.err
@@ -282,16 +284,16 @@ func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activiti
 // FindTemplateSeries backs the #2187 end cascade; the unit fixtures model a
 // single-segment lineage (the schedule fake returns no rows, so the cascade
 // finds no bounded predecessor and stays a no-op).
-func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64) ([]*activitiesModel.Group, error) {
+func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64) ([]*activityContract.Group, error) {
 	if r.group == nil {
 		return nil, nil
 	}
-	return []*activitiesModel.Group{r.group}, nil
+	return []*activityContract.Group{r.group}, nil
 }
 
 type templateEndUnitScheduleRepo struct {
 	activitiesModel.ScheduleRepository
-	schedules  []*activitiesModel.Schedule
+	schedules  []*activityContract.Schedule
 	findErr    error
 	capped     int64
 	err        error
@@ -299,14 +301,14 @@ type templateEndUnitScheduleRepo struct {
 	validUntil calendar.Date
 }
 
-func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.Schedule, error) {
+func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.Schedule, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
 	return r.schedules, nil
 }
 
-func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int64) ([]*activitiesModel.Schedule, error) {
+func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int64) ([]*activityContract.Schedule, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
@@ -329,11 +331,11 @@ type templateEndUnitEnrollmentRepo struct {
 	groupID int64
 }
 
-func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.StudentEnrollment, error) {
+func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.StudentEnrollment, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
+func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -348,11 +350,11 @@ type templateEndUnitSupervisorRepo struct {
 	groupID int64
 }
 
-func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.SupervisorPlanned, error) {
+func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.SupervisorPlanned, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
+func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err

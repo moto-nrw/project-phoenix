@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
@@ -100,7 +101,7 @@ func indexWeekdayAssignments(
 	}
 	byWeekday := make(map[int]timetable.WeekdayRosterAssignment, len(assignments))
 	for _, assignment := range assignments {
-		if !activitiesModel.IsValidWeekday(assignment.Weekday) {
+		if !activityContract.IsValidWeekday(assignment.Weekday) {
 			return nil, fmt.Errorf("invalid weekday %d", assignment.Weekday)
 		}
 		if _, ok := scheduled[assignment.Weekday]; !ok {
@@ -163,9 +164,9 @@ func scopedRosterRows(personIDs []int64, primaryID *int64, weekday *int) []resol
 }
 
 func buildProtectedStudentCoverage(
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	scheduledWeekdays []int,
-	appliesToPeriod func(*activitiesModel.StudentEnrollment) bool,
+	appliesToPeriod func(*activityContract.StudentEnrollment) bool,
 ) map[int64]protectedStudentCoverage {
 	coverage := make(map[int64]protectedStudentCoverage)
 	weekdays := uniqueSortedWeekdays(scheduledWeekdays)
@@ -187,7 +188,7 @@ func buildProtectedStudentCoverage(
 	return coverage
 }
 
-func protectedEnrollmentAppliesOnWeekday(row *activitiesModel.StudentEnrollment, weekday int) bool {
+func protectedEnrollmentAppliesOnWeekday(row *activityContract.StudentEnrollment, weekday int) bool {
 	if row.Weekday != nil && *row.Weekday != weekday {
 		return false
 	}

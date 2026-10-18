@@ -3,6 +3,8 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -12,9 +14,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -150,7 +151,7 @@ func seedApprovedChildWithStudent(
 	// 3. Link the source child to the student and stamp approved.
 	require.NoError(t, env.repos.Enrollment().LinkCreatedStudent(ctx, sourceChildID, student.ID))
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, sourceChildID, enrollmentModels.ChildStatusApproved, nil, env.creatorID,
+		ctx, sourceChildID, enrollmentNative.ChildStatusApproved, nil, env.creatorID,
 	))
 
 	loaded, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), sourceChildID)
@@ -200,7 +201,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	require.Equal(t, classForGrade(1), existing.SchoolClass)
 
 	// Run the rollover with auto_approve = true and a past deadline.
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.Name = "auto-approve-integration-target"
@@ -212,7 +213,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// Sanity: before the worker runs, the new row is auto_renewed.
 	preWorker, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusAutoRenewed},
+		[]string{enrollmentNative.ChildStatusAutoRenewed},
 	)
 	require.NoError(t, err)
 	require.Len(t, preWorker, 1)
@@ -231,7 +232,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// The new row is now approved AND linked to the SAME student id.
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusApproved},
+		[]string{enrollmentNative.ChildStatusApproved},
 	)
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
@@ -256,7 +257,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	require.NotNil(t, refreshed.EnrolledUntil)
 	assert.Equal(t, calendar.Date(result.Phase.ServiceEndDate), *refreshed.EnrolledUntil,
 		"the window's end extends to the new phase so the child is never deactivated in between")
-	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
 	assert.Equal(t, calendar.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 
@@ -301,7 +302,7 @@ func TestRolloverService_AutoApprove_ClassSwitchSkipsClassChangedSinceApproval(t
 		"Mia", "Muster",
 		int16(1),
 	)
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.Name = "class-switch-skip-target"
@@ -343,7 +344,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.Name = "inactive-immediate-target"
@@ -357,11 +358,11 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusApproved},
+		[]string{enrollmentNative.ChildStatusApproved},
 	)
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
-	assert.Equal(t, enrollmentModels.ChildActivationImmediate, approved[0].ActivationMode)
+	assert.Equal(t, enrollmentNative.ChildActivationImmediate, approved[0].ActivationMode)
 	assert.Nil(t, approved[0].ActivateOn)
 
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
@@ -387,7 +388,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-time.Hour)
 	req.Name = "inactive-audit-target"
@@ -423,7 +424,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.Name = "inactive-scheduled-target"
@@ -441,11 +442,11 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusApproved},
+		[]string{enrollmentNative.ChildStatusApproved},
 	)
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
-	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
 	assert.Equal(t, calendar.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 }
@@ -466,7 +467,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	existing.Status = peopledirectory.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	now := decisionTestToday.BerlinMidnight().Add(12 * time.Hour)
 	req.RolloverDeadline = now.Add(-1 * time.Hour)
@@ -487,11 +488,11 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 
 	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusApproved},
+		[]string{enrollmentNative.ChildStatusApproved},
 	)
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
-	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
 	assert.Equal(t, calendar.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 }
@@ -513,7 +514,7 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 	// Count students for this PersonID before the rollover.
 	beforeCount := countStudentsForPerson(t, env, existing.PersonID)
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.Name = "no-dup-target"
@@ -563,24 +564,24 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		calendar.NewDate(2028, 8, 31),
 	)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
 		Name:            "Rollover savepoint offering",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
-	link := &capability.RequestChildOffering{
+	link := &enrollmentNative.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = testpkg.Tenant(t)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-time.Hour)
 	req.Name = "auto-approve-savepoint-rollback-target"
@@ -600,7 +601,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx,
 		result.Phase.ID,
-		[]string{enrollmentModels.ChildStatusAutoRenewed},
+		[]string{enrollmentNative.ChildStatusAutoRenewed},
 	)
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
@@ -631,7 +632,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 
 	rolledAfter, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), rolledChildID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusAutoRenewed, rolledAfter.Status)
+	assert.Equal(t, enrollmentNative.ChildStatusAutoRenewed, rolledAfter.Status)
 	assert.Nil(t, rolledAfter.CreatedStudentID, "failed approval must not link the existing student")
 
 	enrollments, err := env.reposTimetable.StudentEnrollment.FindByStudentID(ctx, existing.ID)

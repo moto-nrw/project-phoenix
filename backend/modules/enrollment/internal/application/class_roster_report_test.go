@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestClassRosterIgnoresLeftoverCatalogWhenOfferingsDisabled(t *testing.T) {
@@ -24,19 +25,19 @@ func TestClassRosterIgnoresLeftoverCatalogWhenOfferingsDisabled(t *testing.T) {
 	svc := classRosterTestService(
 		[]*RosterStudent{{ID: studentID, PersonID: personID, SchoolClass: "1a"}},
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
-		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{
+		&fakeClassRosterRequestRepo{requests: []*Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		}},
 		&fakeClassRosterChildRepo{children: []*reportChild{
-			{ID: childID, RequestID: requestID, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+			{ID: childID, RequestID: requestID, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		}},
 	)
-	svc.deps.Offerings = &fakeClassRosterCareOfferingRepo{offerings: []*enrollmentModels.CareOffering{
-		{ID: 1, Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: true},
+	svc.deps.Offerings = &fakeClassRosterCareOfferingRepo{offerings: []*offeringContract.CareOfferingRecord{
+		{ID: 1, Name: "Ganztag", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, IsActive: true},
 	}}
 	svc.deps.Settings = classRosterSettingsStub{careOfferingsEnabled: false}
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -57,7 +58,7 @@ func TestClassRosterParticipationUsesOneTodaySnapshot(t *testing.T) {
 		},
 	})
 
-	students, err := svc.classRosterStudents(context.Background(), enrollment.ClassRosterFilters{SchoolClass: "2b"})
+	students, err := svc.classRosterStudents(context.Background(), enrollmentNative.ClassRosterFilters{SchoolClass: "2b"})
 
 	require.NoError(t, err)
 	require.Len(t, students, 1)
@@ -82,7 +83,7 @@ func TestClassRosterAppliesBookingParticipationBoundary(t *testing.T) {
 	svc.deps.CareParticipation = fakeClassCareParticipation{41: true}
 	svc.deps.Now = func() time.Time { return today.BerlinMidnight().Add(12 * time.Hour) }
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "2a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "2a"})
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
 	assert.Equal(t, int64(41), report.Rows[0].StudentID)
@@ -99,7 +100,7 @@ func TestClassRosterFailsWhenCareOfferingsSettingCannotBeResolved(t *testing.T) 
 	)
 	svc.deps.Settings = classRosterSettingsStub{err: errors.New("settings unavailable")}
 
-	_, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	_, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enrollment.care_offerings_enabled")
@@ -113,7 +114,7 @@ func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
 	requestID := int64(300)
 	childID := int64(400)
 	repo := &fakeClassRosterRequestRepo{
-		requests: []*enrollmentModels.Request{
+		requests: []*Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		},
 	}
@@ -122,11 +123,11 @@ func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
 		repo,
 		&fakeClassRosterChildRepo{children: []*reportChild{
-			{ID: childID, RequestID: requestID, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+			{ID: childID, RequestID: requestID, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		}},
 	)
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -147,26 +148,26 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 		children = append(children, &reportChild{
 			ID:               int64(1000 + i),
 			RequestID:        requestID,
-			Status:           enrollmentModels.ChildStatusApproved,
+			Status:           enrollmentNative.ChildStatusApproved,
 			CreatedStudentID: &otherStudentID,
 		})
 	}
 	children = append(children, &reportChild{
 		ID:               childID,
 		RequestID:        requestID,
-		Status:           enrollmentModels.ChildStatusApproved,
+		Status:           enrollmentNative.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	})
 	svc := classRosterTestService(
 		[]*RosterStudent{{ID: studentID, PersonID: personID, SchoolClass: "1a"}},
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
-		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{
+		&fakeClassRosterRequestRepo{requests: []*Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		}},
 		&fakeClassRosterChildRepo{children: children},
 	)
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -188,7 +189,7 @@ func TestClassRosterAppliesStudentLimitAfterParticipationFiltering(t *testing.T)
 		CareParticipation: participating,
 	})
 
-	result, err := svc.classRosterStudents(context.Background(), enrollment.ClassRosterFilters{AllClasses: true})
+	result, err := svc.classRosterStudents(context.Background(), enrollmentNative.ClassRosterFilters{AllClasses: true})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, students[0].ID, result[0].ID)
@@ -216,7 +217,7 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 			registeredPersonID: {FirstName: "Lina", LastName: "Muster"},
 			manualPersonID:     {FirstName: "Tom", LastName: "Ohne"},
 		},
-		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{{
+		&fakeClassRosterRequestRepo{requests: []*Request{{
 			ID:                requestID,
 			GuardianFirstName: "Eva",
 			GuardianLastName:  "Muster",
@@ -227,11 +228,11 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 		&fakeClassRosterChildRepo{children: []*reportChild{{
 			ID:               childID,
 			RequestID:        requestID,
-			Status:           enrollmentModels.ChildStatusApproved,
+			Status:           enrollmentNative.ChildStatusApproved,
 			CreatedStudentID: &registeredStudentID,
 		}}},
 	)
-	svc.deps.Guardians = &fakeClassRosterRequestGuardianRepo{guardians: []*enrollment.RequestGuardian{{
+	svc.deps.Guardians = &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentNative.RequestGuardian{{
 		ID:        500,
 		RequestID: requestID,
 		FirstName: "Zweiter",
@@ -258,18 +259,18 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 		},
 	}}
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 
 	require.NoError(t, err)
-	rowByFirstName := map[string]enrollment.ClassRosterRow{}
+	rowByFirstName := map[string]enrollmentNative.ClassRosterRow{}
 	for _, row := range report.Rows {
 		rowByFirstName[row.FirstName] = row
 	}
-	assert.Equal(t, []enrollment.ClassRosterGuardian{
+	assert.Equal(t, []enrollmentNative.ClassRosterGuardian{
 		{Name: "Eva Muster", Email: "eva@example.test", Phone: "02551 111"},
 		{Name: "Zweiter Kontakt", Email: "zweiter@example.test", Phone: "02551 222"},
 	}, rowByFirstName["Lina"].Guardians)
-	assert.Equal(t, []enrollment.ClassRosterGuardian{
+	assert.Equal(t, []enrollmentNative.ClassRosterGuardian{
 		{Name: "Stamm Kontakt", Email: "stamm@example.test", Phone: "02551 333"},
 	}, rowByFirstName["Tom"].Guardians)
 }
@@ -291,7 +292,7 @@ func TestReportServiceClassRosterGroupNamesLoadsUniqueGroups(t *testing.T) {
 		{},
 	}}
 
-	err := svc.loadClassRosterStudentReads(context.Background(), enrollment.ClassRosterFilters{SkipGuardianData: true}, in, nil)
+	err := svc.loadClassRosterStudentReads(context.Background(), enrollmentNative.ClassRosterFilters{SkipGuardianData: true}, in, nil)
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{groupID, otherGroupID}, repo.seenIDs)
@@ -312,7 +313,7 @@ func TestClassRosterUsesOfferingDateForPickupProjection(t *testing.T) {
 	svc.deps.PickupSchedules = pickupSvc
 	reportDate := calendar.NewDate(2026, 8, 24).AddDays(30)
 
-	_, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{
+	_, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{
 		PhaseID: 55, SchoolClass: "1a", OfferingDate: &reportDate,
 	})
 
@@ -324,7 +325,7 @@ func TestClassRosterUsesOfferingDateForPickupProjection(t *testing.T) {
 func TestSortClassRosterRowsGermanNameOrder(t *testing.T) {
 	t.Parallel()
 
-	rows := []enrollment.ClassRosterRow{
+	rows := []enrollmentNative.ClassRosterRow{
 		{StudentID: 1, FirstName: "Jan", LastName: "Zimmermann"},
 		{StudentID: 2, FirstName: "Emre", LastName: "Özdemir"},
 		{StudentID: 3, FirstName: "Lena", LastName: "Ärmel"},
@@ -366,7 +367,7 @@ func TestClassRosterAllClassesSortsClassFirstThenName(t *testing.T) {
 
 	svc := allClassesTestService()
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, AllClasses: true})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, AllClasses: true})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 4)
@@ -404,7 +405,7 @@ func TestClassRosterAllClassesDeduplicatesCaseVariantClasses(t *testing.T) {
 	}
 	svc.deps.Students = repo
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, AllClasses: true})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, AllClasses: true})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 3)
@@ -422,11 +423,11 @@ func TestClassRosterFilterValidation(t *testing.T) {
 
 	svc := allClassesTestService()
 
-	_, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", AllClasses: true})
-	require.ErrorIs(t, err, enrollment.ErrReportInvalidFilter)
+	_, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", AllClasses: true})
+	require.ErrorIs(t, err, enrollmentNative.ErrReportInvalidFilter)
 
-	_, err = svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55})
-	require.ErrorIs(t, err, enrollment.ErrReportInvalidFilter)
+	_, err = svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55})
+	require.ErrorIs(t, err, enrollmentNative.ErrReportInvalidFilter)
 }
 
 func TestClassRosterMergesClassListEntries(t *testing.T) {
@@ -438,7 +439,7 @@ func TestClassRosterMergesClassListEntries(t *testing.T) {
 		classListEntry(102, "Ben", "Zorn", "3c"),
 	}}
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, AllClasses: true})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, AllClasses: true})
 	require.NoError(t, err)
 
 	// 4 students + 2 entries; the 3c entry creates its own class section even
@@ -464,7 +465,7 @@ func TestClassRosterMergesClassListEntries(t *testing.T) {
 		if row.ListEntry {
 			assert.Zero(t, row.StudentID)
 			assert.False(t, row.Registered)
-			assert.Equal(t, enrollment.ClassListEntryNoCareLabel, row.EnrollmentSummary)
+			assert.Equal(t, enrollmentNative.ClassListEntryNoCareLabel, row.EnrollmentSummary)
 			assert.Empty(t, row.CareDays)
 		}
 	}
@@ -479,7 +480,7 @@ func TestClassRosterSingleClassMergesOnlyThatClass(t *testing.T) {
 		classListEntry(102, "Ben", "Zorn", "3c"),
 	}}
 
-	report, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+	report, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
 	require.NoError(t, err)
 
 	require.Len(t, report.Rows, 3)
@@ -495,14 +496,14 @@ func TestClassRosterFiltersCareDate(t *testing.T) {
 
 	t.Run("defaults to today", func(t *testing.T) {
 		today := calendar.NewDate(2026, 8, 24)
-		assert.Equal(t, today, classRosterCareDate(enrollment.ClassRosterFilters{}, today))
+		assert.Equal(t, today, classRosterCareDate(enrollmentNative.ClassRosterFilters{}, today))
 	})
 
 	t.Run("follows the day the class view is paged to", func(t *testing.T) {
 		// The Lehrkraft class day view pages through the week. A sheet for
 		// last Tuesday must show who was in care THEN, not who is today.
 		paged := calendar.NewDate(2026, 5, 12)
-		assert.Equal(t, paged, classRosterCareDate(enrollment.ClassRosterFilters{OfferingDate: &paged}, calendar.NewDate(2026, 8, 24)))
+		assert.Equal(t, paged, classRosterCareDate(enrollmentNative.ClassRosterFilters{OfferingDate: &paged}, calendar.NewDate(2026, 8, 24)))
 	})
 }
 
@@ -513,7 +514,7 @@ type capturingChildOfferingReader struct {
 	seenDate calendar.Date
 }
 
-func (r *capturingChildOfferingReader) RequestChildOfferingsForChildrenAtDate(_ context.Context, _ []int64, date enrollment.Date) ([]*enrollment.RequestChildOffering, error) {
+func (r *capturingChildOfferingReader) RequestChildOfferingsForChildrenAtDate(_ context.Context, _ []int64, date enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error) {
 	r.seenDate = calendar.Date(date)
 	return nil, nil
 }
@@ -531,7 +532,7 @@ func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
 	svc.deps.Children = capture
 	pinned := calendar.NewDate(2026, 8, 10)
 
-	_, err := svc.classRoster(context.Background(), enrollment.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", OfferingDate: &pinned})
+	_, err := svc.classRoster(context.Background(), enrollmentNative.ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", OfferingDate: &pinned})
 
 	require.NoError(t, err)
 	assert.Equal(t, pinned, capture.seenDate)

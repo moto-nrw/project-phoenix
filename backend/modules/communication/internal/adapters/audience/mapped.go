@@ -1,25 +1,22 @@
 package audience
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
+)
 
 // Rows maps the projection's rows onto the consumer's values and the
 // consumer's announcement onto the projection's target. The owner's
 // composition supplies it, so the projection never names the owner's types.
-type Rows[A, V, S any] struct {
-	Announcement func(Announcement) A
-	Target       func(A) Target
-	View         func(ViewDetail) V
-	Stats        func(Stats) S
-}
-
 // Mapped answers the projection's reads in the consumer's values.
 type Mapped[A, V, S any] struct {
 	projection *Projection
-	rows       Rows[A, V, S]
+	rows       contract.Rows[A, V, S]
 }
 
 // Map binds rows to the projection. Every mapping is required.
-func Map[A, V, S any](projection *Projection, rows Rows[A, V, S]) Mapped[A, V, S] {
+func Map[A, V, S any](projection *Projection, rows contract.Rows[A, V, S]) Mapped[A, V, S] {
 	if projection == nil || rows.Announcement == nil || rows.Target == nil || rows.View == nil || rows.Stats == nil {
 		panic("announcement audience projection: projection and every row mapping are required")
 	}

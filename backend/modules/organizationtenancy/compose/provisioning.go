@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // The provisioning seams (#3253) and the values they exchange. The root
@@ -72,37 +72,32 @@ type ProvisioningDependencies struct {
 	Audit              OperatorAudit
 	Secrets            ports.ProvisioningSecrets
 	// ActiveAccountCounts supplies bounded distinct-account aggregates.
-	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
-	Logger              *slog.Logger
+	Logger *slog.Logger
 }
 
 // NewProvisioning composes the operator provisioning capability over the
 // Organisation & Tenancy facade and the operator dashboard projection.
-func NewProvisioning(dependencies ProvisioningDependencies) (organizationtenancy.Provisioning, error) {
-	dashboard := operatordashboard.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("organization tenancy operator dashboard: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, fmt.Errorf("organization tenancy operator dashboard: unsupported transaction %T", transaction)
-		}
-		return tx, nil
-	}, dependencies.ActiveAccountCounts)
-	rows := operatordashboard.Rows[domain.DashboardCounts, domain.OrganizationSummary, domain.SchoolSummary, domain.PWAUsageRow]{
-		Counts: func(row operatordashboard.Counts) domain.DashboardCounts { return domain.DashboardCounts(row) },
-		Organization: func(row operatordashboard.OrganizationSummary) domain.OrganizationSummary {
-			return domain.OrganizationSummary(row)
-		},
-		School:   func(row operatordashboard.SchoolSummary) domain.SchoolSummary { return domain.SchoolSummary(row) },
-		PWAUsage: func(row operatordashboard.PWAUsageRow) domain.PWAUsageRow { return domain.PWAUsageRow(row) },
-	}
+func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizationtenancy.OperatorDashboard) (organizationtenancy.Provisioning, error) {
 	return application.NewProvisioning(application.ProvisioningDependencies{
 		PWAUsageWindowDays: dependencies.PWAUsageWindowDays,
-		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: operatordashboard.Map(dashboard, rows),
+		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,
 	})
+}
+
+// OperatorDatabase supplies the existing administrative runtime to root-bound projections.
+func OperatorDatabase() func(context.Context) (bun.IDB, error) {
+	return func(ctx context.Context) (bun.IDB, error) {
+		value, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, errors.New("organization tenancy operator dashboard: transaction is required")
+		}
+		tx, ok := value.(bun.Tx)
+		if !ok {
+			return nil, fmt.Errorf("organization tenancy operator dashboard: unsupported transaction %T", value)
+		}
+		return tx, nil
+	}
 }

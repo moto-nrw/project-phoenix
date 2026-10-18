@@ -47,7 +47,7 @@
       "backend/workflows/parentportal/messaging/read_ports.go",
       "backend/sharedkernel/calendar/weekday_keys.go",
       "backend/sharedkernel/calendar/weekday_keys_test.go",
-      "backend/models/enrollment/care_offering.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/dd92c93a8af3c4cc3d74d51769eb04d4922c85b8/backend/models/enrollment/care_offering.go"
     ],
     "workload": "Existing account-scoped child/enrollment, soft-deleted-person/audience eligibility, relationship denial, care-ended write guards and redaction suites; new boundary and policy tests.",
     "thresholds": "Five exact retirements, no new import debt, grants or composition target; identical JSON/date values and explicit relationship permissions; compose surfaces shrink176 LOC.",

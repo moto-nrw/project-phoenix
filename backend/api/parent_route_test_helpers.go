@@ -47,7 +47,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), bookings, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
+	slots := timetableCompose.NewInstanceStudentRepository(MustPresenceReads(db), bookings, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

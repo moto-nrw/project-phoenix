@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // enrollmentRequestDeliveryType is the related-entity type of a request's
@@ -20,13 +19,13 @@ const enrollmentRequestDeliveryType = "enrollment_request"
 type DeletionChildren interface {
 	DeleteRequestTree(context.Context, int64) error
 	DeleteRequestChildTree(context.Context, int64, int64) error
-	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error)
-	ChildByID(context.Context, int64) (*enrollment.RequestChild, error)
+	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollmentNative.RequestChild, error)
+	ChildByID(context.Context, int64) (*enrollmentNative.RequestChild, error)
 }
 
 // DeletionRequests locks the request a deletion removes.
 type DeletionRequests interface {
-	RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
+	RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
 }
 
 // EnrollmentDeletionDelivery counts and cancels the delivery intents of a
@@ -60,7 +59,7 @@ type EnrollmentDeletionEvent struct {
 	Actor          DeletionActor
 	Scope          DeletionScope
 	Reason         string
-	Counts         enrollment.DeletionCounts
+	Counts         enrollmentNative.DeletionCounts
 	DeletedAt      time.Time
 }
 
@@ -87,7 +86,7 @@ type Deletions struct {
 	deps DeletionDependencies
 }
 
-var _ enrollment.EnrollmentDeletions = (*Deletions)(nil)
+var _ enrollmentNative.EnrollmentDeletions = (*Deletions)(nil)
 
 // NewDeletions composes the admin deletion.
 func NewDeletions(deps DeletionDependencies) *Deletions {
@@ -98,7 +97,7 @@ func NewDeletions(deps DeletionDependencies) *Deletions {
 }
 
 // PreviewRequest previews the deletion of a whole request.
-func (s *Deletions) PreviewRequest(ctx context.Context, requestID int64) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) PreviewRequest(ctx context.Context, requestID int64) (*enrollmentNative.DeletionImpact, error) {
 	if err := s.validateConfigured(); err != nil {
 		return nil, err
 	}
@@ -107,7 +106,7 @@ func (s *Deletions) PreviewRequest(ctx context.Context, requestID int64) (*enrol
 		return nil, err
 	}
 	if impact == nil || impact.Counts.Requests != 1 {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if err := s.addDeliveryCount(ctx, impact); err != nil {
 		return nil, err
@@ -116,7 +115,7 @@ func (s *Deletions) PreviewRequest(ctx context.Context, requestID int64) (*enrol
 }
 
 // PreviewChild previews the deletion of one child.
-func (s *Deletions) PreviewChild(ctx context.Context, requestID, childID int64) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) PreviewChild(ctx context.Context, requestID, childID int64) (*enrollmentNative.DeletionImpact, error) {
 	if err := s.validateConfigured(); err != nil {
 		return nil, err
 	}
@@ -125,14 +124,14 @@ func (s *Deletions) PreviewChild(ctx context.Context, requestID, childID int64) 
 		return nil, err
 	}
 	if impact == nil || impact.Counts.RequestChildren != 1 {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	child, err := s.deps.Children.ChildByID(ctx, childID)
 	if err != nil {
 		return nil, fmt.Errorf("load enrollment child for deletion preview: %w", err)
 	}
 	if child == nil || child.RequestID != requestID {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if impact.DeletesRequest {
 		if err := s.addDeliveryCount(ctx, impact); err != nil {
@@ -146,7 +145,7 @@ func (s *Deletions) PreviewChild(ctx context.Context, requestID, childID int64) 
 }
 
 // DeleteRequest deletes a whole request.
-func (s *Deletions) DeleteRequest(ctx context.Context, requestID, actorAccountID int64, reason string) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) DeleteRequest(ctx context.Context, requestID, actorAccountID int64, reason string) (*enrollmentNative.DeletionImpact, error) {
 	reason, err := validateEnrollmentDeletionInput(actorAccountID, reason)
 	if err != nil {
 		return nil, err
@@ -154,7 +153,7 @@ func (s *Deletions) DeleteRequest(ctx context.Context, requestID, actorAccountID
 	if err = s.validateConfigured(); err != nil {
 		return nil, err
 	}
-	var impact *enrollment.DeletionImpact
+	var impact *enrollmentNative.DeletionImpact
 	err = s.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		impact, txErr = s.deleteRequest(txCtx, requestID, actorAccountID, reason)
@@ -170,7 +169,7 @@ func (s *Deletions) DeleteRequest(ctx context.Context, requestID, actorAccountID
 	return impact, nil
 }
 
-func (s *Deletions) deleteRequest(ctx context.Context, requestID, actorAccountID int64, reason string) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) deleteRequest(ctx context.Context, requestID, actorAccountID int64, reason string) (*enrollmentNative.DeletionImpact, error) {
 	if err := s.lockRequestForDeletion(ctx, requestID); err != nil {
 		return nil, err
 	}
@@ -182,10 +181,10 @@ func (s *Deletions) deleteRequest(ctx context.Context, requestID, actorAccountID
 		return nil, err
 	}
 	if impact == nil || impact.Counts.Requests != 1 {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if len(impact.BlockingStudentIDs) > 0 {
-		return nil, enrollment.ErrEnrollmentDeletionStudentExists
+		return nil, enrollmentNative.ErrEnrollmentDeletionStudentExists
 	}
 	if err := s.deleteRequestTree(ctx, impact, requestID); err != nil {
 		return nil, err
@@ -195,7 +194,7 @@ func (s *Deletions) deleteRequest(ctx context.Context, requestID, actorAccountID
 
 // deleteRequestTree counts and cancels the request's delivery intents and
 // deletes the request with everything under it.
-func (s *Deletions) deleteRequestTree(ctx context.Context, impact *enrollment.DeletionImpact, requestID int64) error {
+func (s *Deletions) deleteRequestTree(ctx context.Context, impact *enrollmentNative.DeletionImpact, requestID int64) error {
 	if err := s.addDeliveryCount(ctx, impact); err != nil {
 		return err
 	}
@@ -207,7 +206,7 @@ func (s *Deletions) deleteRequestTree(ctx context.Context, impact *enrollment.De
 
 // DeleteChild deletes one child; deleting the request's only child deletes
 // the request.
-func (s *Deletions) DeleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) DeleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*enrollmentNative.DeletionImpact, error) {
 	reason, err := validateEnrollmentDeletionInput(actorAccountID, reason)
 	if err != nil {
 		return nil, err
@@ -215,7 +214,7 @@ func (s *Deletions) DeleteChild(ctx context.Context, requestID, childID, actorAc
 	if err = s.validateConfigured(); err != nil {
 		return nil, err
 	}
-	var impact *enrollment.DeletionImpact
+	var impact *enrollmentNative.DeletionImpact
 	err = s.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		impact, txErr = s.deleteChild(txCtx, requestID, childID, actorAccountID, reason)
@@ -233,7 +232,7 @@ func (s *Deletions) DeleteChild(ctx context.Context, requestID, childID, actorAc
 	return impact, nil
 }
 
-func (s *Deletions) deleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*enrollment.DeletionImpact, error) {
+func (s *Deletions) deleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*enrollmentNative.DeletionImpact, error) {
 	if err := s.lockRequestForDeletion(ctx, requestID); err != nil {
 		return nil, err
 	}
@@ -243,7 +242,7 @@ func (s *Deletions) deleteChild(ctx context.Context, requestID, childID, actorAc
 	}
 	child := deletionRequestChildByID(children, childID)
 	if child == nil {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if err := validateDeletableEnrollmentChild(child); err != nil {
 		return nil, err
@@ -253,10 +252,10 @@ func (s *Deletions) deleteChild(ctx context.Context, requestID, childID, actorAc
 		return nil, err
 	}
 	if impact == nil || impact.Counts.RequestChildren != 1 {
-		return nil, enrollment.ErrEnrollmentDeletionNotFound
+		return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if len(impact.BlockingStudentIDs) > 0 {
-		return nil, enrollment.ErrEnrollmentDeletionStudentExists
+		return nil, enrollmentNative.ErrEnrollmentDeletionStudentExists
 	}
 	if impact.DeletesRequest {
 		err = s.deleteRequestTree(ctx, impact, requestID)
@@ -272,7 +271,7 @@ func (s *Deletions) deleteChild(ctx context.Context, requestID, childID, actorAc
 func (s *Deletions) lockRequestForDeletion(ctx context.Context, requestID int64) error {
 	_, err := s.deps.Requests.RequestByID(ctx, requestID, true)
 	if err != nil && s.deps.Runtime.NotFound(err) {
-		return enrollment.ErrEnrollmentDeletionNotFound
+		return enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("lock enrollment request for deletion: %w", err)
@@ -280,7 +279,7 @@ func (s *Deletions) lockRequestForDeletion(ctx context.Context, requestID int64)
 	return nil
 }
 
-func (s *Deletions) auditDeletion(ctx context.Context, impact *enrollment.DeletionImpact, actorAccountID int64, reason string, scope DeletionScope) error {
+func (s *Deletions) auditDeletion(ctx context.Context, impact *enrollmentNative.DeletionImpact, actorAccountID int64, reason string, scope DeletionScope) error {
 	if err := s.deps.Audit.RecordEnrollmentDeletion(ctx, EnrollmentDeletionEvent{
 		RequestID:      impact.RequestID,
 		ChildID:        impact.ChildID,
@@ -304,7 +303,7 @@ func (s *Deletions) validateConfigured() error {
 	return nil
 }
 
-func (s *Deletions) addDeliveryCount(ctx context.Context, impact *enrollment.DeletionImpact) error {
+func (s *Deletions) addDeliveryCount(ctx context.Context, impact *enrollmentNative.DeletionImpact) error {
 	count, err := s.deps.Delivery.CountRelatedEmails(ctx, enrollmentRequestDeliveryType, impact.RequestID)
 	if err != nil {
 		return fmt.Errorf("count enrollment delivery intents: %w", err)
@@ -319,29 +318,29 @@ func validateEnrollmentDeletionInput(actorAccountID int64, reason string) (strin
 	}
 	reason = strings.TrimSpace(reason)
 	if len([]rune(reason)) < 3 || len([]rune(reason)) > 500 {
-		return "", enrollment.ErrEnrollmentDeletionInvalidReason
+		return "", enrollmentNative.ErrEnrollmentDeletionInvalidReason
 	}
 	return reason, nil
 }
 
-func validateDeletableEnrollmentChild(child *enrollment.RequestChild) error {
+func validateDeletableEnrollmentChild(child *enrollmentNative.RequestChild) error {
 	if child == nil {
-		return enrollment.ErrEnrollmentDeletionNotFound
+		return enrollmentNative.ErrEnrollmentDeletionNotFound
 	}
 	if child.CreatedStudentID != nil && *child.CreatedStudentID > 0 {
-		return enrollment.ErrEnrollmentDeletionStudentExists
+		return enrollmentNative.ErrEnrollmentDeletionStudentExists
 	}
 	switch child.Status {
-	case enrollmentModels.ChildStatusRejected,
-		enrollmentModels.ChildStatusWithdrawn,
-		enrollmentModels.ChildStatusApproved:
+	case enrollmentNative.ChildStatusRejected,
+		enrollmentNative.ChildStatusWithdrawn,
+		enrollmentNative.ChildStatusApproved:
 		return nil
 	default:
-		return enrollment.ErrEnrollmentDeletionNotAllowed
+		return enrollmentNative.ErrEnrollmentDeletionNotAllowed
 	}
 }
 
-func deletionRequestChildByID(children []*enrollment.RequestChild, childID int64) *enrollment.RequestChild {
+func deletionRequestChildByID(children []*enrollmentNative.RequestChild, childID int64) *enrollmentNative.RequestChild {
 	for _, child := range children {
 		if child != nil && child.ID == childID {
 			return child

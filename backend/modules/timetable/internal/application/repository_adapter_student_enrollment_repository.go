@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -16,7 +18,7 @@ type timetableStudentEnrollmentRepository struct {
 	names     func(context.Context, []int64) (map[int64]ports.PersonName, error)
 }
 
-func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enrollment *activitiesModels.StudentEnrollment) error {
+func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enrollment *activityContract.StudentEnrollment) error {
 	if enrollment == nil {
 		return errors.New("student enrollment cannot be nil")
 	}
@@ -31,7 +33,7 @@ func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enroll
 	return nil
 }
 
-func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id any) (*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id any) (*activityContract.StudentEnrollment, error) {
 	enrollmentID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid student enrollment id %T", id))
@@ -43,7 +45,7 @@ func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id a
 	return legacyStudentEnrollment(value), nil
 }
 
-func (r timetableStudentEnrollmentRepository) Update(ctx context.Context, enrollment *activitiesModels.StudentEnrollment) error {
+func (r timetableStudentEnrollmentRepository) Update(ctx context.Context, enrollment *activityContract.StudentEnrollment) error {
 	if enrollment == nil {
 		return errors.New("student enrollment cannot be nil")
 	}
@@ -72,7 +74,7 @@ func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id any
 	return nil
 }
 
-func (r timetableStudentEnrollmentRepository) List(ctx context.Context, options *activitiesModels.StudentEnrollmentQueryOptions) ([]*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) List(ctx context.Context, options *activitiesModels.StudentEnrollmentQueryOptions) ([]*activityContract.StudentEnrollment, error) {
 	filter, err := legacyStudentEnrollmentFilter(options)
 	if err != nil {
 		return nil, legacyDatabaseError("list with options", err)
@@ -84,13 +86,13 @@ func (r timetableStudentEnrollmentRepository) List(ctx context.Context, options 
 	return legacyStudentEnrollments(values), nil
 }
 
-func (r timetableStudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activityContract.StudentEnrollment, error) {
 	return r.list(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{studentID}, OrderByValidFrom: true}, "find by student ID")
 }
 
-func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate activitiesModels.StudentEnrollmentDate) ([]*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate activityContract.Date) ([]*activityContract.StudentEnrollment, error) {
 	if len(studentIDs) == 0 {
-		return []*activitiesModels.StudentEnrollment{}, nil
+		return []*activityContract.StudentEnrollment{}, nil
 	}
 	date := onDate.String()
 	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{StudentIDs: studentIDs, ActiveOn: &date, OrderByGroupName: true}, "find active enrollments by student IDs")
@@ -105,7 +107,7 @@ func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context
 	if err != nil {
 		return nil, legacyDatabaseError("find active enrollment groups", err)
 	}
-	byID := make(map[int64]*activitiesModels.Group, len(groups))
+	byID := make(map[int64]*activityContract.Group, len(groups))
 	for _, group := range groups {
 		byID[group.ID] = legacyGroup(group)
 	}
@@ -115,7 +117,7 @@ func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context
 	return rows, nil
 }
 
-func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.StudentEnrollment, error) {
 	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: []int64{groupID}, OrderByValidFrom: true}, "find by group ID")
 	if err != nil || len(rows) == 0 {
 		return rows, err
@@ -145,7 +147,7 @@ func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context,
 	return rows, nil
 }
 
-func (r timetableStudentEnrollmentRepository) list(ctx context.Context, filter timetable.StudentEnrollmentFilter, operation string) ([]*activitiesModels.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) list(ctx context.Context, filter timetable.StudentEnrollmentFilter, operation string) ([]*activityContract.StudentEnrollment, error) {
 	values, err := r.timetable.ListStudentEnrollments(ctx, filter)
 	if err != nil {
 		return nil, legacyStudentEnrollmentError(operation, err)
@@ -153,34 +155,34 @@ func (r timetableStudentEnrollmentRepository) list(ctx context.Context, filter t
 	return legacyStudentEnrollments(values), nil
 }
 
-func (r timetableStudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activitiesModels.StudentEnrollmentDate) (int64, error) {
+func (r timetableStudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activityContract.Date) (int64, error) {
 	rows, err := r.timetable.CapActiveStudentEnrollments(ctx, groupID, validUntil.String())
 	return rows, legacyStudentEnrollmentError("cap active enrollments by group", err)
 }
 
-func (r timetableStudentEnrollmentRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil activitiesModels.StudentEnrollmentDate) error {
+func (r timetableStudentEnrollmentRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil activityContract.Date) error {
 	return legacyStudentEnrollmentError("set enrollment valid_until", r.timetable.SetStudentEnrollmentValidUntil(ctx, id, validUntil.String()))
 }
 
-func (r timetableStudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, periodID *int64, validUntil activitiesModels.StudentEnrollmentDate) error {
+func (r timetableStudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, periodID *int64, validUntil activityContract.Date) error {
 	return legacyStudentEnrollmentError("close open enrollments by group and period", r.timetable.CloseOpenStudentEnrollments(ctx, groupID, periodID, validUntil.String()))
 }
 
-func legacyStudentEnrollments(values []timetable.StudentEnrollment) []*activitiesModels.StudentEnrollment {
-	result := make([]*activitiesModels.StudentEnrollment, 0, len(values))
+func legacyStudentEnrollments(values []timetable.StudentEnrollment) []*activityContract.StudentEnrollment {
+	result := make([]*activityContract.StudentEnrollment, 0, len(values))
 	for _, value := range values {
 		result = append(result, legacyStudentEnrollment(value))
 	}
 	return result
 }
 
-func legacyStudentEnrollment(value timetable.StudentEnrollment) *activitiesModels.StudentEnrollment {
-	result := &activitiesModels.StudentEnrollment{StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
-		ValidFrom: activitiesModels.StudentEnrollmentDate(value.ValidFrom), CalendarPeriodID: value.CalendarPeriodID,
+func legacyStudentEnrollment(value timetable.StudentEnrollment) *activityContract.StudentEnrollment {
+	result := &activityContract.StudentEnrollment{StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
+		ValidFrom: activityContract.Date(value.ValidFrom), CalendarPeriodID: value.CalendarPeriodID,
 		EnrollmentRequestChildID: value.EnrollmentRequestChildID, SelectedWeekdays: value.SelectedWeekdays,
 		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
 	if value.ValidUntil != nil {
-		date := activitiesModels.StudentEnrollmentDate(*value.ValidUntil)
+		date := activityContract.Date(*value.ValidUntil)
 		result.ValidUntil = &date
 	}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
@@ -188,7 +190,7 @@ func legacyStudentEnrollment(value timetable.StudentEnrollment) *activitiesModel
 	return result
 }
 
-func publicStudentEnrollmentInput(value *activitiesModels.StudentEnrollment) timetable.StudentEnrollmentInput {
+func publicStudentEnrollmentInput(value *activityContract.StudentEnrollment) timetable.StudentEnrollmentInput {
 	var validUntil *string
 	if value.ValidUntil != nil {
 		text := value.ValidUntil.String()

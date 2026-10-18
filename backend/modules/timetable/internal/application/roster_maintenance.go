@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -294,7 +296,7 @@ func (s *RosterReconciler) instancesMaterializedAfter(
 func (s *RosterReconciler) restoreEnrollmentRows(
 	ctx context.Context,
 	studentID int64,
-	enrollment *activities.StudentEnrollment,
+	enrollment *activityContract.StudentEnrollment,
 	instances []*schedule.ActivityInstance,
 	existing map[instanceStudentPair]*schedule.InstanceStudent,
 	touched map[int64]calendar.Date,
@@ -368,8 +370,8 @@ func (s *RosterReconciler) existingStudentRows(ctx context.Context, instanceIDs 
 	return existing, nil
 }
 
-func enrollmentsByStudentID(rows []*activities.StudentEnrollment) map[int64][]*activities.StudentEnrollment {
-	byStudent := make(map[int64][]*activities.StudentEnrollment, len(rows))
+func enrollmentsByStudentID(rows []*activityContract.StudentEnrollment) map[int64][]*activityContract.StudentEnrollment {
+	byStudent := make(map[int64][]*activityContract.StudentEnrollment, len(rows))
 	for _, e := range rows {
 		byStudent[e.StudentID] = append(byStudent[e.StudentID], e)
 	}
@@ -441,15 +443,15 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 
 // rosterEnrollmentRows maps the contract's prior roster onto the enrollment
 // rows the validity predicate reads.
-func rosterEnrollmentRows(prior []timetable.RosterEnrollment) []*activities.StudentEnrollment {
+func rosterEnrollmentRows(prior []timetable.RosterEnrollment) []*activityContract.StudentEnrollment {
 	if prior == nil {
 		return nil
 	}
-	rows := make([]*activities.StudentEnrollment, 0, len(prior))
+	rows := make([]*activityContract.StudentEnrollment, 0, len(prior))
 	for _, e := range prior {
-		rows = append(rows, &activities.StudentEnrollment{
+		rows = append(rows, &activityContract.StudentEnrollment{
 			StudentID:        e.StudentID,
-			ValidFrom:        activities.Date(e.ValidFrom),
+			ValidFrom:        activityContract.Date(e.ValidFrom),
 			ValidUntil:       activityDatePtr(e.ValidUntil),
 			CalendarPeriodID: e.CalendarPeriodID,
 			Weekday:          e.Weekday,
@@ -464,8 +466,8 @@ func rosterEnrollmentRows(prior []timetable.RosterEnrollment) []*activities.Stud
 // against: the template's current and prior enrollments per student and the
 // occurrences' existing rows.
 type sourcedRosterPass struct {
-	byStudent      map[int64][]*activities.StudentEnrollment
-	priorByStudent map[int64][]*activities.StudentEnrollment
+	byStudent      map[int64][]*activityContract.StudentEnrollment
+	priorByStudent map[int64][]*activityContract.StudentEnrollment
 	existing       map[instanceStudentPair]*schedule.InstanceStudent
 	touched        map[int64]calendar.Date
 	created        int
@@ -474,7 +476,7 @@ type sourcedRosterPass struct {
 
 func (s *RosterReconciler) reconcileSourcedTemplateRosters(
 	ctx context.Context, templateID int64, studentIDs []int64, from calendar.Date,
-	priorEnrollments []*activities.StudentEnrollment,
+	priorEnrollments []*activityContract.StudentEnrollment,
 ) (int, int, error) {
 	if templateID <= 0 || len(studentIDs) == 0 {
 		return 0, 0, nil
@@ -518,7 +520,7 @@ func (s *RosterReconciler) loadSourcedRosterPass(
 	ctx context.Context,
 	templateID int64,
 	instanceIDs []int64,
-	priorEnrollments []*activities.StudentEnrollment,
+	priorEnrollments []*activityContract.StudentEnrollment,
 ) (*sourcedRosterPass, error) {
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
@@ -600,7 +602,7 @@ func (s *RosterReconciler) removeOccurrenceStudent(ctx context.Context, key inst
 
 // enrollmentsPlanStudentOn reports whether any of the rows plans its student
 // on the occurrence date: valid on that date and not carried by an alumnus.
-func enrollmentsPlanStudentOn(rows []*activities.StudentEnrollment, date calendar.Date, periodID int64, planWeekday int) bool {
+func enrollmentsPlanStudentOn(rows []*activityContract.StudentEnrollment, date calendar.Date, periodID int64, planWeekday int) bool {
 	for _, e := range rows {
 		if isEnrollmentValidOn(e, date, periodID, planWeekday) && !enrollmentStudentIsAlumnus(e) {
 			return true

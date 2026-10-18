@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -117,7 +116,7 @@ func decodeSubmitChild(in enrollment.SubmitChild) (SubmitChild, error) {
 
 // submitOutcome is what a stored submission or edit produced, decoded.
 type submitOutcome struct {
-	Request   *enrollmentModels.Request
+	Request   *Request
 	Children  []*RequestChild
 	StatusURL string
 	Warnings  []enrollment.SubmissionWarning
@@ -154,7 +153,7 @@ func childInputs(values []*RequestChild) ([]*enrollment.RequestChild, error) {
 // generated metadata.
 func createDecodedRequest(ctx context.Context, owner interface {
 	InsertRequest(context.Context, *enrollment.Request) error
-}, req *enrollmentModels.Request) error {
+}, req *Request) error {
 	value, err := requestInput(req)
 	if err != nil {
 		return err
@@ -173,7 +172,7 @@ func createDecodedRequest(ctx context.Context, owner interface {
 // updateDecodedRequest writes the guardian fields of a decoded request.
 func updateDecodedRequest(ctx context.Context, owner interface {
 	UpdateRequestGuardian(context.Context, *enrollment.Request, bool) error
-}, req *enrollmentModels.Request, includeEmail bool) error {
+}, req *Request, includeEmail bool) error {
 	value, err := requestInput(req)
 	if err != nil {
 		return err
@@ -185,7 +184,7 @@ func updateDecodedRequest(ctx context.Context, owner interface {
 // token, optionally locked.
 func decodedRequestByToken(ctx context.Context, owner interface {
 	RequestByToken(context.Context, string, bool) (*enrollment.Request, error)
-}, token string, lock bool) (*enrollmentModels.Request, error) {
+}, token string, lock bool) (*Request, error) {
 	value, err := owner.RequestByToken(ctx, token, lock)
 	if err != nil {
 		return nil, err
@@ -196,7 +195,7 @@ func decodedRequestByToken(ctx context.Context, owner interface {
 // decodedRequestsByID reads and decodes a batch of requests.
 func decodedRequestsByID(ctx context.Context, owner interface {
 	RequestsByID(context.Context, []int64) ([]*enrollment.Request, error)
-}, ids []int64) ([]*enrollmentModels.Request, error) {
+}, ids []int64) ([]*Request, error) {
 	values, err := owner.RequestsByID(ctx, ids)
 	if err != nil {
 		return nil, err

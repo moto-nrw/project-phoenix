@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -24,7 +26,7 @@ type FacilitiesYard struct {
 }
 
 // buildActivities binds the activities service of the Timetable owner.
-func buildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions *presenceCompose.SessionRecords, people PeopleRows) (arrivalTimetable.ActivityService, error) {
+func buildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions *presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
 		timetableOwner, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
@@ -35,7 +37,7 @@ func buildActivities(owner TimetableOwner, timetableOwner timetable.Capability, 
 // buildFacilitiesYard binds the yard and WC views over the retained room
 // service (#4010); Facilities owns the room deletion decision behind its
 // room usage port.
-func buildFacilitiesYard(env RootEnvironment, rooms FacilitiesRooms, activities arrivalTimetable.ActivityService) FacilitiesYard {
+func buildFacilitiesYard(env RootEnvironment, rooms FacilitiesRooms, activities activityContract.ActivityService) FacilitiesYard {
 	logger := env.Logger.With("service", "facilities")
 	return FacilitiesYard{
 		Schulhof: facilitiesCompose.NewSchulhofService(rooms.RoomService, FacilitiesActivityCatalog(activities), rooms.OpenGroups, logger),
@@ -52,7 +54,7 @@ func buildFacilitiesYard(env RootEnvironment, rooms FacilitiesRooms, activities 
 func buildShiftPlanning(
 	db transactionruntime.Database, env RootEnvironment, transport MailTransport, workTime workforceModule.Capability,
 	people PeopleRows, calendar schoolcalendar.Days, audit AuditOwner, owner TimetableOwner, rooms facilitiesModule.Catalog,
-	activities arrivalTimetable.ActivityService,
+	activities activityContract.ActivityService,
 ) (*workforceCompose.ShiftPlanning, error) {
 	repos := owner.Repositories
 	return workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{

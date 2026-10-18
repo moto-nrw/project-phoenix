@@ -16,9 +16,9 @@ import (
 
 func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	t.Parallel()
-	db, active, activeTimetable, activePresence, activePeople := setupIoTActiveModule(t)
+	db, active, _, activityService, activePresence, activePeople := setupIoTActiveModule(t)
 	_, timetable := setupIoTTimetableModule(t)
-	mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), activeTimetable.Activities)
+	mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), activityService)
 	require.NoError(t, err)
 	_, auth := setupIoTSettingsModule(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "Mirror Activity")

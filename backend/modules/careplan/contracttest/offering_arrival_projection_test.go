@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -81,12 +82,12 @@ func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID in
 		"turning booking authority off must restore the preserved weekly plan")
 }
 
-func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *enrollmentModels.CareOffering {
+func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  days,
 		IsActive:       true,
 		CountsAsCare:   true,

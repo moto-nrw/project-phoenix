@@ -18,8 +18,8 @@ import (
 func NewAttendanceSyncTestRepositories(db transactionruntime.Database, capability timetable.Capability) TimetableOwnerRows {
 	presence := NewUnloggedStudentPresence(db)
 	return timetableCompose.NewNativeMirrorRows(timetableCompose.OwnerRows{
-		Instances:    timetableCompose.NewActivityInstanceRepository(db.Pool(), capability, presence),
-		Participants: timetableCompose.NewInstanceStudentRepository(db.Pool(), capability, presence, NewPartialAbsencePreview(db)),
+		Instances:    timetableCompose.NewActivityInstanceRepository(MustPresenceReads(db), capability, presence),
+		Participants: timetableCompose.NewInstanceStudentRepository(MustPresenceReads(db), capability, presence, NewPartialAbsencePreview(db)),
 	})
 }
 

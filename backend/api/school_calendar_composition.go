@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )

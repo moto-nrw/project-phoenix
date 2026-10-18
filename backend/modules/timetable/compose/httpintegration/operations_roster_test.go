@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -368,7 +369,7 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
 		{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
 	}
-	deps.activityGroups.byID[activityGroupID] = &activitiesModels.Group{EducationGroupID: &expectedGroupID}
+	deps.activityGroups.byID[activityGroupID] = &activityContract.Group{EducationGroupID: &expectedGroupID}
 	deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 462, SchoolClass: "3b", LifecycleStudent: timetable.LifecycleStudent{GroupID: &actualGroupID}}
 	deps.personService.people[462] = &timetable.Person{FirstName: "Nina", LastName: "Nachmittag"}
 	deps.groups.names[expectedGroupID] = "Klasse 2a"
@@ -409,10 +410,10 @@ func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
 		{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
 		{StudentID: outsideStudentID, Status: scheduleModels.AttendanceStatusExpected},
 	}
-	deps.activityGroups.byID[activityGroupID] = &activitiesModels.Group{EducationGroupID: &firstGroupID}
-	deps.activityGroups.targetsByGroup[activityGroupID] = []*activitiesModels.GroupTarget{
-		{TargetGroupType: activitiesModels.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
-		{TargetGroupType: activitiesModels.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
+	deps.activityGroups.byID[activityGroupID] = &activityContract.Group{EducationGroupID: &firstGroupID}
+	deps.activityGroups.targetsByGroup[activityGroupID] = []*activityContract.GroupTarget{
+		{TargetGroupType: activityContract.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
+		{TargetGroupType: activityContract.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
 	}
 	deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 464, LifecycleStudent: timetable.LifecycleStudent{GroupID: &secondGroupID}}
 	deps.students.byID[outsideStudentID] = &timetable.OperationStudent{PersonID: 465, LifecycleStudent: timetable.LifecycleStudent{GroupID: &outsideGroupID}}

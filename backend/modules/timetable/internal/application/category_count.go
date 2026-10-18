@@ -3,11 +3,13 @@ package application
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 )
 
 type CategoryCountRecords interface {
-	List(context.Context, *activities.QueryOptions) ([]*activities.Category, error)
+	List(context.Context, *activities.QueryOptions) ([]*activityContract.Category, error)
 }
 
 // CategoryCount supplies the category total from the tenant's category directory.

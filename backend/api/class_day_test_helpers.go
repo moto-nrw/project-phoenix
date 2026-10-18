@@ -33,7 +33,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	activeSettings := NewActiveTestSettings(db, unit, clocks...)
 	activeCaller := NewActiveTestCaller(db, unit, clocks...)
-	activeTimetable := NewActiveTestTimetable(db, unit, clocks...)
+	activeTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
 	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return ClassDayTestModule{}, err

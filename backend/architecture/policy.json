@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 80,
+  "policy_epoch": 81,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1276,27 +1276,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/base",
-      "owner": "transaction-runtime",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/delivery",
-      "owner": "delivery-platform",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/enrollment",
-      "owner": "enrollment",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/feedback/internal/domain",
       "owner": "feedback",
       "role": "domain",
@@ -1960,13 +1939,6 @@
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/timetable/compose/httpadapter",
-      "owner": "timetable-activities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/timetable/compose/httpintegration",
@@ -3418,16 +3390,128 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/parentmessaging",
+      "path": "modules/communication/internal/application/parentmessaging",
       "owner": "communication",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/base",
+      "path": "modules/timetable/http/activities",
+      "owner": "timetable-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/projections/parentannouncementaudience",
+      "owner": "parent-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentannouncementaudience/contract",
+      "owner": "parent-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/projections/parentmessageinbox",
+      "owner": "parent-message-inbox",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentmessageinbox/contract",
+      "owner": "parent-message-inbox",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/projections/staffmessageinbox",
+      "owner": "staff-message-inbox",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffmessageinbox/contract",
+      "owner": "staff-message-inbox",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/projections/operatordashboard",
+      "owner": "operator-dashboard-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/operatordashboard/contract",
+      "owner": "operator-dashboard-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/base",
       "owner": "transaction-runtime",
-      "role": "postgres",
+      "role": "legacy-model",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/delivery",
+      "owner": "delivery-platform",
+      "role": "legacy-model",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffannouncementaudience/contract",
+      "owner": "staff-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/projections/staffannouncementaudience",
+      "owner": "staff-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/offeringcontract",
+      "owner": "enrollment",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/eventcontract",
+      "owner": "communication",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/activitycontract",
+      "owner": "timetable-activities",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/presenceprojection/presencecontract",
+      "owner": "presence-legacy-view",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -7426,17 +7510,6 @@
       "target_role": "compose"
     },
     {
-      "id": "enrollment.http-integration-test.domain",
-      "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "feedback.http.public",
       "description": "The Feedback HTTP adapter calls its own public capability.",
       "scopes": [
@@ -7851,17 +7924,6 @@
       "same_owner": true
     },
     {
-      "id": "platform.application-legacy-model",
-      "description": "platform application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "application",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "platform.application-port",
       "description": "platform application code may use its own consumer-owned ports.",
       "scopes": [
@@ -7881,17 +7943,6 @@
       "source_owner_kind": "platform",
       "source_role": "postgres",
       "target_role": "domain",
-      "same_owner": true
-    },
-    {
-      "id": "platform.postgres-legacy-model",
-      "description": "platform Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "postgres",
-      "target_role": "legacy-model",
       "same_owner": true
     },
     {
@@ -8374,27 +8425,6 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-activities.compose.http-router",
-      "description": "Timetable compatibility composition binds the established HTTP transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "timetable-activities.compose.security-contract",
-      "description": "Timetable HTTP composition binds established activity permissions.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "timetable-activities.internal-test.tenant-runtime",
       "description": "Timetable & Activities composition tests verify rollback and tenant isolation through the shared runtime.",
       "scopes": [
@@ -8437,29 +8467,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "legacy-model"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.common.tenant-runtime-common",
-      "description": "Timetable HTTP integration tests inspect shared error rendering contracts.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "http",
-      "target_package": "api/common"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.identity-adapter",
-      "description": "Timetable HTTP integration tests supply authenticated claims.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "timetable-activities.http-integration-test.owner-domain",
@@ -8735,17 +8742,6 @@
       "source_role": "adapter-test",
       "target_owner": "delivery-platform",
       "target_role": "domain"
-    },
-    {
-      "id": "delivery.adapter-test.legacy-model",
-      "description": "Delivery Postgres adapter tests construct owned domain values. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
     },
     {
       "id": "delivery.adapter-test.postgres",
@@ -9024,17 +9020,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "application"
-    },
-    {
-      "id": "delivery-platform.workflow-integration-test.delivery-platform-legacy-model",
-      "description": "Allows one dependency introduced by the Delivery package cutover. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
     },
     {
       "id": "delivery-platform.workflow-integration-test.tenant-runtime-public",
@@ -13096,17 +13081,6 @@
       "same_owner": true
     },
     {
-      "id": "owner-compose.platform.legacy-model",
-      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "compose",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "owner-compose.platform.postgres",
       "description": "ADR 0053 point 3: the composition of a platform owner imports its own postgres role.",
       "scopes": [
@@ -15195,6 +15169,432 @@
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "public"
+    },
+    {
+      "id": "parent-announcement-audience.postgres.parentannouncementaudience.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/communication/internal/adapters/parentaudience",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/parentannouncementaudience/contract"
+    },
+    {
+      "id": "communication.compose.parentannouncementaudience.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "source_package": "modules/communication/parentstore",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/parentannouncementaudience/contract"
+    },
+    {
+      "id": "parent-message-inbox.postgres.parentmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-message-inbox",
+      "source_role": "postgres",
+      "source_package": "modules/communication/internal/adapters/parentinbox",
+      "target_owner": "parent-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/parentmessageinbox/contract"
+    },
+    {
+      "id": "communication.compose.parentmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "source_package": "modules/communication/parentstore",
+      "target_owner": "parent-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/parentmessageinbox/contract"
+    },
+    {
+      "id": "staff-message-inbox.postgres.staffmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-message-inbox",
+      "source_role": "postgres",
+      "source_package": "modules/communication/internal/adapters/staffinbox",
+      "target_owner": "staff-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/staffmessageinbox/contract"
+    },
+    {
+      "id": "communication.compose.staffmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "source_package": "modules/communication/staffstore",
+      "target_owner": "staff-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/staffmessageinbox/contract"
+    },
+    {
+      "id": "operator-dashboard-view.postgres.native-contract",
+      "description": "Own native projection values, replacing inline private definitions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "postgres",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery-platform.workflow-integration-test.delivery-platform-legacy-model",
+      "description": "Allows one dependency introduced by the Delivery package cutover. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "delivery.adapter-test.legacy-model",
+      "description": "Delivery Postgres adapter tests construct owned domain values. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "owner-compose.platform.legacy-model",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "legacy-model",
+      "same_owner": true
+    },
+    {
+      "id": "platform.application-legacy-model",
+      "description": "platform application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "application",
+      "target_role": "legacy-model",
+      "same_owner": true
+    },
+    {
+      "id": "platform.postgres-legacy-model",
+      "description": "platform Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "postgres",
+      "target_role": "legacy-model",
+      "same_owner": true
+    },
+    {
+      "id": "staff-announcement-audience.postgres.staff-audience.native-public",
+      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/communication/internal/adapters/audience",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/staffannouncementaudience/contract"
+    },
+    {
+      "id": "communication.compose.staff-audience.native-public",
+      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "source_package": "modules/communication/composition",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/staffannouncementaudience/contract"
+    },
+    {
+      "id": "care-plan.contracttest.enrollment-offering-contract",
+      "description": "Native availability and offering values replace the retired legacy-model test boundary.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.application.offering-contract",
+      "description": "The implementation uses native availability and offering values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.public.offering-contract",
+      "description": "Enrollment preserves its existing days-required error identity from the actual native offering contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "public",
+      "source_package": "modules/enrollment",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "communication.application.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "source_package": "modules/communication/internal/application/parentmessaging",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.adapter.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "source_package": "modules/communication/internal/parentmessages",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.test-support.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "source_package": "modules/communication/communicationtest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "care-plan.e2e-test.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.event-contract.public",
+      "description": "The event capability includes Communication's existing parent-authored event port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "contract",
+      "source_package": "modules/communication/eventcontract",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.production.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.legacy-model.production.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "legacy-model",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract",
+      "source_package": "models/activities"
+    },
+    {
+      "id": "timetable-activities.workflow-integration-test.internal_test.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract",
+      "source_package": "modules/timetable/compose"
+    },
+    {
+      "id": "timetable-activities.activity-contract.public",
+      "description": "The activity capability uses the owner's existing native people and occupancy values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "contract",
+      "source_package": "modules/timetable/activitycontract",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.activity-contract",
+      "description": "Owner HTTP uses its native activity capability, following the existing owner HTTP contract shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "presence-legacy-view.postgres.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "source_package": "modules/presenceprojection",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.application.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "source_package": "modules/timetable/internal/application",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.port.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "source_package": "modules/timetable/ports",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.port.activity-contract",
+      "description": "Consumer ports use the actual native activity values, not retained rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "source_package": "modules/timetable/ports",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.common",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.identity-runtime",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "root-composition.internal-test.activity-contract",
+      "description": "Root test construction names the actual native activity capability, replacing its retained compose declaration.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
     }
   ],
   "relocations": [
@@ -15366,6 +15766,11 @@
     {
       "from": "services/iot",
       "to": "modules/devicefleet/internal/application/deviceservice",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/parentmessaging",
+      "to": "modules/communication/internal/application/parentmessaging",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

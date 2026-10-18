@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,7 +27,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 
 	effective := futureMonday(2)
 	singleDate := effective.AddDays(-7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, singleDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, singleDate)
 	defer s.runCleanup(t)
 
 	materialized, err := s.svc.MaterializeForTenant(s.ctx, singleDate, singleDate, timetable.MaterializationSourceManual)
@@ -75,7 +76,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 			TargetGradeLevel:  successor.TargetGradeLevel,
 			TargetSchoolClass: successor.TargetSchoolClass,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		TimeframeID:     s.timeframe.ID,
 		WeekPattern:     s.schedule.WeekPattern,
 		RosterValidFrom: singleDate.AddDays(-30),
@@ -88,7 +89,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, successorSchedules, 1)
 	require.NotNil(t, successorSchedules[0].ValidFrom)
-	assert.Equal(t, activitiesModels.Date(effective), *successorSchedules[0].ValidFrom)
+	assert.Equal(t, activityContract.Date(effective), *successorSchedules[0].ValidFrom)
 
 	// The frontend follows a full-series PUT with a successor-scoped re-plan.
 	// Materialization still examines every template, making this the exact

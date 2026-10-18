@@ -4,15 +4,6 @@ package schoolclass
 
 import "strings"
 
-// Supported grade bounds are shared by target-group validation, tenant
-// metadata, and enrollment settings. Keeping them here prevents the public
-// form and timetable APIs from drifting apart again.
-const (
-	MinGradeLevel        = 1
-	DefaultGradeLevelMax = 4
-	MaxGradeLevel        = 13
-)
-
 // Normalize maps a school class name onto the identity used for matching:
 // trimmed and lowercased. users.students.school_class is free text, so "1a",
 // " 1a " and "1A" must count as the same class everywhere — the DB side uses

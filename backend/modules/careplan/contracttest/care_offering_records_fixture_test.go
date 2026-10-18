@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
@@ -22,7 +23,7 @@ func newCareOfferingFixtureRecords(capability careplan.Capability) careOfferingF
 	return careOfferingFixtureRecords{carePlan: capability}
 }
 
-func (r careOfferingFixtureRecords) Create(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+func (r careOfferingFixtureRecords) Create(ctx context.Context, offering *offeringContract.CareOfferingRecord) error {
 	if offering == nil {
 		return errors.New("CareOffering cannot be nil or zero value")
 	}
@@ -40,16 +41,16 @@ func (r careOfferingFixtureRecords) Create(ctx context.Context, offering *enroll
 	return applyCareOfferingFixture(offering, created)
 }
 
-func (r careOfferingFixtureRecords) FindByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtureRecords) FindByID(ctx context.Context, id int64) (*offeringContract.CareOfferingRecord, error) {
 	value, err := r.carePlan.FindCareOffering(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find care offering %d: %w", id, err)
 	}
-	offering := new(enrollmentModels.CareOffering)
+	offering := new(offeringContract.CareOfferingRecord)
 	return offering, applyCareOfferingFixture(offering, value)
 }
 
-func (r careOfferingFixtureRecords) Update(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+func (r careOfferingFixtureRecords) Update(ctx context.Context, offering *offeringContract.CareOfferingRecord) error {
 	if offering == nil {
 		return errors.New("CareOffering cannot be nil or zero value")
 	}
@@ -82,14 +83,14 @@ func (r careOfferingFixtureRecords) ReplaceAutoAddTriggers(ctx context.Context, 
 }
 
 // ListByTenant lists every offering of the tenant in catalog order.
-func (r careOfferingFixtureRecords) ListByTenant(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtureRecords) ListByTenant(ctx context.Context) ([]*offeringContract.CareOfferingRecord, error) {
 	values, err := r.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderCatalog})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list care offerings: %w", err)
 	}
-	result := make([]*enrollmentModels.CareOffering, 0, len(values))
+	result := make([]*offeringContract.CareOfferingRecord, 0, len(values))
 	for _, value := range values {
-		offering := new(enrollmentModels.CareOffering)
+		offering := new(offeringContract.CareOfferingRecord)
 		if err := applyCareOfferingFixture(offering, value); err != nil {
 			return nil, err
 		}
@@ -98,7 +99,7 @@ func (r careOfferingFixtureRecords) ListByTenant(ctx context.Context) ([]*enroll
 	return result, nil
 }
 
-func careOfferingFixtureFields(offering *enrollmentModels.CareOffering) (careplan.CareOfferingFields, error) {
+func careOfferingFixtureFields(offering *offeringContract.CareOfferingRecord) (careplan.CareOfferingFields, error) {
 	availabilityRule, err := json.Marshal(offering.AvailabilityRule)
 	if err != nil {
 		return careplan.CareOfferingFields{}, err
@@ -115,7 +116,7 @@ func careOfferingFixtureFields(offering *enrollmentModels.CareOffering) (carepla
 	}, nil
 }
 
-func applyCareOfferingFixture(target *enrollmentModels.CareOffering, value careplan.CareOffering) error {
+func applyCareOfferingFixture(target *offeringContract.CareOfferingRecord, value careplan.CareOffering) error {
 	target.ID = value.ID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
@@ -152,7 +153,7 @@ func applyCareOfferingFixture(target *enrollmentModels.CareOffering, value carep
 // change request, or nil when there is none.
 func pendingOfferingChangeForStudent(ctx context.Context, carePlan careplan.Capability, studentID int64) (*careplan.OfferingChangeRequest, error) {
 	rows, err := carePlan.ListOfferingChanges(ctx, careplan.OfferingChangeFilter{
-		StudentID: studentID, Statuses: []string{enrollmentModels.OfferingChangeStatusPending}, Order: careplan.ChangeOrderCreated,
+		StudentID: studentID, Statuses: []string{offeringContract.OfferingChangeStatusPending}, Order: careplan.ChangeOrderCreated,
 	})
 	if err != nil || len(rows) == 0 {
 		return nil, err

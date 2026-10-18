@@ -3,8 +3,9 @@ package contracttest_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -51,9 +52,9 @@ func createAutoAddTarget(
 	env *decisionTestEnv,
 	label string,
 	triggerID int64,
-) *enrollmentModels.CareOffering {
+) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := createAdjustmentCareOfferingWith(t, env, "Automatisch "+label, func(o *enrollmentModels.CareOffering) {
+	offering := createAdjustmentCareOfferingWith(t, env, "Automatisch "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.SortOrder = 203
 	})
 	// Create writes only the offering row; the rule lives in
@@ -165,11 +166,11 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 		ManualSelectedDays:    []string{"tue"},
 		AutomaticSelectedDays: []string{"mon"},
 	}))
-	auto.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
-		Match: enrollmentModels.AvailabilityMatchAll,
-		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
-			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
-			Operator: enrollmentModels.AvailabilityOperatorIn,
+	auto.AvailabilityRule = &offeringContract.CareOfferingAvailabilityRule{
+		Match: offeringContract.AvailabilityMatchAll,
+		Conditions: []offeringContract.CareOfferingAvailabilityCondition{{
+			Source:   offeringContract.AvailabilitySourceGradeLevel,
+			Operator: offeringContract.AvailabilityOperatorIn,
 			Value:    []int{1},
 		}},
 	}
@@ -287,11 +288,11 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 		SelectedDays:          []string{"mon"},
 		AutomaticSelectedDays: []string{"mon"},
 	}))
-	automatic.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
-		Match: enrollmentModels.AvailabilityMatchAll,
-		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
-			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
-			Operator: enrollmentModels.AvailabilityOperatorIn,
+	automatic.AvailabilityRule = &offeringContract.CareOfferingAvailabilityRule{
+		Match: offeringContract.AvailabilityMatchAll,
+		Conditions: []offeringContract.CareOfferingAvailabilityCondition{{
+			Source:   offeringContract.AvailabilitySourceGradeLevel,
+			Operator: offeringContract.AvailabilityOperatorIn,
 			Value:    []int{1},
 		}},
 	}
@@ -337,10 +338,10 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutMixed")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutMixed", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutMixed", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet = false, true
 		o.SortOrder = 204
 	})
@@ -393,10 +394,10 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PreviewPartialCascade")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde PreviewPartialCascade", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = false, true, 204
 	})
 	mixed := createAutoAddTarget(t, env, "PreviewPartialCascade", trigger.ID)
@@ -450,7 +451,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
@@ -461,15 +462,15 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutNoRuleDays")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare = true
 		o.CountsAsCareSet = true
 		o.SortOrder = 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.SortOrder = 204
 	})
-	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.AvailableDays = []string{"mon"}
 		o.IsRequired = true
 		o.IncludesLunch = true
@@ -499,7 +500,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
@@ -529,7 +530,7 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 
 	pending, findErr := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 	assert.Nil(t, pending.DecisionSnapshot)
 }
 
@@ -555,7 +556,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot)
 	assert.Empty(t, decided.DecisionSnapshot.OverriddenOfferings)
-	var autoSnap *enrollmentModels.OfferingChangeSnapshotEntry
+	var autoSnap *offeringContract.OfferingChangeSnapshotEntry
 	for i := range decided.DecisionSnapshot.Diff {
 		if decided.DecisionSnapshot.Diff[i].OfferingID == auto.ID {
 			autoSnap = &decided.DecisionSnapshot.Diff[i]
@@ -593,10 +594,10 @@ func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot
 
 	decided, findErr := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, decided.Status)
 	require.NotNil(t, decided.DecisionSnapshot)
 	require.NotEmpty(t, decided.DecisionSnapshot.Diff)
-	assert.Contains(t, decided.DecisionSnapshot.Diff, enrollmentModels.OfferingChangeSnapshotEntry{
+	assert.Contains(t, decided.DecisionSnapshot.Diff, offeringContract.OfferingChangeSnapshotEntry{
 		OfferingID: fx.newOffering.ID,
 		Label:      fx.newOffering.Name,
 		OldState:   "not_booked",

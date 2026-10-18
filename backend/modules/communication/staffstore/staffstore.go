@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -65,6 +64,7 @@ func postgresDatabase(db *bun.DB) staffpostgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }
 
-func inboxDatabase(db *bun.DB) staffinbox.Database {
+// ProjectionDatabase exposes this store's existing ambient runtime for root binding.
+func ProjectionDatabase(db *bun.DB) func(context.Context) (bun.IDB, int64, error) {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }

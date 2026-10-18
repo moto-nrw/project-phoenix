@@ -45,7 +45,7 @@ func (r presenceProjectionReads) OpenParticipants(ctx context.Context, studentID
 	if err != nil {
 		return nil, err
 	}
-	rows, err := presenceProjection.Reader{}.ListOpenParticipants(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentIDs)
+	rows, err := presenceProjection.New().ListOpenParticipants(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (r presenceProjectionReads) LatestAttendedBlockDate(ctx context.Context, st
 	if err != nil {
 		return nil, err
 	}
-	return presenceProjection.Reader{}.LatestAttendedBlockDate(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentID)
+	return presenceProjection.New().LatestAttendedBlockDate(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentID)
 }
 
 // courseStatistics serves the Statistik report's course inputs.
@@ -78,7 +78,7 @@ func (c courseStatistics) CourseInstances(ctx context.Context, from, to, today t
 	if err != nil {
 		return nil, err
 	}
-	values, err := presenceProjection.Reader{}.CourseInstances(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
+	values, err := presenceProjection.New().CourseInstances(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (c courseStatistics) CourseParticipation(ctx context.Context, from, to, tod
 	if err != nil {
 		return nil, err
 	}
-	values, err := presenceProjection.Reader{}.CourseParticipation(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
+	values, err := presenceProjection.New().CourseParticipation(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
 	if err != nil {
 		return nil, err
 	}

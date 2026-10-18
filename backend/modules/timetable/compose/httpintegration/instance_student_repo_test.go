@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -2191,13 +2192,13 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 
 	student := testpkg.CreateTestStudent(t, db, "Preview", fmt.Sprintf("Enrollment-%d", time.Now().UnixNano()), "3a")
 	group := testpkg.CreateTestActivityGroup(t, db, "Preview enrollment")
-	enrollment := &activitiesModels.StudentEnrollment{
+	enrollment := &activityContract.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       activitiesModels.Date(date.AddDays(-1)),
+		ValidFrom:       activityContract.Date(date.AddDays(-1)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(enrollment).Exec(ctx)
+	_, err := db.NewInsert().Model(activityStudentEnrollmentFixture(enrollment)).Exec(ctx)
 	require.NoError(t, err)
 
 	room := testpkg.CreateTestRoom(t, db, "Preview enrollment room")

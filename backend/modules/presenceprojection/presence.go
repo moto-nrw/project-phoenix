@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -76,14 +78,14 @@ func CountNonAbsentParticipants(ctx context.Context, db bun.IDB, tenantID int64,
 // ListParallelPresence returns, for the given students, the other running
 // blocks of the day they are still present in. Ordered by the other block's
 // start time descending, then id descending.
-func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedInstanceID int64, date calendar.Date, studentIDs []int64) ([]ParallelPresence, error) {
+func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedInstanceID int64, date calendar.Date, studentIDs []int64) ([]presenceContract.ParallelPresence, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
 	if len(studentIDs) == 0 {
-		return []ParallelPresence{}, nil
+		return []presenceContract.ParallelPresence{}, nil
 	}
-	rows := []ParallelPresence{}
+	rows := []presenceContract.ParallelPresence{}
 	err := db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
 		ColumnExpr(`"instance_student".student_id, "activity_instance".id AS instance_id`).
 		ColumnExpr(`"activity_instance".title, "activity_instance".start_time, "activity_instance".end_time`).
@@ -109,7 +111,7 @@ func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedIns
 // no non-booking, no day status, no other excusal than the automatic ones
 // named). With enrolled, blocks the child's course enrollment covers but no
 // roster lists yet are added.
-func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, studentID int64, date calendar.Date, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]PartialAbsenceBlock, error) {
+func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, studentID int64, date calendar.Date, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]presenceContract.PartialAbsenceBlock, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -117,7 +119,7 @@ func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, student
 	if autoIDs == nil {
 		autoIDs = []int64{}
 	}
-	rows := []PartialAbsenceBlock{}
+	rows := []presenceContract.PartialAbsenceBlock{}
 	clock := from.Format("15:04:05")
 	err := db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).
 		ColumnExpr(`"activity_instance".id, "activity_instance".title, "activity_instance".start_time, "activity_instance".end_time`).
@@ -145,7 +147,7 @@ func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, student
 	if err != nil {
 		return nil, fmt.Errorf("presence projection: resolve weekend plan: %w", err)
 	}
-	unmaterialized := []PartialAbsenceBlock{}
+	unmaterialized := []presenceContract.PartialAbsenceBlock{}
 	err = db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Distinct().ColumnExpr(`"activity_instance".id, "activity_instance".title, "activity_instance".start_time, "activity_instance".end_time`).
 		Join(instanceSessionJoin).
@@ -166,16 +168,16 @@ func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, student
 	return mergePartialAbsenceBlocks(rows, unmaterialized), nil
 }
 
-func mergePartialAbsenceBlocks(first, second []PartialAbsenceBlock) []PartialAbsenceBlock {
-	byID := make(map[int64]PartialAbsenceBlock, len(first)+len(second))
+func mergePartialAbsenceBlocks(first, second []presenceContract.PartialAbsenceBlock) []presenceContract.PartialAbsenceBlock {
+	byID := make(map[int64]presenceContract.PartialAbsenceBlock, len(first)+len(second))
 	for _, value := range append(first, second...) {
 		byID[value.ID] = value
 	}
-	result := make([]PartialAbsenceBlock, 0, len(byID))
+	result := make([]presenceContract.PartialAbsenceBlock, 0, len(byID))
 	for _, value := range byID {
 		result = append(result, value)
 	}
-	slices.SortFunc(result, func(a, b PartialAbsenceBlock) int {
+	slices.SortFunc(result, func(a, b presenceContract.PartialAbsenceBlock) int {
 		if order := a.StartTime.Compare(b.StartTime); order != 0 {
 			return order
 		}
@@ -226,7 +228,7 @@ type scheduledInstanceRow struct {
 // inclusive date range together with the attendance each one carries,
 // ordered by date and start time. Rows that only record a non-booking the
 // care plan froze are left out.
-func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]ScheduledInstance, error) {
+func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]presenceContract.ScheduledInstance, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -257,22 +259,22 @@ func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID,
 	if err != nil {
 		return nil, fmt.Errorf("presence projection: list scheduled instances for student: %w", err)
 	}
-	result := make([]ScheduledInstance, 0, len(rows))
+	result := make([]presenceContract.ScheduledInstance, 0, len(rows))
 	for _, row := range rows {
-		instance := Instance{
+		instance := presenceContract.Instance{
 			ID: row.ActivityInstanceID, TenantID: tenantID, CreatedAt: row.ActivityCreatedAt, UpdatedAt: row.ActivityUpdatedAt,
 			Date: row.Date, ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID, Title: row.Title,
 			Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.ActivityRoomID,
 			Status: row.ActivityStatus, ActiveGroupID: row.ActiveGroupID, IsSpontaneous: row.IsSpontaneous, Notes: row.Notes,
 			CreatedBy: row.CreatedBy, StartedBy: row.StartedBy, StartedAt: row.StartedAt, CompletedAt: row.CompletedAt,
 		}
-		participant := Participant{
+		participant := presenceContract.Participant{
 			ID: row.ParticipantID, TenantID: tenantID, CreatedAt: row.StudentCreatedAt, UpdatedAt: row.StudentUpdatedAt, InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.StudentRoomID, Status: row.AttendanceStatus,
 			Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt,
 			IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
 			StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
 		}
-		result = append(result, ScheduledInstance{Instance: instance, Participant: participant})
+		result = append(result, presenceContract.ScheduledInstance{Instance: instance, Participant: participant})
 	}
 	return result, nil
 }

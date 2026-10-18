@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -46,11 +47,11 @@ func startPullUpdateInput(
 		TemplateID: templateID,
 		Fields: timetable.TemplateFields{
 			Name:            name,
-			Type:            activitiesModels.GroupTypeCare,
+			Type:            activityContract.GroupTypeCare,
 			CategoryID:      s.categoryID,
 			RoomID:          s.roomID,
 			MaxParticipants: 20,
-			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+			TargetGroupType: activityContract.TargetGroupTypeNone,
 		},
 		Weekdays:        weekdays,
 		TimeframeID:     timeframeID,
@@ -73,10 +74,10 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("PullForward-%d", time.Now().UnixNano())
-	weekdays := []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
+	weekdays := []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday}
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
-		Type:              activitiesModels.GroupTypeCare,
+		Type:              activityContract.GroupTypeCare,
 		Weekdays:          weekdays,
 		StartTime:         clockTime(14, 0),
 		EndTime:           clockTime(15, 0),
@@ -118,7 +119,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 
 	// The series-managed roster follows the same boundary.
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
-		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "supervisor valid_from must follow the new start")
+		assert.Equal(t, activityContract.Date(newStart), row.ValidFrom, "supervisor valid_from must follow the new start")
 	}
 	openEnrollments := 0
 	for _, row := range s.enrollmentRows(t, result.TemplateID) {
@@ -126,7 +127,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 			continue
 		}
 		openEnrollments++
-		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "enrollment valid_from must follow the new start")
+		assert.Equal(t, activityContract.Date(newStart), row.ValidFrom, "enrollment valid_from must follow the new start")
 	}
 	require.Positive(t, openEnrollments)
 
@@ -155,16 +156,16 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("PullForwardWeekday-%d", time.Now().UnixNano())
-	weekdays := []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
+	weekdays := []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday}
 	assignments := []timetable.WeekdayRosterAssignment{
 		{
-			Weekday:        activitiesModels.WeekdayMonday,
+			Weekday:        activityContract.WeekdayMonday,
 			StaffIDs:       []int64{s.staffA},
 			PrimaryStaffID: &s.staffA,
 			StudentIDs:     []int64{s.studentA},
 		},
 		{
-			Weekday:        activitiesModels.WeekdayTuesday,
+			Weekday:        activityContract.WeekdayTuesday,
 			StaffIDs:       []int64{s.staffB},
 			PrimaryStaffID: &s.staffB,
 			StudentIDs:     []int64{s.studentB},
@@ -172,7 +173,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 	}
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:               name,
-		Type:               activitiesModels.GroupTypeCare,
+		Type:               activityContract.GroupTypeCare,
 		Weekdays:           weekdays,
 		StartTime:          clockTime(14, 0),
 		EndTime:            clockTime(15, 0),
@@ -196,7 +197,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
 		require.NotNil(t, row.Weekday, "per-weekday mode keeps weekday-scoped staff rows")
-		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
+		assert.Equal(t, activityContract.Date(newStart), row.ValidFrom,
 			"weekday-scoped supervisor rows must follow the new start")
 	}
 	openEnrollments := 0
@@ -206,7 +207,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 		}
 		openEnrollments++
 		require.NotNil(t, row.Weekday)
-		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
+		assert.Equal(t, activityContract.Date(newStart), row.ValidFrom,
 			"weekday-scoped enrollment rows must follow the new start")
 	}
 	require.Equal(t, 2, openEnrollments)
@@ -228,10 +229,10 @@ func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeek
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("PullForwardMidweek-%d", time.Now().UnixNano())
-	weekdays := []int{activitiesModels.WeekdayTuesday}
+	weekdays := []int{activityContract.WeekdayTuesday}
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
-		Type:              activitiesModels.GroupTypeCare,
+		Type:              activityContract.GroupTypeCare,
 		Weekdays:          weekdays,
 		StartTime:         clockTime(14, 0),
 		EndTime:           clockTime(15, 0),
@@ -273,11 +274,11 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	s := makeWeekdayRosterScenario(t, newStart)
 	defer s.teardown(t)
 
-	weekdays := []int{activitiesModels.WeekdayMonday}
+	weekdays := []int{activityContract.WeekdayMonday}
 	name := fmt.Sprintf("PullForwardValidation-%d", time.Now().UnixNano())
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
-		Type:              activitiesModels.GroupTypeCare,
+		Type:              activityContract.GroupTypeCare,
 		Weekdays:          weekdays,
 		StartTime:         clockTime(14, 0),
 		EndTime:           clockTime(15, 0),
@@ -322,7 +323,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	openName := fmt.Sprintf("PullForwardOpenStart-%d", time.Now().UnixNano())
 	openResult, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            openName,
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            activityContract.GroupTypeCare,
 		Weekdays:        weekdays,
 		StartTime:       clockTime(15, 0),
 		EndTime:         clockTime(16, 0),
@@ -354,11 +355,11 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 	s := makeWeekdayRosterScenario(t, newStart)
 	defer s.teardown(t)
 
-	weekdays := []int{activitiesModels.WeekdayMonday}
+	weekdays := []int{activityContract.WeekdayMonday}
 	predecessorName := fmt.Sprintf("PullForwardPredecessor-%d", time.Now().UnixNano())
 	predecessor, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            predecessorName,
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            activityContract.GroupTypeCare,
 		Weekdays:        weekdays,
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
@@ -377,7 +378,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 	successorName := fmt.Sprintf("PullForwardSuccessor-%d", time.Now().UnixNano())
 	successor, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              successorName,
-		Type:              activitiesModels.GroupTypeCare,
+		Type:              activityContract.GroupTypeCare,
 		Weekdays:          weekdays,
 		StartTime:         clockTime(16, 0),
 		EndTime:           clockTime(17, 0),

@@ -10,8 +10,11 @@ package parentinbox
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/contract"
 
 	"github.com/uptrace/bun"
 )
@@ -56,33 +59,33 @@ type readCursorRow struct {
 }
 
 type inboxRow struct {
-	ThreadID               int64          `bun:"thread_id"`
-	TenantID               int64          `bun:"tenant_id"`
-	StudentID              int64          `bun:"student_id"`
-	StudentName            string         `bun:"student_name"`
-	SchoolClass            string         `bun:"school_class"`
-	GroupID                *int64         `bun:"group_id"`
-	GuardianAccountID      int64          `bun:"guardian_account_id"`
-	GuardianName           string         `bun:"guardian_name"`
-	RelationshipType       string         `bun:"relationship_type"`
-	LastMessageAt          *time.Time     `bun:"last_message_at"`
-	LastSenderKind         string         `bun:"last_sender_kind"`
-	LastMessageBody        string         `bun:"last_message_body"`
-	LastMessageKind        string         `bun:"last_message_kind"`
-	LastEventType          string         `bun:"last_event_type"`
-	LastRequestType        string         `bun:"last_request_type"`
-	LastRequestStatus      string         `bun:"last_request_status"`
-	LastMessagePayload     map[string]any `bun:"last_message_payload"`
-	LastMessageReadByStaff bool           `bun:"last_message_read_by_staff"`
-	UnreadCount            int            `bun:"unread_count"`
-	ReadBoundAt            *time.Time     `bun:"read_bound_at"`
-	ReadBoundMessageID     *int64         `bun:"read_bound_message_id"`
+	ThreadID               int64           `bun:"thread_id"`
+	TenantID               int64           `bun:"tenant_id"`
+	StudentID              int64           `bun:"student_id"`
+	StudentName            string          `bun:"student_name"`
+	SchoolClass            string          `bun:"school_class"`
+	GroupID                *int64          `bun:"group_id"`
+	GuardianAccountID      int64           `bun:"guardian_account_id"`
+	GuardianName           string          `bun:"guardian_name"`
+	RelationshipType       string          `bun:"relationship_type"`
+	LastMessageAt          *time.Time      `bun:"last_message_at"`
+	LastSenderKind         string          `bun:"last_sender_kind"`
+	LastMessageBody        string          `bun:"last_message_body"`
+	LastMessageKind        string          `bun:"last_message_kind"`
+	LastEventType          string          `bun:"last_event_type"`
+	LastRequestType        string          `bun:"last_request_type"`
+	LastRequestStatus      string          `bun:"last_request_status"`
+	LastMessagePayload     json.RawMessage `bun:"last_message_payload"`
+	LastMessageReadByStaff bool            `bun:"last_message_read_by_staff"`
+	UnreadCount            int             `bun:"unread_count"`
+	ReadBoundAt            *time.Time      `bun:"read_bound_at"`
+	ReadBoundMessageID     *int64          `bun:"read_bound_message_id"`
 }
 
-func inboxValues(rows []inboxRow) []*ParentInboxThread {
-	threads := make([]*ParentInboxThread, 0, len(rows))
+func inboxValues(rows []inboxRow) []*contract.ParentInboxThread {
+	threads := make([]*contract.ParentInboxThread, 0, len(rows))
 	for _, row := range rows {
-		threads = append(threads, &ParentInboxThread{
+		threads = append(threads, &contract.ParentInboxThread{
 			ThreadID: row.ThreadID, TenantID: row.TenantID, StudentID: row.StudentID,
 			StudentName: row.StudentName, SchoolClass: row.SchoolClass, GroupID: row.GroupID,
 			GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
@@ -209,7 +212,7 @@ func applyStaffScope(q *bun.SelectQuery, allStudents bool) *bun.SelectQuery {
 
 // ListInboxForStaff returns the staff member's readable threads, newest
 // activity first. onlyUnread keeps only threads with unread guardian activity.
-func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*ParentInboxThread, error) {
+func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*contract.ParentInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -242,7 +245,7 @@ func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, all
 // activity first. The caller must have authorized read access already; this
 // only adds the student filter, so the student detail card stops fetching the
 // whole school inbox and filtering client-side.
-func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*ParentInboxThread, error) {
+func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*contract.ParentInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -262,7 +265,7 @@ func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, stude
 // their children in the current school. staffAccounts maps each school to the
 // login accounts of its live staff, resolved by the composition root through
 // the School Membership owner.
-func (p *Projection) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*ParentInboxThread, error) {
+func (p *Projection) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*contract.ParentInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -286,9 +289,9 @@ func (p *Projection) ListThreadsForGuardianStudent(ctx context.Context, accountI
 // guardian predicate keeps the result to the guardian's own threads, and the
 // school set preserves the per-school ownership gate the old one-transaction-
 // per-school loop provided.
-func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*ParentInboxThread, error) {
+func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*contract.ParentInboxThread, error) {
 	if len(tenantIDs) == 0 {
-		return []*ParentInboxThread{}, nil
+		return []*contract.ParentInboxThread{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -407,7 +410,7 @@ func (p *Projection) UnreadMessageCountForGuardianTenants(ctx context.Context, a
 // FindThreadHeader returns only the chat-window header fields with a light
 // join, or nil when the thread does not exist or is out of scope. It avoids the
 // inbox projection's correlated COUNT subqueries, which the header never uses.
-func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*ParentThreadHeader, error) {
+func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*contract.ParentThreadHeader, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -434,7 +437,7 @@ func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*Par
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	return &ParentThreadHeader{
+	return &contract.ParentThreadHeader{
 		StudentName: rows[0].StudentName, GuardianName: rows[0].GuardianName,
 		RelationshipType: rows[0].RelationshipType,
 	}, nil
@@ -451,7 +454,7 @@ func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*Par
 // read. The querying account stays excluded so a guardian's own read never
 // satisfies "the OGS read it". Returning the composite lets the receipt compare
 // on the same tie-break the unread predicates use.
-func (p *Projection) LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*ParentReadCursor, error) {
+func (p *Projection) LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*contract.ParentReadCursor, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -479,14 +482,14 @@ func (p *Projection) LatestReadCursorByOtherStaff(ctx context.Context, threadID,
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	return &ParentReadCursor{LastReadAt: rows[0].LastReadAt, LastReadMessageID: rows[0].LastReadMessageID}, nil
+	return &contract.ParentReadCursor{LastReadAt: rows[0].LastReadAt, LastReadMessageID: rows[0].LastReadMessageID}, nil
 }
 
 // GuardianReadCursor returns the read cursor of the thread's guardian account,
 // or nil when the guardian has not read anything yet. It drives the staff-facing
 // "von den Eltern gelesen" receipt. A thread has exactly one guardian account,
 // so this matches that single row directly — no staff gate, no aggregation.
-func (p *Projection) GuardianReadCursor(ctx context.Context, threadID int64) (*ParentReadCursor, error) {
+func (p *Projection) GuardianReadCursor(ctx context.Context, threadID int64) (*contract.ParentReadCursor, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -507,7 +510,7 @@ func (p *Projection) GuardianReadCursor(ctx context.Context, threadID int64) (*P
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	return &ParentReadCursor{LastReadAt: rows[0].LastReadAt, LastReadMessageID: rows[0].LastReadMessageID}, nil
+	return &contract.ParentReadCursor{LastReadAt: rows[0].LastReadAt, LastReadMessageID: rows[0].LastReadMessageID}, nil
 }
 
 // guardianLinks is the student-guardian relationship with its parents-portal

@@ -52,10 +52,10 @@ type Repositories struct {
 // NewRepositories builds the retained schedule adapters over the Timetable
 // owner: the capability-only adapters from the application, the instance and
 // participant adapters over the database and Student Presence here.
-func NewRepositories(dependencies RepositoryDependencies) Repositories {
+func NewRepositories(dependencies RepositoryDependencies, reads application.PresenceReads) Repositories {
 	capability := dependencies.Timetable
 	rows := application.NewCapabilityRepositories(capability, dependencies.Calendar, dependencies.Directories)
-	instances := application.NewActivityInstanceRepositories(retainedPresenceReads(dependencies.DB), capability, dependencies.Presence)
+	instances := application.NewActivityInstanceRepositories(reads, capability, dependencies.Presence)
 	return Repositories{
 		ActivityCategory: rows.ActivityCategory, ActivityGroup: rows.ActivityGroup,
 		ActivitySchedule: rows.ActivitySchedule, ActivitySupervisor: rows.ActivitySupervisor,
@@ -64,15 +64,15 @@ func NewRepositories(dependencies RepositoryDependencies) Repositories {
 		ActivityException: rows.ActivityException,
 		ActivityInstance:  instances.ActivityInstance, InstanceIdempotency: instances.InstanceIdempotency,
 		InstanceStaff:   rows.InstanceStaff,
-		InstanceStudent: application.NewInstanceStudentRepository(retainedPresenceReads(dependencies.DB), capability, dependencies.Presence, dependencies.PartialAbsences),
+		InstanceStudent: application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
 }
 
 // NewActivityInstanceRepository serves the retained activity instance
 // repository over the Timetable owner and Student Presence, which runs the
 // blocks since #2762.
-func NewActivityInstanceRepository(db *bun.DB, capability timetable.ActivityInstanceCapability, presence application.ActivityInstanceSessions) schedule.ActivityInstanceRepository {
-	return application.NewActivityInstanceRepository(retainedPresenceReads(db), capability, presence)
+func NewActivityInstanceRepository(reads application.PresenceReads, capability timetable.ActivityInstanceCapability, presence application.ActivityInstanceSessions) schedule.ActivityInstanceRepository {
+	return application.NewActivityInstanceRepository(reads, capability, presence)
 }
 
 // NewActivityGroupRecords serves the activity group rows of the owner

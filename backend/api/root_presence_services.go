@@ -3,8 +3,9 @@ package api
 import (
 	"fmt"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
@@ -61,7 +62,7 @@ func buildActivePresence(
 	settings settingsCompose.BatchSettingsService, presence PresenceOwner, presencePeople PresencePeopleReads,
 	carePlanRows CarePlanRows, people PeopleRows, users peoplePorts.PersonDirectory, rooms facilitiesModule.Catalog,
 	devices devicefleet.Capability, owner TimetableOwner, days TimetableDays, autoCheckIn workforceCompose.AutoCheckIn,
-	emitter *communicationCompose.ParentEventEmitter, tracker ProductEventTracker,
+	emitter eventContract.Emitter, tracker ProductEventTracker,
 ) (studentpresence.Presence, error) {
 	repos := owner.Repositories
 	attendanceSync, err := NewTimetableAttendanceMirror(

@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -84,8 +85,8 @@ func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	return fixture
 }
 
-func createWithdrawalOffering(t *testing.T, env *decisionTestEnv, name string, countsAsCare bool) *enrollmentModels.CareOffering {
-	return createAdjustmentCareOfferingWith(t, env, name, func(offering *enrollmentModels.CareOffering) {
+func createWithdrawalOffering(t *testing.T, env *decisionTestEnv, name string, countsAsCare bool) *offeringContract.CareOfferingRecord {
+	return createAdjustmentCareOfferingWith(t, env, name, func(offering *offeringContract.CareOfferingRecord) {
 		offering.CountsAsCare = countsAsCare
 		offering.CountsAsCareSet = true
 	})

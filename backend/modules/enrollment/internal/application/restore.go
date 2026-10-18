@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -34,14 +33,14 @@ import (
 // same tenant transaction; if it fails the restore rolls back with it.
 // Joins the handler transaction, or starts one for a standalone caller; an
 // invalid request id or a missing audit trail is refused before either.
-func (d *Decisions) RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*enrollment.RestoreOutcome, error) {
+func (d *Decisions) RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*enrollmentNative.RestoreOutcome, error) {
 	if requestID <= 0 {
 		return nil, careplan.ErrBookingRequestNotFound
 	}
 	if d.deps.Restorations == nil {
 		return nil, fmt.Errorf("restore: audit repository not configured")
 	}
-	var outcome *enrollment.RestoreOutcome
+	var outcome *enrollmentNative.RestoreOutcome
 	err := d.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		var err error
 		outcome, err = d.restoreWithdrawn(txCtx, requestID, restoredBy)
@@ -53,7 +52,7 @@ func (d *Decisions) RestoreWithdrawn(ctx context.Context, requestID, restoredBy 
 	return outcome, nil
 }
 
-func (d *Decisions) restoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*enrollment.RestoreOutcome, error) {
+func (d *Decisions) restoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*enrollmentNative.RestoreOutcome, error) {
 	request, withdrawn, err := d.lockWithdrawnChildren(ctx, requestID)
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func (d *Decisions) restoreWithdrawn(ctx context.Context, requestID, restoredBy 
 		return nil, fmt.Errorf("restore: load phase: %w", err)
 	}
 	if !phase.IsActive {
-		return nil, enrollment.ErrRestorePhaseInactive
+		return nil, enrollmentNative.ErrRestorePhaseInactive
 	}
 	if err := d.checkRestoreDuplicates(ctx, phase, request, withdrawn); err != nil {
 		return nil, err
@@ -97,14 +96,14 @@ func (d *Decisions) restoreWithdrawn(ctx context.Context, requestID, restoredBy 
 		slog.Int("waitlisted_children", len(waitlistedIDs)),
 		slog.Int64("restored_by", restoredBy),
 	)
-	return &enrollment.RestoreOutcome{RestoredChildIDs: restoredIDs, WaitlistedChildIDs: waitlistedIDs}, nil
+	return &enrollmentNative.RestoreOutcome{RestoredChildIDs: restoredIDs, WaitlistedChildIDs: waitlistedIDs}, nil
 }
 
 // lockWithdrawnChildren locks the parent before its children — same order as
 // Decide, cleanup, and the withdraw path, so restore serializes cleanly
 // against all of them without lock inversion — and returns the withdrawn
 // children.
-func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) (*enrollmentModels.Request, []*RequestChild, error) {
+func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) (*Request, []*RequestChild, error) {
 	request, err := decodedRequestByID(ctx, d.deps.Requests, requestID, true)
 	if err != nil {
 		// Only a genuinely missing row becomes the 404 sentinel; connection
@@ -121,12 +120,12 @@ func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) 
 	}
 	withdrawn := make([]*RequestChild, 0, len(children))
 	for _, child := range children {
-		if child.Status == enrollmentModels.ChildStatusWithdrawn {
+		if child.Status == enrollmentNative.ChildStatusWithdrawn {
 			withdrawn = append(withdrawn, child)
 		}
 	}
 	if len(withdrawn) == 0 {
-		return nil, nil, enrollment.ErrRestoreNothingWithdrawn
+		return nil, nil, enrollmentNative.ErrRestoreNothingWithdrawn
 	}
 	return request, withdrawn, nil
 }
@@ -136,21 +135,21 @@ func (d *Decisions) lockWithdrawnChildren(ctx context.Context, requestID int64) 
 // check, exactly like a submission does. The lock auto-releases at tx end.
 // The error stays name-free on purpose: it flows into handler logs and the
 // API response, and student names must not reach Info-level logs.
-func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollment.Phase, request *enrollmentModels.Request, withdrawn []*RequestChild) error {
+func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmentNative.Phase, request *Request, withdrawn []*RequestChild) error {
 	emailLC := strings.ToLower(strings.TrimSpace(request.GuardianEmail))
-	if err := d.deps.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, enrollment.SubmissionDedupLockKey(emailLC)); err != nil {
+	if err := d.deps.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("restore: acquire dedup lock: %w", err)
 	}
-	dupKeys := make([]enrollment.DuplicateChildKey, 0, len(withdrawn))
+	dupKeys := make([]enrollmentNative.DuplicateChildKey, 0, len(withdrawn))
 	for _, child := range withdrawn {
-		dupKeys = append(dupKeys, enrollment.DuplicateChildKey{FirstName: child.FirstName, LastName: child.LastName})
+		dupKeys = append(dupKeys, enrollmentNative.DuplicateChildKey{FirstName: child.FirstName, LastName: child.LastName})
 	}
 	dupes, err := d.deps.Requests.ActiveDuplicateChildren(ctx, phase.ID, request.GuardianEmail, dupKeys, request.ID)
 	if err != nil {
 		return fmt.Errorf("restore: duplicate check: %w", err)
 	}
 	if len(dupes) > 0 {
-		return enrollment.ErrRestoreDuplicateActive
+		return enrollmentNative.ErrRestoreDuplicateActive
 	}
 	return d.checkRestoreMatchedStudents(ctx, phase, withdrawn)
 }
@@ -158,7 +157,7 @@ func (d *Decisions) checkRestoreDuplicates(ctx context.Context, phase *enrollmen
 // checkRestoreMatchedStudents keeps an existing-students child pinned to a
 // live student from coming back next to a second active request targeting
 // that student (different-email submissions bypass the email-scoped check).
-func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enrollment.Phase, withdrawn []*RequestChild) error {
+func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*RequestChild) error {
 	for _, child := range withdrawn {
 		if child.MatchedStudentID == nil {
 			continue
@@ -171,7 +170,7 @@ func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enro
 			return fmt.Errorf("restore: matched-student duplicate check: %w", err)
 		}
 		if has {
-			return enrollment.ErrRestoreDuplicateActive
+			return enrollmentNative.ErrRestoreDuplicateActive
 		}
 	}
 	return nil
@@ -179,7 +178,7 @@ func (d *Decisions) checkRestoreMatchedStudents(ctx context.Context, phase *enro
 
 // restoreChildren flips the withdrawn children back and clears the request's
 // withdrawal.
-func (d *Decisions) restoreChildren(ctx context.Context, request *enrollmentModels.Request, withdrawn []*RequestChild, waitlistedIDs []int64) ([]int64, error) {
+func (d *Decisions) restoreChildren(ctx context.Context, request *Request, withdrawn []*RequestChild, waitlistedIDs []int64) ([]int64, error) {
 	restoredIDs, err := d.deps.Children.RestoreWithdrawnChildren(ctx, request.ID, waitlistedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: update children: %w", err)
@@ -207,7 +206,7 @@ func (d *Decisions) restoreChildren(ctx context.Context, request *enrollmentMode
 // a partially overlapping pair cannot jointly overbook a slot both fit into
 // alone. Reject-mode phases surface ErrCareOfferingFull instead; a
 // meanwhile-deactivated offering fails closed with ErrCareOfferingClosed.
-func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollment.Phase, withdrawn []*RequestChild) ([]int64, error) {
+func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollmentNative.Phase, withdrawn []*RequestChild) ([]int64, error) {
 	if d.deps.Children == nil || d.deps.Offerings == nil {
 		return nil, nil
 	}
@@ -222,7 +221,7 @@ func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollme
 	for _, child := range withdrawn {
 		childIDs = append(childIDs, child.ID)
 	}
-	rows, err := enrollment.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
+	rows, err := enrollmentNative.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: load offering selections: %w", err)
 	}
@@ -230,7 +229,7 @@ func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollme
 	if !anyClaim {
 		return nil, nil
 	}
-	overrides, err := d.capacity.ApplyCapacityOverflow(ctx, enrollment.CapacityCheck{
+	overrides, err := d.capacity.ApplyCapacityOverflow(ctx, enrollmentNative.CapacityCheck{
 		Phase: phase, Claims: claims, ReplacedRequestChildIDs: childIDs,
 	})
 	if err != nil {
@@ -238,7 +237,7 @@ func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollme
 	}
 	waitlisted := make([]int64, 0, len(overrides))
 	for idx, status := range overrides {
-		if status == enrollmentModels.ChildStatusWaitlisted {
+		if status == enrollmentNative.ChildStatusWaitlisted {
 			waitlisted = append(waitlisted, withdrawn[idx].ID)
 		}
 	}
@@ -248,25 +247,25 @@ func (d *Decisions) restoreCapacityWaitlist(ctx context.Context, phase *enrollme
 // restoreClaims collects the capacity claims per withdrawn child. ValidUntil
 // is exclusive: an interval ending on or before the window start holds no
 // remaining slot.
-func restoreClaims(phase *enrollment.Phase, rows []*enrollment.RequestChildOfferingRecord, withdrawn []*RequestChild) ([][]enrollment.OfferingClaim, bool) {
+func restoreClaims(phase *enrollmentNative.Phase, rows []*enrollmentNative.RequestChildOfferingRecord, withdrawn []*RequestChild) ([][]enrollmentNative.OfferingClaim, bool) {
 	capacityFrom := calendar.TodayDate()
 	if calendar.Date(phase.ServiceStartDate).After(capacityFrom) {
 		capacityFrom = calendar.Date(phase.ServiceStartDate)
 	}
-	claimsByChild := make(map[int64][]enrollment.OfferingClaim)
+	claimsByChild := make(map[int64][]enrollmentNative.OfferingClaim)
 	anyClaim := false
 	for _, row := range rows {
 		if row.ValidUntil != nil && !row.ValidUntil.After(capacityFrom) {
 			continue
 		}
-		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], enrollment.OfferingClaim{
+		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], enrollmentNative.OfferingClaim{
 			OfferingID: row.CareOfferingID,
 			ValidFrom:  row.ValidFrom,
 			ValidUntil: row.ValidUntil,
 		})
 		anyClaim = true
 	}
-	claims := make([][]enrollment.OfferingClaim, len(withdrawn))
+	claims := make([][]enrollmentNative.OfferingClaim, len(withdrawn))
 	for i, child := range withdrawn {
 		claims[i] = claimsByChild[child.ID]
 	}

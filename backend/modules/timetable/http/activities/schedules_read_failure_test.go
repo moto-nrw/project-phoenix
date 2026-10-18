@@ -1,0 +1,49 @@
+package httpadapter_test
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+)
+
+type failedDateframeRead struct {
+	schedulesAPI.Dateframes
+	err error
+}
+
+func (s failedDateframeRead) FindDateframe(context.Context, int64) (schoolcalendar.Dateframe, error) {
+	return schoolcalendar.Dateframe{}, fmt.Errorf("get dateframe: %w", s.err)
+}
+
+func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
+	t.Parallel()
+	db, services, dateframes := setupScheduleModule(t)
+	dateframe := testpkg.CreateTestDateframe(t, db, "read error contract", time.Now(), time.Now().AddDate(0, 0, 1))
+	for _, tc := range []struct {
+		name    string
+		err     error
+		status  int
+		message string
+	}{
+		{"failed read", context.Canceled, http.StatusInternalServerError, "context canceled"},
+		{"missing row", schoolcalendar.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resource := schedulesAPI.NewSchedulesResource(failedDateframeRead{Dateframes: dateframes, err: tc.err}, services.Timetable, services.TimeframeGuard, rootAPI.TimetableHTTPTransactions)
+			request := testutil.NewRequest("GET", fmt.Sprintf("/dateframes/%d", dateframe.ID), nil)
+			response := testutil.ExecuteWithAuth(t, resource.Router(rootAPI.ProtectedTenantRoutes), request, testutil.AdminTestClaims(1))
+			assert.Equal(t, tc.status, response.Code)
+			assert.Contains(t, response.Body.String(), tc.message)
+		})
+	}
+}

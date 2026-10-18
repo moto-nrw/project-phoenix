@@ -40,9 +40,9 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
 	schoolEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", suffix)
 
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalStaff, addressedEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, deliveryModels.PushPortalStaff, bystanderEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalSchool, schoolEndpoint)))
+	require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalStaff, addressedEndpoint)))
+	require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, bystander.ID, deliveryModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, repo.RegisterSubscription(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalSchool, schoolEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
 		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})

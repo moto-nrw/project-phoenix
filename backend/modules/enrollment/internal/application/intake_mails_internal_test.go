@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"testing"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +41,7 @@ func TestSubmissionMailSubscriberLookupFailureKeepsConfirmationAndConfiguredReci
 		},
 	})
 
-	err := intake.enqueueSubmissionEmails(context.Background(), 1, &enrollmentModels.Request{GuardianEmail: "parent@example.org"}, nil, "")
+	err := intake.enqueueSubmissionEmails(context.Background(), 1, &Request{GuardianEmail: "parent@example.org"}, nil, "")
 	require.NoError(t, err)
 	assert.True(t, savepointCalled)
 	require.Len(t, outbox.mails, 2)
@@ -64,6 +63,6 @@ func TestSubmissionMailSavepointControlFailureAborts(t *testing.T) {
 		},
 	})
 
-	err := intake.enqueueSubmissionEmails(context.Background(), 1, &enrollmentModels.Request{}, nil, "")
+	err := intake.enqueueSubmissionEmails(context.Background(), 1, &Request{}, nil, "")
 	require.ErrorIs(t, err, controlErr)
 }

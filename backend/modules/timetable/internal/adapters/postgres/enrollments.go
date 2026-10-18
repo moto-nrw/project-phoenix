@@ -13,20 +13,20 @@ import (
 )
 
 type studentEnrollmentRow struct {
-	bun.BaseModel            `bun:"table:student_enrollments,alias:student_enrollment"`
-	ID                       int64     `bun:"id,pk,autoincrement"`
-	TenantID                 int64     `bun:"tenant_id,notnull"`
-	CreatedAt                time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt                time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID                int64     `bun:"student_id,notnull"`
-	ActivityGroupID          int64     `bun:"activity_group_id,notnull"`
-	ValidFrom                string    `bun:"valid_from,notnull"`
-	ValidUntil               *string   `bun:"valid_until"`
-	CalendarPeriodID         *int64    `bun:"calendar_period_id"`
-	EnrollmentRequestChildID *int64    `bun:"enrollment_request_child_id"`
-	SelectedWeekdays         []int     `bun:"selected_weekdays,type:jsonb,nullzero"`
-	AttendanceStatus         *string   `bun:"attendance_status"`
-	Weekday                  *int      `bun:"weekday"`
+	bun.BaseModel            `bun:"table:activities.student_enrollments,alias:student_enrollment"`
+	ID                       int64          `bun:"id,pk,autoincrement"`
+	TenantID                 int64          `bun:"tenant_id,notnull"`
+	CreatedAt                time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	StudentID                int64          `bun:"student_id,notnull"`
+	ActivityGroupID          int64          `bun:"activity_group_id,notnull"`
+	ValidFrom                calendar.Date  `bun:"valid_from,notnull"`
+	ValidUntil               *calendar.Date `bun:"valid_until"`
+	CalendarPeriodID         *int64         `bun:"calendar_period_id"`
+	EnrollmentRequestChildID *int64         `bun:"enrollment_request_child_id"`
+	SelectedWeekdays         []int          `bun:"selected_weekdays,type:jsonb,nullzero"`
+	AttendanceStatus         *string        `bun:"attendance_status"`
+	Weekday                  *int           `bun:"weekday"`
 }
 
 func (s *Store) FindStudentEnrollment(ctx context.Context, id int64) (domain.StudentEnrollment, bool, domain.OperationStats, error) {
@@ -248,14 +248,14 @@ func studentEnrollmentSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 
 func applyStudentEnrollmentFields(row *studentEnrollmentRow, fields domain.StudentEnrollmentFields) {
 	row.StudentID, row.ActivityGroupID = fields.StudentID, fields.ActivityGroupID
-	row.ValidFrom, row.ValidUntil = fields.ValidFrom, fields.ValidUntil
+	row.ValidFrom, row.ValidUntil = calendar.Date(fields.ValidFrom), (*calendar.Date)(fields.ValidUntil)
 	row.CalendarPeriodID, row.EnrollmentRequestChildID = fields.CalendarPeriodID, fields.EnrollmentRequestChildID
 	row.SelectedWeekdays, row.AttendanceStatus, row.Weekday = fields.SelectedWeekdays, fields.AttendanceStatus, fields.Weekday
 }
 
 func studentEnrollmentToDomain(row studentEnrollmentRow) domain.StudentEnrollment {
 	return domain.StudentEnrollment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil,
+		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: string(row.ValidFrom), ValidUntil: (*string)(row.ValidUntil),
 		CalendarPeriodID: row.CalendarPeriodID, EnrollmentRequestChildID: row.EnrollmentRequestChildID,
 		SelectedWeekdays: row.SelectedWeekdays, AttendanceStatus: row.AttendanceStatus, Weekday: row.Weekday}
 }

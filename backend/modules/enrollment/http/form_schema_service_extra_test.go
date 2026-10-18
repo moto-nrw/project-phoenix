@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -187,12 +186,12 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	phaseName := uniqueSchemaName("form-schema-extra-repoint")
 	phase := &enrollmentCapability.Phase{
 		Name:              phaseName,
-		Kind:              enrollmentModels.PhaseKindSchoolYear,
+		Kind:              enrollmentCapability.PhaseKindSchoolYear,
 		ServiceStartDate:  enrollmentCapability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:    enrollmentCapability.Date(calendar.NewDate(2027, 7, 31)),
 		FormSchemaID:      &v1.ID,
 		IsActive:          true,
-		CareOverflowMode:  enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode:  enrollmentCapability.PhaseCareOverflowWaitlist,
 		EnrollmentOpenAt:  nil,
 		EnrollmentCloseAt: nil,
 	}

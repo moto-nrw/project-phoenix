@@ -3,7 +3,8 @@ package api
 import (
 	"log/slog"
 
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -22,7 +23,7 @@ import (
 func newSessionEnd(
 	presence *studentpresence.Module, activities timetable.Capability, completion timetable.EndedSessionCompletion,
 	students peopledirectory.Capability, rooms *facilitiesModule.Module, hub *realtime.Hub,
-	guardians *communicationCompose.ParentEventEmitter, logger *slog.Logger,
+	guardians eventContract.Emitter, logger *slog.Logger,
 ) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{

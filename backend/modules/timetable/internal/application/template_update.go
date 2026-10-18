@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -37,7 +39,7 @@ type TemplateUpdateInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
-	Targets          []*activitiesModel.GroupTarget
+	Targets          []*activityContract.GroupTarget
 	// WeekdayAssignments carries the per-weekday deviations from the shared
 	// roster above (issue #2129). Empty = identical roster on every weekday.
 	WeekdayAssignments []timetable.WeekdayRosterAssignment
@@ -110,7 +112,7 @@ func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
 	if len(targets) > 0 {
 		in.Fields.TargetGradeLevel = targets[0].TargetGradeLevel
 		in.Fields.TargetSchoolClass = targets[0].TargetSchoolClass
-		if in.Fields.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+		if in.Fields.TargetGroupType == activityContract.TargetGroupTypeGruppe {
 			in.Fields.EducationGroupID = targets[0].EducationGroupID
 		}
 	}
@@ -142,7 +144,7 @@ func (s *TemplateService) validateTemplateUpdateRequest(ctx context.Context, in 
 type templateUpdateState struct {
 	validFrom                 *calendar.Date
 	validUntil                *calendar.Date
-	previousSchedules         []*activitiesModel.Schedule
+	previousSchedules         []*activityContract.Schedule
 	previousListKind          *string
 	previousSourceOfferingIDs []int64
 	previousCalendarPeriodID  *int64
@@ -176,7 +178,7 @@ func (s *TemplateService) updateTemplateLocked(
 
 // loadUpdateTarget loads the edited segment and validates the references the
 // edit changes. An archived or missing segment is the active-CRUD 404.
-func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdateInput) (*activitiesModel.Group, error) {
+func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdateInput) (*activityContract.Group, error) {
 	existing, err := s.deps.ActivityGroupRepo.FindByID(ctx, in.TemplateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
@@ -206,7 +208,7 @@ func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdat
 func (s *TemplateService) resolveUpdateTargets(
 	ctx context.Context,
 	in *TemplateUpdateInput,
-	existing *activitiesModel.Group,
+	existing *activityContract.Group,
 	targetsProvided bool,
 ) error {
 	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
@@ -218,7 +220,7 @@ func (s *TemplateService) resolveUpdateTargets(
 		in.Fields.TargetGroupType = existingTargets[0].TargetGroupType
 		in.Fields.TargetGradeLevel = existingTargets[0].TargetGradeLevel
 		in.Fields.TargetSchoolClass = existingTargets[0].TargetSchoolClass
-		if in.Fields.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+		if in.Fields.TargetGroupType == activityContract.TargetGroupTypeGruppe {
 			in.Fields.EducationGroupID = existingTargets[0].EducationGroupID
 		}
 	}
@@ -234,7 +236,7 @@ func (s *TemplateService) resolveUpdateTargets(
 func (s *TemplateService) loadTemplateUpdateState(
 	ctx context.Context,
 	in TemplateUpdateInput,
-	existing *activitiesModel.Group,
+	existing *activityContract.Group,
 ) (templateUpdateState, error) {
 	validFrom, validUntil, err := s.loadEditableTemplateEnvelope(ctx, in.TemplateID)
 	if err != nil {
@@ -466,7 +468,7 @@ func unionStudentIDs(left, right []int64) []int64 {
 	return ids
 }
 
-func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activitiesModel.GroupTarget, error) {
+func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activityContract.GroupTarget, error) {
 	targetRepo, ok := repo.(activitiesModel.GroupTargetRepository)
 	if !ok {
 		return nil, nil
@@ -478,15 +480,15 @@ func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupR
 	return byGroup[groupID], nil
 }
 
-func validateLegacyTemplateWeekdays(existing []*activitiesModel.Schedule, requested []int) error {
+func validateLegacyTemplateWeekdays(existing []*activityContract.Schedule, requested []int) error {
 	legacy := make(map[int]struct{})
 	for _, schedule := range existing {
-		if schedule != nil && schedule.Weekday > activitiesModel.WeekdayFriday {
+		if schedule != nil && schedule.Weekday > activityContract.WeekdayFriday {
 			legacy[schedule.Weekday] = struct{}{}
 		}
 	}
 	for _, weekday := range requested {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > activityContract.WeekdayFriday {
 			if _, ok := legacy[weekday]; !ok {
 				return timetable.ErrTemplateWeekendWeekday
 			}
@@ -499,14 +501,14 @@ type legacyWeekendInstanceCleaner interface {
 	DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
 }
 
-func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activitiesModel.Schedule, requested []int) error {
+func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activityContract.Schedule, requested []int) error {
 	requestedWeekdays := make(map[int]struct{}, len(requested))
 	for _, weekday := range requested {
 		requestedWeekdays[weekday] = struct{}{}
 	}
 	removed := make([]int, 0, 2)
 	for _, schedule := range previous {
-		if schedule.Weekday > activitiesModel.WeekdayFriday {
+		if schedule.Weekday > activityContract.WeekdayFriday {
 			if _, retained := requestedWeekdays[schedule.Weekday]; !retained {
 				removed = append(removed, schedule.Weekday)
 			}
@@ -666,7 +668,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 	}
 	for _, weekday := range in.Weekdays {
 		timeframeID := in.TimeframeID
-		schedule := &activitiesModel.Schedule{
+		schedule := &activityContract.Schedule{
 			Weekday:          weekday,
 			TimeframeID:      &timeframeID,
 			ActivityGroupID:  in.TemplateID,
@@ -735,7 +737,7 @@ func validateTemplateUpdateInput(in TemplateUpdateInput, rules ports.SchoolClass
 		return errors.New("at least one weekday is required")
 	}
 	for _, weekday := range in.Weekdays {
-		if !activitiesModel.IsValidWeekday(weekday) {
+		if !activityContract.IsValidWeekday(weekday) {
 			return fmt.Errorf("invalid weekday %d", weekday)
 		}
 	}

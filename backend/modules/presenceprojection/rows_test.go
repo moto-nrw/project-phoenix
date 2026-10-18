@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +56,7 @@ func TestListLegacyInstancesReturnsOnlyTheNamedTenantsBlocks(t *testing.T) {
 	rows := seedPresenceRows(t, db)
 	day := rows.date.String()
 
-	instances, err := ListLegacyInstances(context.Background(), db, testpkg.Tenant(t), LegacyInstanceFilter{IDs: rows.instanceIDs, Date: &day})
+	instances, err := ListLegacyInstances(context.Background(), db, testpkg.Tenant(t), presenceContract.LegacyInstanceFilter{IDs: rows.instanceIDs, Date: &day})
 
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
@@ -71,7 +73,7 @@ func TestListLegacyParticipantsReturnsOnlyTheNamedTenantsAttendance(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	rows := seedPresenceRows(t, db)
 
-	participants, err := ListLegacyParticipants(context.Background(), db, testpkg.Tenant(t), LegacyParticipantFilter{InstanceIDs: rows.instanceIDs, StudentIDs: rows.studentIDs})
+	participants, err := ListLegacyParticipants(context.Background(), db, testpkg.Tenant(t), presenceContract.LegacyParticipantFilter{InstanceIDs: rows.instanceIDs, StudentIDs: rows.studentIDs})
 
 	require.NoError(t, err)
 	require.Len(t, participants, 1)

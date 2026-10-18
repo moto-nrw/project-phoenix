@@ -10,6 +10,10 @@ import (
 	"log/slog"
 	"testing"
 
+	parentmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -17,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -56,8 +59,8 @@ func (p decisionPreferences) FilterOptedIn(_ context.Context, _ string, accountI
 	return accountIDs, nil
 }
 
-func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
-	return parentmessaging.ChildEvent{
+func staffDecision(accountID int64, refID int64) eventContract.ChildEvent {
+	return eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: accountID,
@@ -72,9 +75,9 @@ func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
 func enqueueDecision(
 	t *testing.T,
 	db *bun.DB,
-	emitter *parentmessaging.Emitter,
+	emitter eventContract.Emitter,
 	tenantID, studentID, accountID int64,
-	ev parentmessaging.ChildEvent,
+	ev eventContract.ChildEvent,
 ) error {
 	t.Helper()
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db))

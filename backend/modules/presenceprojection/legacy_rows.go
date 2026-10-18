@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -16,27 +18,10 @@ import (
 // (participants). The two list reads below serve those rows in one
 // statement so the retained list endpoints keep their query budgets.
 
-// LegacyInstanceFilter selects activity instances the way the retained
+// presenceContract.LegacyInstanceFilter selects activity instances the way the retained
 // repositories ask for them. Status uses the legacy vocabulary: planned is a
 // plan nobody started, active and completed are session states, cancelled is
 // a plan state.
-type LegacyInstanceFilter struct {
-	IDs                 []int64
-	Date                *string
-	Dates               []string
-	FromDate            *string
-	ToDate              *string
-	ActivityGroupID     *int64
-	ActivityGroupIDs    []int64
-	ActiveGroupIDs      []int64
-	Status              string
-	IsSpontaneous       *bool
-	IdempotencyKey      string
-	MaterializedPlanned bool
-	OrderByDateAndTime  bool
-	Limit               int
-	Offset              int
-}
 
 type legacyInstanceRow struct {
 	ID                     int64         `bun:"id"`
@@ -94,7 +79,7 @@ const instanceTemplateJoin = `LEFT JOIN activities.groups AS "template"
 
 // ListLegacyInstances lists activity instances with their execution as the
 // retained repositories read them.
-func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyInstanceFilter) ([]Instance, error) {
+func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter presenceContract.LegacyInstanceFilter) ([]presenceContract.Instance, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -106,7 +91,7 @@ func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("presence projection: list legacy instances: %w", err)
 	}
-	result := make([]Instance, 0, len(rows))
+	result := make([]presenceContract.Instance, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, legacyInstance(row))
 	}
@@ -115,7 +100,7 @@ func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter
 
 // legacyInstanceKeyFilters narrows the read by the ids, dates and groups of
 // the filter.
-func legacyInstanceKeyFilters(query *bun.SelectQuery, filter LegacyInstanceFilter) *bun.SelectQuery {
+func legacyInstanceKeyFilters(query *bun.SelectQuery, filter presenceContract.LegacyInstanceFilter) *bun.SelectQuery {
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"activity_instance".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -145,7 +130,7 @@ func legacyInstanceKeyFilters(query *bun.SelectQuery, filter LegacyInstanceFilte
 
 // legacyInstanceStateFilters applies the legacy status semantics, the
 // planning flags, the order and the page of the filter.
-func legacyInstanceStateFilters(query *bun.SelectQuery, filter LegacyInstanceFilter) *bun.SelectQuery {
+func legacyInstanceStateFilters(query *bun.SelectQuery, filter presenceContract.LegacyInstanceFilter) *bun.SelectQuery {
 	switch filter.Status {
 	case statusCancelled:
 		query = query.Where(`"activity_instance".status = 'cancelled'`)
@@ -175,8 +160,8 @@ func legacyInstanceStateFilters(query *bun.SelectQuery, filter LegacyInstanceFil
 	return query
 }
 
-func legacyInstance(row legacyInstanceRow) Instance {
-	instance := Instance{
+func legacyInstance(row legacyInstanceRow) presenceContract.Instance {
+	instance := presenceContract.Instance{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Date: row.Date, ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
 		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.RoomID,
@@ -199,26 +184,9 @@ func legacyInstance(row legacyInstanceRow) Instance {
 	return instance
 }
 
-// LegacyParticipantFilter selects participants with their attendance the way
+// presenceContract.LegacyParticipantFilter selects participants with their attendance the way
 // the retained repositories ask for them. Status filters the attendance
 // status; ExcludeFinished drops participants of cancelled or ended blocks.
-type LegacyParticipantFilter struct {
-	IDs                        []int64
-	InstanceIDs                []int64
-	StudentIDs                 []int64
-	Status                     *string
-	Date                       *string
-	FromDate                   *string
-	ToDate                     *string
-	CurrentTime                *string
-	ExcludeFinished            bool
-	OrderByCreated             bool
-	OrderByInstanceStudent     bool
-	OrderByStudentActivityTime bool
-	OrderByActivityDateTime    bool
-	Limit                      int
-	Offset                     int
-}
 
 type legacyParticipantRow struct {
 	ID                 int64      `bun:"id"`
@@ -249,14 +217,14 @@ const legacyParticipantColumns = `"instance_student".id, "instance_student".tena
 	"attendance".manual_status_at AS at_manual_status_at, "attendance".student_status_day_id AS at_student_status_day_id,
 	"attendance".pickup_exception_id AS at_pickup_exception_id, "attendance".updated_at AS at_updated_at`
 
-func legacyParticipantNeedsInstance(filter LegacyParticipantFilter) bool {
+func legacyParticipantNeedsInstance(filter presenceContract.LegacyParticipantFilter) bool {
 	return filter.Date != nil || filter.FromDate != nil || filter.ToDate != nil || filter.CurrentTime != nil ||
 		filter.ExcludeFinished || filter.OrderByStudentActivityTime || filter.OrderByActivityDateTime
 }
 
 // ListLegacyParticipants lists participants with their attendance as the
 // retained repositories read them.
-func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyParticipantFilter) ([]Participant, error) {
+func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, filter presenceContract.LegacyParticipantFilter) ([]presenceContract.Participant, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -272,7 +240,7 @@ func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, fil
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("presence projection: list legacy participants: %w", err)
 	}
-	result := make([]Participant, 0, len(rows))
+	result := make([]presenceContract.Participant, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, legacyParticipant(row))
 	}
@@ -281,7 +249,7 @@ func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, fil
 
 // legacyParticipantKeyFilters narrows the read by the participant, block
 // and student ids and by the attendance status.
-func legacyParticipantKeyFilters(query *bun.SelectQuery, filter LegacyParticipantFilter) *bun.SelectQuery {
+func legacyParticipantKeyFilters(query *bun.SelectQuery, filter presenceContract.LegacyParticipantFilter) *bun.SelectQuery {
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"instance_student".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -299,7 +267,7 @@ func legacyParticipantKeyFilters(query *bun.SelectQuery, filter LegacyParticipan
 
 // legacyParticipantInstanceFilters narrows the read by the block's date,
 // clock and execution.
-func legacyParticipantInstanceFilters(query *bun.SelectQuery, filter LegacyParticipantFilter) *bun.SelectQuery {
+func legacyParticipantInstanceFilters(query *bun.SelectQuery, filter presenceContract.LegacyParticipantFilter) *bun.SelectQuery {
 	if filter.Date != nil {
 		query = query.Where(`"activity_instance".date = ?::date`, *filter.Date)
 	}
@@ -320,7 +288,7 @@ func legacyParticipantInstanceFilters(query *bun.SelectQuery, filter LegacyParti
 	return query
 }
 
-func legacyParticipantOrder(query *bun.SelectQuery, filter LegacyParticipantFilter) *bun.SelectQuery {
+func legacyParticipantOrder(query *bun.SelectQuery, filter presenceContract.LegacyParticipantFilter) *bun.SelectQuery {
 	switch {
 	case filter.OrderByCreated:
 		query = query.OrderExpr(`"instance_student".created_at ASC, "instance_student".id ASC`)
@@ -339,8 +307,8 @@ func legacyParticipantOrder(query *bun.SelectQuery, filter LegacyParticipantFilt
 
 // legacyParticipant maps one joined row to a participant. The row's
 // updated_at is the later of the plan's and the attendance's.
-func legacyParticipant(row legacyParticipantRow) Participant {
-	participant := Participant{
+func legacyParticipant(row legacyParticipantRow) presenceContract.Participant {
+	participant := presenceContract.Participant{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID, Status: row.Status,
 		Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt,
 		IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,

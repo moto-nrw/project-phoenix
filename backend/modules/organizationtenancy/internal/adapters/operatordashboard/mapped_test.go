@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
+	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
+
+	operatordashboard "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,18 +34,18 @@ type (
 	}
 )
 
-func consumerRows() operatordashboard.Rows[countsView, organizationView, schoolView, usageView] {
-	return operatordashboard.Rows[countsView, organizationView, schoolView, usageView]{
-		Counts: func(row operatordashboard.Counts) countsView {
+func consumerRows() contract.Rows[countsView, organizationView, schoolView, usageView] {
+	return contract.Rows[countsView, organizationView, schoolView, usageView]{
+		Counts: func(row contract.Counts) countsView {
 			return countsView{Organizations: row.Organizations, Schools: row.Schools, Accounts: row.Accounts}
 		},
-		Organization: func(row operatordashboard.OrganizationSummary) organizationView {
+		Organization: func(row contract.OrganizationSummary) organizationView {
 			return organizationView{ID: row.ID, Schools: row.SchoolCount, Accounts: row.AccountCount}
 		},
-		School: func(row operatordashboard.SchoolSummary) schoolView {
+		School: func(row contract.SchoolSummary) schoolView {
 			return schoolView{ID: row.ID, OrganizationID: row.OrganizationID, Accounts: row.AccountCount, Deleted: row.DeletedAt != nil}
 		},
-		PWAUsage: func(row operatordashboard.PWAUsageRow) usageView {
+		PWAUsage: func(row contract.PWAUsageRow) usageView {
 			return usageView{TenantID: row.TenantID, Portal: row.Portal, Standalone: row.StandaloneUsers, Usable: row.EligibleUsers}
 		},
 	}

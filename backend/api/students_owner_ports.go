@@ -3,12 +3,13 @@ package api
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
 
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -101,7 +102,7 @@ func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*presenceproject
 // prints. Each child's groups keep the read's order; the export sorts and
 // deduplicates the names itself.
 type studentActiveEnrollments struct {
-	enrollments timetableCompose.ActivityService
+	enrollments activityContract.ActivityService
 }
 
 func (s studentActiveEnrollments) ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]peopleRouteValues.StudentActivityGroup, error) {

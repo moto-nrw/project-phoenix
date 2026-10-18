@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -12,7 +14,7 @@ type activityCatalogAdapter struct {
 	service timetable.Catalog
 }
 
-func FacilitiesActivityCatalog(service timetableCompose.ActivityService) facilities.ActivityCatalog {
+func FacilitiesActivityCatalog(service activityContract.ActivityService) facilities.ActivityCatalog {
 	return activityCatalogAdapter{service: timetableCompose.NewCatalog(service)}
 }
 

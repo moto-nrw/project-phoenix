@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	require.Len(t, listInstancesForDate(t, c.db, c.middleID, c.earlier), 1)
@@ -36,18 +37,18 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.middleID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.anchor), *row.ValidUntil,
+		assert.Equal(t, activityContract.Date(c.anchor), *row.ValidUntil,
 			"the predecessor segment must end at the clicked date")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidFrom)
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidFrom)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "the living segment is fully capped")
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidFrom)
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidUntil, "the living segment is fully capped")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.rootID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidUntil,
+		assert.Equal(t, activityContract.Date(c.firstBoundary), *row.ValidUntil,
 			"a segment that already ended before the clicked date is left alone")
 	}
 
@@ -65,7 +66,7 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	livingDay := c.secondBoundary
@@ -85,12 +86,12 @@ func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) 
 
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.middleID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.anchor), *row.ValidUntil,
+		assert.Equal(t, activityContract.Date(c.anchor), *row.ValidUntil,
 			"the clicked segment ends at the clicked date")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil,
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidUntil,
 			"and the living successor is ended too")
 	}
 
@@ -104,15 +105,15 @@ func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) 
 func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
 	t.Parallel()
 
-	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
 	defer c.runCleanup(t)
 
 	// A second, independent template of the same tenant, running on the same
 	// weekday and materialized over the same window.
 	other, err := c.timetableData.Templates.CreateTemplate(c.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Unrelated-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeActivity,
-		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		Type:            activityContract.GroupTypeActivity,
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		StartTime:       time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC),
 		RoomID:          c.roomID,
