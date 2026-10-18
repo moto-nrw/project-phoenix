@@ -7,7 +7,6 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // MealPlanProvider is the Meal Plan capability of the child's school, in the
@@ -111,24 +110,6 @@ func mealPlanError(err error) error {
 	default:
 		return err
 	}
-}
-
-// requestSharing binds the request-sharing ledger of messaging to the child
-// flows' port.
-type requestSharing struct{ messaging *messaging.Service }
-
-func (r requestSharing) ShareRequestInTx(
-	ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipientProfileIDs []int64,
-) error {
-	return r.messaging.ShareRequestInTx(ctx, accountID, studentID, requestType, requestID, recipientProfileIDs)
-}
-
-func (r requestSharing) LoadRequestShareVisibility(ctx context.Context, studentID int64) (care.RequestShareVisibility, error) {
-	visibility, err := r.messaging.LoadRequestShareVisibility(ctx, studentID)
-	if err != nil || visibility == nil {
-		return nil, err
-	}
-	return visibility, nil
 }
 
 // children resolves the guardian's child for messaging through the child

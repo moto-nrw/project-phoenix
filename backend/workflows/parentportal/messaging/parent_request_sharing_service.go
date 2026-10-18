@@ -57,7 +57,7 @@ func (s *Service) GetRequestSharingOptions(
 	}
 	var state *RequestSharingState
 	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		protected, _, loadErr := s.currentFamilyProtection(txCtx, studentID)
+		protected, _, loadErr := s.ledger().currentFamilyProtection(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -127,7 +127,7 @@ func (s *Service) changeRequestSharingInTx(
 	if err := s.requireOwnedShareableRequest(ctx, accountID, studentID, requestType, requestID); err != nil {
 		return nil, err
 	}
-	protected, protectedAt, err := s.currentFamilyProtection(ctx, studentID)
+	protected, protectedAt, err := s.ledger().currentFamilyProtection(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (s *Service) ShareRequestInTx(
 	if !s.requestSharingConfigured() {
 		return errors.New("parent: request sharing service is not configured")
 	}
-	protected, _, err := s.currentFamilyProtection(ctx, studentID)
+	protected, _, err := s.ledger().currentFamilyProtection(ctx, studentID)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (s *Service) requestSharingState(
 	ctx context.Context, studentID int64, requestType string, requestID int64,
 	protected bool, protectedAt time.Time, recipients []RequestSharingRecipient,
 ) (*RequestSharingState, error) {
-	current, err := s.currentRequestShares(ctx, studentID)
+	current, err := s.ledger().currentRequestShares(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -238,11 +238,22 @@ func effectiveRecipientSet(event *ParentRequestShareEvent, protected bool, prote
 	return selected
 }
 
-func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*ParentRequestShareEvent, error) {
-	if s.ParentRequestShares == nil {
+// shareLedger reads the request-sharing ledger and the family protection the
+// share visibility is derived from. A nil reader reads as empty.
+type shareLedger struct {
+	shares     RequestShareRecords
+	protection FamilyProtectionReads
+}
+
+func (s *Service) ledger() shareLedger {
+	return shareLedger{shares: s.ParentRequestShares, protection: s.FamilyProtectionEvents}
+}
+
+func (l shareLedger) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*ParentRequestShareEvent, error) {
+	if l.shares == nil {
 		return map[requestShareKey]*ParentRequestShareEvent{}, nil
 	}
-	rows, err := s.ParentRequestShares.CurrentForStudent(ctx, studentID)
+	rows, err := l.shares.CurrentForStudent(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +273,11 @@ func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (ma
 // That is why the timestamp travels even when protection is off: the disable
 // event is the newest event, so every share older than it stays void.
 // Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
-func (s *Service) currentFamilyProtection(ctx context.Context, studentID int64) (bool, time.Time, error) {
-	if s.FamilyProtectionEvents == nil {
+func (l shareLedger) currentFamilyProtection(ctx context.Context, studentID int64) (bool, time.Time, error) {
+	if l.protection == nil {
 		return false, time.Time{}, nil
 	}
-	current, err := s.FamilyProtectionEvents.CurrentForStudents(ctx, []int64{studentID})
+	current, err := l.protection.CurrentForStudents(ctx, []int64{studentID})
 	if err != nil {
 		return false, time.Time{}, err
 	}
@@ -486,11 +497,15 @@ type RequestShareVisibility struct {
 }
 
 func (s *Service) LoadRequestShareVisibility(ctx context.Context, studentID int64) (*RequestShareVisibility, error) {
-	current, err := s.currentRequestShares(ctx, studentID)
+	return s.ledger().visibility(ctx, studentID)
+}
+
+func (l shareLedger) visibility(ctx context.Context, studentID int64) (*RequestShareVisibility, error) {
+	current, err := l.currentRequestShares(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	protected, protectedAt, err := s.currentFamilyProtection(ctx, studentID)
+	protected, protectedAt, err := l.currentFamilyProtection(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -524,7 +539,33 @@ func (s *Service) SharedRecipientAccountIDs(
 	requestType string,
 	requestID int64,
 ) ([]int64, error) {
-	visibility, err := s.LoadRequestShareVisibility(ctx, studentID)
+	return s.ledger().sharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
+}
+
+// ShareRecipients answers SharedRecipientAccountIDs for the staff request
+// queues over the sharing ledger alone, so the composition root can build it
+// before the queues the parents portal itself reads.
+type ShareRecipients struct {
+	ledger shareLedger
+}
+
+// NewShareRecipients binds the share visibility to the sharing ledger and
+// the family protection; both are required.
+func NewShareRecipients(shares RequestShareRecords, protection FamilyProtectionReads) (*ShareRecipients, error) {
+	if shares == nil || protection == nil {
+		return nil, errors.New("parent: request share visibility needs the sharing ledger and the family protection")
+	}
+	return &ShareRecipients{ledger: shareLedger{shares: shares, protection: protection}}, nil
+}
+
+// SharedRecipientAccountIDs is Service.SharedRecipientAccountIDs. Call it
+// inside the caller's tenant transaction.
+func (r *ShareRecipients) SharedRecipientAccountIDs(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
+	return r.ledger.sharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
+}
+
+func (l shareLedger) sharedRecipientAccountIDs(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
+	visibility, err := l.visibility(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -540,4 +581,18 @@ func (s *Service) SharedRecipientAccountIDs(
 	}
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
 	return accountIDs, nil
+}
+
+// ChildFlowSharing serves the child flows' request-sharing port from this
+// ledger.
+func (s *Service) ChildFlowSharing() care.RequestSharer { return childFlowSharing{Service: s} }
+
+type childFlowSharing struct{ *Service }
+
+func (c childFlowSharing) LoadRequestShareVisibility(ctx context.Context, studentID int64) (care.RequestShareVisibility, error) {
+	visibility, err := c.Service.LoadRequestShareVisibility(ctx, studentID)
+	if err != nil || visibility == nil {
+		return nil, err
+	}
+	return visibility, nil
 }

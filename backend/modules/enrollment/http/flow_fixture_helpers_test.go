@@ -172,18 +172,23 @@ func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID 
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) *api.EnrollmentFlowTestRepositories {
+func testRepositories(t *testing.T, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
 	return flowRepositories(t, db)
 }
 
 // flowRepositories composes the repositories the enrollment flow suites run
 // on over the suite's database.
-func flowRepositories(t testing.TB, db *bun.DB) *api.EnrollmentFlowTestRepositories {
+func flowRepositories(t testing.TB, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
 	repos, err := api.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return repos
+	reposCare := api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, db))
+	reposAudit := api.NewEnrollmentFlowAuditRows(testpkg.NewDatabase(t, db))
+	reposTimetable := api.NewEnrollmentFlowTimetableRows(testpkg.NewDatabase(t, db))
+	reposCalendar := api.MustNewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
+	return repos, reposCare, reposAudit, reposTimetable, reposCalendar, reposSchools
 }
 
 func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
@@ -392,7 +397,7 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo api.CareWithdrawalRecords,
+	repo api.CareWithdrawalTestRows,
 	studentID int64,
 ) (*careplan.WithdrawalCompletion, error) {
 	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
@@ -447,7 +452,7 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.care_offerings").

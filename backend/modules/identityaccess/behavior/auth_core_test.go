@@ -73,25 +73,23 @@ type testAuthService interface {
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAuthService {
 	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
-	return newFixtureAuthService(t, db, serviceFactory.Auth)
+	return newFixtureAuthService(t, db, serviceFactory)
 }
 
 // setupAuthFactory composes the service factory the auth service and the
 // Identity & Access module are wired through, for tests that drive the
 // module's public contract directly.
-func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *api.TestServiceGraph {
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *identityaccess.Module {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
-	serviceFactory, err := api.NewServiceGraphForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
+	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return serviceFactory
+	return identityModule
 }
 
 func setupInvitationService(t *testing.T, db *bun.DB) api.InvitationCapability {
 	t.Helper()
-	service := setupAuthFactory(t, db).Invitation
+	service := setupAuthFactory(t, db)
 	return &fixtureOwnedInvitationService{InvitationCapability: service, t: t, db: db}
 }
 

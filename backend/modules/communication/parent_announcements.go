@@ -248,7 +248,6 @@ type ParentAnnouncementAttachmentSupport interface {
 	AnnouncementEditable(context.Context, int64) (bool, error)
 	LockAnnouncementForAttachmentChange(context.Context, int64) (bool, bool, error)
 	ResetAnnouncementEngagement(context.Context, int64) error
-	SetAttachmentPurger(ParentAnnouncementAttachmentPurger)
 }
 
 type ParentAnnouncementCapability interface {

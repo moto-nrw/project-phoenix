@@ -10,26 +10,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-type UserContextTestModule struct {
-	UserContext *CallerRows
-}
-
-func NewUserContextTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (UserContextTestModule, error) {
+// NewUserContextTestModule composes the caller context over the test
+// database with the tenant settings of unit.
+func NewUserContextTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (*CallerRows, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return UserContextTestModule{}, err
+		return nil, err
 	}
-	rows, err := newCallerRowsForTests(db, settings.Settings)
-	if err != nil {
-		return UserContextTestModule{}, err
-	}
-	return UserContextTestModule{UserContext: rows}, nil
+	return newCallerRowsForTests(db, settings.Settings)
 }
 
 // newCallerRowsForTests composes the caller context over the same owners as
 // production. settings may be nil.
 func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettings) (*CallerRows, error) {
-	r, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
+	members := MustNewMembershipTestRepositories(db)
+	r, staffGroups, err := NewUserContextTestRepositories(db, members)
+	if err != nil {
+		return nil, err
+	}
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		return nil, err
+	}
+	presence, err := NewTimetablePresenceRows(db, tt, members)
 	if err != nil {
 		return nil, err
 	}
@@ -41,15 +44,11 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 	if err != nil {
 		return nil, err
 	}
-	tt := r.Timetable
-	return NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts: r.Profile, Persons: callerPersons{rows: tt.Person, people: people}, Membership: membership, StaffGroups: r.StaffGroups,
-		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
-		Presence:             NewLoggedStudentPresence(db, slog.Default()),
-		Settings:             settings,
-		Tokens:               requestTokenReads,
-	}, CallerRowSources{
-		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
-		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,
-	})
+	activities := timetableCompose.NewCallerActivityGroups(tt.ActivityGroup)
+	caller, err := newCallerContext(requestTokenReads, r.Profile, callerPersons{rows: members.Person, people: people}, membership, staffGroups,
+		activities, NewLoggedStudentPresence(db, slog.Default()), settings, slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return NewCallerRows(caller, NewSchoolStructureSuiteRepositories(db).Group, members.Staff, members.Teacher, members.Student, activities, presence.ActiveGroup, slog.Default())
 }

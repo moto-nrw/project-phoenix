@@ -3,6 +3,12 @@ package api
 import (
 	"log/slog"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
@@ -13,16 +19,21 @@ import (
 // facades the root already holds: Student Presence, Timetable & Activities,
 // People Directory, Facilities, the Timetable owner's bridged completion, the
 // realtime hub, and the guardian wake of parent messaging.
-func newSessionEnd(presence *studentpresence.Module, modules moduleServices, graph *serviceGraph, logger *slog.Logger) (sessionend.Command, error) {
+func newSessionEnd(
+	presence *studentpresence.Module, activities timetable.Capability, completion timetable.EndedSessionCompletion,
+	students peopledirectory.Capability, rooms *facilitiesModule.Module, hub *realtime.Hub,
+	guardians *communicationCompose.ParentEventEmitter, logger *slog.Logger,
+) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{
 		Presence:    presence,
 		Sessions:    presence,
-		Timetable:   modules.timetable,
-		Completion:  graph.TimetableBridge,
-		Students:    modules.persons,
-		Rooms:       modules.rooms,
-		Broadcaster: graph.RealtimeHub,
+		Timetable:   activities,
+		Completion:  completion,
+		Students:    students,
+		Rooms:       rooms,
+		Broadcaster: hub,
+		Guardians:   guardians,
 		Logger:      log,
 		Observe: func(o sessionEndCompose.Observation) {
 			observability.ObserveSessionEndOperation(o.Operation, o.Duration, o.Err)
@@ -35,10 +46,6 @@ func newSessionEnd(presence *studentpresence.Module, modules moduleServices, gra
 				"error", o.Err,
 			)
 		},
-	}
-	// A typed nil pointer would satisfy the interface and panic on use.
-	if graph.ParentEventEmitter != nil {
-		deps.Guardians = graph.ParentEventEmitter
 	}
 	return sessionEndCompose.New(deps)
 }

@@ -38,6 +38,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	// The companion is created FIRST so its id is the lower one — the direction
 	// that cannot wait.
@@ -47,7 +48,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*careplan.CompanionEdge{
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factoryCare.CarePlan()), subject.ID, []*careplan.CompanionEdge{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -71,7 +72,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	// Nothing was written: both edges survive and the plan is untouched, so the
 	// retry the user is asked for starts from the same state.
-	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := api.NewPeopleRepositorySuiteCompanions(factoryCare.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 2)
 
@@ -90,7 +91,8 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")
@@ -104,14 +106,14 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	testpkg.HoldStudentRowLock(t, db, companion.ID)
 
 	// ACT — Tuesday gains the accompanied mode; the Monday edge keeps its basis.
-	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	loaded, err := factoryPeople.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"mon": {peopleValues.DepartureAccompanied},
 		"tue": {peopleValues.DepartureAccompanied},
 	}
 
-	require.NoError(t, factory.Student.Update(ctx, loaded))
+	require.NoError(t, factoryPeople.Student.Update(ctx, loaded))
 
 	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)

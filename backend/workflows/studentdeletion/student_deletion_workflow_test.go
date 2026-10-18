@@ -32,19 +32,20 @@ import (
 )
 
 type deletionFixture struct {
-	db       *bun.DB
-	repos    *api.RepositoryTestFactory
-	people   peopledirectory.Capability
-	deps     studentdeletion.Dependencies
-	actorID  int64
-	feedback *testpkg.FeedbackEntryCounterMock
+	db        *bun.DB
+	repos     *api.PeopleRepositorySuiteFactory
+	reposCare *api.RepositoryTestFactory
+	people    peopledirectory.Capability
+	deps      studentdeletion.Dependencies
+	actorID   int64
+	feedback  *testpkg.FeedbackEntryCounterMock
 }
 
 // companionLinks is the Care Plan record store behind the "läuft mit" edges,
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) api.CompanionRepository {
-	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
+	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
@@ -72,8 +73,9 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // owners and replaces only the HTTP principal with a fixed actor.
 func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
@@ -81,7 +83,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	owners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
-		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
+		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableOwner, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
 		LockCareBookingWrites: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
 	})
@@ -89,7 +91,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {
 		return studentdeletion.Actor{TenantID: tenant.FromContext(ctx), AccountID: actor.ID}, nil
 	}
-	return &deletionFixture{db: db, repos: repos, people: people, deps: deps, actorID: actor.ID, feedback: feedback}
+	return &deletionFixture{db: db, repos: reposPeople, reposCare: repos, people: people, deps: deps, actorID: actor.ID, feedback: feedback}
 }
 
 func (f *deletionFixture) workflow(t *testing.T) *studentdeletion.Workflow {
@@ -626,7 +628,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
-			queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
+			queued, err := f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
 			require.NoError(t, err)
 			assert.Empty(t, queued, "%s: no cleanup intent may outlive the rollback", phase)
 			pending, err := f.repos.CareWithdrawal.FindByID(ctx, completion.ID)
@@ -679,12 +681,12 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	// Already soft-deleted, bytes not yet unlinked: still pending cleanup.
 	deleted := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		careplan.StudentDocumentCategoryAttest, fmt.Sprintf("attest-%d.pdf", suffix))
-	_, err := f.repos.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
+	_, err := f.reposCare.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
 	require.NoError(t, err)
 	// Bytes already gone: nothing left to reclaim, so no intent must appear.
 	settled := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		careplan.StudentDocumentCategorySonstiges, fmt.Sprintf("erledigt-%d.pdf", suffix))
-	require.NoError(t, f.repos.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
+	require.NoError(t, f.reposCare.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -697,7 +699,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	assert.Zero(t, rowCount(t, db, "users.student_documents", live.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", deleted.ID))
 
-	queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
+	queued, err := f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	names := make([]string, 0, len(queued))
 	for _, cleanup := range queued {
@@ -708,9 +710,9 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 
 	// A durable intent is retried, not duplicated: queueing the same object
 	// again reactivates the row instead of adding a second one.
-	_, err = f.repos.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
+	_, err = f.reposCare.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
 	require.NoError(t, err)
-	queued, err = f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
+	queued, err = f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	assert.Len(t, queued, 2)
 }

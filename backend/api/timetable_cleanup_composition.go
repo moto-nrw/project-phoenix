@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -12,25 +13,28 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14).
-func NewTimetableCleanup(in TimetableRetentionInputs) (timetable.TimetableCleanup, error) {
-	logger := in.Logger
+// NewTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14)
+// over the collaborators the owner may not name itself: the Audit Platform's
+// deletion records and Änderungsprotokoll sweep and the Settings Platform's
+// retention window. deviations and settings are optional; a nil logger is
+// slog.Default().
+func NewTimetableCleanup(owner timetable.Capability, deletions DataDeletionAppender, deviations timetableDeviationSweep, settings TimetableRetentionSettings, logger *slog.Logger, clock func() time.Time) (timetable.TimetableCleanup, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	deps := timetablePorts.TimetableCleanupDependencies{
-		Timetable: in.Owner,
+		Timetable: owner,
 		Logger:    logger,
-		Clock:     in.Clock,
+		Clock:     clock,
 	}
-	if in.Deletions != nil {
-		deps.Audit = timetableDeletionAudit{deletions: in.Deletions}
+	if deletions != nil {
+		deps.Audit = timetableDeletionAudit{deletions: deletions}
 	}
-	if in.Deviations != nil {
-		deps.DeviationEvents = timetableDeviationRetention{events: in.Deviations}
+	if deviations != nil {
+		deps.DeviationEvents = timetableDeviationRetention{events: deviations}
 	}
-	if in.Settings != nil {
-		deps.Settings = timetableRetentionSettings{settings: in.Settings, logger: logger}
+	if settings != nil {
+		deps.Settings = timetableRetentionSettings{settings: settings, logger: logger}
 	}
 	return timetableCompose.NewTimetableCleanup(deps)
 }

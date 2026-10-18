@@ -150,3 +150,30 @@ func (l enrollmentExportAccessLog) RecordStudentExport(ctx context.Context, stud
 		Metadata:       entry.Metadata,
 	})
 }
+
+// EnrollmentReportOwnerReads are the Enrollment owner reads of the reports.
+type EnrollmentReportOwnerReads interface {
+	enrollmentCompose.ReportRequests
+	enrollmentCompose.ReportChildren
+	enrollmentCompose.ReportGuardians
+	enrollmentCompose.ReportSchemas
+	enrollmentCompose.ReportPhases
+}
+
+// EnrollmentReportSources are the reads the root binds the reports to.
+type EnrollmentReportSources struct {
+	Owner             EnrollmentReportOwnerReads
+	Offerings         enrollmentCompose.ReportOfferings
+	AccessLog         enrollmentAccessLogAppender
+	Students          enrollmentRosterStudentRows
+	Persons           enrollmentRosterPersonRows
+	Groups            enrollmentCompose.RosterGroups
+	StudentGuardians  enrollmentGuardianContactRows
+	Companions        enrollmentCompose.RosterCompanions
+	ClassListEntries  enrollmentCompose.ClassListEntries
+	PickupSchedules   enrollmentCompose.PickupSchedules
+	CareParticipation enrollmentCompose.CareParticipation
+	Settings          interface {
+		ResolveBool(ctx context.Context, key string) (bool, error)
+	}
+}

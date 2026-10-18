@@ -9,9 +9,8 @@ import (
 
 // The audited class-list administration (#2382). The two capabilities it
 // depends on — the People Directory student lookup and the Audit append
-// command — are handed in by the composition root after this module exists,
-// so they are adapted onto the internal ports here rather than in the
-// composition's New.
+// command — come from other owners, so they are adapted onto the internal
+// ports here.
 
 func (e Engine) ListClassListEntriesInDisplayOrder(ctx context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, error) {
 	values, err := e.service.ListClassListEntriesInDisplayOrder(ctx, classListEntryFilterToDomain(filter))
@@ -48,8 +47,10 @@ func (e Engine) ResolveClassListEntry(ctx context.Context, input schoolmembershi
 	return MapError(e.service.ResolveClassListEntry(ctx, input.ID, input.StudentID, input.ChangedBy))
 }
 
-func (e Engine) BindClassListEntryAdministration(students schoolmembership.ClassListEntryStudents, trail schoolmembership.ClassListEntryTrail) {
-	e.service.BindClassListEntryAdministration(classListStudents{students}, classListTrail{trail})
+// NewClassListAdministration adapts the public student directory and audit
+// trail onto the internal ports the service is composed with.
+func NewClassListAdministration(students schoolmembership.ClassListEntryStudents, trail schoolmembership.ClassListEntryTrail) *ClassListAdministration {
+	return &ClassListAdministration{Students: classListStudents{students}, Trail: classListTrail{trail}}
 }
 
 // classListStudents passes the public student port straight through: it

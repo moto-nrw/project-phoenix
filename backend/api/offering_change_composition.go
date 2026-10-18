@@ -24,38 +24,47 @@ import (
 // the owners' capabilities with the queries and error shapes the retained
 // repositories had; they decide nothing.
 
-// newOfferingChanges composes the offering-change review over the inputs.
-func newOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
-	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
-		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
+// offeringChangeOwners binds the offering-change review's ports over its
+// owners. A nil catalog reads the care offerings from carePlan. The caller
+// completes the dependencies with the planning, the booking materialization,
+// the share visibility, the clock and the logger, and composes them through
+// newOfferingChanges.
+func offeringChangeOwners(
+	carePlan careplan.Capability, catalog carePlanCompose.OfferingChangeCatalog, enrollment OfferingChangeEnrollmentReads,
+	students offeringChangeStudentRows, withdrawals offeringChangeWithdrawalRows, settings OfferingChangeSettingsReads,
+	reviews OfferingChangeReviewPolicy, permissions func(context.Context) []string,
+	emitter *communicationCompose.ParentEventEmitter, events peopledirectory.ParentRequestEvents,
+) (carePlanCompose.OfferingChangeDependencies, error) {
+	if carePlan == nil || enrollment == nil || students == nil || reviews == nil || permissions == nil {
+		return carePlanCompose.OfferingChangeDependencies{}, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
 	var messenger carePlanCompose.RequestMessenger
-	if inputs.Emitter != nil {
-		messenger = excusedRequestMessenger{emitter: inputs.Emitter}
+	if emitter != nil {
+		messenger = excusedRequestMessenger{emitter: emitter}
 	}
 	var ledger carePlanCompose.RequestLedger
-	if inputs.Events != nil {
-		ledger = NewParentRequestLedger(inputs.Events)
+	if events != nil {
+		ledger = NewParentRequestLedger(events)
 	}
-	var catalog carePlanCompose.OfferingChangeCatalog = inputs.CarePlan
-	if inputs.Catalog != nil {
-		catalog = inputs.Catalog
+	if catalog == nil {
+		catalog = carePlan
 	}
-	changes, err := carePlanCompose.NewOfferingChanges(carePlanCompose.OfferingChangeDependencies{
-		Rows:       offeringChangeRows{carePlan: inputs.CarePlan},
+	return carePlanCompose.OfferingChangeDependencies{
+		Rows:       offeringChangeRows{carePlan: carePlan},
 		Catalog:    catalog,
-		Enrollment: offeringChangeEnrollment{owner: inputs.Enrollment},
-		Students:   offeringChangeStudents{students: inputs.Students, withdrawals: inputs.Withdrawals},
-		Settings:   NewOfferingChangeSettings(inputs.Settings),
-		Planning:   inputs.Planning,
-		Bookings:   inputs.Bookings,
-		Scope:      offeringChangeReviewScope(inputs.Reviews, inputs.Permissions),
+		Enrollment: offeringChangeEnrollment{owner: enrollment},
+		Students:   offeringChangeStudents{students: students, withdrawals: withdrawals},
+		Settings:   NewOfferingChangeSettings(settings),
+		Scope:      offeringChangeReviewScope(reviews, permissions),
 		Messenger:  messenger,
 		Ledger:     ledger,
-		Shares:     inputs.Shares,
-		Today:      inputs.Today,
-		Logger:     inputs.Logger,
-	})
+	}, nil
+}
+
+// newOfferingChanges composes the offering-change review over deps from
+// offeringChangeOwners.
+func newOfferingChanges(deps carePlanCompose.OfferingChangeDependencies) (careplan.OfferingChangeCapability, error) {
+	changes, err := carePlanCompose.NewOfferingChanges(deps)
 	if err != nil {
 		return nil, err
 	}

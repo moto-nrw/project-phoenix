@@ -24,7 +24,7 @@ func TestCalendarPeriodAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
@@ -125,7 +125,7 @@ func TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
 
@@ -184,7 +184,7 @@ func TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	active := testpkg.CreateTestCalendarPeriod(t, db, "Aktiv", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
@@ -235,7 +235,7 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Genutzt", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
@@ -264,7 +264,7 @@ func TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
@@ -309,7 +309,7 @@ func TestClosingDayAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ClosingDay
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).ClosingDay
 	ctx := testpkg.Ctx(t)
 
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestClosingDay(t, db, testpkg.Date(2030, time.November, 4), testpkg.Date(2030, time.November, 8), "Pädagogische Woche").ID)
@@ -371,7 +371,7 @@ func TestDateframeAdapter_KeepsTheLegacyLookups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Dateframe
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).Dateframe
 	ctx := testpkg.Ctx(t)
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
@@ -406,7 +406,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewTimetableRepositories(testpkg.MustDatabase(db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Kapazität", testpkg.Date(2030, time.September, 2), testpkg.Date(2030, time.September, 6))

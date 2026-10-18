@@ -1,3 +1,4 @@
+// Package compose binds Reminder Delivery to the shared runtime.
 package compose
 
 import (

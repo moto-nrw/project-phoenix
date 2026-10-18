@@ -39,7 +39,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	// "Nur diese Woche": move the start by one hour. UpdatePlanned keeps the
 	// instance on this date and writes a cancellation exception for the old
 	// template slot so a re-plan cannot resurrect the original time.
-	updatedSingle, err := s.factory.Instance.UpdatePlanned(
+	updatedSingle, err := s.instance.UpdatePlanned(
 		s.ctx,
 		single.ID,
 		moveInput(s, single, singleDate, 1),
@@ -54,14 +54,14 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 
 	// "Ab jetzt dauerhaft": split at the next Monday.
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Single-Following-%d", time.Now().UnixNano()))
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	// "Alle Termine der Serie" on the successor: a full schedule replacement
 	// must retain valid_from=effective.
 	successor := reloadSplitGroup(t, s, res.NewTemplateID)
 	require.NotNil(t, successor.PlannedRoomID)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: res.NewTemplateID,
 		Fields: timetable.TemplateFields{
 			Name:              successor.Name + "-all-edited",
@@ -93,7 +93,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	// The frontend follows a full-series PUT with a successor-scoped re-plan.
 	// Materialization still examines every template, making this the exact
 	// point where an erased valid_from used to create the duplicate.
-	result, err := s.factory.Instance.ReplanWeek(s.ctx, singleDate, effective, &res.NewTemplateID, nil)
+	result, err := s.instance.ReplanWeek(s.ctx, singleDate, effective, &res.NewTemplateID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result.Materialization)
 

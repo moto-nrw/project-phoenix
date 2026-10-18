@@ -43,10 +43,6 @@ func NewTenantOperations(settings SettingsService, payroll PayrollStatusGetter, 
 	return &TenantOperations{settings: settings, payroll: payroll, runtime: runtime, hook: hook, notify: notify}
 }
 
-func (o *TenantOperations) SetValueSetHook(hook func(context.Context, int64, string, any) (func(), error)) {
-	o.hook = hook
-}
-
 func (o *TenantOperations) Schema(ctx context.Context, permissions []string) (any, error) {
 	return o.settings.GetSchema(ctx, permissions)
 }

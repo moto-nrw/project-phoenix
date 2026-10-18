@@ -48,7 +48,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	today := calendar.TodayDate()
@@ -96,7 +96,7 @@ func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	students, err := repos.Student.FindBirthdaysOn(ctx, nil)

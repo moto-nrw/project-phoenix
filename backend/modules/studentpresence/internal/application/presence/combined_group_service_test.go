@@ -19,10 +19,9 @@ import (
 
 // buildCombinedGroupService creates an Active Service for combined group tests
 func buildCombinedGroupService(t *testing.T, db *testpkg.DB) active.Service {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 // =============================================================================

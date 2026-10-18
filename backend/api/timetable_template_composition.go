@@ -1,63 +1,84 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetableMaterializationDependencies binds the recurrence engine to the
-// realtime hub over the template rows.
-func TimetableMaterializationDependencies(in TimetableMaterializationInputs) timetablePorts.MaterializationDependencies {
+// realtime hub over the template rows. careBounds is the per-date care
+// filter (#2487); nonWorkingDays skips holidays and closing days (#3594);
+// broadcaster announces created occurrences to the staffing caches (#1844).
+// The composition root adds its database handle to the dependencies they
+// bind.
+func TimetableMaterializationDependencies(
+	rows timetableCompose.TemplateRows, careBounds timetablePorts.CareBoundReader, nonWorkingDays timetable.NonWorkingDayCalendar,
+	recurrenceLock timetable.RecurrenceWriteLock, broadcaster realtime.Broadcaster, logger *slog.Logger,
+) timetablePorts.MaterializationDependencies {
 	return timetablePorts.MaterializationDependencies{
-		GroupRepo:      in.Rows.Groups,
-		ScheduleRepo:   in.Rows.Schedules,
-		EnrollmentRepo: in.Rows.Enrollments,
-		SupervisorRepo: in.Rows.Supervisors,
-		PeriodRepo:     in.Rows.CalendarPeriods,
-		InstanceRepo:   in.Rows.Instances,
-		StaffRepo:      in.Rows.InstanceStaff,
-		StudentRepo:    in.Rows.Participants,
-		ExceptionRepo:  in.Rows.Exceptions,
-		TimeframeRepo:  in.Rows.Timeframes,
-		CareBounds:     in.CareBounds,
-		NonWorkingDays: in.NonWorkingDays,
-		RecurrenceLock: in.RecurrenceLock,
-		Staffing:       newStaffingAnnouncer(in.Broadcaster),
-		Logger:         in.Logger,
+		GroupRepo:      rows.Groups,
+		ScheduleRepo:   rows.Schedules,
+		EnrollmentRepo: rows.Enrollments,
+		SupervisorRepo: rows.Supervisors,
+		PeriodRepo:     rows.CalendarPeriods,
+		InstanceRepo:   rows.Instances,
+		StaffRepo:      rows.InstanceStaff,
+		StudentRepo:    rows.Participants,
+		ExceptionRepo:  rows.Exceptions,
+		TimeframeRepo:  rows.Timeframes,
+		CareBounds:     careBounds,
+		NonWorkingDays: nonWorkingDays,
+		RecurrenceLock: recurrenceLock,
+		Staffing:       newStaffingAnnouncer(broadcaster),
+		Logger:         logger,
 	}
 }
 
 // TimetableTemplateDependencies binds the template writes to Care Plan's
-// catalog guards, School Structure's class rules and the realtime hub.
-func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetablePorts.TemplateAdministrationDependencies, error) {
-	if in.CareOfferings == nil || in.Deviations == nil {
+// catalog guards, School Structure's class rules and the realtime hub over
+// the template rows. deviations is the instance lifecycle's deviation
+// machinery the split preserves Vertretungsplan overrides with;
+// careOfferings and resyncOfferingRoster are Enrollment's. The composition
+// root adds its database handle to the dependencies they bind.
+func TimetableTemplateDependencies(
+	rows timetableCompose.TemplateRows, planningTracks timetablePorts.PlanningTrackAssignments, materialization timetable.MaterializationCapability,
+	deviations timetablePorts.SeriesDeviations, careOfferings careplan.CareOfferingGuards,
+	resyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error, recurrenceLock timetable.RecurrenceWriteLock,
+	broadcaster realtime.Broadcaster, logger *slog.Logger, today func() timezone.Date,
+) (timetablePorts.TemplateAdministrationDependencies, error) {
+	if careOfferings == nil || deviations == nil {
 		return timetablePorts.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
 	}
 	return timetablePorts.TemplateAdministrationDependencies{
-		Groups:               in.Rows.Groups,
-		Categories:           in.Rows.Categories,
-		Schedules:            in.Rows.Schedules,
-		Enrollments:          in.Rows.Enrollments,
-		Supervisors:          in.Rows.Supervisors,
-		Instances:            in.Rows.Instances,
-		InstanceStaff:        in.Rows.InstanceStaff,
-		Participants:         in.Rows.Participants,
-		Timeframes:           in.Rows.Timeframes,
-		PlanningTracks:       in.PlanningTracks,
-		EducationGroups:      in.Rows.EducationGroups,
-		Materialization:      in.Materialization,
-		Deviations:           in.Deviations,
-		CareOfferings:        timetableCareOfferingChecks(in.CareOfferings),
-		ResyncOfferingRoster: in.ResyncOfferingRoster,
-		RecurrenceLock:       in.RecurrenceLock,
+		Groups:               rows.Groups,
+		Categories:           rows.Categories,
+		Schedules:            rows.Schedules,
+		Enrollments:          rows.Enrollments,
+		Supervisors:          rows.Supervisors,
+		Instances:            rows.Instances,
+		InstanceStaff:        rows.InstanceStaff,
+		Participants:         rows.Participants,
+		Timeframes:           rows.Timeframes,
+		PlanningTracks:       planningTracks,
+		EducationGroups:      rows.EducationGroups,
+		Materialization:      materialization,
+		Deviations:           deviations,
+		CareOfferings:        timetableCareOfferingChecks(careOfferings),
+		ResyncOfferingRoster: resyncOfferingRoster,
+		RecurrenceLock:       recurrenceLock,
 		SchoolClasses:        timetableSchoolClassRules(),
-		Staffing:             newStaffingAnnouncer(in.Broadcaster),
-		Logger:               in.Logger,
-		Today:                in.Today,
+		Staffing:             newStaffingAnnouncer(broadcaster),
+		Logger:               logger,
+		Today:                today,
 	}, nil
 }
 

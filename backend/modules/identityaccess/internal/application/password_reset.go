@@ -211,8 +211,7 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
 func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	_, err := r.store.RecordPasswordResetDelivery(ctx, id, delivery.Bounded())
-	return err
+	return recordPasswordResetDelivery(ctx, r.store, id, delivery)
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.

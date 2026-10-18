@@ -33,18 +33,18 @@ func noticeSettings() *settingsDouble {
 	}
 }
 
-func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Service, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc := announcement.NewService(announcement.ServiceConfig{
-		Repo:       announcement.NewRepository(repos.ParentAnnouncement),
+		Repo:       announcement.NewRepository(reposMessages.ParentAnnouncement),
 		Settings:   configModel.NewParentAnnouncementValues(settings),
 		Notifier:   noticeNotificationCallback(api.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	return svc, db, repos
+	return svc, db, reposMessages
 }
 
 func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.T) {

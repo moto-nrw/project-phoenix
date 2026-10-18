@@ -15,7 +15,7 @@ import (
 // every writing route of the portal routers in the production router (and
 // of the demo, mounted under APP_ENV=demo only) either names its core action
 // or is explicitly not captured, and the table names no route that is gone.
-func checkCoreActionClassification(t *testing.T, apiInstance *serveGraph) {
+func checkCoreActionClassification(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 
 	unclassified, stale, err := coreActionRouteGaps(apiInstance.router)

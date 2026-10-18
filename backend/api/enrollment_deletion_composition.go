@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -116,4 +117,26 @@ func (a enrollmentDeletionAudit) RecordEnrollmentDeletion(ctx context.Context, e
 		},
 		DeletedAt: event.DeletedAt,
 	})
+}
+
+// EnrollmentDeletionOwner is the Enrollment owner slice the admin deletion
+// and the retention cleanup read, lock and delete through.
+type EnrollmentDeletionOwner = enrollmentCompose.DeletionOwner
+
+// EnrollmentDeletionSources are the owners the root binds the admin deletion
+// and the retention cleanup to.
+type EnrollmentDeletionSources struct {
+	Owner     EnrollmentDeletionOwner
+	Guardians enrollmentCompose.GuardianDirectory
+	// CountAuditAdjustments counts the audited offering adjustments of a
+	// request or one of its children.
+	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
+	// CountBookings counts Care Plan's bookings of the request children.
+	CountBookings func(context.Context, []int64) (int, error)
+	Audit         enrollmentDeletionAppender
+	Delivery      enrollmentCompose.EnrollmentDeletionDelivery
+	Settings      interface {
+		ResolveInt(ctx context.Context, key string) (int, error)
+	}
+	Logger *slog.Logger
 }

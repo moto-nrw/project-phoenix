@@ -22,11 +22,9 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 	repo := newMockValueRepo()
 	svc := createService(registry, repo, &mockAuditRepo{})
 	var cachePaths []string
-	svc.(interface{ SetLookupObserver(SettingsLookupObserver) }).SetLookupObserver(
-		func(_ string, cache, outcome string, _ time.Duration) {
-			cachePaths = append(cachePaths, cache+":"+outcome)
-		},
-	)
+	svc.(*settingsService).observeLookup = func(_ string, cache, outcome string, _ time.Duration) {
+		cachePaths = append(cachePaths, cache+":"+outcome)
+	}
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	first, err := svc.ResolveBool(ctx, "test.cached_flag")

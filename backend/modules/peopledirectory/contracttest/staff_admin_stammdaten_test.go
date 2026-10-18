@@ -20,10 +20,12 @@ import (
 // masked values only.
 
 type stammdatenScenario struct {
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
-	svc   workforce.StaffRecordAdmin
-	ctx   context.Context
+	db                    *bun.DB
+	repos                 *api.RepositoryTestFactory
+	reposPeople           *api.PeopleRepositorySuiteFactory
+	reposPeopleMembership *api.SchoolMembershipSuiteRepositories
+	svc                   workforce.StaffRecordAdmin
+	ctx                   context.Context
 }
 
 func newStammdatenScenario(t *testing.T) *stammdatenScenario {
@@ -31,16 +33,17 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc, err := api.NewStaffAdmin(stammdatenAdminDeps(db, repos))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc, err := api.NewStaffAdmin(testpkg.MustDatabase(db), reposPeople.Staff, reposPeople.Person, reposPeopleMembership.SchoolMembership(), stammdatenAdminDeps(db))
 	require.NoError(t, err)
 
-	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
+	return &stammdatenScenario{db: db, repos: repos, reposPeople: reposPeople, reposPeopleMembership: reposPeopleMembership, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
-func stammdatenAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory) api.StaffAdminDependencies {
+func stammdatenAdminDeps(db *bun.DB) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
-		DB: testpkg.MustDatabase(db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
@@ -361,14 +364,14 @@ func TestStaffStammdaten_FinancialValidation(t *testing.T) {
 
 	// Unaudited financial reads are refused outright: the administration
 	// cannot be composed without the access-log repository.
-	noAccessLog := stammdatenAdminDeps(s.db, s.repos)
+	noAccessLog := stammdatenAdminDeps(s.db)
 	noAccessLog.DataAccessLog = nil
-	_, err = api.NewStaffAdmin(noAccessLog)
+	_, err = api.NewStaffAdmin(testpkg.MustDatabase(s.db), s.reposPeople.Staff, s.reposPeople.Person, s.reposPeopleMembership.SchoolMembership(), noAccessLog)
 	require.Error(t, err, "without the access-log repository no financial value may be served")
 
 	// Unaudited writes are refused too.
-	noAudit := stammdatenAdminDeps(s.db, s.repos)
+	noAudit := stammdatenAdminDeps(s.db)
 	noAudit.MasterDataAudit = nil
-	_, err = api.NewStaffAdmin(noAudit)
+	_, err = api.NewStaffAdmin(testpkg.MustDatabase(s.db), s.reposPeople.Staff, s.reposPeople.Person, s.reposPeopleMembership.SchoolMembership(), noAudit)
 	require.Error(t, err)
 }

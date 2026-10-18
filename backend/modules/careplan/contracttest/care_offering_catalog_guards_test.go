@@ -57,7 +57,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
-	repos := testRepositories(t, db)
+	_, _, reposEnrollment := testRepositories(t, db)
 
 	phase := &enrollmentTest.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
@@ -68,7 +68,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, insertOwnerPhaseForTest(ctx, repos.Enrollment(), phase))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, reposEnrollment.Enrollment(), phase))
 
 	return &calendarPeriodValidationFixture{
 		db:       db,
@@ -256,7 +256,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtureRecords(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, fixture.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, fixture.db))).CarePlan()).Update(fixture.ctx, offering))
+	require.NoError(t, newCareOfferingFixtureRecords(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, fixture.db)).CarePlan()).Update(fixture.ctx, offering))
 
 	replacement := api.CalendarPeriodReplacementOf(*period)
 	replacement.IsActive = false
@@ -351,7 +351,7 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db))
 	catalog := testCareOfferingCatalog(t, db,
 		api.WithCareOfferingPickupResync(&pickupResyncer{}))
 
@@ -433,7 +433,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
 	phase.ServiceEndDate = enrollmentTest.Date(end)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(

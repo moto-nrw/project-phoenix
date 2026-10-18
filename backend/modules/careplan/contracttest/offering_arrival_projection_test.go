@@ -30,7 +30,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -42,18 +42,20 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 	participation := newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 	})
-	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+	careDays, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{
 		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
 		Records:          env.repos.CarePlan(),
 
-		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
+		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople)),
 
 		CareParticipation: participation,
 	})
+	require.NoError(t, err)
+	return careDays
 }
 
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careplan.PickupBaselineReader {
-	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos),
+	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople),
 		func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
@@ -102,10 +104,10 @@ func setArrivalClassTimes(t *testing.T, env *decisionTestEnv, class string, time
 func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	student, err := env.repos.Student.FindByID(ctx, studentID)
+	student, err := env.reposPeople.Student.FindByID(ctx, studentID)
 	require.NoError(t, err)
 	student.SchoolClass = class
-	require.NoError(t, env.repos.Student.Update(ctx, student))
+	require.NoError(t, env.reposPeople.Student.Update(ctx, student))
 }
 
 func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.T) {

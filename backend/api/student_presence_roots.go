@@ -3,13 +3,17 @@ package api
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -86,9 +90,11 @@ func NewPresenceFacts(db transactionruntime.Database) timetable.SessionFacts {
 }
 
 // NewSessionRecords builds the Student Presence session records with every
-// owner directory bound at construction (#2743).
-func NewSessionRecords(db transactionruntime.Database, owners SessionRecordOwners) *presenceCompose.SessionRecords {
-	deps := sessionRecordDependencies(owners)
+// owner directory bound at construction (#2743): the supervision clock (nil
+// is the Berlin clock), the devices (nil fails device reads loudly), the
+// rooms, the activities, the staff memberships and their persons.
+func NewSessionRecords(db transactionruntime.Database, now func() time.Time, devices devicefleet.Query, rooms facilitiesModule.Query, activities timetable.Capability, membership schoolmembership.Query, persons peopledirectory.Query) *presenceCompose.SessionRecords {
+	deps := sessionRecordDependencies(now, devices, rooms, activities, membership, persons)
 	deps.DB = db.Pool()
 	return newPresenceSessionRecords(deps)
 }

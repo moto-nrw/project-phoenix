@@ -41,11 +41,14 @@ const (
 // NewEnrollmentFlowDelivery composes the Delivery platform over the test
 // database with a provider that accepts every send.
 func NewEnrollmentFlowDelivery(db transactionruntime.Database) (*delivery.Module, error) {
-	runtime, err := deliveryCompose.New(deliveryCompose.Dependencies{
-		DB: db.Pool(), Provider: enrollmentFlowDeliveryProvider{}, People: enrollmentFlowGuardianDirectory{},
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db.Pool(), People: enrollmentFlowGuardianDirectory{},
 		Observe: func(delivery.Observation) {},
 	})
 	if err != nil {
+		return nil, err
+	}
+	if _, err := deliveryCompose.NewWorker(runtime, enrollmentFlowDeliveryProvider{}); err != nil {
 		return nil, err
 	}
 	return runtime.Module, nil

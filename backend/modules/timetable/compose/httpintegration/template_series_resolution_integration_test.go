@@ -63,13 +63,13 @@ func makeSeriesChain(t *testing.T, weekdays []int, firstBoundary, secondBoundary
 
 	middleInput := baseSplitInput(s, firstBoundary, fmt.Sprintf("Chain-Middle-%d", time.Now().UnixNano()))
 	middleInput.Weekdays = weekdays
-	middle, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, middleInput)
+	middle, err := s.timetableData.Templates.SplitTemplate(s.ctx, middleInput)
 	require.NoError(t, err)
 
 	livingInput := baseSplitInput(s, secondBoundary, fmt.Sprintf("Chain-Living-%d", time.Now().UnixNano()))
 	livingInput.TemplateID = middle.NewTemplateID
 	livingInput.Weekdays = weekdays
-	living, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, livingInput)
+	living, err := s.timetableData.Templates.SplitTemplate(s.ctx, livingInput)
 	require.NoError(t, err)
 
 	chain := &seriesChain{
@@ -138,12 +138,12 @@ func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
-	resolved, changed, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
+	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved, "a bounded middle segment resolves to the living successor")
 	assert.True(t, changed)
 
-	resolved, changed, err = chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.rootID)
+	resolved, changed, err = chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.rootID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved, "the series root resolves to the living successor too")
 	assert.True(t, changed)
@@ -155,7 +155,7 @@ func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
-	resolved, changed, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.livingID)
+	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.livingID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved)
 	assert.False(t, changed, "the living segment must not report a resolution")
@@ -171,18 +171,18 @@ func TestResolveLivingTemplateSegment_ErrorsOnFullyEndedSeries(t *testing.T) {
 		// Far above every id this tenant's fixtures produced — an id that
 		// resolves to no lineage at all.
 		unknownID := chain.livingID + 1_000_000
-		_, _, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, unknownID)
+		_, _, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, unknownID)
 		assert.ErrorIs(t, err, timetable.ErrTemplateSeriesFullyEnded)
 	})
 
 	t.Run("every segment ended", func(t *testing.T) {
-		_, err := chain.factory.TimetableData.Templates.EndTemplateFromDate(chain.ctx, timetable.EndTemplateCommand{
+		_, err := chain.timetableData.Templates.EndTemplateFromDate(chain.ctx, timetable.EndTemplateCommand{
 			TemplateID:    chain.livingID,
 			EffectiveDate: chain.secondBoundary,
 		})
 		require.NoError(t, err)
 
-		_, _, err = chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
+		_, _, err = chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
 		assert.ErrorIs(t, err, timetable.ErrTemplateSeriesFullyEnded,
 			"a lineage without an open segment has nothing left to edit")
 	})

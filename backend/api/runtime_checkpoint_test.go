@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +73,13 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	output, err := os.OpenFile(*runtimeCheckpointOutput, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	require.NoError(t, err, "use a new output path for each checkpoint execution")
 	defer func() { _ = output.Close() }()
-	api := production.graph
+	api := newGoldenRuntime(t, production)
+	// The Worker's outbox drain and the materialization run over the pool of
+	// the production runtime.
+	var checkpointMaterialization timetableModule.MaterializationCapability
+	var checkpointOutbox *deliveryModule.Worker
+	_, _, _, _, _, _, _, _, _, _, _, _, _, checkpointMaterialization, _, _, _, _, _, _, _, checkpointOutbox, _, err = composeTestRoot(api.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
 	db := testpkg.SetupTestDB(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Checkpoint", "Staff")
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
@@ -419,9 +428,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
-		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, api.services.EmailOutboxWorker, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) })
+		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, checkpointOutbox, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) })
 		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db.Pool(), db, api.db.UnitOfWork(), counter, templateID, func(ctx context.Context) (int, int, error) {
-			result, materializeErr := api.services.Materialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
+			result, materializeErr := checkpointMaterialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
 			if materializeErr != nil {
 				return 0, 0, materializeErr
 			}

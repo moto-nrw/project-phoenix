@@ -5,6 +5,8 @@ import (
 	"log/slog"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
@@ -73,18 +75,22 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calendar) *timeTrackingHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
+func newTimeTrackingResource(
+	users peoplePorts.PersonDirectory, documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking,
+	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
+	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
+) *timeTrackingHTTP.Resource {
+	capabilities := NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
-		StaffShifts:      graph.StaffShifts,
+		StaffShifts:      shifts,
 		ShiftResponses:   timeTrackingShiftResponses,
-		Assignments:      graph.StaffAssignments,
+		Assignments:      assignments,
 		Calendar:         PlanningCalendarCapability(calendar),
-		AccountStartDate: timeTrackingAccountStartDate(graph.Settings),
+		AccountStartDate: timeTrackingAccountStartDate(settings),
 		Identity:         timeTrackingIdentity,
 		WithinTenant: func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
 			id, err := tenant.NewTenantID(tenantID)
@@ -105,9 +111,14 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 	if err != nil {
 		panic(err)
 	}
+	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, logger)
+	if err != nil {
+		panic(err)
+	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
+		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,

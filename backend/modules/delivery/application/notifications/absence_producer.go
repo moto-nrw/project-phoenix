@@ -74,10 +74,6 @@ type absenceNotifier struct {
 	tenantRuntime *tenant.UnitOfWork
 }
 
-func (n *absenceNotifier) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	n.tenantRuntime = &runtime
-}
-
 // NewAbsenceNotifier builds the sick/excused producer.
 func NewAbsenceNotifier(
 	notifier Service,

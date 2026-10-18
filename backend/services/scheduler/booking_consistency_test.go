@@ -38,12 +38,13 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 		PickupProjectionMissingDays: 3,
 		TotalFindings:               3,
 	}}
-	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor.audit,
-		tasks:              make(map[string]*ScheduledTask),
-		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.bookingConsistency = auditor.audit
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.logger = slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		}))})
+		}))
+	})
 
 	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
@@ -64,12 +65,13 @@ func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
 	var output bytes.Buffer
 	want := errors.New("query failed")
 	auditor := &stubBookingConsistencyAudit{err: want}
-	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor.audit,
-		tasks:              make(map[string]*ScheduledTask),
-		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.bookingConsistency = auditor.audit
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.logger = slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		}))})
+		}))
+	})
 
 	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
@@ -88,12 +90,13 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 		TenantID:                        42,
 		ApprovedWithoutOptionalOffering: 2,
 	}}
-	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor.audit,
-		tasks:              make(map[string]*ScheduledTask),
-		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.bookingConsistency = auditor.audit
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.logger = slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		}))})
+		}))
+	})
 
 	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 

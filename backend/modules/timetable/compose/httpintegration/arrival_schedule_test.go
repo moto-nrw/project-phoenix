@@ -18,15 +18,15 @@ import (
 )
 
 func newArrivalScheduleRepository(db *bun.DB) arrivalScheduleQueryRepository {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalSchedule.(arrivalScheduleQueryRepository)
+	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentArrivalSchedule.(arrivalScheduleQueryRepository)
 }
 
 func newArrivalExceptionRepository(db *bun.DB) arrivalExceptionQueryRepository {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalException.(arrivalExceptionQueryRepository)
+	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentArrivalException.(arrivalExceptionQueryRepository)
 }
 
 func newArrivalNoteRepository(db *bun.DB) arrivalNoteQueryRepository {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalNote.(arrivalNoteQueryRepository)
+	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentArrivalNote.(arrivalNoteQueryRepository)
 }
 
 // =============================================================================

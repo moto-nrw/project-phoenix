@@ -9,11 +9,12 @@ import (
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 )
 
-// HTTPRuntime preserves tenant transactions, permission checks, and responses.
-func ReminderHTTPRuntime(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) remindersHTTP.Runtime {
+// ReminderHTTPRuntime binds the reminder routes to the tenant transaction,
+// the permission checks and the shared responses.
+func ReminderHTTPRuntime() remindersHTTP.Runtime {
 	return remindersHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
-			protectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		ReadPermission: common.RequiresPermission(permissions.UsersRead),
 		EffectiveAdmin: common.HasEffectiveAdminScope,

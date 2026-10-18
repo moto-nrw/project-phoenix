@@ -116,9 +116,9 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 func setupCheckinRoute(t *testing.T, db *testpkg.DB) *presence.Resource {
 	t.Helper()
 
-	_, serviceFactory := setupActiveModule(t)
+	_, serviceFactory, serviceFactoryPresence, serviceFactoryPeople, serviceFactoryEducation, serviceFactoryCaller, serviceFactoryCare := setupActiveModule(t)
 
-	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), settingsFacts.NewDisplaySettings(serviceFactory.Settings))
+	return presence.NewResource(serviceFactoryPresence.PresenceOperations(), activePeople{source: serviceFactoryPeople.AttendancePeople()}, serviceFactoryEducation.TeacherGroupIDs, activeStaffAccess{source: rootAPI.NewActiveTestAttendanceStaff(serviceFactoryCaller)}, serviceFactory.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactoryCare.WithAttendanceStaff), authorizationForTest(), settingsFacts.NewDisplaySettings(serviceFactory.Settings))
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint

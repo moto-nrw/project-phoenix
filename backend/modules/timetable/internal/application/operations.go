@@ -53,6 +53,9 @@ type operations struct {
 
 // NewOperations composes the Timetable owner's operational day.
 func NewOperations(deps ports.OperationDependencies, caller OperationCaller) (timetable.OperationCapability, error) {
+	if deps.Session == nil {
+		return nil, errors.New("timetable operations: the request session is required")
+	}
 	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.Templates == nil ||
 		deps.Sessions == nil || deps.Supervisions == nil || deps.Visits == nil || deps.Attendance == nil ||
 		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil ||

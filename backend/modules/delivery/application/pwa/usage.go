@@ -99,10 +99,6 @@ type usageService struct {
 	snapshotTime time.Time
 }
 
-func (s *usageService) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	s.tenantRuntime = &runtime
-}
-
 // NewUsageService builds the PWA usage service.
 func NewUsageService(
 	db *bun.DB,
@@ -123,6 +119,29 @@ func NewUsageService(
 		settings:       settings,
 		logger:         logger,
 	}
+}
+
+// NewTenantUsageService is NewUsageService over the root's tenant unit of
+// work (ADR 0059). A missing collaborator is a construction error; the
+// logger stays optional.
+func NewTenantUsageService(
+	runtime tenant.UnitOfWork,
+	db *bun.DB,
+	repo usageRepository,
+	summaries UsageCounts,
+	accountTenants GuardianSchools,
+	settings RetentionSettings,
+	logger *slog.Logger,
+) (UsageService, error) {
+	if runtime.IsZero() {
+		return nil, fmt.Errorf("pwa usage: %w", tenant.ErrRuntimeRequired)
+	}
+	if db == nil || repo == nil || summaries == nil || accountTenants == nil || settings == nil {
+		return nil, errors.New("pwa usage: all dependencies are required")
+	}
+	service := NewUsageService(db, repo, summaries, accountTenants, settings, logger).(*usageService)
+	service.tenantRuntime = &runtime
+	return service, nil
 }
 
 func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {

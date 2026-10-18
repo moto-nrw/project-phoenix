@@ -37,7 +37,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 	db := testpkg.SetupTestDB(t)
 	device := testpkg.EnsureWebManualDevice(t, db)
 	module := testSchoolPresence(t, db)
-	syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability)
+	syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	instances, assignments := syncRows.Instances, syncRows.Participants
 	injected := errors.New("fail after slot check-in")
 	rows := &failingSlotCheckIn{afterWrite: injected}

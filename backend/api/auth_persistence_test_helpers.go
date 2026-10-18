@@ -3,7 +3,6 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -16,7 +15,6 @@ type InvitationPersistence struct {
 	Staff   peoplePorts.StaffRepository
 	Teacher peoplePorts.TeacherRepository
 	Student peoplePorts.StudentRepository
-	School  organizationtenancy.Capability
 }
 
 // NewInvitationPersistence constructs only invitation dependencies through the
@@ -26,15 +24,10 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
-	if err != nil {
-		return nil, err
-	}
 	return &InvitationPersistence{
 		Person: NewPersonRepository(db),
 		Staff:  staff, Teacher: teachers,
 		Student: NewUnboundStudentRepository(db),
-		School:  organizations,
 	}, nil
 }
 
@@ -45,8 +38,7 @@ func newInvitationMembershipRepositories(db transactionruntime.Database) (people
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()))
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()), groupTeachers)
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }

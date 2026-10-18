@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
@@ -228,24 +227,6 @@ func (s studentPhotos) deferTenantSettingsChanged(tenantID int64, key string) fu
 	}
 }
 
-// NewStudentPhotos binds the owner capability and the runtime it needs, and
-// returns the retained contract the handlers call.
-func NewStudentPhotos(
-	directory StudentPhotoCapability,
-	slot *peopleCompose.StudentPhotoRuntime,
-	deps StudentPhotoRuntimeDependencies,
-) peoplePorts.StudentPhotoService {
-	runtime := studentPhotoRuntime{
-		settings: deps.Settings, broadcaster: deps.Broadcaster,
-		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
-		actor: deps.ActingAccount,
-	}
-	if slot != nil {
-		*slot = runtime
-	}
-	return studentPhotos{directory: directory, runtime: runtime}
-}
-
 // StudentPhotoRuntimeDependencies are the surfaces the photo lifecycle needs
 // from the other owners.
 type StudentPhotoRuntimeDependencies struct {
@@ -263,10 +244,4 @@ type StudentPhotoRuntimeDependencies struct {
 // side effects call when the feature flag changes.
 type StudentPhotoFeatureToggle interface {
 	HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
-}
-
-// RegisterStudentPhotoSettingsSideEffects wires the student-photo feature flag
-// to the photo lifecycle service.
-func RegisterStudentPhotoSettingsSideEffects(registry *settingsCompose.SideEffectRegistry, service StudentPhotoFeatureToggle) {
-	registry.Register(configModel.KeyStudentPhotosEnabled, service.HandleFeatureToggle)
 }

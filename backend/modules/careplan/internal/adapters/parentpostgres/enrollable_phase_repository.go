@@ -41,11 +41,14 @@ func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]D
 	return personIDs
 }
 
-// NewEnrollablePhaseRepository wires a fresh repository.
+// PhaseQueries are Enrollment's open phases.
 type PhaseQueries interface {
 	OpenPhaseCandidates(context.Context) ([]*careplan.ParentEnrollmentPhase, error)
 }
 
+// NewEnrollablePhaseRepository wires a fresh repository over the People
+// Directory the enrolled-student eligibility is resolved through (#2662) and
+// the one the account's guardian links are read from (#2663).
 func NewEnrollablePhaseRepository(phases PhaseQueries, memberships ActiveSchoolMemberships, students StudentDirectory, guardians GuardianDirectory) parentModels.EnrollablePhaseRepository {
 	if phases == nil {
 		panic("parent: enrollment phase queries are required")

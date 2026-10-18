@@ -78,6 +78,29 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (*Bookin
 	return &BookingMaterialization{deps: deps, catalog: deps.Catalog}, nil
 }
 
+// NewCareOfferingCatalogWithBookings builds the catalog and the booking
+// materialization over it as one unit: the materialization applies the
+// catalog's timetable-link rules, and every catalog edit resyncs the sourced
+// templates and the pickup projection through the materialization. The
+// catalog's resyncers and the materialization's catalog must be unset; the
+// constructor binds them.
+func NewCareOfferingCatalogWithBookings(catalogDeps CareOfferingCatalogDependencies, bookingDeps BookingMaterializationDependencies) (careplan.CareOfferingCatalogCapability, careplan.BookingMaterializationCapability, error) {
+	if catalogDeps.SourcedTemplates != nil || catalogDeps.Pickup != nil || bookingDeps.Catalog != nil {
+		return nil, nil, errors.New("care offering catalog with bookings: the resyncers and the catalog are bound by the constructor and must be unset")
+	}
+	catalog, err := newCareOfferingCatalog(catalogDeps)
+	if err != nil {
+		return nil, nil, err
+	}
+	bookingDeps.Catalog = catalog
+	bookings, err := NewBookingMaterialization(bookingDeps)
+	if err != nil {
+		return nil, nil, err
+	}
+	catalog.deps.SourcedTemplates, catalog.deps.Pickup = bookings, bookings
+	return catalog, bookings, nil
+}
+
 func (m *BookingMaterialization) todayDate() calendar.Date {
 	return m.deps.Today()
 }

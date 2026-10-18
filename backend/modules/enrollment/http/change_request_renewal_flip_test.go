@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -16,7 +17,7 @@ import (
 // the shortcut the rollover would otherwise take via renewalInitialStatus.
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
-	require.NoError(t, flowRepositories(t, env.db).Enrollment().UpdateChildStatus(
+	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment().UpdateChildStatus(
 		testpkg.TenantContext(env.phase.TenantID), childID, status, nil, env.creatorID,
 	))
 }
@@ -47,7 +48,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 
@@ -86,7 +87,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 }
@@ -108,7 +109,7 @@ func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
 }

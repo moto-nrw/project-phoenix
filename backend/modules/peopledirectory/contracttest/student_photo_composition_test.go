@@ -73,7 +73,7 @@ func newPhotoSeam(
 	logger *slog.Logger,
 ) peoplePorts.StudentPhotoService {
 	t.Helper()
-	return api.NewStudentPhotos(directory, nil, api.StudentPhotoRuntimeDependencies{
+	return api.NewStudentPhotos(directory, api.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
 	})
 }

@@ -33,17 +33,17 @@ type operatorRequest func(method, suffix string, body any) *httptest.ResponseRec
 // newOperatorBookingAuthorityRoutes mounts the review and the settings write
 // the way the operator router does, over one module. The operator is a real
 // account: the write records it (config.setting_values.updated_by).
-func newOperatorBookingAuthorityRoutes(t *testing.T) (*bun.DB, OperatorSettingsTestModule, operatorRequest) {
+func newOperatorBookingAuthorityRoutes(t *testing.T) (*bun.DB, OperatorSettingsTestModule, careplan.CareLifecycle, operatorRequest) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewOperatorSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, careLifecycle, err := NewOperatorSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	settingsRoutes := settingsOperatorAPI.NewSettingsResource(settingsOperatorAPI.SettingsConfig{
 		Settings:   module.OperatorSchoolSettings(module.SettingsSideEffects.Dispatch),
 		OperatorID: operatorIDFromSession,
 	})
 	router := chi.NewRouter()
-	router.Method(http.MethodGet, "/schools/{id}/settings/booking-authority-impact", newBookingAuthorityImpact(module.CareLifecycle))
+	router.Method(http.MethodGet, "/schools/{id}/settings/booking-authority-impact", newBookingAuthorityImpact(careLifecycle))
 	router.Put("/schools/{id}/settings/values/{key}", settingsRoutes.SetSchoolSettingValue)
 	router.Delete("/schools/{id}/settings/values/{key}", settingsRoutes.ResetSchoolSettingValue)
 	account := testpkg.CreateTestAccount(t, db, "operator")
@@ -53,12 +53,12 @@ func newOperatorBookingAuthorityRoutes(t *testing.T) (*bun.DB, OperatorSettingsT
 		req := testutil.NewAuthenticatedRequest(t, method, path, body, testutil.WithClaims(t, operator))
 		return testutil.ExecuteRequest(router, req)
 	}
-	return db, module, serve
+	return db, module, careLifecycle, serve
 }
 
 func TestOperatorBookingAuthorityReviewMatchesTheGuardedSwitch(t *testing.T) {
 	t.Parallel()
-	db, _, serve := newOperatorBookingAuthorityRoutes(t)
+	db, _, _, serve := newOperatorBookingAuthorityRoutes(t)
 
 	review := func() map[string]any {
 		rr := serve(http.MethodGet, "/settings/booking-authority-impact", nil)
@@ -94,20 +94,20 @@ func TestOperatorBookingAuthorityReviewMatchesTheGuardedSwitch(t *testing.T) {
 
 func TestOperatorBookingAuthorityResetClosesTheBookingExpiredTasks(t *testing.T) {
 	t.Parallel()
-	db, module, serve := newOperatorBookingAuthorityRoutes(t)
+	db, module, careLifecycle, serve := newOperatorBookingAuthorityRoutes(t)
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, module.Settings.SetValue(ctx, operatorBookingsAuthoritativeKey, true, nil, nil))
 	student := testpkg.CreateTestStudent(t, db, "Reset", "Buchungsmodus", "2c")
 	testpkg.CreateTestBookingExpiredCareWithdrawal(t, db, student.ID)
 	pendingFilter := careplan.CareWithdrawalFilter{StudentID: student.ID, Page: 1, PageSize: 1}
-	_, pending, err := module.CareLifecycle.ListPendingWithdrawals(ctx, pendingFilter)
+	_, pending, err := careLifecycle.ListPendingWithdrawals(ctx, pendingFilter)
 	require.NoError(t, err)
 	require.Equal(t, 1, pending, "the booking-expired task must be pending before the reset")
 
 	rr := serve(http.MethodDelete, "/settings/values/"+operatorBookingsAuthoritativeKey, nil)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
 
-	_, pending, err = module.CareLifecycle.ListPendingWithdrawals(ctx, pendingFilter)
+	_, pending, err = careLifecycle.ListPendingWithdrawals(ctx, pendingFilter)
 	require.NoError(t, err)
 	assert.Zero(t, pending)
 }

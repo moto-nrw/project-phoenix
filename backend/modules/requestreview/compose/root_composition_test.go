@@ -33,11 +33,12 @@ func init() {
 		db := testpkg.SetupTestDB(t)
 		feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		require.NoError(t, err)
-		module, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback)
+		module, _, people, _, _, _, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback)
 		require.NoError(t, err)
+		liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		return db, requestreviewcompose.ReviewComposition{
-			PeopleDirectory: module.PeopleDirectory, FamilyProtection: requestreviewcompose.NewFamilyProtection(module.PeopleDirectory),
-			Settings: module.Settings, ExcusedRequests: module.ExcusedRequests,
+			PeopleDirectory: people.PeopleDirectory, FamilyProtection: requestreviewcompose.NewFamilyProtection(people.PeopleDirectory),
+			Settings: liveSettings.Settings, ExcusedRequests: module.ExcusedRequests,
 		}
 	}
 }

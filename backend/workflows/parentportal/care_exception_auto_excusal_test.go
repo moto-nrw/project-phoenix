@@ -30,8 +30,9 @@ import (
 func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -42,13 +43,13 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		Runtime:         api.ParentPortalRuntime{},
 		CarePlan: api.NewParentCarePlanCommands(repos.CarePlan(), newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
-			timetableDeps.Capability, false,
+			timetableOwner, false,
 		)),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    api.NewParentStudentReads(repos.Student),
+		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions: api.NewParentCareExceptions(repos.CarePlan()),
 
 		Settings: parentSettingsStub{
@@ -104,7 +105,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	assert.Equal(t, "excused", *row.Substatus)
 	require.NotNil(t, row.PickupExceptionID)
 
-	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), chain.StudentID, date)
+	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -146,7 +147,7 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	assert.Nil(t, row.PickupExceptionID)
 	assert.Nil(t, row.Substatus)
 
-	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), chain.StudentID, date)
+	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")
 }

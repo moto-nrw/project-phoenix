@@ -120,19 +120,35 @@ type StaffDayStatus interface {
 	GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error)
 }
 
-// NewTimeTracking composes the time-tracking services over the Workforce
-// capability rows and the root's ports, and binds the public contracts; staff
-// resolves the record a schedule update is written for.
-func NewTimeTracking(capability workforce.Capability, ports TimeTrackingPorts, staff StaffScheduleBindingLookup) (*TimeTracking, error) {
+// WorkSessionSide is the time tracking before the absence lifecycle; the root
+// builds the sick cascade (#1843) after it and passes it to WithSickCascade.
+type WorkSessionSide struct {
+	AutoCheckIn AutoCheckIn
+	clock       *timetracking.Clock
+	staff       StaffScheduleBindingLookup
+}
+
+// NewWorkSessionSide composes every time-tracking service but the absences;
+// staff resolves the record a schedule update is written for.
+func NewWorkSessionSide(capability workforce.Capability, ports TimeTrackingPorts, staff StaffScheduleBindingLookup) (*WorkSessionSide, error) {
 	if capability == nil || staff == nil {
 		return nil, errors.New("time tracking: the Workforce capability and the staff lookup are required")
 	}
-	services, err := timetracking.New(timetracking.Dependencies{Rows: timeTrackingRows(capability), Ports: ports})
+	clock, err := timetracking.NewClock(timetracking.Dependencies{Rows: timeTrackingRows(capability), Ports: ports})
 	if err != nil {
 		return nil, err
 	}
+	return &WorkSessionSide{AutoCheckIn: timetracking.AutoCheckInCapability(clock.Sessions()), clock: clock, staff: staff}, nil
+}
+
+// WithSickCascade adds the absences over the required sick cascade.
+func (s *WorkSessionSide) WithSickCascade(cascade ShiftPlanSyncer) (*TimeTracking, error) {
+	if cascade == nil {
+		return nil, errors.New("time tracking: the sick cascade is required")
+	}
+	services := s.clock.WithAbsences(cascade)
 	return &TimeTracking{
-		WorkSessions:       timetracking.WorkSessionCapability(services.Sessions, staff),
+		WorkSessions:       timetracking.WorkSessionCapability(services.Sessions, s.staff),
 		TimeClock:          timetracking.TimeClockCapability(services.Sessions),
 		StaffAbsences:      timetracking.StaffAbsenceCapability(services.Absences),
 		WorkTimeMonths:     timetracking.WorkTimeMonthCapability(services.Months),
@@ -143,7 +159,7 @@ func NewTimeTracking(capability workforce.Capability, ports TimeTrackingPorts, s
 		TimeExport:         timetracking.StaffTimeExportCapability(services.Export),
 		VacationTakeovers:  timetracking.VacationTakeoverCapability(services.Absences),
 		OpeningBalances:    timetracking.OpeningBalanceBookingCapability(services.Ledger),
-		AutoCheckIn:        timetracking.AutoCheckInCapability(services.Sessions),
+		AutoCheckIn:        s.AutoCheckIn,
 		Jobs:               services.Sessions,
 		StaffDay:           staffDay{WorkSessionService: services.Sessions, StaffAbsenceService: services.Absences},
 	}, nil

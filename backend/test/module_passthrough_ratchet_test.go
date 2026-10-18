@@ -200,7 +200,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3051
+const modulePassthroughOwnerBudgetTotal = 3038
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -212,199 +212,37 @@ const modulePassthroughOwnerBudgetTotal = 3051
 // readable. Shrink-only — an entry may fall or go, never rise, and no module
 // gets a new entry.
 var modulePassthroughOwnerBudgets = map[string]int{
-	// Appointment, recipient, recurrence-rule and occurrence-override CRUD,
-	// all of it one s.store call inside s.run; service.go alone.
-	//
-	// ADR 0061: application 29 + modules/appointments/compose 36.
-	"modules/appointments": 65,
-	// ADR 0061: application 0 + modules/auditlog/compose 1.
-	"modules/auditlog": 1,
-	// The widest register: student_schedules.go (45) and records.go (29)
-	// forward one store call per schedule and record operation, plus
-	// withdrawals (12), the care-exit/companion service surface (15) and the
-	// student-deletion and excused-request entry points.
-	//
-	// The one raise in this register, 105 → 112 with #3427: the care-lifecycle
-	// adapter (5,278 LOC, never scanned because it sat under legacy/) became
-	// native Care Plan application code, and eight of its methods keep the
-	// counted shape while each carries a rule of its own — GetPendingWithdrawal
-	// (state check and error mapping), LockStudentsForUpdateBelow (the
-	// no-wait lock order), CompanionIDsForWeekday and ListCompanionsForStudents
-	// (weekday and empty-set validation), QueueStudentDocumentFileCleanup
-	// (intent validation and delay), ResolveStudentDocumentCleanup,
-	// ListDeletedStudentDocumentsPendingFileCleanup and
-	// CanSeeStudentDocumentCategory (category authority). The same change
-	// removed nine counted forwarders: three file-sweep reads and marks folded
-	// into one owner command, three File Storage port methods bound in
-	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
-	// forward and the internal-only AdministrativelyVisibleStudentIDs.
-	// Shrink-only from here like every other entry.
-	//
-	// ADR 0061: application 110 + modules/careplan/compose 186 + modules/careplan/requestfeed/compose 4.
-	"modules/careplan": 295,
-	// The caller and arrival-exception ports reached straight through, most
-	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
-	// day report is built in the projection instead of forwarded to the
-	// retained enrollment report.
-	//
-	// ADR 0061: application 6 + modules/classday/compose 14.
-	"modules/classday": 18,
-	// Announcement and feed writes, each one store call behind the shared
-	// mutateExisting/run helpers.
-	//
-	// ADR 0061: application 6 + modules/communication/composition 66.
-	"modules/communication": 72,
-	// ADR 0061: application 0 + modules/dataimport/compose 1.
-	"modules/dataimport": 1,
-	// Email outbox and backlog reads/writes forwarded to the store, and the
-	// worker's Backlog.
-	//
-	// ADR 0061: application 7 + modules/delivery/compose 14.
-	"modules/delivery": 15,
-	// device.go carries 12 (registration, last-seen, status, listings); the
-	// display, online-window, service and unregistered-tag-scan files one each.
-	//
-	// ADR 0061: application 16 + modules/devicefleet/compose 42.
-	"modules/devicefleet": 58,
-	// Session lifecycle (6) plus the school-name lookup and the service
-	// facade's device read.
-	//
-	// ADR 0061: application 8 + modules/devicescan/compose 48.
-	"modules/devicescan": 48,
-	// First measured with #3562, when phases, form schemas, captcha and the
-	// parent mails moved out of services/enrollment. form_schemas.go carries
-	// 11: the transactional wrapper runs each schema write in one tenant
-	// transaction, and the reads forward to the owner's records. Phases (3:
-	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
-	// captcha (2: the tenant settings reads), the school brand and the
-	// approved-offering read by care offering follow.
-	//
-	// ADR 0061: application 16 + modules/enrollment/compose 19.
-	"modules/enrollment": 35,
-	// The target-state read, which only maps the port error to ErrUnavailable.
-	//
-	// ADR 0061: application 1 + modules/exporttransfer/compose 3.
-	"modules/exporttransfer": 4,
-	// Room and toilet reads/writes in service.go.
-	//
-	// ADR 0061: application 4 + modules/facilities/compose 15.
-	"modules/facilities": 19,
-	// Feedback submission and listing, one store call each.
-	//
-	// ADR 0061: application 6 + modules/feedback/compose 8.
-	"modules/feedback": 14,
-	// CountAttachments, the only attachment method short enough to qualify.
-	//
-	// ADR 0061: application 1 + modules/filestorage/compose 26.
-	"modules/filestorage": 27,
-	// Spread over 32 files, led by operator_tokens.go (18), account_session.go
-	// (12), operator.go (10) and operator_mfa.go (9): session/operator
-	// lookups and their ForUpdate twins, MFA and passkey credential and
-	// challenge stores, permission and role administration reads.
-	//
-	// ADR 0061: application 117 + modules/identityaccess/compose 484.
-	// Raised by ADR 0063: the operator status lifecycle (#4047), 2 in compose.
-	"modules/identityaccess": 592,
-	// Menu, participation and week reads forwarded to the store.
-	//
-	// ADR 0061: application 8 + modules/mealplan/compose 7.
-	"modules/mealplan": 15,
-	// The provisioning listings (organisations, accounts, devices, dashboard)
-	// and the school read/soft-delete/restore surface.
-	//
-	// ADR 0061: application 21 + modules/organizationtenancy/compose 39.
+	"modules/appointments":        65,
+	"modules/auditlog":            1,
+	"modules/careplan":            293,
+	"modules/classday":            18,
+	"modules/communication":       71,
+	"modules/dataimport":          1,
+	"modules/delivery":            15,
+	"modules/devicefleet":         58,
+	"modules/devicescan":          48,
+	"modules/enrollment":          35,
+	"modules/exporttransfer":      4,
+	"modules/facilities":          18,
+	"modules/feedback":            14,
+	"modules/filestorage":         27,
+	"modules/identityaccess":      587,
+	"modules/mealplan":            15,
 	"modules/organizationtenancy": 60,
-	// student.go (15), service.go (13) and student_records.go (12) lead;
-	// guardian links, enrollment, directory, deletion and photo reads follow,
-	// each one observeRun around a single s.store call.
-	//
-	// ADR 0061: application 52 + modules/peopledirectory/compose 256.
-	// ADR 0064: +1, DatabaseError.Error in the scanned ports package.
-	"modules/peopledirectory": 308,
-	// ADR 0061: application 0 + modules/requestreview/compose 17.
-	"modules/requestreview": 17,
-	// ADR 0061: application 0 + modules/schedulerruntime/compose 4.
-	"modules/schedulerruntime": 4,
-	// Calendar-period, closing-day and dateframe CRUD in service.go. The
-	// holiday and iCal methods are NOT in this number — they call a domain
-	// function, see known limitation 1.
-	//
-	// ADR 0061: application 15 + modules/schoolcalendar/compose 27 + modules/schoolcalendar/portal/compose 2.
-	"modules/schoolcalendar": 44,
-	// Membership service reads (17), teaching assignments (11) and the
-	// class-list-entry surface (5).
-	//
-	// ADR 0061: application 28 + modules/schoolmembership/compose 56.
-	"modules/schoolmembership": 84,
-	// Hiding the wizard is personal state with no rule of its own, so the
-	// service hands it to the store (#2832).
-	//
-	// ADR 0061: application 1 + modules/schoolsetup/compose 3.
-	"modules/schoolsetup": 2,
-	// School-year transition (9) plus the transition history and service reads.
-	//
-	// ADR 0061: application 13 + modules/schoolstructure/compose 72.
-	"modules/schoolstructure": 85,
-	// ADR 0061: application 0 + modules/settings/compose 20.
-	"modules/settings": 19,
-	// Attendance, visit, supervision, group-mapping and room reads/writes
-	// across 18 files, each one store call inside the operation wrapper (64).
-	// internal/application/presence (#3422) adds 12 that map a single read or
-	// write onto the capability's contract: presence-mode validation, the
-	// visit and session lookups that turn port failures and misses into the
-	// public sentinels (ErrVisitNotFound, ErrNoActiveSession), the room and
-	// present-today projections, the combined-group validation and the
-	// status-day upsert guarded by the exception-day lock.
-	//
-	// The second raise in this register, 76 → 89 with #2762, has the same
-	// shape as the #3427 one above: the activity-session and session-attendance
-	// commands used to live in database/repositories/student_presence.go
-	// (legacy composition, never scanned) and are now the owner's native
-	// application code. Thirteen of them keep the counted shape while each
-	// carries its own rule: the session reads and SessionExecution validate the
-	// id sets and the status filter; the attendance reads and the participant
-	// commands (check-in, checkout, close, interval reconciliation, manual
-	// patch, non-booking marker, excusal reconnection) validate the ids, the
-	// instants and the patch shape before the one store call inside the
-	// tenant transaction. The same cutover removed the four reads and the
-	// reinstate command no consumer called. Shrink-only from here like every
-	// other entry.
-	//
-	// ADR 0061: application 89 + modules/studentpresence/compose 151.
-	"modules/studentpresence": 240,
-	// The largest block, and the one the previous version could not see at
-	// all: service.go (23), instance_students.go (21), activity_instances.go
-	// (14) and 19 more files, every one of them s.run around a single
-	// s.store call.
-	//
-	// ADR 0061: application 98 + modules/timetable/compose 402.
-	// ADR 0064: +1, markedRecordError.Error in the scanned ports package.
-	"modules/timetable": 491,
-	// Work sessions (15), the service facade (7), absences, shifts, staff
-	// records, month snapshots, offboarding and substitutions.
-	//
-	// 47 → 62 with #3413: the time-tracking services (13,327 LOC, never
-	// scanned because they sat under legacy/) became internal/application/
-	// timetracking. The 70 counted adapter methods that only map them onto
-	// the public contracts went to the Workforce composition instead, and two
-	// unused reads were deleted; the 15 left are reads the services expose to
-	// those adapters and to each other: the session history and edits (4),
-	// the presence and supervision maps (2), the open-session lookups (2),
-	// and the absence range, date, pending and today reads, the ledger
-	// listing, the month status and the vacation opening (7). Shrink-only
-	// from here like every other entry.
-	//
-	// ADR 0061: application 62 + modules/workforce/compose 338.
-	// ADR 0064: +78, the 46 time-tracking row delegations an injected error
-	// field had hidden (#4239) and internal/planning's 32 (18 Dienstplan rows
-	// moved there in #4240, 14 planning methods never scanned before).
-	"modules/workforce": 393,
-	// ADR 0061: application 0 + workflows/openroommove/compose 1.
-	"workflows/openroommove": 1,
-	// ADR 0061 adopted 22; the Root event binding leaves 21 compose delegations.
-	"workflows/parentportal": 21,
-	// ADR 0061: application 0 + workflows/shiftplansync/compose 3.
-	"workflows/shiftplansync": 3,
+	"modules/peopledirectory":     308,
+	"modules/requestreview":       17,
+	"modules/schedulerruntime":    4,
+	"modules/schoolcalendar":      44,
+	"modules/schoolmembership":    82,
+	"modules/schoolsetup":         2,
+	"modules/schoolstructure":     85,
+	"modules/settings":            19,
+	"modules/studentpresence":     240,
+	"modules/timetable":           491,
+	"modules/workforce":           393,
+	"workflows/openroommove":      1,
+	"workflows/parentportal":      19,
+	"workflows/shiftplansync":     3,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

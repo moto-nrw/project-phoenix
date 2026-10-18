@@ -22,8 +22,12 @@ func newMockEmitter(
 	settings parentmessaging.TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
+	decisions ...parentmessaging.DecisionNotifier,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(messaging.NewEventEmitter(api.NewCommunicationEventRuntime(db != nil, testpkg.TenantRuntime(t, db)), threadRepo, messageRepo, settingsValues.NewParentEventValues(settings), broadcaster, logger))
-	return emitter
+	var notifier parentmessaging.DecisionNotifier
+	if len(decisions) > 0 {
+		notifier = decisions[0]
+	}
+	return parentmessaging.NewEmitterWithDecisions(messaging.NewEventEmitter(api.NewCommunicationEventRuntime(db != nil, testpkg.TenantRuntime(t, db)), threadRepo, messageRepo, settingsValues.NewParentEventValues(settings), broadcaster, logger), notifier)
 }

@@ -3,18 +3,18 @@ package compose
 import (
 	"context"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 )
 
 // RoomNameDirectory names and locks the retained Facilities rooms for the
 // Timetable owner's operational day and instance lifecycle, which may not
 // name the room rows themselves (#3551).
 type RoomNameDirectory struct {
-	rooms facilitiesModels.RoomRepository
+	rooms *repositoryadapter.Records
 }
 
-// NewRoomNameDirectory binds the directory to the retained room repository.
-func NewRoomNameDirectory(rooms facilitiesModels.RoomRepository) RoomNameDirectory {
+// NewRoomNameDirectory binds the directory to the retained room records.
+func NewRoomNameDirectory(rooms *repositoryadapter.Records) RoomNameDirectory {
 	return RoomNameDirectory{rooms: rooms}
 }
 

@@ -21,7 +21,7 @@ func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	provisioning := setupAuthFactory(t, db).AccountAuthentication()
+	provisioning := setupAuthFactory(t, db)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
 
@@ -49,7 +49,7 @@ func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	provisioning := setupAuthFactory(t, db).AccountAuthentication()
+	provisioning := setupAuthFactory(t, db)
 
 	account := testpkg.CreateTestAccount(t, db, "link-lehrkraft-plain")
 

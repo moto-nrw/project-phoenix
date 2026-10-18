@@ -51,29 +51,6 @@ type provisioningStaffRows interface {
 	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
 }
 
-// OperatorProvisioningDependencies are the owner capabilities and retained
-// rows the Organisation & Tenancy provisioning seams (#3253) bind to.
-type OperatorProvisioningDependencies struct {
-	// PersonStudents marks which persons of the operator listing are
-	// students (peopleCompose.LegacyRepositoryRuntime over the student
-	// directory projection).
-	PersonStudents operatorPersonStudents
-	Devices        devicefleet.Capability
-	Persons        ProvisioningPersonDirectory
-	Membership     schoolmembership.Query
-	PersonRows     provisioningPersonRows
-	StaffRows      provisioningStaffRows
-	Accounts       accountEmailQuery
-	ActiveGroups   interface {
-		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
-	}
-	Supervisors interface {
-		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
-	}
-	Categories OperatorCategoryCreator
-	AuditLog   operatorAuditEntries
-}
-
 // OperatorProvisioningAdapters bind the provisioning seams to the retained
 // owners the root still composes.
 type OperatorProvisioningAdapters struct {
@@ -86,24 +63,35 @@ type OperatorProvisioningAdapters struct {
 	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 }
 
-// NewOperatorProvisioningAdapters binds the provisioning seams.
-func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (OperatorProvisioningAdapters, error) {
-	if deps.PersonStudents == nil || deps.Devices == nil || deps.Persons == nil || deps.Membership == nil || deps.PersonRows == nil ||
-		deps.StaffRows == nil || deps.Accounts == nil || deps.ActiveGroups == nil || deps.Supervisors == nil ||
-		deps.Categories == nil || deps.AuditLog == nil {
+// NewOperatorProvisioningAdapters binds the provisioning seams (#3253) to the
+// owner capabilities and retained rows. personStudents marks which persons of
+// the operator listing are students (peopleCompose.LegacyRepositoryRuntime
+// over the student directory projection). Every dependency is required.
+func NewOperatorProvisioningAdapters(
+	personStudents operatorPersonStudents, devices devicefleet.Capability, persons ProvisioningPersonDirectory,
+	membership schoolmembership.Query, personRows provisioningPersonRows, staffRows provisioningStaffRows,
+	accounts accountEmailQuery, activeGroups interface {
+		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
+	}, supervisors interface {
+		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+	}, categories OperatorCategoryCreator, auditLog operatorAuditEntries,
+) (OperatorProvisioningAdapters, error) {
+	if personStudents == nil || devices == nil || persons == nil || membership == nil || personRows == nil ||
+		staffRows == nil || accounts == nil || activeGroups == nil || supervisors == nil ||
+		categories == nil || auditLog == nil {
 		return OperatorProvisioningAdapters{}, errors.New("operator provisioning adapters: all dependencies are required")
 	}
 	return OperatorProvisioningAdapters{
-		Devices: provisioningDevices{devices: deps.Devices},
+		Devices: provisioningDevices{devices: devices},
 		People: provisioningPeople{
-			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
-			personRows: deps.PersonRows,
-			staffRows:  deps.StaffRows, accounts: deps.Accounts, students: deps.PersonStudents,
+			persons: persons, membership: membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
+			personRows: personRows,
+			staffRows:  staffRows, accounts: accounts, students: personStudents,
 		},
-		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
-		Categories:          provisioningCategories{categories: deps.Categories},
-		Audit:               provisioningAudit{log: deps.AuditLog},
-		ActiveAccountCounts: deps.Accounts.CountActiveAccountsBySchoolGroups,
+		Presence:            provisioningPresence{groups: activeGroups, supervisors: supervisors},
+		Categories:          provisioningCategories{categories: categories},
+		Audit:               provisioningAudit{log: auditLog},
+		ActiveAccountCounts: accounts.CountActiveAccountsBySchoolGroups,
 	}, nil
 }
 
@@ -205,13 +193,23 @@ func isForeignKeyViolation(err error) bool {
 // --- People Directory and School Membership ---------------------------------
 
 type provisioningPeople struct {
-	persons    ProvisioningPersonDirectory
+	persons    provisioningPersons
 	membership schoolmembership.Query
 	childQuota schoolmembership.ChildQuotaCounts
 	personRows provisioningPersonRows
 	staffRows  provisioningStaffRows
 	accounts   accountEmailQuery
 	students   operatorPersonStudents
+}
+
+// provisioningPersons are the People Directory reads and writes the operator
+// person listing and a person's deletion call.
+type provisioningPersons interface {
+	CountPersonsByTenant(ctx context.Context) (map[int64]int, error)
+	ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) ([]peopledirectory.Person, error)
+	UnlinkTag(ctx context.Context, personID int64) error
+	UnlinkAccount(ctx context.Context, personID int64) error
+	AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error
 }
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {

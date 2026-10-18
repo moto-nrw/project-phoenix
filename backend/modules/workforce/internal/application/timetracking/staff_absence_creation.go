@@ -114,7 +114,7 @@ func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *St
 	if absence.AbsenceType != AbsenceTypeSick || absence.HalfDay {
 		return nil
 	}
-	if err := s.planSyncer().MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
+	if err := s.shiftPlanSyncer.MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
 		return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
 	}
 	return nil
@@ -185,7 +185,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	// (#1843). Fail closed — a dangling stamp breaks the reversal invariant.
 	if primary.AbsenceType == AbsenceTypeSick {
 		for _, secondary := range existing[1:] {
-			if err := s.planSyncer().ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
+			if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
 				return nil, fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
 			}
 		}

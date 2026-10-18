@@ -9,7 +9,7 @@ import (
 
 	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
@@ -19,22 +19,22 @@ import (
 
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
-func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
+func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, work WorkforceTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
+	capabilities := NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule) (chi.Router, error) {
-	parent, err := NewParentCareScheduleTestService(db, module)
+func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveCaller *CallerRows) (chi.Router, error) {
+	parent, err := NewParentCareScheduleTestService(db, module, live, liveSettings)
 	if err != nil {
 		return nil, err
 	}
 	students := NewCareHTTPUnitResource(careStudentsHTTP.ResourceConfig{
-		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
-		SettingsService: module.Settings, Logger: slog.Default(),
+		CareRequestService: module.CareRequests, UserContextService: liveCaller,
+		SettingsService: liveSettings.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
 	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router(ParentSessionChain))
@@ -43,7 +43,7 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 }
 
 func newStudentPhotoTestUnlinker() peoplePorts.PhotoUnlinker {
-	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
+	return peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
 }
 
 func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {

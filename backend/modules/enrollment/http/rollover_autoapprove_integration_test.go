@@ -46,29 +46,25 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
-	repoFactory := testRepositories(t, env.db)
+	repoFactory, repoFactoryCare, _, _, _, _ := testRepositories(t, env.db)
 
-	decision := newTestDecisions(api.EnrollmentDecisionSources{
-		Requests:          repoFactory.Enrollment(),
-		Children:          repoFactory.Enrollment(),
-		CareBookings:      testBookings(t, env, settings),
-		CareOfferings:     enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:            repoFactory.Enrollment(),
-		Persons:           repoFactory.Person,
-		Staff:             repoFactory.Staff,
-		Students:          repoFactory.Student,
-		StudentGuardians:  repoFactory.StudentGuardian,
-		GuardianProfiles:  repoFactory.GuardianProfile,
-		GuardianAccess:    testGuardianAccess(env.db),
-		StudentEnrollment: testStudentEnrollment(env.db),
-		Companions:        api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:      api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor),
-		FrontendURL:       "http://localhost:3000",
-		ParentsURL:        "http://parents.localhost:3000",
-		Settings:          settings,
+	studentEnrollment := testStudentEnrollment(env.db)
+	decision := newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
+		Bookings:       testBookings(t, env, settings),
+		GuardianAccess: testGuardianAccess(env.db),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, nil, studentEnrollment,
+		),
+		StudentEnrollment: studentEnrollment,
+		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		StudentAudit:      api.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
+		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		Logger:            slog.Default(),
-	}, env.outbox)
+	}, settings, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
 	env.rolloverSvc = newTestRolloverService(api.EnrollmentRolloverSources{
@@ -403,7 +399,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, existing.ID)
+	history, err := env.reposAudit.StudentFieldEdit.GetByStudentID(ctx, existing.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, peopledirectory.StudentFieldStatus, history[0].FieldName)
@@ -576,7 +572,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 	link := &capability.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
@@ -638,7 +634,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	assert.Equal(t, enrollmentModels.ChildStatusAutoRenewed, rolledAfter.Status)
 	assert.Nil(t, rolledAfter.CreatedStudentID, "failed approval must not link the existing student")
 
-	enrollments, err := env.repos.StudentEnrollment.FindByStudentID(ctx, existing.ID)
+	enrollments, err := env.reposTimetable.StudentEnrollment.FindByStudentID(ctx, existing.ID)
 	require.NoError(t, err)
 	for _, enrollment := range enrollments {
 		if enrollment.EnrollmentRequestChildID != nil {

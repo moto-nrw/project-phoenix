@@ -74,7 +74,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 
 	name := fmt.Sprintf("PullForward-%d", time.Now().UnixNano())
 	weekdays := []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
 		Type:              activitiesModels.GroupTypeCare,
 		Weekdays:          weekdays,
@@ -100,7 +100,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 	existingIDs := s.templateInstanceIDs(t, result.TemplateID)
 	require.Len(t, existingIDs, 2)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &newStart),
 	))
@@ -170,7 +170,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 			StudentIDs:     []int64{s.studentB},
 		},
 	}
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:               name,
 		Type:               activitiesModels.GroupTypeCare,
 		Weekdays:           weekdays,
@@ -192,7 +192,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 	in.PrimaryStaffID = nil
 	in.StudentIDs = nil
 	in.WeekdayAssignments = assignments
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, in))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, in))
 
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
 		require.NotNil(t, row.Weekday, "per-weekday mode keeps weekday-scoped staff rows")
@@ -229,7 +229,7 @@ func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeek
 
 	name := fmt.Sprintf("PullForwardMidweek-%d", time.Now().UnixNano())
 	weekdays := []int{activitiesModels.WeekdayTuesday}
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
 		Type:              activitiesModels.GroupTypeCare,
 		Weekdays:          weekdays,
@@ -249,7 +249,7 @@ func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeek
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	// Pull the start to a Monday even though the series only runs on Tuesdays.
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &newStart),
 	))
@@ -275,7 +275,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 
 	weekdays := []int{activitiesModels.WeekdayMonday}
 	name := fmt.Sprintf("PullForwardValidation-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              name,
 		Type:              activitiesModels.GroupTypeCare,
 		Weekdays:          weekdays,
@@ -295,7 +295,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	later := oldStart.AddDays(7)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(
+	err = s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &later),
 	)
@@ -303,7 +303,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 		"moving the start later is out of scope and must be rejected")
 
 	past := calendar.NewDate(2000, 1, 1)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(
+	err = s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &past),
 	)
@@ -312,7 +312,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 
 	// Equal to the stored start: a no-op, not an error — idempotent retries of
 	// the same PUT must keep succeeding.
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &oldStart),
 	))
@@ -320,7 +320,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	// A series without a stored start begins with its period — there is
 	// nothing in front of that to pull forward to.
 	openName := fmt.Sprintf("PullForwardOpenStart-%d", time.Now().UnixNano())
-	openResult, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	openResult, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            openName,
 		Type:            activitiesModels.GroupTypeCare,
 		Weekdays:        weekdays,
@@ -338,7 +338,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	require.NoError(t, err)
 	s.registerTemplate(t, openResult.TemplateID, openResult.TimeframeID)
 
-	err = s.factory.TimetableData.Templates.UpdateTemplate(
+	err = s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, openResult.TemplateID, openResult.TimeframeID, openName, weekdays, &newStart),
 	)
@@ -356,7 +356,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 
 	weekdays := []int{activitiesModels.WeekdayMonday}
 	predecessorName := fmt.Sprintf("PullForwardPredecessor-%d", time.Now().UnixNano())
-	predecessor, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	predecessor, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            predecessorName,
 		Type:            activitiesModels.GroupTypeCare,
 		Weekdays:        weekdays,
@@ -375,7 +375,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 	s.registerTemplate(t, predecessor.TemplateID, predecessor.TimeframeID)
 
 	successorName := fmt.Sprintf("PullForwardSuccessor-%d", time.Now().UnixNano())
-	successor, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	successor, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:              successorName,
 		Type:              activitiesModels.GroupTypeCare,
 		Weekdays:          weekdays,
@@ -408,7 +408,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 	require.NoError(t, err)
 
 	overlapping := splitDate.AddDays(-7)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(
+	err = s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, successor.TemplateID, successor.TimeframeID, successorName, weekdays, &overlapping),
 	)
@@ -423,7 +423,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 	).Exec(s.ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, successor.TemplateID, successor.TimeframeID, successorName, weekdays, &overlapping),
 	))

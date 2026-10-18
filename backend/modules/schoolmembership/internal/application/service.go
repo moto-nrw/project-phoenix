@@ -24,18 +24,20 @@ type Service struct {
 	quota ports.ChildQuota
 	today ports.Clock
 
-	// The audited class-list administration (#2382) reaches two owners the
-	// composition root only builds after this service exists, so they are
-	// bound late through BindClassListEntryAdministration. Every other
-	// operation works without them.
-	classListAdmin classListAdministration
+	// The audited class-list administration (#2382) reaches two other
+	// owners. Nil for a service composed without it; every other operation
+	// works without them.
+	classList *ClassListAdministration
 }
 
-func New(store ports.Store, employment ports.StaffEmployment, quota ports.ChildQuota, today ports.Clock, tx ports.Transaction, observe ports.Observer) *Service {
+func New(store ports.Store, employment ports.StaffEmployment, quota ports.ChildQuota, today ports.Clock, tx ports.Transaction, observe ports.Observer, classList *ClassListAdministration) *Service {
 	if store == nil || employment == nil || today == nil || tx == nil || observe == nil {
 		panic("school membership application: all dependencies are required")
 	}
-	return &Service{store: store, employment: employment, quota: quota, today: today, tx: tx, observe: observe}
+	if classList != nil && (classList.Students == nil || classList.Trail == nil) {
+		panic("school membership application: class list entry administration needs a student directory and an audit trail")
+	}
+	return &Service{store: store, employment: employment, quota: quota, today: today, tx: tx, observe: observe, classList: classList}
 }
 
 // --- staff ---

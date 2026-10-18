@@ -25,11 +25,12 @@ import (
 func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	events := repos.ParentRequestEvent
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	events := reposPeople.ParentRequestEvent
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),
-	})
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person, Events: events}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -44,7 +45,7 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,

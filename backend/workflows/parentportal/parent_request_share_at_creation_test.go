@@ -23,10 +23,11 @@ import (
 func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parentService.RequestSharingService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+		CarePlan: reposCare.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:        api.ParentGuardianChanges(),
@@ -36,11 +37,11 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		Declarations:           api.ParentDeclarationPolicy(),
 		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
-		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		CarePlan:               api.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
-		ChildRepo:              repos.ParentChildReads(),
-		StatusDayRepo:          repos.StudentStatusDay,
+		ChildRepo:              reposCare.ParentChildReads(),
+		StatusDayRepo:          reposCare.StudentStatusDay,
 		StudentRepo:            api.NewParentStudentReads(repos.Student),
 		PersonRepo:             api.NewParentPersonReads(repos.Person),
 		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
@@ -49,14 +50,14 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		ParentRequestEvents:    api.NewParentRequestEvents(repos.ParentRequestEvent),
 		ExcusedRequests:        api.NewParentExcusedAbsenceRequests(excused),
-		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
+		ExcusedRequestRepo:     reposCare.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: api.NewParentDataRequestCommands(reposCare.CarePlan()),
 
 		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})

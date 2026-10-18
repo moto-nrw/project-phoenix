@@ -222,7 +222,7 @@ func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
-	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
+	channel.tenantRuntime = new(newMockTenantRuntime(t, db))
 	require.NoError(t, channel.Deliver(context.Background(), Event{
 		Type:           TypeStaffMessage,
 		IdempotencyKey: "staff-message:7",
@@ -302,7 +302,7 @@ func TestBothPortalRegistrationsOfOneAccountAreDelivered(t *testing.T) {
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
-	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
+	channel.tenantRuntime = new(newMockTenantRuntime(t, db))
 	require.NoError(t, channel.Deliver(context.Background(), Event{
 		Type:           TypeStaffMessage,
 		IdempotencyKey: "staff-message:7",

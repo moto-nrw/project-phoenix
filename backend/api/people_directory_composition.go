@@ -24,40 +24,28 @@ import (
 // Care Plan and Identity & Access, and its audit seams reach the Audit
 // composition (ADR 0049), which only this composition may name.
 
-// PeopleDirectoryOwners are the other owners' halves the People Directory's
-// write path and audit seams reach: School Membership's enrollment, Care
-// Plan's care profile and companion links, the Audit Platform's trails and
-// Identity & Access's guardian memberships, plus the guardian link owners.
-type PeopleDirectoryOwners struct {
-	Membership          schoolmembership.Capability
-	CareProfiles        careplan.StudentProfileCommands
-	Companions          careplanCompose.CompanionRecords
-	Audit               peopleDirectoryAuditTrails
-	GuardianLinks       guardianLinkOwners
-	GuardianMemberships peopleCompose.GuardianMembershipQuery
-}
-
 // ComposePeopleDirectory composes the person and student owner over the
-// given owners. directory carries what the caller binds from the database
-// (the database, the observer and the class write gate); the owner seams and
-// the photo runtime slot are bound here.
-func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleDirectoryOwners) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
-	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
-	directory.StudentOwners = NewStudentOwners(owners.Membership, owners.CareProfiles)
-	directory.StudentFieldAudit = studentFieldAuditLog{repo: owners.Audit.StudentFieldEdit}
-	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: owners.Audit.DataDeletion}
-	directory.StudentConsentHistory = studentConsentHistory{repo: owners.Audit.StudentConsentChange}
-	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
-	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
-	directory.GuardianLinkOwners = owners.GuardianLinks
+// other owners' halves its write path and audit seams reach: School
+// Membership's enrollment, Care Plan's care profiles and companion links, the
+// Audit Platform's trails, the guardian link owners and Identity & Access's
+// guardian memberships. directory carries what the caller binds from the
+// database (the database, the observer and the class write gate); the owner
+// seams and the photo runtime slot are bound here.
+func ComposePeopleDirectory(
+	directory peopleCompose.Dependencies, membership schoolmembership.Capability, careProfiles careplan.StudentProfileCommands,
+	companions careplanCompose.CompanionRecords, audit peopleDirectoryAuditTrails, guardianLinks guardianLinkOwners,
+	guardianMemberships peopleCompose.GuardianMembershipQuery,
+) (*peopledirectory.Module, error) {
+	directory.StudentOwners = NewStudentOwners(membership, careProfiles)
+	directory.StudentFieldAudit = studentFieldAuditLog{repo: audit.StudentFieldEdit}
+	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: audit.DataDeletion}
+	directory.StudentConsentHistory = studentConsentHistory{repo: audit.StudentConsentChange}
+	directory.StudentCompanions = NewStudentCompanionSeam(companions)
+	directory.GuardianLinkOwners = guardianLinks
 	directory.GuardianRolePresets = guardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	directory.StudentDirectory = studentDirectoryView.NewReader()
-	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
-	if err != nil {
-		return nil, nil, err
-	}
-	return capability, photoRuntime, nil
+	return peopleCompose.NewWithGuardianMemberships(directory, guardianMemberships)
 }
 
 func identityAccessObservation(observe IdentityAccessObserver) func(identityCompose.Observation) {
@@ -139,8 +127,22 @@ func (l studentFieldAuditLog) ListByStudent(ctx context.Context, studentID int64
 // studentOwners serves the People Directory's student write path with the
 // School Membership enrollment and the Care Plan care profile.
 type studentOwners struct {
-	membership schoolmembership.Capability
-	care       careplan.StudentProfileCommands
+	membership studentEnrollments
+	care       studentCareProfiles
+}
+
+// studentEnrollments is the School Membership enrollment the student write
+// path locks, enrolls and renews through.
+type studentEnrollments interface {
+	LockStudentClassWrites(ctx context.Context, exclusive bool) error
+	Enroll(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, error)
+	RenewEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, error)
+}
+
+// studentCareProfiles is the Care Plan care profile the student write path
+// saves.
+type studentCareProfiles interface {
+	SaveStudentCareProfile(context.Context, careplan.StudentCareProfile, *careplan.StudentDeparturePlan) error
 }
 
 // NewStudentOwners binds the People Directory's student owners port to School
@@ -257,7 +259,14 @@ func newGuardianRelationshipPorts(pickup careplan.GuardianPickupPermissions, acc
 }
 
 type guardianPickupPort struct {
-	owner careplan.GuardianPickupPermissions
+	owner guardianPickupPermissions
+}
+
+// guardianPickupPermissions is Care Plan's pickup permission command the
+// relationship's unit of work writes.
+type guardianPickupPermissions interface {
+	CreateGuardianPickupPermission(context.Context, careplan.GuardianPickupPermission) error
+	ChangeGuardianPickupPermission(context.Context, careplan.GuardianPickupPermissionChange) (bool, error)
 }
 
 func (p guardianPickupPort) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
@@ -273,7 +282,14 @@ func (p guardianPickupPort) ChangeGuardianPickupPermission(ctx context.Context, 
 }
 
 type guardianAccessPort struct {
-	owner identityaccess.GuardianStudentAccess
+	owner guardianStudentAccess
+}
+
+// guardianStudentAccess is Identity & Access's relationship access command
+// the relationship's unit of work writes.
+type guardianStudentAccess interface {
+	GrantGuardianStudentAccess(context.Context, identityaccess.GuardianStudentAccessGrant) error
+	SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error)
 }
 
 func (p guardianAccessPort) GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error {

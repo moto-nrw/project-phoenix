@@ -39,7 +39,7 @@ func newProjectionWriteService(
 	hhmm string,
 ) (careplan.PickupScheduleService, *api.RepositoryTestFactory) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: studentID, Weekday: timetable.WeekdayMonday, HHMM: hhmm}, nil, pickupStudents, nil)
@@ -53,7 +53,7 @@ func TestUpsertBulkPickupSchedules_DoesNotMaterializeUnchangedProjection(t *test
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Prova", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Prove", "Nienz")
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: student.ID, Weekday: timetable.WeekdayMonday, HHMM: "14:30"}, nil, pickupStudents, nil)

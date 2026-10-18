@@ -30,7 +30,8 @@ var errAccountDirectoryRequired = errors.New("parent repository: account directo
 // NewEnrollmentRequestRepository wires a fresh repository.
 //
 // accounts is the Identity & Access lookup the account's e-mail is read
-// through (#2720); auth.accounts is not read here.
+// through (#2720); auth.accounts is not read here. guardians is the People
+// Directory the account's guardian links are read from (#2663).
 func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory, guardians GuardianDirectory) parentModels.EnrollmentRequestRepository {
 	if commands == nil {
 		panic("parent repository: enrollment commands are required")

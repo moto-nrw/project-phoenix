@@ -15,7 +15,9 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	if s.people == nil || s.arrival == nil || s.pickup == nil || s.userContext == nil {
 		return false, errors.New("schedule: care request apply dependencies not configured")
 	}
-	a := &weeklyApprovalAdapter{s: s}
+	a := &weeklyApprovalAdapter{
+		people: s.people, arrival: s.arrival, pickup: s.pickup, staff: s.userContext, audit: s.studentAudit,
+	}
 	service, err := compose.NewWeeklyApprovals(a, a, a)
 	if err != nil {
 		return false, err
@@ -23,8 +25,14 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	return service.ApplyWeekly(ctx, request, actorID)
 }
 
+// weeklyApprovalAdapter applies one weekly request. It holds the request
+// service's collaborators it calls and the student row the approval locked.
 type weeklyApprovalAdapter struct {
-	s        *careScheduleRequestService
+	people   RequestPeople
+	arrival  RequestArrivalPlans
+	pickup   RequestPickupPlans
+	staff    CareRequestStaff
+	audit    requestStudentAudit
 	student  peopledirectory.StudentRecord
 	before   peopledirectory.StudentRecord
 	baseline peopledirectory.StudentPlan
@@ -35,10 +43,10 @@ func (*weeklyApprovalAdapter) TrackCompanionChanges(ctx context.Context) (contex
 	return ctx, recorder.Changed
 }
 func (a *weeklyApprovalAdapter) CurrentStaffID(ctx context.Context) (int64, bool, error) {
-	return a.s.userContext.CurrentStaffID(ctx)
+	return a.staff.CurrentStaffID(ctx)
 }
 func (a *weeklyApprovalAdapter) LockDepartureModes(ctx context.Context, id int64) (map[string][]string, error) {
-	student, err := a.s.people.FindStudentRecordForMutation(ctx, id)
+	student, err := a.people.FindStudentRecordForMutation(ctx, id)
 	if err != nil {
 		return nil, requestStudentReadError(err)
 	}
@@ -66,7 +74,7 @@ func (a *weeklyApprovalAdapter) SaveDepartureModes(ctx context.Context, id int64
 			merged[day] = append(merged[day], peopledirectory.DepartureMode(value))
 		}
 	}
-	updated, err := a.s.people.UpdateStudent(ctx, peopledirectory.StudentWrite{
+	updated, err := a.people.UpdateStudent(ctx, peopledirectory.StudentWrite{
 		Record:        a.student,
 		Plan:          peopledirectory.StudentPlan{AllowedDepartureModes: merged, PickupStatus: a.student.PickupStatus},
 		Baseline:      &a.baseline,
@@ -80,29 +88,29 @@ func (a *weeklyApprovalAdapter) SaveDepartureModes(ctx context.Context, id int64
 	return nil
 }
 func (a *weeklyApprovalAdapter) AuditDepartureModes(ctx context.Context, _, actorID int64) error {
-	if a.s.studentAudit == nil {
+	if a.audit == nil {
 		return nil
 	}
-	return a.s.studentAudit.RecordChangesForActor(ctx, requestStudentAuditSnapshot(a.before), requestStudentAuditSnapshot(a.student), actorID)
+	return a.audit.RecordChangesForActor(ctx, requestStudentAuditSnapshot(a.before), requestStudentAuditSnapshot(a.student), actorID)
 }
 func (a *weeklyApprovalAdapter) GetStudentArrivalSchedules(ctx context.Context, id int64) ([]*careplan.ArrivalSchedule, error) {
-	return a.s.arrival.GetStudentArrivalSchedules(ctx, id)
+	return a.arrival.GetStudentArrivalSchedules(ctx, id)
 }
 func (a *weeklyApprovalAdapter) DeleteStudentArrivalSchedule(ctx context.Context, id int64) error {
-	return a.s.arrival.DeleteStudentArrivalSchedule(ctx, id)
+	return a.arrival.DeleteStudentArrivalSchedule(ctx, id)
 }
 func (a *weeklyApprovalAdapter) UpsertStudentArrivalSchedule(ctx context.Context, row *careplan.ArrivalSchedule) error {
-	return a.s.arrival.UpsertStudentArrivalSchedule(ctx, row)
+	return a.arrival.UpsertStudentArrivalSchedule(ctx, row)
 }
 func (a *weeklyApprovalAdapter) GetStudentPickupSchedules(ctx context.Context, id int64) ([]*careplan.PickupSchedule, error) {
-	return a.s.pickup.GetStudentPickupSchedules(ctx, id)
+	return a.pickup.GetStudentPickupSchedules(ctx, id)
 }
 func (a *weeklyApprovalAdapter) DeleteStudentPickupSchedule(ctx context.Context, id int64) error {
-	return a.s.pickup.DeleteStudentPickupSchedule(ctx, id)
+	return a.pickup.DeleteStudentPickupSchedule(ctx, id)
 }
 func (a *weeklyApprovalAdapter) UpsertStudentPickupSchedule(ctx context.Context, row *careplan.PickupSchedule) error {
-	return a.s.pickup.UpsertStudentPickupSchedule(ctx, row)
+	return a.pickup.UpsertStudentPickupSchedule(ctx, row)
 }
 func (a *weeklyApprovalAdapter) HasBookedOfferingPickupForWeekday(ctx context.Context, id int64, day int) (bool, error) {
-	return a.s.pickup.HasBookedOfferingPickupForWeekday(ctx, id, day)
+	return a.pickup.HasBookedOfferingPickupForWeekday(ctx, id, day)
 }

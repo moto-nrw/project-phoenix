@@ -70,7 +70,16 @@ func timeTrackingAccountStartDate(settings settingsCompose.SettingsService) func
 // is embedded unchanged.
 type staffDirectoryCapability struct {
 	workforceModule.StaffRecordAdmin
-	people peoplePorts.PersonDirectory
+	people staffRecordPeople
+}
+
+// staffRecordPeople are the retained person service's staff lookups the
+// personnel-record contract serves.
+type staffRecordPeople interface {
+	FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
+	GetStaffByID(ctx context.Context, staffID int64) (*peopleValues.Staff, error)
+	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
 // newStaffDirectoryCapability serves workforce.StaffDirectory: the lookups

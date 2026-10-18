@@ -79,9 +79,8 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.Capability)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	instanceStudentRepo := timetableRepos.Participants
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
@@ -237,7 +236,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))), testpkg.NewDatabase(t, s.db), slog.Default())
+			factoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, s.db), slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))
@@ -247,9 +246,9 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 					Where("id = ?", s.activeGroup.ID).
 					Exec(s.ctx)
 				require.NoError(t, err)
-				_, err = factory.Active.ProcessSessionTimeout(s.ctx, device.ID)
+				_, err = factoryActive.ProcessSessionTimeout(s.ctx, device.ID)
 			} else {
-				err = factory.Active.EndActivitySession(s.ctx, s.activeGroup.ID)
+				err = factoryActive.EndActivitySession(s.ctx, s.activeGroup.ID)
 			}
 			require.NoError(t, err)
 

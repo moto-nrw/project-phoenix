@@ -217,14 +217,28 @@ type engine interface {
 
 type Module struct {
 	engine    engine
-	guardians guardianProviderSlot
+	guardians GuardianProvider
 }
 
-func NewModule(engine engine) *Module {
+// NewModule wraps the engine. The guardian provider serves the
+// application-level guardian flows; without one they refuse with
+// ErrGuardianProviderUnbound.
+func NewModule(engine engine, guardians ...GuardianProvider) *Module {
 	if engine == nil {
 		panic("people directory: engine is required")
 	}
-	return &Module{engine: engine}
+	module := &Module{engine: engine}
+	switch len(guardians) {
+	case 0:
+	case 1:
+		if guardians[0] == nil {
+			panic("people directory: guardian provider is required")
+		}
+		module.guardians = guardians[0]
+	default:
+		panic("people directory: at most one guardian provider is allowed")
+	}
+	return module
 }
 
 func (m *Module) CreatePerson(ctx context.Context, input CreatePerson) (Person, error) {

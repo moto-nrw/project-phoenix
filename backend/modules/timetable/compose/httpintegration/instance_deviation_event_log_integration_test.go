@@ -37,7 +37,7 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
@@ -64,7 +64,7 @@ func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
 
 	seedDeviatedOccurrence(t, s, date)
 
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err := s.instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)

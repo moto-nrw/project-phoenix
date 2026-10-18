@@ -38,10 +38,9 @@ func isProfileLockTimeout(err error) bool {
 
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) peoplePorts.GuardianService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactoryServices, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.Guardian
+	return serviceFactoryServices.Guardian
 }
 
 // =============================================================================
@@ -2316,7 +2315,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		}},
 	}
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	for _, w := range writers {
 		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
 			// Hold the profile FOR UPDATE lock from an uncommitted tx.
@@ -2357,7 +2356,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")

@@ -284,8 +284,8 @@ func (s *StudentPhotoService) recordConsent(
 	}
 	return s.runtime.RecordPhotoConsent(
 		ctx,
-		domain.StudentConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
-		domain.StudentConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
 		actorAccountID,
 		changedAt,
 	)

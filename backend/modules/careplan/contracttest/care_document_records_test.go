@@ -25,7 +25,7 @@ const (
 
 func careDocumentRecords(t *testing.T, db *bun.DB) careplan.Capability {
 	t.Helper()
-	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan()
+	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan()
 }
 
 // newTestCareDocument builds a valid document row for a student.

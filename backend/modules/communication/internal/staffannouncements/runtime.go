@@ -30,6 +30,7 @@ func NewService(cfg ServiceConfig, runtime Runtime, policy deliveryPorts.ParentD
 		preferences:      cfg.Preferences,
 		deliveries:       cfg.Deliveries,
 		fingerprints:     cfg.Fingerprints,
+		attachments:      cfg.Attachments,
 		parentsURL:       cfg.ParentsURL,
 		logger:           logger,
 	}

@@ -58,9 +58,23 @@ type OperatorAccountDirectory interface {
 
 type operatorAccountDirectory struct {
 	accounts identityaccess.SchoolAccountListings
-	persons  peopledirectory.Query
+	persons  accountPersonsQuery
 	chains   caregiverChainQuery
-	schools  organizationtenancy.Query
+	schools  operatorSchools
+}
+
+// accountPersonsQuery is the People Directory read of the persons behind
+// accounts.
+type accountPersonsQuery interface {
+	ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error)
+}
+
+// operatorSchools are the Organisation & Tenancy school reads the listing
+// scopes and names its rows with.
+type operatorSchools interface {
+	ListSchoolsByOrganization(ctx context.Context, organizationID int64) ([]organizationtenancy.School, error)
+	ListNonDeletedSchools(ctx context.Context) ([]organizationtenancy.School, error)
+	ListSchoolsByID(ctx context.Context, ids []int64) ([]organizationtenancy.School, error)
 }
 
 // NewOperatorAccountDirectory reuses the serving owners; it constructs no
@@ -100,7 +114,7 @@ type caregiverChainQuery interface {
 
 // personsByAccountAndTenant resolves the People Directory's person of each
 // account at each school.
-func personsByAccountAndTenant(ctx context.Context, query peopledirectory.Query, accountIDs []int64) (map[peopledirectory.AccountSchool]peopledirectory.Person, error) {
+func personsByAccountAndTenant(ctx context.Context, query accountPersonsQuery, accountIDs []int64) (map[peopledirectory.AccountSchool]peopledirectory.Person, error) {
 	values, err := query.ListPersonsByAccount(ctx, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load persons by account: %w", err)

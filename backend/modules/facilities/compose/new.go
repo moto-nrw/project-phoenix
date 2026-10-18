@@ -15,9 +15,8 @@ import (
 
 type Observation = ports.Observation
 
-// RoomUsage is the Facilities port the root binds to the owners that can
-// still need a room: Student Presence for running sessions, Care Plan for
-// care offerings.
+// RoomUsage is the room deletion's question to Student Presence (running
+// sessions) and Care Plan (care offerings).
 type RoomUsage = ports.RoomUsage
 
 type Dependencies struct {
@@ -28,20 +27,36 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-// New composes the Facilities module. Every operation requires an explicit
-// caller tenant, including operations using an ambient transaction. The store
-// also applies that tenant as a defense-in-depth predicate.
+// NewRooms composes the Facilities Catalog without the room deletion over
+// DB and Observe alone, for the owners a root builds before the deletion
+// guard's (#4080); New adds it.
+func NewRooms(dependencies Dependencies) (*facilities.Rooms, error) {
+	if dependencies.DB == nil || dependencies.Observe == nil {
+		return nil, errors.New("facilities compose: all dependencies are required")
+	}
+	observe := observer(dependencies.Observe)
+	service := application.NewRooms(postgres.New(databaseRuntime(dependencies.DB)), transaction{}, observe)
+	return facilities.NewRooms(engine{Engine: application.NewEngine(service, observe)}), nil
+}
+
+// New composes the Facilities module. Every operation requires the caller's
+// tenant, which the store also applies as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
-	observe := func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}
+	observe := observer(dependencies.Observe)
 	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
 	return facilities.NewModule(engine{Engine: application.NewEngine(service, observe)}), nil
+}
+
+// observer reports every observation with the public error.
+func observer(observe func(Observation)) ports.Observer {
+	return func(observation Observation) {
+		observation.Err = application.MapError(observation.Err)
+		observe(observation)
+	}
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {

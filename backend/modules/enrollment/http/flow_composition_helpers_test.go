@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
 
@@ -13,7 +14,7 @@ import (
 // Organisation & Tenancy capability, the owner the serving root binds.
 // Callers pass a factory built on the pool from testpkg.SetupTestDB.
 type factorySchools struct {
-	repos *api.EnrollmentFlowTestRepositories
+	repos *api.OrganizationTestRows
 }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
@@ -74,6 +75,10 @@ func (s collectionSettings) LockClassCollectionPair(ctx context.Context) error {
 
 // phaseOfferings reads a phase's Care Plan offerings through the retained
 // offering rows, the way the root binds the phase administration.
+// unusedPhaseRecords stands in for the phase rows of a phase administration
+// whose flow under test never reads them.
+type unusedPhaseRecords struct{ TestPhaseRecords }
+
 type phaseOfferings struct {
 	rows interface {
 		ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
@@ -103,22 +108,23 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 // Enrollment's parent mails over the suite's owner, settings and outbox, and
 // the rollover's eligibility guard over the suite's settings.
 
-// newTestDecisions composes Enrollment's decision flow over the sources; the
-// optional outbox records its parent mails.
-func newTestDecisions(src api.EnrollmentDecisionSources, outboxes ...testMailOutbox) *TestDecisions {
-	if src.Notifications == nil {
+// newTestDecisions composes Enrollment's decision flow over deps and the
+// suite's settings; the optional outbox records its parent mails.
+func newTestDecisions(deps enrollmentCompose.DecisionDependencies, settings api.EnrollmentDecisionSettings, outboxes ...testMailOutbox) *TestDecisions {
+	deps.Settings = api.EnrollmentDecisionSettingValues(settings)
+	if deps.Notifications == nil {
 		var outbox testMailOutbox
 		if len(outboxes) > 0 {
 			outbox = outboxes[0]
 		}
-		modes, _ := src.Requests.(TestNotificationModePin)
-		src.Notifications = testNotifications(modes, src.Settings, outbox, nil)
+		modes, _ := deps.Requests.(TestNotificationModePin)
+		deps.Notifications = testNotifications(modes, settings, outbox, nil)
 	}
-	return api.NewEnrollmentDecisions(src)
+	return api.NewEnrollmentDecisions(deps)
 }
 
-func newTestDecisionService(src api.EnrollmentDecisionSources, outboxes ...testMailOutbox) enrollmentAPI.DecisionService {
-	return newFlowDecisionService(newTestDecisions(src, outboxes...))
+func newTestDecisionService(deps enrollmentCompose.DecisionDependencies, settings api.EnrollmentDecisionSettings, outboxes ...testMailOutbox) enrollmentAPI.DecisionService {
+	return newFlowDecisionService(newTestDecisions(deps, settings, outboxes...))
 }
 
 // newTestRequestService composes the intake; without an explicit gate it
@@ -156,7 +162,10 @@ func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.Rol
 		src.Notifications = testNotifications(nil, nil, nil, nil)
 	}
 	if src.PhaseEligibility == nil && src.Settings != nil {
-		src.PhaseEligibility = NewTestPhases(TestPhaseDependencies{Settings: collectionSettings{settings: src.Settings}})
+		src.PhaseEligibility = NewTestPhases(TestPhaseDependencies{
+			Records: unusedPhaseRecords{}, Offerings: phaseOfferings{}, LockTemplateRecurrence: func(context.Context) error { return nil },
+			Resyncer: &recordingSourcedTemplateResyncer{}, Settings: collectionSettings{settings: src.Settings},
+		})
 	}
 	return enrollmentAPI.NewRolloverService(api.NewEnrollmentRollovers(src))
 }

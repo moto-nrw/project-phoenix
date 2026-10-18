@@ -75,7 +75,7 @@ type scheduleCarePlan struct{ carePlan careplan.Capability }
 
 func newScheduleCarePlan(db *bun.DB) scheduleCarePlan {
 	database := testpkg.MustDatabase(db)
-	carePlan, err := api.NewUnobservedCarePlan(database, api.NewUnobservedTimetableDependencies(database))
+	carePlan, err := api.NewUnobservedCarePlan(database, api.MustNewUnobservedTimetable(database), api.MustNewPeopleDirectory(database))
 	if err != nil {
 		panic(err)
 	}

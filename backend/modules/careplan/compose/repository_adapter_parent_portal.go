@@ -46,18 +46,12 @@ type ParentPortalRepositories struct {
 // The school names are bound by WithSchools.
 func NewParentPortalRepositories(deps ParentPortalDependencies) ParentPortalRepositories {
 	phases := parentRepo.NewEnrollablePhaseRepository(deps.Phases, deps.AccountSchools, parentStudentDirectory{deps.Directory}, parentGuardianDirectory{deps.Directory})
-	requests := NewParentEnrollmentRequestRepository(deps.DB, deps.Applications, deps.Accounts, parentGuardianDirectory{deps.Directory})
+	requests := parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(deps.DB)), deps.Applications, deps.Accounts, parentGuardianDirectory{deps.Directory})
 	return ParentPortalRepositories{
 		ParentChild:             NewParentChildRepository(deps.AccountSchools, deps.Directory),
 		ParentEnrollablePhase:   application.WithParentPhasePersons(phases, deps.Directory),
 		ParentEnrollmentRequest: requests,
 	}
-}
-
-// NewParentEnrollmentRequestRepository is the account's applications over the
-// ambient tenant transaction, using the supplied guardian directory.
-func NewParentEnrollmentRequestRepository(db *bun.DB, applications parentRepo.EnrollmentCommands, accounts parentRepo.AccountDirectory, guardians parentRepo.GuardianDirectory) parentModels.EnrollmentRequestRepository {
-	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(db)), applications, accounts, guardians)
 }
 
 // NewParentChildRepository lists a guardian account's children across its

@@ -77,7 +77,7 @@ func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *te
 func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
-	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
+	repos := newStudentTestPeopleRows(testpkg.NewDatabase(t, tc.db))
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate().AddDays(1))
@@ -178,7 +178,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
 
-	stored, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
+	stored, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.EnrolledUntil)
 	assert.Equal(t, today, *stored.EnrolledUntil)
@@ -190,7 +190,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
 
-		after, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
+		after, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Student.FindByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.Nil(t, after.EnrolledUntil)
 	})

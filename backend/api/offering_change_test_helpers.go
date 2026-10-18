@@ -50,16 +50,27 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	students, repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return nil, err
 	}
-	return newOfferingChanges(OfferingChangeInputs{
-		CarePlan: repos.CarePlan, Catalog: options.Catalog, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable},
-		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Permissions: requestTokenReads.Permissions, Today: options.Today,
-		Logger: slog.Default(),
-	})
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return nil, err
+	}
+	deps, err := offeringChangeOwners(
+		students.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, studentPeople.CareWithdrawal, options.Settings,
+		offeringChangeTestScope(options.Scope), requestTokenReads.Permissions, nil, nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
+	deps.Bookings = options.Bookings
+	deps.Today = options.Today
+	deps.Logger = slog.Default()
+	return newOfferingChanges(deps)
 }
 
 // offeringChangeTestScope is the suite's review scope, or the one an admin

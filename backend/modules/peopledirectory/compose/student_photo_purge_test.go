@@ -33,10 +33,10 @@ func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabl
 	t.Helper()
 	runtime := &enabledPhotoRuntime{}
 	module, err := New(Dependencies{
-		StudentDirectory:    testpkg.StudentDirectory{},
-		DB:                  db,
-		Observe:             func(Observation) {},
-		StudentPhotoRuntime: func() StudentPhotoRuntime { return runtime },
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db,
+		Observe:          func(Observation) {},
+		StudentPhotos:    runtime,
 	})
 	require.NoError(t, err)
 	return module, runtime

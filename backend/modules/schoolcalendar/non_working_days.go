@@ -31,7 +31,7 @@ type NonWorkingDayQuery interface {
 	NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
-func (m *Module) TenantHolidays(ctx context.Context, from, to string) ([]Holiday, error) {
+func (m *Records) TenantHolidays(ctx context.Context, from, to string) ([]Holiday, error) {
 	if err := validateHolidayWindow(from, to); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (m *Module) TenantHolidays(ctx context.Context, from, to string) ([]Holiday
 	return m.engine.ListHolidays(ctx, region, from, to)
 }
 
-func (m *Module) TenantHolidayDates(ctx context.Context, from, to string) (map[string]bool, error) {
+func (m *Records) TenantHolidayDates(ctx context.Context, from, to string) (map[string]bool, error) {
 	if err := validateHolidayWindow(from, to); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (m *Module) TenantHolidayDates(ctx context.Context, from, to string) (map[s
 	return m.engine.HolidayDates(ctx, region, from, to)
 }
 
-func (m *Module) ClosingDayDates(ctx context.Context, from, to string) (map[string]bool, error) {
+func (m *Records) ClosingDayDates(ctx context.Context, from, to string) (map[string]bool, error) {
 	if from == "" || to == "" {
 		return nil, invalidClosingDay("closing day window needs both from and to dates")
 	}
@@ -81,7 +81,7 @@ func (m *Module) ClosingDayDates(ctx context.Context, from, to string) (map[stri
 	return set, nil
 }
 
-func (m *Module) NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error) {
+func (m *Records) NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error) {
 	set, err := m.TenantHolidayDates(ctx, from, to)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (m *Module) NonWorkingDayDates(ctx context.Context, from, to string) (map[s
 
 // tenantRegion resolves the tenant's federal state and checks that it names
 // a supported holiday region; the setting is the single source of truth.
-func (m *Module) tenantRegion(ctx context.Context) (string, error) {
+func (m *Records) tenantRegion(ctx context.Context) (string, error) {
 	region, err := m.engine.FederalState(ctx)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrFederalStateUnavailable, err)

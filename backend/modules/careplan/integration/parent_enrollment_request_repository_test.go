@@ -372,7 +372,7 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
 	student := testpkg.CreateTestStudent(t, db, "Materialized", "Child", "1a")
 
-	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &testpkg.StudentGuardian{
@@ -412,7 +412,7 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
 
-	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &testpkg.StudentGuardian{

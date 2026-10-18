@@ -14,32 +14,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewCalendarPortal adapts the existing composition's dependencies to the
-// calendar's narrow fact ports. It does not build a legacy factory.
-func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
-	cfg := NewCalendarFacts(d.CalendarFacts)
+// NewCalendarPortal composes the staff and parent calendars over cfg, whose
+// fact ports NewCalendarFacts and the Bind functions fill and whose other
+// values the caller sets (all notification dependencies are optional: nil
+// disables e-mail, the in-app calendar is unaffected). It binds the
+// root's missing-record, notification-copy, logo and push rules; without a
+// Runtime it runs without a database. It does not build a legacy factory.
+func NewCalendarPortal(cfg calendarCompose.Config) calendarCompose.Application {
 	cfg.MissingRecord = func(err error) bool { return errors.Is(err, transactionruntime.ErrNoRows) }
 	cfg.MissingRecordCause = transactionruntime.ErrNoRows
-	cfg.Appointments = d.Appointments
-	cfg.CalendarRenderer = d.CalendarRenderer
-	cfg.PushOutbox = d.PushOutbox
-	cfg.Settings = d.Settings
-	cfg.CalDAVPolicy = d.CalDAVPolicy
-	if cfg.CalDAVPolicy == nil && d.CalDAVSettings != nil {
-		cfg.CalDAVPolicy = calendarCalDAVPolicy{settings: d.CalDAVSettings}
+	if cfg.Runtime == nil {
+		cfg.Runtime = calendarCompose.NewTenantRuntime(nil)
 	}
-	cfg.StaffFeedTombstoneRepo = d.StaffFeedTombstoneRepo
-	cfg.ParentsURL = d.ParentsURL
-	cfg.FrontendURL = d.FrontendURL
-	cfg.CalDAVURL = d.CalDAVURL
-	cfg.Today = d.Today
-	cfg.Logger = d.Logger
-	cfg.Preferences = d.Preferences
-	runtime := d.Runtime
-	if runtime == nil {
-		runtime = calendarCompose.NewTenantRuntime(nil)
-	}
-	cfg.Runtime = runtime
 	cfg.NotificationCopy = calendarNotificationCopy
 	cfg.MotoLogoURL = deliveryCompose.MotoLogoURL
 	cfg.SchoolLogoURL = deliveryCompose.SchoolLogoURL
@@ -47,19 +33,22 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg.NoDelivery = func(err error) bool {
 		return errors.Is(err, deliveryCompose.ErrNoWebPushSubscribers) || calendarPushSuppressed(err)
 	}
-	if d.UserContext != nil {
-		cfg.UserContext = calendarIdentityPort{d.UserContext}
-	}
-	if d.Outbox != nil {
-		cfg.Outbox = d.Outbox
-	}
-	if d.Notifier != nil {
-		cfg.Notifier = d.Notifier
-	}
-	if d.ReminderNotifier != nil {
-		cfg.ReminderNotifier = d.ReminderNotifier
-	}
 	return calendarCompose.New(cfg)
+}
+
+// BindCalendarCaller binds the calendar's identity port to Identity &
+// Access's caller identities; nil leaves it as it is.
+func BindCalendarCaller(cfg calendarCompose.Config, caller identityaccess.CallerIdentities) calendarCompose.Config {
+	if caller != nil {
+		cfg.UserContext = calendarIdentityPort{caller}
+	}
+	return cfg
+}
+
+// NewCalendarCalDAVPolicy decides whether CalDAV is enabled by resolving
+// calendar.caldav_enabled through settings.
+func NewCalendarCalDAVPolicy(settings CalendarCalDAVSettings) calendarService.CalDAVPolicy {
+	return calendarCalDAVPolicy{settings: settings}
 }
 
 // CalendarNotifier, CalendarReminderNotifier and CalendarPreferences are the
@@ -204,20 +193,20 @@ func (p calendarSynchronousNotificationPort) NotifySynchronously(ctx context.Con
 	return p.source.NotifySynchronously(ctx, calendarNotification(event))
 }
 
-type CalendarEmailDependencies struct {
-	DefaultFrom email.Email
-	// Runtime re-checks the authorization scope a row carries before it
-	// renders (calendarCompose.NewTenantRuntime); nil skips the re-check.
-	Runtime   *calendarCompose.TenantRuntime
-	Guardians interface {
-		FilterAccountsWithStudentAccess(context.Context, []int64, []int64, int64, string) ([]int64, error)
-	}
+// CalendarMailGuardians re-checks which guardian accounts still reach the
+// children a queued calendar mail names.
+type CalendarMailGuardians interface {
+	FilterAccountsWithStudentAccess(context.Context, []int64, []int64, int64, string) ([]int64, error)
 }
 
-func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Context, *deliveryCompose.MailIntent) (*email.Message, error) {
-	cfg := calendarCompose.EmailConfig{Guardians: d.Guardians, RenderCancelled: deliveryCompose.ErrRenderCancelled}
-	if d.Runtime != nil {
-		cfg.Runtime = d.Runtime
+// NewCalendarAppointmentRenderer renders the calendar's queued mails from
+// defaultFrom. runtime re-checks the authorization scope a row carries
+// before it renders (calendarCompose.NewTenantRuntime); nil skips the
+// re-check. guardians answers the guardian access re-check.
+func NewCalendarAppointmentRenderer(defaultFrom email.Email, runtime *calendarCompose.TenantRuntime, guardians CalendarMailGuardians) func(context.Context, *deliveryCompose.MailIntent) (*email.Message, error) {
+	cfg := calendarCompose.EmailConfig{Guardians: guardians, RenderCancelled: deliveryCompose.ErrRenderCancelled}
+	if runtime != nil {
+		cfg.Runtime = runtime
 	}
 	render := calendarCompose.NewAppointmentRenderer(cfg)
 	return func(ctx context.Context, row *deliveryCompose.MailIntent) (*email.Message, error) {
@@ -225,6 +214,6 @@ func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Co
 		if err != nil {
 			return nil, err
 		}
-		return &email.Message{From: d.DefaultFrom, To: email.NewEmail("", value.To), Subject: value.Subject, Template: value.Template, Content: value.Content}, nil
+		return &email.Message{From: defaultFrom, To: email.NewEmail("", value.To), Subject: value.Subject, Template: value.Template, Content: value.Content}, nil
 	}
 }

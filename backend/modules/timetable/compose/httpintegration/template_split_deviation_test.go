@@ -40,7 +40,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
 
-	_, err = s.factory.Materialization.MaterializeForTenant(
+	_, err = s.materialization.MaterializeForTenant(
 		s.ctx, before, effective, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	in := baseSplitInput(s, effective, fmt.Sprintf("Renamed-%d", time.Now().UnixNano()))
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &effective
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	require.False(t, splitInstanceExists(t, s, targetInstance.ID), "split must replace the old future instance")
@@ -163,7 +163,7 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
 
-	_, err := s.factory.Materialization.MaterializeForTenant(
+	_, err := s.materialization.MaterializeForTenant(
 		s.ctx, effective, effective, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	in.Weekdays = []int{activitiesModels.WeekdayTuesday}
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &tuesday
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	assert.Empty(t, listInstancesForDate(t, s.db, result.NewTemplateID, effective))

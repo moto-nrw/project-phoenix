@@ -6,8 +6,10 @@ import (
 	"log/slog"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -15,22 +17,25 @@ import (
 // producer for the Worker's minute tick: the reminder batch, the consent of
 // the notification preferences, the staff and admin accounts, the on-duty
 // staff of Workforce and the Delivery Platform's notification service.
-func newPersonalReminderTick(graph *serveGraph, reads workerReads, runtime schedulerPorts.TenantRuntime, logger *slog.Logger) (schedulerPorts.ReminderNotificationTick, error) {
-	services := graph.services
+func newPersonalReminderTick(
+	reminders reminder.Module, notifications DeliveryNotifications, staff staffAccountIDs, identity *identityaccess.Module,
+	workTime workforce.Capability, runtime schedulerPorts.TenantRuntime, logger *slog.Logger,
+) (schedulerPorts.ReminderNotificationTick, error) {
+	workSessions := workforceCompose.WorkPresence(workTime)
 	producer, err := reminder.NewPersonalReminderNotifications(reminder.PersonalReminderDependencies{
-		Computer: services.Reminders,
-		Consent:  services.NotificationPreferences,
-		Staff:    reads.staff,
-		Admins:   reads.identity,
+		Computer: reminders,
+		Consent:  notifications.Preferences,
+		Staff:    staff,
+		Admins:   identity,
 		OnDutyStaff: func(ctx context.Context) (map[int64]struct{}, error) {
-			presence, err := reads.workSessions.GetTodayPresenceMap(ctx)
+			presence, err := workSessions.GetTodayPresenceMap(ctx)
 			if err != nil {
 				return nil, err
 			}
 			return workforce.OnDutyStaffIDs(presence), nil
 		},
 		Notify: func(ctx context.Context, notices []reminder.PersonalReminderNotice) error {
-			return services.Notifications.NotifyBatch(ctx, personalReminderEvents(notices))
+			return notifications.Notifier.NotifyBatch(ctx, personalReminderEvents(notices))
 		},
 		Paused:      notificationDispatchPaused,
 		AfterCommit: runtime.RegisterAfterCommit,
@@ -71,4 +76,10 @@ func personalReminderEvents(notices []reminder.PersonalReminderNotice) []deliver
 // refusals: notifications switched off, or outside the tenant's window.
 func notificationDispatchPaused(err error) bool {
 	return errors.Is(err, deliveryCompose.ErrNotificationsDisabled) || errors.Is(err, deliveryCompose.ErrOutsideNotificationWindow)
+}
+
+// staffAccountIDs lists the accounts of the staff the personal reminders
+// are addressed to.
+type staffAccountIDs interface {
+	ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
 }

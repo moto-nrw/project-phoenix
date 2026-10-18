@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -34,19 +33,11 @@ type BookingPickup = ports.BookingPickup
 // BookingRowNotFound marks an owner's not-found error for the booking
 // materialization: a request, request child, phase or student that does not
 // exist in the tenant. The error keeps its text.
-func BookingRowNotFound(err error) error {
-	return &bookingRowNotFound{err: err}
-}
-
-type bookingRowNotFound struct{ err error }
-
-func (e *bookingRowNotFound) Error() string { return e.err.Error() }
-
-func (e *bookingRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrBookingRowNotFound} }
+func BookingRowNotFound(err error) error { return ports.BookingRowNotFound(err) }
 
 // BookingMaterializationDependencies bind the booking materialization (#3560)
-// to its owners. Catalog is the care-offering catalog composed by
-// NewCareOfferingCatalog; the hooks are nil-safe.
+// to its owners. Catalog comes from NewCareOfferingCatalog, unset for
+// NewCareOfferingCatalogWithBookings; the hooks are nil-safe.
 type BookingMaterializationDependencies struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Rosters     BookingRosters
@@ -72,14 +63,8 @@ type BookingMaterializationDependencies struct {
 	Logger *slog.Logger
 }
 
-// NewBookingMaterialization composes the Care Plan booking materialization
-// over the catalog it applies the timetable-link rules of.
-func NewBookingMaterialization(deps BookingMaterializationDependencies) (careplan.BookingMaterializationCapability, error) {
-	catalog, ok := deps.Catalog.(*application.CareOfferingCatalog)
-	if !ok {
-		return nil, errors.New("booking materialization: the care-offering catalog must be composed by NewCareOfferingCatalog")
-	}
-	return application.NewBookingMaterialization(application.BookingMaterializationDependencies{
+func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {
+	return application.BookingMaterializationDependencies{
 		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
 		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
 		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup,
@@ -90,5 +75,5 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (carepla
 		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
 		Today:                       deps.Today,
 		Logger:                      deps.Logger,
-	})
+	}
 }

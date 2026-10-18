@@ -19,7 +19,7 @@ func TestOperatorSchoolSummariesQueryBudget(t *testing.T) {
 	// The counter attaches to this database, so the scenario owns its own
 	// clone and cannot see statements from a parallel package.
 	db := testpkg.SetupIsolatedTestDB(t)
-	provisioning := buildOperatorProvisioning(t, db).OperatorProvisioning
+	provisioning := buildOperatorProvisioning(t, db)
 	counter := testpkg.CaptureQueries(t, db)
 	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 	listSchools := func() []string {

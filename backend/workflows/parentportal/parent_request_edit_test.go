@@ -25,7 +25,8 @@ import (
 func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
@@ -35,21 +36,21 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		CarePlan:            api.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChildReads(),
+		ChildRepo:           reposCare.ParentChildReads(),
 		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
+		ChangeRequestRepo:   api.NewParentDataRequestReads(reposCare.CarePlan()),
 		ParentRequestEvents: api.NewParentRequestEvents(events),
 		Settings:            masterDataSettings(false, true, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: api.NewParentDataRequestCommands(reposCare.CarePlan()),
 
 		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
@@ -235,7 +236,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Person.FindByID(ctx, chain.PersonID)
+	person, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID(ctx, chain.PersonID)
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

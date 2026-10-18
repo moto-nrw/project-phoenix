@@ -59,7 +59,6 @@ type targetRiskWorkload struct {
 	loginEmail, loginPassword string
 	refreshToken              string
 	mfaAccountID              int64
-	tokenAuth                 *sessiontoken.TokenAuth
 
 	deviceKey  string
 	studentTag string
@@ -119,10 +118,6 @@ func newTargetRiskWorkload(t *testing.T, production *Runtime) *targetRiskWorkloa
 	}
 	require.NotEqual(t, testpkg.Tenant(t), w.tenantID, "checkpoint-1-v2 fixtures need their own tenant")
 	require.NoError(t, db.NewRaw("SELECT subdomain FROM platform.schools WHERE id = ?", w.tenantID).Scan(ctx, &w.subdomain))
-	var err error
-	w.tokenAuth, err = testpkg.ConfiguredTokenAuth()
-	require.NoError(t, err)
-
 	suffix := testpkg.UniqueSuffix()
 	w.loginEmail = fmt.Sprintf("checkpoint-login-%d@example.test", suffix)
 	w.loginPassword = fmt.Sprintf("ckpt-%d-login", suffix)
@@ -482,7 +477,7 @@ func (w *targetRiskWorkload) mfaChallenge(t *testing.T, code, submitted string) 
 		(account_id, scope, tenant_id, code_hash, expires_at, created_at, updated_at)
 		VALUES (?, 'tenant', ?, ?, NOW() + INTERVAL '10 minutes', NOW(), NOW()) RETURNING id`,
 		w.mfaAccountID, w.tenantID, testpkg.HashTestPassword(t, code)).Scan(context.Background(), &challengeID))
-	challenge, err := w.tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+	challenge, err := testpkg.TestTokenAuth(t).CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID: w.mfaAccountID, Scope: sessiontoken.MFAChallengeScopeTenant, TenantID: w.tenantID, ChallengeID: challengeID,
 	}, 10*time.Minute)
 	require.NoError(t, err)
@@ -611,7 +606,7 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	t.Helper()
 	operations := contentionOperations()
 	require.GreaterOrEqual(t, concurrency, len(operations), "every contention operation needs at least one slot per round")
-	api := production.graph
+	api := newGoldenRuntime(t, production)
 	slots := make([]*checkpointConcurrentOperation, concurrency)
 	for i := range slots {
 		index := i

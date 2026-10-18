@@ -81,18 +81,6 @@ type CareRequestSnapshotEntry struct {
 	NewMode  string   `json:"new_mode,omitempty"`
 }
 
-// IsTerminal reports whether the row is in a final state. Only pending rows
-// accept a staff decision or a guardian withdrawal.
-func (c *CareScheduleChangeRequest) IsTerminal() bool {
-	switch c.Status {
-	case CareRequestStatusApproved, CareRequestStatusRejected, CareRequestStatusWithdrawn,
-		CareRequestStatusCareEnded, CareRequestStatusDone:
-		return true
-	default:
-		return false
-	}
-}
-
 // CareScheduleChangeRequestRepository is the tenant-scoped data-access
 // contract. All methods MUST run inside a tenant transaction (the parent
 // service resolves the child's tenant first, then wraps the call in

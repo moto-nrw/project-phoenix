@@ -252,7 +252,7 @@ func createLinkedCareOffering(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
+	repos := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID,
@@ -338,12 +338,12 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Care-Conflict-%d", time.Now().UnixNano()))
 		in.CalendarPeriodID = &shortPeriod.ID
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -356,7 +356,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		shortPeriod := createShortCalendarPeriod(t, s, effective, effective.AddDays(7))
 		original := reloadSplitGroup(t, s, s.template.ID)
 
-		err := s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, linkedTemplateUpdateInput(t, s, &shortPeriod.ID))
+		err := s.timetableData.Templates.UpdateTemplate(s.ctx, linkedTemplateUpdateInput(t, s, &shortPeriod.ID))
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 
 		reloaded := reloadSplitGroup(t, s, s.template.ID)
@@ -373,7 +373,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		defer s.runCleanup(t)
 		createLinkedCareOffering(t, s, effective, effective.AddDays(21))
 
-		_, err := s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+		_, err := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 			TemplateID:    s.template.ID,
 			EffectiveDate: effective,
 		})
@@ -386,7 +386,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		defer s.runCleanup(t)
 		createLinkedCareOffering(t, s, effective.AddDays(-7), effective.AddDays(21))
 
-		_, err := s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+		_, err := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 			TemplateID:    s.template.ID,
 			EffectiveDate: effective,
 		})
@@ -414,7 +414,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		).Exec(s.ctx)
 		require.NoError(t, err)
 
-		_, err = s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+		_, err = s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 			TemplateID:    s.template.ID,
 			EffectiveDate: effective,
 		})
@@ -430,7 +430,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		in.Weekdays = []int{activitiesModels.WeekdayTuesday}
 		in.CalendarPeriodID = &s.period.ID
 
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
 	})
@@ -442,7 +442,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		in := linkedTemplateUpdateInput(t, s, &s.period.ID)
 		in.Weekdays = []int{activitiesModels.WeekdayTuesday}
 
-		err := s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, in)
+		err := s.timetableData.Templates.UpdateTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 		schedules := loadSplitSchedules(t, s, s.template.ID)
 		require.Len(t, schedules, 1)
@@ -460,7 +460,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		in := linkedTemplateUpdateInput(t, s, &s.period.ID)
 		in.WeekPattern = 1
 
-		err := s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, in)
+		err := s.timetableData.Templates.UpdateTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 		assert.Equal(t, 0, reloadSplitSchedule(t, s, s.schedule.ID).WeekPattern)
 	})
@@ -470,7 +470,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		defer s.runCleanup(t)
 		createLinkedCareOffering(t, s, effective, effective.AddDays(21))
 
-		_, err := s.factory.TimetableData.Templates.ArchiveTemplate(s.ctx, s.template.ID)
+		_, err := s.timetableData.Templates.ArchiveTemplate(s.ctx, s.template.ID)
 		require.ErrorIs(t, err, timetable.ErrTemplateCareOfferingConflict)
 		assert.Nil(t, reloadSplitGroup(t, s, s.template.ID).ArchivedAt)
 	})
@@ -493,7 +493,7 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Rebase-%d", time.Now().UnixNano()))
 		in.CalendarPeriodID = &periodB.ID
-		result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.NoError(t, err)
 
 		rows := loadSplitEnrollments(t, s, result.NewTemplateID)
@@ -527,7 +527,7 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 		protected := createProtectedSplitEnrollment(t, s, childID, s.students[2], phaseStart, protectedUntil, s.period.ID)
 		periodB := createCompatibleCalendarPeriod(t, s)
 
-		err := s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, linkedTemplateUpdateInput(t, s, &periodB.ID))
+		err := s.timetableData.Templates.UpdateTemplate(s.ctx, linkedTemplateUpdateInput(t, s, &periodB.ID))
 		require.NoError(t, err)
 		reloaded := loadSplitEnrollments(t, s, s.template.ID)
 		var protectedAfter *activitiesModels.StudentEnrollment
@@ -578,7 +578,7 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 		StaffIDs:       []int64{s.staffID},
 		PrimaryStaffID: &s.staffID,
 	}}
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
@@ -627,7 +627,7 @@ func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T)
 	in := baseSplitInput(s, monday, fmt.Sprintf("Split-Protected-Shared-%d", time.Now().UnixNano()))
 	in.Weekdays = []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
 	in.StudentIDs = []int64{s.students[0]}
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
@@ -697,7 +697,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	in.MaterializeTo = &secondMonday
 	// StudentIDs/StaffIDs nil → carry over the previously-active roster.
 
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 	for range []calendar.Date{effective, secondMonday} {
 	}
@@ -785,7 +785,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 // the rows the template writes assign through.
 func scenarioPlanningTracks(t *testing.T, db *bun.DB) timetable.PlanningTrackAdministration {
 	t.Helper()
-	return timetableCompose.NewPlanningTrackAdministration(api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability, db)
+	return timetableCompose.NewPlanningTrackAdministration(api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), db)
 }
 
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
@@ -811,7 +811,7 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Track-%d", time.Now().UnixNano()))
 	in.PlanningTrackID = &track.ID
 	in.PlanningTrackIDProvided = true
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	predecessor := reloadSplitGroup(t, s, result.OldTemplateID)
@@ -852,7 +852,7 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 
 			in := baseSplitInput(s, effective, fmt.Sprintf("Split-Presence-%d", time.Now().UnixNano()))
 			in.PlanningTrackIDProvided = tt.provided
-			result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+			result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 			require.NoError(t, err)
 
 			successor := reloadSplitGroup(t, s, result.NewTemplateID)
@@ -877,13 +877,13 @@ func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
 	split := baseSplitInput(s, effective, fmt.Sprintf("Split-Unknown-Track-%d", missingTrackID))
 	split.PlanningTrackID = &missingTrackID
 	split.PlanningTrackIDProvided = true
-	_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, split)
+	_, err := s.timetableData.Templates.SplitTemplate(s.ctx, split)
 	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound)
 
 	update := linkedTemplateUpdateInput(t, s, &s.period.ID)
 	update.Fields.PlanningTrackID = &missingTrackID
 	update.Fields.PlanningTrackIDProvided = true
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, update)
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, update)
 	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound)
 }
 
@@ -926,7 +926,7 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	}}, s.extraCleanups...)
 	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
 
-	res, err := s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+	res, err := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 		TemplateID:    s.template.ID,
 		EffectiveDate: effective,
 	})
@@ -991,7 +991,7 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 	in.PrimaryStaffID = &s.staffID
 	// No MaterializeFrom/To → no materialization run.
 
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	assert.Nil(t, res.Materialization, "no window requested, no materialization")
@@ -1036,7 +1036,7 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 
 	t.Run("past effective_date", func(t *testing.T) {
 		in := baseSplitInput(s, calendar.NewDate(2000, 1, 1), fmt.Sprintf("Split-Vergangen-%d", suffix))
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 	})
 
@@ -1047,7 +1047,7 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 			Weekday:    activitiesModels.WeekdayTuesday,
 			StudentIDs: []int64{s.students[0]},
 		}}
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		schedules := loadSplitSchedules(t, s, s.template.ID)
@@ -1072,14 +1072,14 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-KeinTemplateNeu-%d", suffix))
 		in.TemplateID = plain.ID
-		_, err = s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err = s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitTemplateNotFound)
 	})
 
 	t.Run("unknown id", func(t *testing.T) {
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Unbekannt-%d", suffix))
 		in.TemplateID = 999999999
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitTemplateNotFound)
 	})
 
@@ -1101,7 +1101,7 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 	suffix := time.Now().UnixNano()
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-ValidFrom-%d", suffix))
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	newSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
@@ -1159,12 +1159,12 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Update-Bounds-%d", time.Now().UnixNano()))
 	in.CalendarPeriodID = &s.period.ID
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	oldGroup := reloadSplitGroup(t, s, s.template.ID)
 	require.NotNil(t, oldGroup.PlannedRoomID)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: s.template.ID,
 		Fields: timetable.TemplateFields{
 			Name:              oldGroup.Name + "-edited",
@@ -1193,7 +1193,7 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 
 	successorGroup := reloadSplitGroup(t, s, res.NewTemplateID)
 	require.NotNil(t, successorGroup.PlannedRoomID)
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: res.NewTemplateID,
 		Fields: timetable.TemplateFields{
 			Name:              successorGroup.Name + "-edited",
@@ -1422,11 +1422,11 @@ func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, innerBoundary)
 	defer s.runCleanup(t)
 
-	first, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx,
+	first, err := s.timetableData.Templates.SplitTemplate(s.ctx,
 		baseSplitInput(s, outerBoundary, fmt.Sprintf("Split-Later-%d", time.Now().UnixNano())))
 	require.NoError(t, err)
 
-	_, err = s.factory.TimetableData.Templates.SplitTemplate(s.ctx,
+	_, err = s.timetableData.Templates.SplitTemplate(s.ctx,
 		baseSplitInput(s, innerBoundary, fmt.Sprintf("Split-Middle-%d", time.Now().UnixNano())))
 	require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
@@ -1483,7 +1483,7 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 
 	firstInput := baseSplitInput(s, boundary, fmt.Sprintf("Split-Envelope-%d", time.Now().UnixNano()))
 	firstInput.CalendarPeriodID = &s.period.ID
-	first, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, firstInput)
+	first, err := s.timetableData.Templates.SplitTemplate(s.ctx, firstInput)
 	require.NoError(t, err)
 
 	assertFutureRosterCarried(t, s, first.NewTemplateID, futureRosterStart)
@@ -1492,15 +1492,15 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	t.Run("split rejects before successor start", func(t *testing.T) {
 		in := baseSplitInput(s, beforeBoundary, fmt.Sprintf("Split-Too-Early-%d", time.Now().UnixNano()))
 		in.TemplateID = first.NewTemplateID
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 	})
 
 	t.Run("split and end reject predecessor exclusive end", func(t *testing.T) {
 		in := baseSplitInput(s, boundary, fmt.Sprintf("Split-At-End-%d", time.Now().UnixNano()))
-		_, splitErr := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, splitErr := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, splitErr, timetable.ErrSplitInvalidInput)
-		_, endErr := s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+		_, endErr := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 			TemplateID:    s.template.ID,
 			EffectiveDate: boundary,
 		})
@@ -1508,7 +1508,7 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	})
 
 	t.Run("end before future successor clamps to its start", func(t *testing.T) {
-		ended, err := s.factory.TimetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
+		ended, err := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 			TemplateID:    first.NewTemplateID,
 			EffectiveDate: beforeBoundary,
 		})
@@ -1601,7 +1601,7 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 
 	go func() {
 		endDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			_, err := s.factory.TimetableData.Templates.EndTemplateFromDate(txCtx, timetable.EndTemplateCommand{
+			_, err := s.timetableData.Templates.EndTemplateFromDate(txCtx, timetable.EndTemplateCommand{
 				TemplateID:    s.template.ID,
 				EffectiveDate: effective,
 			})
@@ -1628,7 +1628,7 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 	updateDone := make(chan error, 1)
 	go func() {
 		close(updateStarted)
-		updateDone <- s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, update)
+		updateDone <- s.timetableData.Templates.UpdateTemplate(s.ctx, update)
 	}()
 	<-updateStarted
 
@@ -1688,7 +1688,7 @@ func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *te
 
 	go func() {
 		endDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			_, err := s.factory.TimetableData.Templates.EndTemplateFromDate(txCtx, timetable.EndTemplateCommand{
+			_, err := s.timetableData.Templates.EndTemplateFromDate(txCtx, timetable.EndTemplateCommand{
 				TemplateID:    s.template.ID,
 				EffectiveDate: effective,
 			})
@@ -1777,7 +1777,7 @@ func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t 
 
 	go func() {
 		archiveDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			archived, err := s.factory.TimetableData.Templates.ArchiveTemplate(txCtx, s.template.ID)
+			archived, err := s.timetableData.Templates.ArchiveTemplate(txCtx, s.template.ID)
 			if err != nil {
 				return err
 			}
@@ -1902,7 +1902,7 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	// nil StudentIDs/StaffIDs → carry; nil CalendarPeriodID → successor rows
 	// land on COALESCE(calendar_period_id, 0) = 0 and would collide without
 	// the per-person dedupe.
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err, "multi-period roster must not violate idx_student_enrollments_active")
 
 	newEnrollments := loadSplitEnrollments(t, s, res.NewTemplateID)
@@ -1948,7 +1948,7 @@ func TestTemplateSplit_WindowValidation(t *testing.T) {
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Fenster-A-%d", suffix))
 		before := effective.AddDays(-1)
 		in.MaterializeTo = &before
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 	})
 
@@ -1958,7 +1958,7 @@ func TestTemplateSplit_WindowValidation(t *testing.T) {
 		to := effective.AddDays(7)
 		in.MaterializeFrom = &from
 		in.MaterializeTo = &to
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 	})
 
@@ -1968,7 +1968,7 @@ func TestTemplateSplit_WindowValidation(t *testing.T) {
 		to := effective.AddDays(timetable.MaxMaterializationWindowDays) // span = max+1
 		in.MaterializeFrom = &from
 		in.MaterializeTo = &to
-		_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 	})
 
@@ -2003,7 +2003,7 @@ func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &effective
 
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, res.DeletedInstances,
@@ -2040,7 +2040,7 @@ func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing
 	in.TargetGroupType = activitiesModels.TargetGroupTypeJahrgang
 	in.TargetGradeLevel = &gradeLevel
 
-	res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	successor := reloadSplitGroup(t, s, res.NewTemplateID)
@@ -2069,18 +2069,18 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	defer s.runCleanup(t)
 
 	firstInput := baseSplitInput(s, firstBoundary, fmt.Sprintf("Split-Series-First-%d", time.Now().UnixNano()))
-	first, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, firstInput)
+	first, err := s.timetableData.Templates.SplitTemplate(s.ctx, firstInput)
 	require.NoError(t, err)
 
 	secondInput := baseSplitInput(s, secondBoundary, fmt.Sprintf("Split-Series-Second-%d", time.Now().UnixNano()))
 	secondInput.TemplateID = first.NewTemplateID
-	second, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, secondInput)
+	second, err := s.timetableData.Templates.SplitTemplate(s.ctx, secondInput)
 	require.NoError(t, err)
 
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }
@@ -2096,7 +2096,7 @@ func TestTemplateSplit_ValidationErrors_RejectsInvalidTargetGroup(t *testing.T) 
 	in.TargetGroupType = activitiesModels.TargetGroupTypeJahrgang
 	// TargetGradeLevel intentionally left nil — jahrgang requires it.
 
-	_, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	_, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 }
@@ -2129,7 +2129,7 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-InheritNote-%d", time.Now().UnixNano()))
 		// NotesProvided stays false → inherit.
-		res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.NoError(t, err)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
@@ -2147,7 +2147,7 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-SetNote-%d", time.Now().UnixNano()))
 		in.Notes = &newNote
 		in.NotesProvided = true
-		res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.NoError(t, err)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
@@ -2164,7 +2164,7 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-ClearNote-%d", time.Now().UnixNano()))
 		in.Notes = nil
 		in.NotesProvided = true
-		res, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+		res, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 		require.NoError(t, err)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)

@@ -12,6 +12,8 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -31,23 +33,30 @@ import (
 // -----------------------------------------------------------------------------
 
 type scenarioSetup struct {
-	svc           timetable.MaterializationCapability
-	factory       *api.TestServiceGraph
-	db            *bun.DB
-	ctx           context.Context
-	tenantID      int64
-	cleanup       func()
-	period        *scheduleModels.CalendarPeriod
-	template      *activitiesModels.Group
-	schedule      *activitiesModels.Schedule
-	timeframe     *testpkg.Timeframe
-	students      []int64
-	staffID       int64
-	categoryID    int64
-	roomID        int64
-	enrollmentIDs []int64
-	supervisorIDs []int64
-	extraCleanups []func()
+	svc             timetable.MaterializationCapability
+	instance        timetable.InstanceLifecycleCapability
+	timetableData   compose.Planning
+	active          studentpresence.Presence
+	materialization timetable.MaterializationCapability
+	careDay         careplan.CareDayQuery
+	autoStart       timetable.InstanceAutoStart
+	careOffering    careplan.CareOfferingCapability
+	statusDays      studentpresence.StatusDays
+	db              *bun.DB
+	ctx             context.Context
+	tenantID        int64
+	cleanup         func()
+	period          *scheduleModels.CalendarPeriod
+	template        *activitiesModels.Group
+	schedule        *activitiesModels.Schedule
+	timeframe       *testpkg.Timeframe
+	students        []int64
+	staffID         int64
+	categoryID      int64
+	roomID          int64
+	enrollmentIDs   []int64
+	supervisorIDs   []int64
+	extraCleanups   []func()
 }
 
 func (s *scenarioSetup) runCleanup(tb testing.TB) {
@@ -67,14 +76,13 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -153,21 +161,28 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	require.NoError(t, err)
 
 	s := &scenarioSetup{
-		svc:           svc,
-		factory:       serviceFactory,
-		db:            db,
-		ctx:           ctx,
-		tenantID:      tenantID,
-		period:        period,
-		template:      template,
-		schedule:      sched,
-		timeframe:     timeframe,
-		students:      []int64{student1.ID, student2.ID, student3.ID},
-		staffID:       staff.ID,
-		categoryID:    category.ID,
-		roomID:        room.ID,
-		enrollmentIDs: []int64{enroll1.ID, enroll2.ID, enroll3.ID},
-		supervisorIDs: []int64{sup.ID},
+		svc:             svc,
+		instance:        ttLifecycle.Instances,
+		timetableData:   ttPlanning.Planning,
+		active:          ttActive,
+		materialization: ttMaterialization,
+		careDay:         ttSchedules.CareDay,
+		autoStart:       ttLifecycle.AutoStart,
+		careOffering:    ttCareOfferings,
+		statusDays:      ttStatusDays,
+		db:              db,
+		ctx:             ctx,
+		tenantID:        tenantID,
+		period:          period,
+		template:        template,
+		schedule:        sched,
+		timeframe:       timeframe,
+		students:        []int64{student1.ID, student2.ID, student3.ID},
+		staffID:         staff.ID,
+		categoryID:      category.ID,
+		roomID:          room.ID,
+		enrollmentIDs:   []int64{enroll1.ID, enroll2.ID, enroll3.ID},
+		supervisorIDs:   []int64{sup.ID},
 	}
 
 	// Cleanup plan (children first).
@@ -282,7 +297,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -369,9 +384,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	// Use a fresh tenant id that we know has no active periods.
 	//
@@ -401,9 +415,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactorySchedules, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
@@ -651,21 +664,21 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 // rules the period editor enforces.
 func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Create(ctx, period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.
 func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Update(ctx, period))
 }
 
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,

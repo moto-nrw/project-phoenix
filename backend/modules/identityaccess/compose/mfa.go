@@ -177,11 +177,7 @@ func withPasskeyFlows(
 }
 
 func mfaRuntime(sessions *SessionDependencies) tenantRuntime {
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
-	return tenantRuntime{attach: attach, runner: newTransactionRunner()}
+	return tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()}
 }
 
 // operatorLoginGate is the gate the operator login consults; the demo

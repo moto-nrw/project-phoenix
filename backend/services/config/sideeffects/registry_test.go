@@ -15,17 +15,16 @@ import (
 func TestRegistry_Dispatch_RoutesToRegisteredHandler(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
-
 	var capturedKey string
 	var capturedTenantID int64
 	var capturedValue any
-	r.Register("operations.foo", func(_ context.Context, tenantID int64, value any) (func(), error) {
+	r, err := NewRegistryWith(func(string) {}, Handler{Key: "operations.foo", Handle: func(_ context.Context, tenantID int64, value any) (func(), error) {
 		capturedTenantID = tenantID
 		capturedKey = "operations.foo"
 		capturedValue = value
 		return nil, nil
-	})
+	}})
+	require.NoError(t, err)
 
 	cb, err := r.Dispatch(context.Background(), int64(42), "operations.foo", true)
 	require.NoError(t, err)
@@ -41,7 +40,8 @@ func TestRegistry_Dispatch_RoutesToRegisteredHandler(t *testing.T) {
 func TestRegistry_Dispatch_UnknownKeyIsNoop(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
+	r, err := NewRegistryWith(func(string) {})
+	require.NoError(t, err)
 
 	cb, err := r.Dispatch(context.Background(), int64(1), "unknown.key", "any")
 	assert.NoError(t, err)
@@ -54,11 +54,11 @@ func TestRegistry_Dispatch_UnknownKeyIsNoop(t *testing.T) {
 func TestRegistry_Dispatch_PropagatesPostCommit(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
 	postCommitRan := false
-	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) {
+	r, err := NewRegistryWith(func(string) {}, Handler{Key: "k", Handle: func(_ context.Context, _ int64, _ any) (func(), error) {
 		return func() { postCommitRan = true }, nil
-	})
+	}})
+	require.NoError(t, err)
 
 	cb, err := r.Dispatch(context.Background(), 1, "k", nil)
 	require.NoError(t, err)
@@ -73,13 +73,12 @@ func TestRegistry_Dispatch_PropagatesPostCommit(t *testing.T) {
 func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
 	want := errors.New("boom")
 	var observed string
-	r.SetFailureObserver(func(key string) { observed = key })
-	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) {
+	r, err := NewRegistryWith(func(key string) { observed = key }, Handler{Key: "k", Handle: func(_ context.Context, _ int64, _ any) (func(), error) {
 		return nil, want
-	})
+	}})
+	require.NoError(t, err)
 
 	cb, err := r.Dispatch(context.Background(), 1, "k", nil)
 	assert.Same(t, want, err)
@@ -87,28 +86,23 @@ func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
 	assert.Equal(t, "k", observed)
 }
 
-// TestRegistry_Register_PanicsOnDuplicateKey locks the boot-time check
+// TestRegistry_Construction_RefusesDuplicateKey locks the boot-time check
 // that catches double-registration mistakes during refactors. Two
 // handlers for the same key would silently shadow each other.
-func TestRegistry_Register_PanicsOnDuplicateKey(t *testing.T) {
+func TestRegistry_Construction_RefusesDuplicateKey(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
-	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) { return nil, nil })
-
-	assert.PanicsWithValue(t, `sideeffects: handler already registered for key "k"`, func() {
-		r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) { return nil, nil })
-	})
+	handle := func(_ context.Context, _ int64, _ any) (func(), error) { return nil, nil }
+	_, err := NewRegistryWith(func(string) {}, Handler{Key: "k", Handle: handle}, Handler{Key: "k", Handle: handle})
+	assert.EqualError(t, err, `sideeffects: handler already registered for key "k"`)
 }
 
-// TestRegistry_Register_PanicsOnNilHandler catches the obvious mistake of
+// TestRegistry_Construction_RefusesNilHandler catches the obvious mistake of
 // passing nil — at boot time, not in production when Dispatch would
 // otherwise crash.
-func TestRegistry_Register_PanicsOnNilHandler(t *testing.T) {
+func TestRegistry_Construction_RefusesNilHandler(t *testing.T) {
 	t.Parallel()
 
-	r := NewRegistry()
-	assert.PanicsWithValue(t, `sideeffects: nil handler for key "k"`, func() {
-		r.Register("k", nil)
-	})
+	_, err := NewRegistryWith(func(string) {}, Handler{Key: "k"})
+	assert.EqualError(t, err, `sideeffects: nil handler for key "k"`)
 }

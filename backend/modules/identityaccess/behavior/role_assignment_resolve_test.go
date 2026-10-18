@@ -23,7 +23,7 @@ func TestResolveAssignableSchoolRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	roles := setupAuthFactory(t, db).AccountAuthentication()
+	roles := setupAuthFactory(t, db)
 	ctx := context.Background()
 
 	homeTenantID := testpkg.UniqueTestTenantID(t)

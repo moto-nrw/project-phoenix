@@ -51,6 +51,8 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
@@ -91,11 +93,11 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -108,10 +110,10 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
-		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		PersonRepo:          repos.Person,
