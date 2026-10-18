@@ -80,6 +80,9 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 			assert.Empty(t, token)
 			assert.Zero(t, calls)
 			assert.Zero(t, challengeCount(), "enqueue failure rolls the triggering challenge back")
+			if operator {
+				assertOperatorMFAAuditCount(t, db, ctx, identityID, "mfa_email_sent", 0)
+			}
 			n, err := db.NewSelect().TableExpr("platform.email_outbox").Where("payload->>'Type' = ? AND related_entity_id = ?", kind, identityID).Count(ctx)
 			require.NoError(t, err)
 			assert.Zero(t, n)
@@ -93,6 +96,9 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 			var state string
 			require.NoError(t, db.NewRaw(`SELECT status FROM platform.email_outbox WHERE related_entity_type = ? AND related_entity_id = ?`, kind, identityID).Scan(ctx, &state))
 			assert.Equal(t, "sent", state)
+			if operator {
+				assertOperatorMFAAuditCount(t, db, ctx, identityID, "mfa_email_sent", 1)
+			}
 		})
 	}
 }
@@ -196,6 +202,9 @@ func TestTrustedDeviceNoticeOutboxIsAtomicWithDevice(t *testing.T) {
 			require.Error(t, err)
 			assert.Empty(t, cookie)
 			assert.Zero(t, countDevices())
+			if operator {
+				assertOperatorMFAAuditCount(t, db, ctx, id, "mfa_trusted_device_added", 0)
+			}
 			n, err := db.NewSelect().TableExpr("platform.email_outbox").Where("related_entity_type = ? AND related_entity_id = ?", kind, id).Count(ctx)
 			require.NoError(t, err)
 			assert.Zero(t, n)
@@ -205,6 +214,9 @@ func TestTrustedDeviceNoticeOutboxIsAtomicWithDevice(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, cookie)
 			assert.EqualValues(t, 1, countDevices())
+			if operator {
+				assertOperatorMFAAuditCount(t, db, ctx, id, "mfa_trusted_device_added", 1)
+			}
 			n, err = db.NewSelect().TableExpr("platform.email_outbox").Where("related_entity_type = ? AND related_entity_id = ?", kind, id).Count(ctx)
 			require.NoError(t, err)
 			assert.EqualValues(t, 1, n)

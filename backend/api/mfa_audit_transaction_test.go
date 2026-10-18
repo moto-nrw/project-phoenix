@@ -95,3 +95,10 @@ func TestOperatorMFAAuditFailureRollsBackEnrollment(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_mfa_credentials WHERE operator_id = ?`, operator.ID).Scan(ctx, &n))
 	assert.Zero(t, n, "the credential cannot commit without its audit evidence")
 }
+
+func assertOperatorMFAAuditCount(t *testing.T, db *bun.DB, ctx context.Context, operatorID int64, action string, want int) {
+	t.Helper()
+	n, err := db.NewSelect().TableExpr("platform.operator_audit_log").Where("operator_id=? AND action=?", operatorID, action).Count(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, want, n, action)
+}
