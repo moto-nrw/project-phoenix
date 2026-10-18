@@ -1,6 +1,10 @@
 package identityaccess
 
-import "strings"
+import (
+	"net/url"
+	"strconv"
+	"strings"
+)
 
 // The welcome mails (#3534) link to the help article that walks the invitee
 // through accepting the invitation. The link mirrors buildHelpHref in
@@ -23,6 +27,46 @@ var welcomeHelpTopics = map[string]string{
 	HelpRoleCaregiver: "einladung-annehmen-und-konto-einrichten",
 	HelpRoleTeacher:   "zugang-zu-moto-schule-einrichten",
 	HelpRoleParent:    "eltern-konto-einrichten",
+}
+
+// StaffHelpRole is the help role of an invited staff account, the one the
+// sidebar picks for the same account once it signs in (useHelpHref): the
+// school portal's teachers, then the accounts that lead the school, then
+// the caregivers.
+func StaffHelpRole(schoolPortal, leadsSchool bool) string {
+	if schoolPortal {
+		return HelpRoleTeacher
+	}
+	if leadsSchool {
+		return HelpRoleLead
+	}
+	return HelpRoleCaregiver
+}
+
+// WelcomeHelpSettings are the school settings the accept-invitation article
+// adapts to, already normalized by Settings. A nil value could not be
+// resolved and stays out of the link, so /help asks for it instead of
+// guessing.
+type WelcomeHelpSettings struct {
+	NFCEnabled   *bool
+	PresenceMode *string
+	GroupMode    *string
+}
+
+// WelcomeHelpLink is the accept-invitation article of role at origin with
+// the school's settings in the parameter format buildHelpHref writes.
+func WelcomeHelpLink(origin, role string, settings WelcomeHelpSettings) string {
+	query := []string{"role=" + url.QueryEscape(role)}
+	if settings.NFCEnabled != nil {
+		query = append(query, "nfc_enabled="+strconv.FormatBool(*settings.NFCEnabled))
+	}
+	if settings.PresenceMode != nil {
+		query = append(query, "presence_mode="+*settings.PresenceMode)
+	}
+	if settings.GroupMode != nil {
+		query = append(query, "group_mode="+*settings.GroupMode)
+	}
+	return WelcomeHelpURL(origin, role, query)
 }
 
 // parentInfoPath is the Elterninfo PDF the frontend serves without a login

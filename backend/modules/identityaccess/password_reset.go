@@ -20,6 +20,20 @@ var (
 	ErrPasswordResetRateLimited = errors.New("too many password reset requests")
 )
 
+// The deployment's reset link lifetime (password_reset_token_expiry_minutes)
+// is bounded: an unset or non-positive value means 30 minutes, and no link
+// lives longer than a day.
+const (
+	passwordResetTokenExpiryFallbackMinutes = 30
+	passwordResetTokenExpiryMaxMinutes      = 1440
+)
+
+// PasswordResetTokenExpiry is the reset link lifetime for the configured
+// minutes.
+func PasswordResetTokenExpiry(configuredMinutes int) time.Duration {
+	return boundedLifetime(configuredMinutes, passwordResetTokenExpiryFallbackMinutes, passwordResetTokenExpiryMaxMinutes, time.Minute)
+}
+
 // PasswordResetScope names the portal a reset link opens.
 type PasswordResetScope string
 

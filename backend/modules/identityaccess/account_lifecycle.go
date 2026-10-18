@@ -245,6 +245,12 @@ type SchoolIdentityInput struct {
 	CreatePerson bool
 }
 
+// OperatorProvisioningCreatesPerson is the CreatePerson of operator
+// provisioning: an operator sets up a school's accounts before anyone
+// entered their people there, so the school identity creates the missing
+// person.
+const OperatorProvisioningCreatesPerson = true
+
 // SchoolIdentity is what the account carries at the school afterwards.
 // TeacherID is zero for roles that run without a caregiver profile.
 type SchoolIdentity struct {
@@ -323,6 +329,11 @@ type InviteToStudentRequest struct {
 	// is always queued for staff approval.
 	ConfirmRoleUpgrade bool
 }
+
+// StaffInviteRequiresApproval is the RequireApproval of an invite staff send
+// from the "Erziehungsberechtigte" tab: staff are the approvers, so their
+// invite acts immediately.
+const StaffInviteRequiresApproval = false
 
 // InviteToStudentOutcome describes what the resolve logic did.
 type InviteToStudentOutcome string

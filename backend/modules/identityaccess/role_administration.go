@@ -357,6 +357,17 @@ func (m *Module) GrantStaffDefaultPermission(ctx context.Context, accountID int6
 	m.engine.GrantStaffDefaultPermission(ctx, accountID, isTeacher, permissionName)
 }
 
+// SystemRoles are the system roles among roles, in their order.
+func SystemRoles(roles []Role) []Role {
+	result := make([]Role, 0, len(roles))
+	for _, role := range roles {
+		if role.IsSystem {
+			result = append(result, role)
+		}
+	}
+	return result
+}
+
 // PlatformSystemRole finds the platform system role with that name,
 // matching case-insensitively; a school's own role never matches.
 func PlatformSystemRole(roles []Role, name string) (Role, bool) {

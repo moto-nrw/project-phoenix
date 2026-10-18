@@ -60,7 +60,7 @@ func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *
 	backoff := wiring.Backoff
 	return &identityaccessCompose.MFADependencies{
 		DecorateRecords: wiring.Decorate,
-		Settings:        mfaSettings{settings: wiring.Settings},
+		Settings:        mfaSettingsFor(wiring.Settings),
 		Codec:           codec,
 		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
@@ -77,17 +77,21 @@ func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *
 
 // --- the school settings -----------------------------------------------------
 
-// mfaSettings resolves the gate's parameters. A root composed without a
-// settings service answers the registry defaults, which is what the retained
-// service did with a nil one.
+// mfaSettingsFor binds the gate's parameters to the settings service; a root
+// composed without one gets Identity & Access's answers for that case.
+func mfaSettingsFor(settings settingsCompose.SettingsService) identityaccessCompose.MFASettings {
+	if settings == nil {
+		return identityaccess.MFASettingsWithoutService{}
+	}
+	return mfaSettings{settings: settings}
+}
+
+// mfaSettings resolves the gate's parameters from the school settings.
 type mfaSettings struct {
 	settings settingsCompose.SettingsService
 }
 
 func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error) {
-	if s.settings == nil {
-		return configModel.MFAModeOff, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
 	}
@@ -95,9 +99,6 @@ func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error
 }
 
 func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, error) {
-	if s.settings == nil {
-		return configModel.MFAModeOff, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveStringForTenantInTx(ctx, tenantID, configModel.KeyMFAMode)
 	}
@@ -105,9 +106,6 @@ func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, e
 }
 
 func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
-	if s.settings == nil {
-		return true, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	}
@@ -115,9 +113,6 @@ func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (
 }
 
 func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
 	}
@@ -125,9 +120,6 @@ func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int
 }
 
 func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
 	}
@@ -135,9 +127,6 @@ func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int,
 }
 
 func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.Duration, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	var (
 		minutes int
 		err     error

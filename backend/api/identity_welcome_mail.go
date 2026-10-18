@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/url"
-	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -25,16 +23,10 @@ const (
 	welcomeHelpRoleParent    = identityaccess.HelpRoleParent
 )
 
-// staffHelpRole maps an invited staff role onto the help role the sidebar
-// would pick for the same account once it signs in.
+// staffHelpRole binds Identity & Access's help role of an invited staff
+// account to Security Runtime's school-lead rule.
 func staffHelpRole(schoolPortal bool, roleName string, rolePermissions []string) string {
-	if schoolPortal {
-		return welcomeHelpRoleTeacher
-	}
-	if securityruntime.LeadsSchool(roleName, rolePermissions) {
-		return welcomeHelpRoleLead
-	}
-	return welcomeHelpRoleCaregiver
+	return identityaccess.StaffHelpRole(schoolPortal, securityruntime.LeadsSchool(roleName, rolePermissions))
 }
 
 // welcomeHelpSettings resolves the three tenant settings that change the
@@ -69,60 +61,37 @@ func (s schoolSettings) ResolveString(ctx context.Context, key string) (string, 
 	return s.resolver.ResolveStringForTenantInTx(ctx, s.tenantID, key)
 }
 
-// welcomeHelpURL builds the help link for role at origin. A setting that
-// cannot be resolved stays out of the link, and /help then asks for it
-// instead of guessing. The error joins the settings that failed to resolve; the
-// link is complete without them.
+// welcomeHelpURL resolves the school settings Identity & Access's help link
+// adapts to. A setting that cannot be resolved is logged and passed as
+// unresolved; the error joins those failures, and the link is complete
+// without them.
 func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, settings welcomeHelpSettings, logger *slog.Logger) (string, error) {
-	query := []string{"role=" + url.QueryEscape(role)}
+	var resolved identityaccess.WelcomeHelpSettings
 	var failures []error
+	fail := func(key string, err error) {
+		logWelcomeSettingFailure(logger, tenantID, key, err)
+		failures = append(failures, err)
+	}
 	if settings != nil {
-		for _, parameter := range []func() (string, string, error){
-			func() (string, string, error) { return welcomeNFCParameter(ctx, settings) },
-			func() (string, string, error) { return welcomePresenceParameter(ctx, settings) },
-			func() (string, string, error) { return welcomeGroupParameter(ctx, settings) },
-		} {
-			value, key, err := parameter()
-			if err != nil {
-				logWelcomeSettingFailure(logger, tenantID, key, err)
-				failures = append(failures, err)
-				continue
-			}
-			query = append(query, value)
+		if nfc, err := settings.ResolveBool(ctx, configModels.KeyAttendanceNFCEnabled); err != nil {
+			fail(configModels.KeyAttendanceNFCEnabled, err)
+		} else {
+			resolved.NFCEnabled = &nfc
+		}
+		if mode, err := settings.ResolveString(ctx, configModels.KeyPresenceMode); err != nil {
+			fail(configModels.KeyPresenceMode, err)
+		} else {
+			presence := configModels.PresenceModeOf(mode)
+			resolved.PresenceMode = &presence
+		}
+		if mode, err := settings.ResolveString(ctx, configModels.KeyGroupMode); err != nil {
+			fail(configModels.KeyGroupMode, err)
+		} else {
+			group := configModels.GroupModeOf(mode)
+			resolved.GroupMode = &group
 		}
 	}
-	return identityaccess.WelcomeHelpURL(origin, role, query), errors.Join(failures...)
-}
-
-// welcomeNFCParameter is the help link's nfc_enabled parameter; key names the
-// setting it reads.
-func welcomeNFCParameter(ctx context.Context, settings welcomeHelpSettings) (value, key string, err error) {
-	key = configModels.KeyAttendanceNFCEnabled
-	nfc, err := settings.ResolveBool(ctx, key)
-	if err != nil {
-		return "", key, err
-	}
-	return "nfc_enabled=" + strconv.FormatBool(nfc), key, nil
-}
-
-// welcomePresenceParameter is the help link's presence_mode parameter.
-func welcomePresenceParameter(ctx context.Context, settings welcomeHelpSettings) (value, key string, err error) {
-	key = configModels.KeyPresenceMode
-	mode, err := settings.ResolveString(ctx, key)
-	if err != nil {
-		return "", key, err
-	}
-	return "presence_mode=" + configModels.PresenceModeOf(mode), key, nil
-}
-
-// welcomeGroupParameter is the help link's group_mode parameter.
-func welcomeGroupParameter(ctx context.Context, settings welcomeHelpSettings) (value, key string, err error) {
-	key = configModels.KeyGroupMode
-	mode, err := settings.ResolveString(ctx, key)
-	if err != nil {
-		return "", key, err
-	}
-	return "group_mode=" + configModels.GroupModeOf(mode), key, nil
+	return identityaccess.WelcomeHelpLink(origin, role, resolved), errors.Join(failures...)
 }
 
 func logWelcomeSettingFailure(logger *slog.Logger, tenantID int64, key string, err error) {

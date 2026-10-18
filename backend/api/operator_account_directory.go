@@ -140,7 +140,9 @@ func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, te
 	if err := r.attachAccountPersons(ctx, entries); err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(entries, compareAccountEntries)
+	slices.SortStableFunc(entries, func(left, right accountEntry) int {
+		return identityaccess.CompareSchoolAccounts(left.listingKey(), right.listingKey())
+	})
 	result := make([]TenantAccountInfo, 0, len(rows))
 	for _, entry := range entries {
 		result = append(result, entry.Info)
@@ -170,13 +172,7 @@ func (r operatorAccountDirectory) accountsBySchoolIDs(ctx context.Context, schoo
 		return nil, err
 	}
 	slices.SortStableFunc(entries, func(left, right accountEntry) int {
-		if left.TenantID != right.TenantID {
-			if left.TenantID < right.TenantID {
-				return -1
-			}
-			return 1
-		}
-		return compareAccountEntries(left, right)
+		return identityaccess.CompareAccountsBySchoolID(left.listingKey(), right.listingKey())
 	})
 	result := make([]OrgAccountInfo, 0, len(rows))
 	for _, entry := range entries {
@@ -213,7 +209,7 @@ func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entr
 		entry.Info.FirstName = person.FirstName
 		entry.Info.LastName = person.LastName
 		chain, hasChain := chains[person.ID]
-		if !hasChain || chain.TenantID != entry.TenantID {
+		if !identityaccess.StaffRecordCountsAtSchool(hasChain, chain.TenantID, entry.TenantID) {
 			continue
 		}
 		entry.Info.PedagogicRole = chain.TeacherRole
@@ -222,19 +218,12 @@ func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entr
 	return nil
 }
 
-// compareAccountEntries orders by last and first name with rows lacking a
-// person last, as the previous SQL order (NULLs last) did.
-func compareAccountEntries(left, right accountEntry) int {
-	if left.HasPerson != right.HasPerson {
-		if left.HasPerson {
-			return -1
-		}
-		return 1
+// listingKey maps the entry onto the fields Identity & Access orders the
+// listing by.
+func (e accountEntry) listingKey() identityaccess.ListedAccountKey {
+	return identityaccess.ListedAccountKey{
+		SchoolID: e.TenantID, HasPerson: e.HasPerson, LastName: e.Info.LastName, FirstName: e.Info.FirstName,
 	}
-	if order := compareStrings(left.Info.LastName, right.Info.LastName); order != 0 {
-		return order
-	}
-	return compareStrings(left.Info.FirstName, right.Info.FirstName)
 }
 
 func (r operatorAccountDirectory) caregiverChains(ctx context.Context, persons map[peopledirectory.AccountSchool]peopledirectory.Person) (map[int64]CaregiverChain, error) {
@@ -288,13 +277,10 @@ func (r operatorAccountDirectory) listAccounts(ctx context.Context, schoolIDs []
 		rows[index].SchoolName = school.Name
 	}
 	slices.SortStableFunc(rows, func(left, right OrgAccountInfo) int {
-		if order := compareStrings(left.SchoolName, right.SchoolName); order != 0 {
-			return order
-		}
-		if order := compareStrings(left.LastName, right.LastName); order != 0 {
-			return order
-		}
-		return compareStrings(left.FirstName, right.FirstName)
+		return identityaccess.CompareAccountsBySchoolName(
+			identityaccess.ListedAccountKey{SchoolName: left.SchoolName, LastName: left.LastName, FirstName: left.FirstName},
+			identityaccess.ListedAccountKey{SchoolName: right.SchoolName, LastName: right.LastName, FirstName: right.FirstName},
+		)
 	})
 	return rows, nil
 }
@@ -308,15 +294,4 @@ func nonDeletedSchoolIDs(schools []organizationtenancy.School) []int64 {
 		ids = append(ids, school.ID)
 	}
 	return ids
-}
-
-func compareStrings(left, right string) int {
-	switch {
-	case left < right:
-		return -1
-	case left > right:
-		return 1
-	default:
-		return 0
-	}
 }

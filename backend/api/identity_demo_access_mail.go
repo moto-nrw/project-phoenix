@@ -48,7 +48,7 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 	}
 	return &DemoAccessWiring{
 		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL, MaxActiveSchools: maxActiveSchools, Logger: logger,
-		OperatorWithoutSecondFactor: true,
+		OperatorWithoutSecondFactor: identityaccess.DemoOperatorWithoutSecondFactor,
 		NewToken:                    tokens.NewCapabilityToken, Fingerprint: tokens.CapabilityFingerprint,
 	}
 }

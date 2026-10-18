@@ -243,6 +243,26 @@ type ParentRequestReviews interface {
 	ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
 }
 
+// ReviewReachesGroup applies a review scope to the group of a child:
+// school-wide reaches every child, a group scope exactly the children of its
+// groups, and a child without a group lies outside every group scope.
+func ReviewReachesGroup(schoolWide bool, groupIDs []int64) func(groupID *int64) bool {
+	if schoolWide {
+		return func(*int64) bool { return true }
+	}
+	groups := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		groups[id] = struct{}{}
+	}
+	return func(groupID *int64) bool {
+		if groupID == nil {
+			return false
+		}
+		_, ok := groups[*groupID]
+		return ok
+	}
+}
+
 // AuditActorName is the name an audit records the acting account under: its
 // person's full name, or the username when the account carries no name.
 func AuditActorName(firstName, lastName, username string) string {

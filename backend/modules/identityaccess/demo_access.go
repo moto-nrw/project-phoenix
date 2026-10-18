@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// DemoOperatorWithoutSecondFactor is the demo environment's choice for the
+// operator sign-in (#3460): the operator signs in with the password alone,
+// because the demo's mail lock drops the sign-in code.
+const DemoOperatorWithoutSecondFactor = true
+
 // Demo access (#3462): a prospect of the public demo asks for an access,
 // receives an opaque token, and redeems it for a session in the demo school
 // without a password. Only the token's SHA-256 fingerprint is stored; the

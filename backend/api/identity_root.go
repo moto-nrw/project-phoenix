@@ -105,7 +105,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, FrontendURL: m.FrontendURL,
 			JwtSecret: cfg.JWTSecret, Logger: authLogger,
 			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: "moto",
+				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
 				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 			},
 		},

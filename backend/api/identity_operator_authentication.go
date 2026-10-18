@@ -210,8 +210,8 @@ func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identit
 }
 
 // ListAccountIdentityFacts resolves, per school, whether a person and a
-// live staff record back the account: the most recently updated person per
-// school counts, and its staff record only at that same school.
+// live staff record back the account: the People Directory's latest person
+// per school, and the staff record Identity & Access counts for it.
 func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]identityPorts.AccountIdentityFact, error) {
 	persons, err := p.directory.ListPersonsByAccount(ctx, []int64{accountID})
 	if err != nil {
@@ -229,16 +229,17 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("load staff for account identity facts: %w", err)
 	}
-	staffTenantByPerson := make(map[int64]int64, len(members))
+	records := make([]identityaccess.PersonStaffRecord, 0, len(members))
 	for _, member := range members {
-		if _, found := staffTenantByPerson[member.PersonID]; !found {
-			staffTenantByPerson[member.PersonID] = member.TenantID
-		}
+		records = append(records, identityaccess.PersonStaffRecord{PersonID: member.PersonID, SchoolID: member.TenantID})
 	}
+	staffTenantByPerson := identityaccess.StaffSchoolByPerson(records)
 	facts := make([]identityPorts.AccountIdentityFact, 0, len(personByTenant))
 	for tenantID, person := range personByTenant {
 		staffTenant, hasStaff := staffTenantByPerson[person.ID]
-		facts = append(facts, identityPorts.AccountIdentityFact{TenantID: tenantID, HasPerson: true, HasStaff: hasStaff && staffTenant == tenantID})
+		facts = append(facts, identityPorts.AccountIdentityFact{
+			TenantID: tenantID, HasPerson: true, HasStaff: identityaccess.StaffRecordCountsAtSchool(hasStaff, staffTenant, tenantID),
+		})
 	}
 	return facts, nil
 }

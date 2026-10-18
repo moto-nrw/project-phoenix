@@ -112,10 +112,8 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 		return nil, err
 	}
 	result := make([]organizationCompose.ProvisioningRole, 0, len(roles))
-	for _, role := range roles {
-		if role.IsSystem {
-			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
-		}
+	for _, role := range identityaccess.SystemRoles(roles) {
+		result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
 	}
 	return result, nil
 }
@@ -214,7 +212,7 @@ func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 		LastName:         request.LastName,
 		Position:         request.Position,
 		CaregiverUpgrade: request.CaregiverUpgrade,
-		CreatePerson:     true,
+		CreatePerson:     identityaccess.OperatorProvisioningCreatesPerson,
 	})
 	if errors.Is(err, identityaccess.ErrSchoolIdentityNamesRequired) || errors.Is(err, identityaccess.ErrSchoolIdentityPersonIsStudent) {
 		return invalidSchoolIdentityError{err: err}
