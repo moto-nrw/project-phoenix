@@ -1,5 +1,4 @@
-// Package compose binds Reminder Delivery to the shared runtime.
-package compose
+package api
 
 import (
 	"net/http"
@@ -11,7 +10,7 @@ import (
 )
 
 // HTTPRuntime preserves tenant transactions, permission checks, and responses.
-func HTTPRuntime(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) remindersHTTP.Runtime {
+func ReminderHTTPRuntime(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) remindersHTTP.Runtime {
 	return remindersHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
 			protectedTenantRoutes(router, register)

@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 )
 
 // ChildRepository implements parentModels.ChildRepository.
@@ -22,20 +22,8 @@ type ChildRepository struct {
 
 // NewChildRepository wires a fresh repository with the Identity & Access
 // active-membership query that scopes every read (#2721).
-func NewChildRepository(memberships ActiveSchoolMemberships) parentModels.ChildRepository {
-	return &ChildRepository{memberships: memberships}
-}
-
-// BindStudentDirectory installs the People Directory the guardian links are
-// resolved to children through (#2662).
-func (r *ChildRepository) BindStudentDirectory(students StudentDirectory) {
-	r.students = students
-}
-
-// BindGuardianDirectory installs the People Directory the account's guardian
-// links are read from (#2663).
-func (r *ChildRepository) BindGuardianDirectory(guardians GuardianDirectory) {
-	r.guardians = guardians
+func NewChildRepository(memberships ActiveSchoolMemberships, students StudentDirectory, guardians GuardianDirectory) parentModels.ChildRepository {
+	return &ChildRepository{memberships: memberships, students: students, guardians: guardians}
 }
 
 // guardianLink is one student-guardian relationship the account reaches

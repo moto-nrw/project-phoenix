@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"encoding/json"
 
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -11,7 +10,7 @@ import (
 
 // PersistenceRuntime supplies the ambient transaction the Settings Postgres
 // adapter runs in; tenant scoping is left to row-level security.
-type PersistenceRuntime = configRepo.Runtime
+type PersistenceRuntime interface{ DB(context.Context) bun.IDB }
 
 // NewSettingValueRepository builds the tenant setting value store over the
 // caller's settings runtime (ADR 0049).
@@ -33,24 +32,17 @@ func NewHomeLayoutRepository(runtime PersistenceRuntime) configModel.HomeLayoutR
 	return configRepo.NewHomeLayoutRepository(runtime)
 }
 
-// StoredOverrideReader reads the overrides a school stored, without registry
-// defaults. The privileged settings CLI lists them outside a tenant
-// transaction.
-type StoredOverrideReader struct {
-	values configModel.SettingValueRepository
-}
-
 // NewStoredOverrideReader builds the reader over the CLI's superuser pool.
-func NewStoredOverrideReader(db *bun.DB) StoredOverrideReader {
-	return StoredOverrideReader{values: configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))}
+func NewStoredOverrideReader(db *bun.DB) configRepo.StoredOverrideReader {
+	return configRepo.NewStoredOverrideReader(db)
 }
 
-// StoredOverride returns the stored JSON value of key for the school, and
-// false when the school stored none.
-func (r StoredOverrideReader) StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error) {
-	value, err := r.values.FindByTenantAndKey(ctx, tenantID, key)
-	if err != nil || value == nil {
-		return nil, false, err
-	}
-	return value.Value, true, nil
+// NewSchoolSetupRepository builds the wizard's Settings-owned persistence.
+func NewSchoolSetupRepository[S configRepo.SchoolSetupState](runtime PersistenceRuntime) *configRepo.SchoolSetupRepository[S] {
+	return configRepo.NewSchoolSetupRepository[S](runtime)
+}
+
+// NewStaffOnboardingRepository builds the staff checklist's Settings-owned persistence.
+func NewStaffOnboardingRepository[S configRepo.StaffOnboardingState](runtime PersistenceRuntime) *configRepo.StaffOnboardingRepository[S] {
+	return configRepo.NewStaffOnboardingRepository[S](runtime)
 }

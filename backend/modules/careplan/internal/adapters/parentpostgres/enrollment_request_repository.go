@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 )
 
 // EnrollmentRequestRepository implements
@@ -31,20 +31,14 @@ var errAccountDirectoryRequired = errors.New("parent repository: account directo
 //
 // accounts is the Identity & Access lookup the account's e-mail is read
 // through (#2720); auth.accounts is not read here.
-func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory) parentModels.EnrollmentRequestRepository {
+func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory, guardians GuardianDirectory) parentModels.EnrollmentRequestRepository {
 	if commands == nil {
 		panic("parent repository: enrollment commands are required")
 	}
 	if accounts == nil {
 		panic(errAccountDirectoryRequired)
 	}
-	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts}
-}
-
-// BindGuardianDirectory installs the People Directory the account's guardian
-// links are read from (#2663).
-func (r *EnrollmentRequestRepository) BindGuardianDirectory(guardians GuardianDirectory) {
-	r.guardians = guardians
+	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts, guardians: guardians}
 }
 
 // ListByAccount composes Enrollment-owned applications with the account identity
@@ -79,12 +73,26 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
 	}
-	viewable := make(map[[2]int64]struct{}, len(links))
-	for _, link := range links {
-		if link.HasPermission(careplan.GuardianPermissionEnrollmentsView) {
-			viewable[[2]int64{link.TenantID, link.StudentID}] = struct{}{}
-		}
-	}
+	return enrollmentRequestSummaries(rows, links), nil
+}
+
+// BackfillGuardianAccountID claims every guardian-less enrollment
+// request that matches the given email (case-insensitive) for the
+// given account. Used by the guardian-invite-accept flow so requests
+// submitted before the parent had an account show up in /me/enrollments
+// after acceptance. Cross-tenant — caller wraps in WithAdminTx.
+func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {
+	return r.commands.BackfillGuardianAccountID(ctx, accountID, email)
+}
+
+// EnrollmentCommands is Parent's port for reading and attaching pre-account submissions.
+type EnrollmentCommands interface {
+	AccountRequests(context.Context, int64, string) ([]careplan.ParentEnrollmentRequest, error)
+	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
+}
+
+func enrollmentRequestSummaries(rows []careplan.ParentEnrollmentRequest, links []DirectoryGuardianLink) []*parentModels.EnrollmentRequestSummary {
+	viewable := viewableEnrollmentChildren(links)
 
 	hidden := make(map[int64]struct{})
 	childrenByRequest := make(map[int64][]parentModels.EnrollmentRequestChildSummary, len(rows))
@@ -118,20 +126,16 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			Children:                 childrenByRequest[rr.RequestID],
 		})
 	}
-	return out, nil
+	return out
 }
 
-// BackfillGuardianAccountID claims every guardian-less enrollment
-// request that matches the given email (case-insensitive) for the
-// given account. Used by the guardian-invite-accept flow so requests
-// submitted before the parent had an account show up in /me/enrollments
-// after acceptance. Cross-tenant — caller wraps in WithAdminTx.
-func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {
-	return r.commands.BackfillGuardianAccountID(ctx, accountID, email)
-}
+func viewableEnrollmentChildren(links []DirectoryGuardianLink) map[[2]int64]struct{} {
+	viewable := make(map[[2]int64]struct{}, len(links))
+	for _, link := range links {
+		if link.HasPermission(careplan.GuardianPermissionEnrollmentsView) {
+			viewable[[2]int64{link.TenantID, link.StudentID}] = struct{}{}
+		}
+	}
 
-// EnrollmentCommands is Parent's port for reading and attaching pre-account submissions.
-type EnrollmentCommands interface {
-	AccountRequests(context.Context, int64, string) ([]careplan.ParentEnrollmentRequest, error)
-	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
+	return viewable
 }

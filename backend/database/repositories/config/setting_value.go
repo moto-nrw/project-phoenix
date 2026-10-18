@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -123,4 +124,26 @@ func (r *SettingValueRepository) Delete(ctx context.Context, tenantID int64, key
 		return fmt.Errorf("delete setting value: %w", err)
 	}
 	return nil
+}
+
+// StoredOverrideReader reads the overrides a school stored, without registry
+// defaults. The privileged settings CLI lists them outside a tenant
+// transaction.
+type StoredOverrideReader struct {
+	values config.SettingValueRepository
+}
+
+// NewStoredOverrideReader builds the reader over the CLI's superuser pool.
+func NewStoredOverrideReader(db *bun.DB) StoredOverrideReader {
+	return StoredOverrideReader{values: NewSettingValueRepository(NewRuntime(db))}
+}
+
+// StoredOverride returns the stored JSON value of key for the school, and
+// false when the school stored none.
+func (r StoredOverrideReader) StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error) {
+	value, err := r.values.FindByTenantAndKey(ctx, tenantID, key)
+	if err != nil || value == nil {
+		return nil, false, err
+	}
+	return value.Value, true, nil
 }

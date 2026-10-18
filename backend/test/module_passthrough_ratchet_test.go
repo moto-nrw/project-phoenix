@@ -200,7 +200,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3052
+const modulePassthroughOwnerBudgetTotal = 3051
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -346,7 +346,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// ADR 0061: application 13 + modules/schoolstructure/compose 72.
 	"modules/schoolstructure": 85,
 	// ADR 0061: application 0 + modules/settings/compose 20.
-	"modules/settings": 20,
+	"modules/settings": 19,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
 	// across 18 files, each one store call inside the operation wrapper (64).
 	// internal/application/presence (#3422) adds 12 that map a single read or

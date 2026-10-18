@@ -210,7 +210,7 @@ func newStaffOffboardingWorkflow(f *serviceGraph, identity *identityaccess.Modul
 		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
 		return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
 	}
-	workflow, err := offboardingcompose.New(offboarding)
+	workflow, err := NewStaffOffboardingWorkflow(offboarding)
 	if err != nil {
 		panic(err)
 	}

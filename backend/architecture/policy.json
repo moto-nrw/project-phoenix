@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 77,
+  "policy_epoch": 78,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1073,7 +1073,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "database/repositories/parent",
+      "path": "modules/careplan/internal/adapters/parentpostgres",
       "owner": "care-plan",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1297,13 +1297,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/calendar",
-      "owner": "school-calendar",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/delivery",
       "owner": "delivery-platform",
       "role": "legacy-model",
@@ -1416,9 +1409,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/parent",
+      "path": "modules/careplan/internal/rows",
       "owner": "care-plan",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1430,9 +1423,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/users",
+      "path": "modules/peopledirectory/internal/rows",
       "owner": "people-directory",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1507,7 +1500,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/audit",
+      "path": "modules/auditlog/internal/application",
       "owner": "audit-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1542,7 +1535,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/database",
+      "path": "modules/transactionruntime/internal/application/stats",
       "owner": "transaction-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1683,13 +1676,6 @@
     },
     {
       "path": "modules/delivery/compose/email",
-      "owner": "delivery-platform",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/delivery/compose/realtime",
       "owner": "delivery-platform",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3455,6 +3441,13 @@
     {
       "path": "modules/settings/records",
       "owner": "settings-platform",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/stats",
+      "owner": "transaction-runtime",
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -6334,28 +6327,6 @@
       "target_role": "port"
     },
     {
-      "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its own HTTP adapter (#4064).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "http"
-    },
-    {
-      "id": "reminder-delivery.compose.permissions",
-      "description": "Reminder composition binds the users:read permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "reminder-delivery.compose.orm",
       "description": "Reminder composition supplies the transaction runtime database.",
       "scopes": [
@@ -6364,16 +6335,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "reminder-delivery.compose.router",
-      "description": "Reminder composition binds HTTP middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "http-router"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
@@ -9428,17 +9389,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-calendar.domain.appointments-public",
-      "description": "Legacy calendar transport types reuse Appointments values and validation. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "legacy-model",
-      "target_owner": "appointments",
-      "target_role": "public"
-    },
-    {
       "id": "school-calendar.port-domain",
       "description": "School Calendar ports express persistence operations using their own domain values.",
       "scopes": [
@@ -9580,17 +9530,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-plan.domain.public.legacy-model",
-      "description": "Legacy Care Plan domain contracts use the owner calendar-day value. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "legacy-model",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.testsupport.people-public",
       "description": "Care Plan test support supplies the required student lock through People Directory.",
       "scopes": [
@@ -9644,17 +9583,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "domain"
-    },
-    {
-      "id": "care-plan.integration-test.legacy-model",
-      "description": "Care Plan compatibility tests assert legacy owner-domain views. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "legacy-model"
     },
     {
       "id": "workforce.adapter.public",
@@ -10570,17 +10498,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.domain.contact.legacy-model",
-      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "legacy-model",
-      "target_owner": "people-directory",
-      "target_role": "contract"
-    },
-    {
       "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
@@ -10676,17 +10593,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "legacy-model"
     },
     {
       "id": "calendar-portal.external_test.school-calendar.e2e-test.appointments.public",
@@ -11778,17 +11684,6 @@
       "source_role": "e2e-test",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "people-directory.contracttest.people-directory.legacy-model",
-      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "legacy-model"
     },
     {
       "id": "people-directory.contracttest.tenant-runtime.public",
@@ -15245,6 +15140,17 @@
       "source_role": "public",
       "target_owner": "settings-platform",
       "target_role": "port"
+    },
+    {
+      "id": "transaction-runtime.public.stats-port",
+      "description": "Native statistics types replace public application aliases; narrower successor of platform.public-application for the same owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "port"
     }
   ],
   "relocations": [
@@ -15327,6 +15233,11 @@
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "database/repositories/parent",
+      "to": "modules/careplan/internal/adapters/parentpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/workforce",

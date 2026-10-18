@@ -54,7 +54,7 @@ func (c *Command) DeleteExpiredAuthEvents(ctx context.Context) (int, int, error)
 	if err != nil {
 		return 0, 0, err
 	}
-	cutoff := time.Now().AddDate(0, 0, -AuthEventRetentionDays).Add(-retentionClockMargin)
+	cutoff := time.Now().AddDate(0, 0, -AuthEventRetentionDays).Add(-auditModels.RetentionClockMargin)
 	deleted, err := store.DeleteExpiredAuthEvents(ctx, cutoff)
 	return int(deleted), AuthEventRetentionDays, err
 }
@@ -79,7 +79,7 @@ func (c *Command) DeleteExpiredDataAccessLog(ctx context.Context) (int, int, err
 func followingYearCutoff(now time.Time) time.Time {
 	// The year is read a margin earlier: right after New Year a database
 	// clock still in the old year would refuse the new cutoff.
-	year := now.In(calendar.Berlin).Add(-retentionClockMargin).Year()
+	year := now.In(calendar.Berlin).Add(-auditModels.RetentionClockMargin).Year()
 	return time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
 }
 
@@ -110,7 +110,7 @@ func (c *Command) DeleteExpiredDeletionLog(ctx context.Context) (int, int, error
 		return 0, 0, err
 	}
 	now := time.Now()
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-retentionClockMargin)
+	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
 	deleted, err := store.DeleteExpiredDataDeletions(ctx, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
 }
@@ -153,7 +153,7 @@ func (c *Command) DeleteExpiredProtocol(ctx context.Context, kind string) (int, 
 		return 0, 0, err
 	}
 	now := time.Now()
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-retentionClockMargin)
+	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
 	if followingYearProtocols[kind] {
 		cutoff = followingYearCutoff(now)
 	}

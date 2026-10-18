@@ -115,7 +115,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	openRoomMoveHTTP "github.com/moto-nrw/project-phoenix/workflows/openroommove/http"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
 	slogchi "github.com/samber/slog-chi"
@@ -1852,7 +1851,7 @@ func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
-	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, reminderCompose.HTTPRuntime(ProtectedTenantRoutes)).Router())
+	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, ReminderHTTPRuntime(ProtectedTenantRoutes)).Router())
 	// PWA standalone-usage reporting (#2189).
 	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
 	// User-facing platform announcements.

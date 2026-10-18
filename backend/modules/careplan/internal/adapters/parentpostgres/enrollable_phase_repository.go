@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 )
 
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
@@ -15,18 +15,6 @@ type EnrollablePhaseRepository struct {
 	memberships ActiveSchoolMemberships
 	students    StudentDirectory
 	guardians   GuardianDirectory
-}
-
-// BindStudentDirectory installs the People Directory the enrolled-student
-// eligibility is resolved through (#2662).
-func (r *EnrollablePhaseRepository) BindStudentDirectory(students StudentDirectory) {
-	r.students = students
-}
-
-// BindGuardianDirectory installs the People Directory the account's guardian
-// links are read from (#2663).
-func (r *EnrollablePhaseRepository) BindGuardianDirectory(guardians GuardianDirectory) {
-	r.guardians = guardians
 }
 
 // enrolledSubmitPersonIDs maps the submit-permitted guardian links of one
@@ -58,11 +46,11 @@ type PhaseQueries interface {
 	OpenPhaseCandidates(context.Context) ([]*careplan.ParentEnrollmentPhase, error)
 }
 
-func NewEnrollablePhaseRepository(phases PhaseQueries, memberships ActiveSchoolMemberships) parentModels.EnrollablePhaseRepository {
+func NewEnrollablePhaseRepository(phases PhaseQueries, memberships ActiveSchoolMemberships, students StudentDirectory, guardians GuardianDirectory) parentModels.EnrollablePhaseRepository {
 	if phases == nil {
 		panic("parent: enrollment phase queries are required")
 	}
-	return &EnrollablePhaseRepository{phases: phases, memberships: memberships}
+	return &EnrollablePhaseRepository{phases: phases, memberships: memberships, students: students, guardians: guardians}
 }
 
 // guardianGuard is the per-school guardian evidence the picker and the
@@ -183,17 +171,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
-	slices.SortStableFunc(rows, func(a, b *careplan.ParentEnrollmentPhase) int {
-		_, aLinked := activeTenants[a.TenantID]
-		_, bLinked := activeTenants[b.TenantID]
-		if aLinked && !bLinked {
-			return -1
-		}
-		if !aLinked && bLinked {
-			return 1
-		}
-		return 0
-	})
+	sortEnrollablePhases(rows, activeTenants)
 
 	guards, err := r.guardianGuards(ctx, accountID, activeTenants)
 	if err != nil {
@@ -293,4 +271,18 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 	}
 	status.EnrolledSubmitPersonIDs = r.enrolledSubmitPersonIDs(students, tenantID, submitStudentIDs)
 	return status, nil
+}
+
+func sortEnrollablePhases(rows []*careplan.ParentEnrollmentPhase, activeTenants map[int64]struct{}) {
+	slices.SortStableFunc(rows, func(a, b *careplan.ParentEnrollmentPhase) int {
+		_, aLinked := activeTenants[a.TenantID]
+		_, bLinked := activeTenants[b.TenantID]
+		if aLinked && !bLinked {
+			return -1
+		}
+		if !aLinked && bLinked {
+			return 1
+		}
+		return 0
+	})
 }

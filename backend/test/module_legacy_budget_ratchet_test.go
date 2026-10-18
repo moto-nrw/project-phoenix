@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 32613
+const moduleComposeBudgetTotal = 32487
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -162,17 +162,17 @@ const moduleComposeBudgetTotal = 32613
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":                  528,
-	"modules/auditlog/compose":                      266,
-	"modules/careplan/compose":                      2551,
-	"modules/careplan/requestfeed/compose":          68,
-	"modules/classday/compose":                      461,
-	"modules/communication/composition":             1480,
-	"modules/dataimport/compose":                    253,
-	"modules/dataimport/compose/retained":           34,
-	"modules/delivery/compose":                      797,
-	"modules/delivery/compose/email":                36,
-	"modules/delivery/compose/realtime":             30,
+	"modules/appointments/compose":         528,
+	"modules/auditlog/compose":             251,
+	"modules/careplan/compose":             2540,
+	"modules/careplan/requestfeed/compose": 68,
+	"modules/classday/compose":             461,
+	"modules/communication/composition":    1480,
+	"modules/dataimport/compose":           253,
+	"modules/dataimport/compose/retained":  34,
+	"modules/delivery/compose":             797,
+	"modules/delivery/compose/email":       36,
+
 	"modules/devicefleet/compose":                   369,
 	"modules/devicefleet/compose/repositoryadapter": 298,
 	"modules/devicescan/compose":                    1272,
@@ -204,9 +204,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                354,
-	"modules/schoolsetup/compose":                     93,
+	"modules/schoolsetup/compose":                     92,
 	"modules/schoolstructure/compose":                 901,
-	"modules/settings/compose":                        587,
+	"modules/settings/compose":                        579,
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
@@ -221,11 +221,11 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/gradetransition/compose":               145,
 	"workflows/openroommove/compose":                  81,
 	"workflows/parentportal/compose":                  463,
-	"workflows/reminderdelivery/compose":              71,
+	"workflows/reminderdelivery/compose":              41,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              165,
+	"workflows/staffoffboarding/compose":              134,
 	"workflows/studentdeletion/compose":               219,
 }
 

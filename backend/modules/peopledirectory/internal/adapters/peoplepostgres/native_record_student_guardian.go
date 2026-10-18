@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func NativeGuardianRelationshipValue(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {

@@ -145,11 +145,11 @@ func TestUnregisteredTagScanDeleteExpiredStaysInsideTheDatabaseWindow(t *testing
 
 	repo := &fakeUnregisteredTagScanRepo{deleteResult: 2}
 	service := newUnregisteredTagScanService(t, repo)
-	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
 
 	deleted, days, err := service.DeleteExpired(context.Background())
 
-	after := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	after := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
 	require.NoError(t, err)
 	require.Equal(t, 2, deleted)
 	require.Equal(t, 90, days, "unregistered tag scans keep the fixed 90-day retention")

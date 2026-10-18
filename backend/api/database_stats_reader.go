@@ -12,12 +12,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	statsContract "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
 )
 
-type DatabaseStatsReader func(context.Context) (*transactionruntime.DatabaseStatsResponse, error)
+type DatabaseStatsReader func(context.Context) (*statsContract.StatsResponse, error)
 
-func NewDatabaseStatsReader(service transactionruntime.DatabaseStats, capabilities func(context.Context) transactionruntime.DatabaseStatsCapabilities) DatabaseStatsReader {
-	return func(ctx context.Context) (*transactionruntime.DatabaseStatsResponse, error) {
+func NewDatabaseStatsReader(service statsContract.Service, capabilities func(context.Context) statsContract.StatsCapabilities) DatabaseStatsReader {
+	return func(ctx context.Context) (*statsContract.StatsResponse, error) {
 		return service.GetStats(ctx, capabilities(ctx))
 	}
 }
@@ -44,7 +45,7 @@ type databaseStatsSources struct {
 func newDatabaseStats(sources databaseStatsSources) DatabaseStatsReader {
 	rooms := facilitiesCompose.NewRoomRepository(sources.rooms)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(sources.devices)
-	stats := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
+	stats := transactionruntime.NewDatabaseStats(statsContract.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
 			return sources.people.Students.CountEnrolled(ctx)
 		},
@@ -77,7 +78,7 @@ func newDatabaseStats(sources databaseStatsSources) DatabaseStatsReader {
 			return len(rows), err
 		},
 	}, sources.logger.With("service", "database"))
-	return NewDatabaseStatsReader(stats, func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
+	return NewDatabaseStatsReader(stats, func(ctx context.Context) statsContract.StatsCapabilities {
 		return securityruntime.DatabaseStatsCapabilities(requestTokenReads.Permissions(ctx))
 	})
 }

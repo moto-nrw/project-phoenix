@@ -3,25 +3,13 @@ package database
 import (
 	"context"
 	"log/slog"
+
+	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
 )
 
-// StatsDependencies is the composition contract for the statistics service.
-// Authorization and persistence stay in their owning adapters; this service
-// only orchestrates the capabilities and counts it receives.
-type StatsDependencies struct {
-	Students        func(context.Context) (int, error)
-	Teachers        func(context.Context) (int, error)
-	Rooms           func(context.Context) (int, error)
-	Activities      func(context.Context) (int, error)
-	Groups          func(context.Context) (int, error)
-	Roles           func(context.Context) (int, error)
-	Devices         func(context.Context) (int, error)
-	PermissionCount func(context.Context) (int, error)
-}
-
-// databaseService implements the DatabaseService interface
+// databaseService implements the stats.Service interface
 type databaseService struct {
-	deps   StatsDependencies
+	deps   stats.StatsDependencies
 	logger *slog.Logger
 }
 
@@ -33,8 +21,8 @@ func (s *databaseService) getLogger() *slog.Logger {
 	return s.logger
 }
 
-// NewService creates a new DatabaseService instance
-func NewService(deps StatsDependencies, logger *slog.Logger) DatabaseService {
+// NewService creates a new stats.Service instance
+func NewService(deps stats.StatsDependencies, logger *slog.Logger) stats.Service {
 	return &databaseService{
 		deps:   deps,
 		logger: logger,
@@ -43,15 +31,15 @@ func NewService(deps StatsDependencies, logger *slog.Logger) DatabaseService {
 
 // GetStats returns aggregated counts of all database entities
 
-func (s *databaseService) GetStats(ctx context.Context, capabilities StatsCapabilities) (*StatsResponse, error) {
-	permissions := StatsPermissions{
+func (s *databaseService) GetStats(ctx context.Context, capabilities stats.StatsCapabilities) (*stats.StatsResponse, error) {
+	permissions := stats.StatsPermissions{
 		CanViewStudents: capabilities.ViewStudents(), CanViewTeachers: capabilities.ViewTeachers(),
 		CanViewRooms: capabilities.ViewRooms(), CanViewActivities: capabilities.ViewActivities(),
 		CanViewGroups: capabilities.ViewGroups(), CanViewRoles: capabilities.ViewRoles(),
 		CanViewDevices: capabilities.ViewDevices(), CanViewPermissions: capabilities.ViewPermissionCatalog(),
 		CanViewTimetables: capabilities.ViewTimetables(), CanViewGradeTransitions: capabilities.ViewGradeTransitions(),
 	}
-	response := &StatsResponse{
+	response := &stats.StatsResponse{
 		Permissions: permissions,
 	}
 

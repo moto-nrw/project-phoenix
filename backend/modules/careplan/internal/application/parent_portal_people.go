@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 )
 
 // WithParentChildPersons attaches the owner's person projection and its

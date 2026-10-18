@@ -80,7 +80,7 @@ func activeSession(id int64, templateID *int64, roomID int64) *ports.ActiveGroup
 
 func emptyRoomData() *dashboardRoomData {
 	return &dashboardRoomData{
-		roomByID:        map[int64]*ports.SessionRoom{},
+		roomByID:        map[int64]*studentpresence.SessionRoom{},
 		occupiedRooms:   map[int64]bool{},
 		roomStudentsMap: map[int64]map[int64]struct{}{},
 	}

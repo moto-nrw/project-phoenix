@@ -43,7 +43,7 @@ func (c *Command) Append(ctx context.Context, event any) error {
 	if err != nil {
 		rows = 0
 	}
-	c.observeAppend(started, event, rows, err)
+	c.observe(AppendObservation{EventType: fmt.Sprintf("%T", event), Duration: time.Since(started), Rows: rows, Err: err})
 	return err
 }
 
@@ -54,7 +54,7 @@ func (c *Command) AppendOnce(ctx context.Context, event any) (bool, error) {
 	store, ok := c.store.(appendOnceStore)
 	if !ok {
 		err := fmt.Errorf("audit command: store does not support append once")
-		c.observeAppend(started, event, 0, err)
+		c.observe(AppendObservation{EventType: fmt.Sprintf("%T", event), Duration: time.Since(started), Rows: 0, Err: err})
 		return false, err
 	}
 	inserted, err := store.AppendOnce(ctx, event)
@@ -62,15 +62,6 @@ func (c *Command) AppendOnce(ctx context.Context, event any) (bool, error) {
 	if inserted {
 		rows = 1
 	}
-	c.observeAppend(started, event, rows, err)
+	c.observe(AppendObservation{EventType: fmt.Sprintf("%T", event), Duration: time.Since(started), Rows: rows, Err: err})
 	return inserted, err
-}
-
-func (c *Command) observeAppend(started time.Time, event any, rows int, err error) {
-	c.observe(AppendObservation{
-		EventType: fmt.Sprintf("%T", event),
-		Duration:  time.Since(started),
-		Rows:      rows,
-		Err:       err,
-	})
 }

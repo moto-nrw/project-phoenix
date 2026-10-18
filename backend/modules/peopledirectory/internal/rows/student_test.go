@@ -4,10 +4,12 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestStudent_Validate(t *testing.T) {
 	t.Parallel()
+	group := testpkg.CreateTestEducationGroup(t, testpkg.SetupTestDB(t), "private-row-group")
 
 	tests := []struct {
 		name    string
@@ -27,7 +29,7 @@ func TestStudent_Validate(t *testing.T) {
 			student: &Student{
 				PersonID:    1,
 				SchoolClass: "3b",
-				GroupID:     ptrtest.Ptr(int64(5)),
+				GroupID:     ptrtest.Ptr(group.ID),
 			},
 			wantErr: false,
 		},

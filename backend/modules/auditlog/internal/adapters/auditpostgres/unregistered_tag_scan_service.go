@@ -71,13 +71,8 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
 }
 
-// retentionClockMargin keeps a retention cutoff inside the window the
-// database function accepts when the database clock runs slightly behind the
-// application's. A row is deleted at most one run later for it.
-const retentionClockMargin = time.Minute
-
 func (s *unregisteredTagScanService) DeleteExpired(ctx context.Context) (int, int, error) {
-	cutoff := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	cutoff := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
 	deleted, err := s.repo.DeleteOlderThan(ctx, cutoff)
 	return deleted, UnregisteredTagScanRetentionDays, err
 }

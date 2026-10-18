@@ -1,4 +1,4 @@
-package database
+package stats
 
 import (
 	"context"
@@ -48,13 +48,24 @@ type StatsCapabilities interface {
 	ViewGradeTransitions() bool
 }
 
-// StatsGetter defines operations for database statistics and management
+// Service defines operations for database statistics and management
 // Named following Go single-method interface conventions (method name + er suffix)
-type StatsGetter interface {
+type Service interface {
 	// GetStats returns aggregated counts of all database entities
 	// Counts are filtered based on user permissions - returns 0 for entities user cannot access
 	GetStats(ctx context.Context, capabilities StatsCapabilities) (*StatsResponse, error)
 }
 
-// DatabaseService is an alias for backward compatibility (deprecated - use StatsGetter)
-type DatabaseService = StatsGetter
+// StatsDependencies is the composition contract for the statistics service.
+// Authorization and persistence stay in their owning adapters; this service
+// only orchestrates the capabilities and counts it receives.
+type StatsDependencies struct {
+	Students        func(context.Context) (int, error)
+	Teachers        func(context.Context) (int, error)
+	Rooms           func(context.Context) (int, error)
+	Activities      func(context.Context) (int, error)
+	Groups          func(context.Context) (int, error)
+	Roles           func(context.Context) (int, error)
+	Devices         func(context.Context) (int, error)
+	PermissionCount func(context.Context) (int, error)
+}

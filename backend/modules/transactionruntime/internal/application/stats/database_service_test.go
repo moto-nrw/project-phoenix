@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +15,7 @@ func fixedCount(value int, err error) func(context.Context) (int, error) {
 	return func(context.Context) (int, error) { return value, err }
 }
 
-type testStatsCapabilities StatsPermissions
+type testStatsCapabilities stats.StatsPermissions
 
 func (c testStatsCapabilities) ViewStudents() bool          { return c.CanViewStudents }
 func (c testStatsCapabilities) ViewTeachers() bool          { return c.CanViewTeachers }
@@ -28,7 +30,7 @@ func (c testStatsCapabilities) ViewGradeTransitions() bool  { return c.CanViewGr
 
 func TestDatabaseService_GetStatsHonorsCapabilities(t *testing.T) {
 	t.Parallel()
-	service := NewService(StatsDependencies{
+	service := NewService(stats.StatsDependencies{
 		Students: fixedCount(12, nil),
 		Rooms:    fixedCount(4, nil),
 		Teachers: func(context.Context) (int, error) {
@@ -48,7 +50,7 @@ func TestDatabaseService_GetStatsHonorsCapabilities(t *testing.T) {
 
 func TestDatabaseService_GetStatsKeepsVisibleCardOnCountFailure(t *testing.T) {
 	t.Parallel()
-	service := NewService(StatsDependencies{
+	service := NewService(stats.StatsDependencies{
 		Students: fixedCount(0, errors.New("database unavailable")),
 	}, nil)
 

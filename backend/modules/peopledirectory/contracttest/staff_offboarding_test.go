@@ -108,7 +108,7 @@ type offboardingTestRunner struct {
 }
 
 func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, actorID int64, username string) error {
-	workflow, err := offboardingcompose.New(r.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(r.deps)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent supervision")
 	group := testpkg.CreateTestActiveGroup(t, sc.db, activity.ID, room.ID)
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
 	defer cancel()
@@ -256,7 +256,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	if operation == "move_history" {
 		testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 	}
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
 	defer cancel()
@@ -316,7 +316,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	queue, err := api.NewStaffDocumentCleanup(testpkg.NewDatabase(t, sc.db), nil)
 	require.NoError(t, err)
 	sc.deps.Cleanup = queue.Enqueue
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx := context.WithValue(sc.ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "runtime-actor"})
 	counter := testpkg.CaptureQueriesForContext(t, sc.db)

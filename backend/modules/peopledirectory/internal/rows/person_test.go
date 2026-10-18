@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestPerson_Validate(t *testing.T) {
 	t.Parallel()
+	account := testpkg.CreateTestAccount(t, testpkg.SetupTestDB(t), "private-row-account")
 
 	tests := []struct {
 		name    string
@@ -28,7 +30,7 @@ func TestPerson_Validate(t *testing.T) {
 			person: &Person{
 				FirstName: "Jane",
 				LastName:  "Smith",
-				AccountID: ptrtest.Ptr(int64(1)),
+				AccountID: ptrtest.Ptr(account.ID),
 				TagID:     ptrtest.Ptr("tag123"),
 			},
 			wantErr: false,
@@ -297,6 +299,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 
 func TestPerson_HasAccount(t *testing.T) {
 	t.Parallel()
+	account := testpkg.CreateTestAccount(t, testpkg.SetupTestDB(t), "private-row-account")
 
 	tests := []struct {
 		name     string
@@ -308,7 +311,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: ptrtest.Ptr(int64(1)),
+				AccountID: ptrtest.Ptr(account.ID),
 			},
 			expected: true,
 		},

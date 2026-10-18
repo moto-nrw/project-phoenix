@@ -3,11 +3,11 @@ package compose
 import (
 	"context"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
 	careplanPostgres "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/uptrace/bun"
 )
 
@@ -45,15 +45,8 @@ type ParentPortalRepositories struct {
 // the students, guardian links and person names read through the directory.
 // The school names are bound by WithSchools.
 func NewParentPortalRepositories(deps ParentPortalDependencies) ParentPortalRepositories {
-	phases := parentRepo.NewEnrollablePhaseRepository(deps.Phases, deps.AccountSchools)
-	requests := NewParentEnrollmentRequestRepository(deps.DB, deps.Applications, deps.Accounts)
-	if repo, ok := phases.(*parentRepo.EnrollablePhaseRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{deps.Directory})
-		repo.BindGuardianDirectory(parentGuardianDirectory{deps.Directory})
-	}
-	if repo, ok := requests.(*parentRepo.EnrollmentRequestRepository); ok {
-		repo.BindGuardianDirectory(parentGuardianDirectory{deps.Directory})
-	}
+	phases := parentRepo.NewEnrollablePhaseRepository(deps.Phases, deps.AccountSchools, parentStudentDirectory{deps.Directory}, parentGuardianDirectory{deps.Directory})
+	requests := NewParentEnrollmentRequestRepository(deps.DB, deps.Applications, deps.Accounts, parentGuardianDirectory{deps.Directory})
 	return ParentPortalRepositories{
 		ParentChild:             NewParentChildRepository(deps.AccountSchools, deps.Directory),
 		ParentEnrollablePhase:   application.WithParentPhasePersons(phases, deps.Directory),
@@ -62,20 +55,16 @@ func NewParentPortalRepositories(deps ParentPortalDependencies) ParentPortalRepo
 }
 
 // NewParentEnrollmentRequestRepository is the account's applications over the
-// ambient tenant transaction, without the guardian links bound.
-func NewParentEnrollmentRequestRepository(db *bun.DB, applications parentRepo.EnrollmentCommands, accounts parentRepo.AccountDirectory) parentModels.EnrollmentRequestRepository {
-	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(db)), applications, accounts)
+// ambient tenant transaction, using the supplied guardian directory.
+func NewParentEnrollmentRequestRepository(db *bun.DB, applications parentRepo.EnrollmentCommands, accounts parentRepo.AccountDirectory, guardians parentRepo.GuardianDirectory) parentModels.EnrollmentRequestRepository {
+	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(db)), applications, accounts, guardians)
 }
 
 // NewParentChildRepository lists a guardian account's children across its
 // active schools, with the students, guardian links and person names read
 // through the directory. The school names are bound by WithSchools.
 func NewParentChildRepository(accountSchools func(context.Context, int64) ([]int64, error), directory careplan.ParentPortalDirectory) parentModels.ChildRepository {
-	child := parentRepo.NewChildRepository(accountSchools)
-	if repo, ok := child.(*parentRepo.ChildRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{directory})
-		repo.BindGuardianDirectory(parentGuardianDirectory{directory})
-	}
+	child := parentRepo.NewChildRepository(accountSchools, parentStudentDirectory{directory}, parentGuardianDirectory{directory})
 	return application.WithParentChildPersons(child, directory)
 }
 

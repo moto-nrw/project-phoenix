@@ -5,7 +5,7 @@ package auditlog
 import (
 	"context"
 
-	auditapp "github.com/moto-nrw/project-phoenix/services/audit"
+	auditapp "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
 )
 
 // The readers below let tests observe the Audit handoff; production reads it
