@@ -93,7 +93,7 @@ describe("displayCategoryLabel", () => {
   it("matches all category keys registered by backend defaults", () => {
     const defaultsDirectory = resolve(
       dirname(fileURLToPath(import.meta.url)),
-      "../../../../backend/services/config/defaults",
+      "../../../../backend/modules/settings/internal/defaults",
     );
     const backendCategoryKeys = new Set<string>();
 
