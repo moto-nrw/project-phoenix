@@ -115,11 +115,13 @@ func setupOfferingGuardRouterTest(
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposTimetable := api.NewEnrollmentTimetableRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)
 	request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
-	attachOfferingGuardLink(t, repos, ctx, phase, child.ID, linkFixture)
+	attachOfferingGuardLink(t, repos, reposCare, ctx, phase, child.ID, linkFixture)
 	children := TestDecisionChildren(repos.Enrollment())
 	if failOfferingLookup {
 		children = failingAtDateOfferingReader{children}
@@ -132,7 +134,7 @@ func setupOfferingGuardRouterTest(
 		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
 		api.WithBookingSettings(offeringGuardSettings(offeringsEnabled)),
 	).Bookings
-	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)
+	decision := newOfferingGuardDecisionService(repos, reposCare, reposTimetable, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
@@ -187,7 +189,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories, ctx context.Context, phase *capability.Phase, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, ctx context.Context, phase *capability.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
@@ -211,9 +213,10 @@ func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories,
 		offering := &enrollmentModels.CareOffering{
 			PhaseID: phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
-			IsRequired: required, CountsAsCare: true,
+			IsRequired:   required,
+			CountsAsCare: true,
 		}
-		require.NoError(t, newCareOfferingFixtures(repos.CarePlan).Create(ctx, offering))
+		require.NoError(t, newCareOfferingFixtures(reposCare.CarePlan).Create(ctx, offering))
 		return &capability.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
@@ -239,13 +242,13 @@ func datePointers(from, until calendar.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
-	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
+func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, reposTimetable api.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
+	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newOfferingGuardDecisions(repos, reposCare, reposTimetable, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
 }
 
 // newOfferingGuardDecisions composes the decision flow the guard suites
 // drive, the way the root binds it.
-func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
+func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, reposTimetable api.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
 	return api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:       repos.Enrollment(),
 		Children:       children,
@@ -253,7 +256,7 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEn
 		LateInvites:    repos.Enrollment(),
 		Phases:         repos.Enrollment(),
 		Schemas:        repos.Enrollment(),
-		Offerings:      enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess,
@@ -261,8 +264,8 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEn
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
-		PickupSchedules:   repos.EnrollmentPickupSchedules(),
-		ArrivalSchedules:  repos.EnrollmentArrivalSchedules(),
+		PickupSchedules:   reposTimetable.EnrollmentPickupSchedules(),
+		ArrivalSchedules:  reposTimetable.EnrollmentArrivalSchedules(),
 		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
 		Settings:          api.EnrollmentDecisionSettingValues(offeringGuardSettings(offeringsEnabled)),
 		Logger:            slog.Default(),

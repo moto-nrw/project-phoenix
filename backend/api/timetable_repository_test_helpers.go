@@ -260,6 +260,31 @@ func NewTimetableSchoolCalendar(db transactionruntime.Database) (TimetableSchool
 	return TimetableSchoolCalendar{schoolCalendar: calendar}, nil
 }
 
+// MustNewTimetablePresenceRows are the live sessions and supervisions over
+// the unobserved Timetable rows and People Directory rows of db.
+func MustNewTimetablePresenceRows(db transactionruntime.Database, clocks ...func() time.Time) TimetablePresenceRows {
+	members := MustNewMembershipTestRepositories(db)
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		panic(fmt.Sprintf("timetable test rows: compose timetable: %v", err))
+	}
+	rows, err := NewTimetablePresenceRows(db, tt, members, clocks...)
+	if err != nil {
+		panic(fmt.Sprintf("timetable test rows: compose presence: %v", err))
+	}
+	return rows
+}
+
+// MustNewTimetableRoomRows is NewTimetableRoomRows for suites that cannot
+// handle a composition error.
+func MustNewTimetableRoomRows(db transactionruntime.Database) TimetableRoomRows {
+	rows, err := NewTimetableRoomRows(db)
+	if err != nil {
+		panic(fmt.Sprintf("timetable test rows: compose rooms: %v", err))
+	}
+	return rows
+}
+
 // MustNewTimetableSchoolCalendar is NewTimetableSchoolCalendar for suites
 // that cannot handle a composition error.
 func MustNewTimetableSchoolCalendar(db transactionruntime.Database) TimetableSchoolCalendar {

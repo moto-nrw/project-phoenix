@@ -56,6 +56,9 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
+	repoFactoryTimetable := NewEnrollmentTimetableRows(store)
+	repoFactoryCare := NewEnrollmentCarePlanRows(store)
+	repoFactoryRooms := MustNewTimetableRoomRows(store)
 	schools, err := NewOrganizationTenancy(store)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
@@ -81,7 +84,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactory.Timetable,
+		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactoryTimetable.Timetable,
 		Feedback: feedback, IsVerifiedStaff: live.UserContext.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
 		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: audit, Now: clock,
 	})
@@ -148,7 +151,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			WeekdayPickupNotes:       students.CarePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactory.StudentStatusDay, StudentTestStatusDayOverviewPeople(live)),
+			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(live)),
 			ActiveService:          live.Active,
 			ArrivalScheduleService: live.ArrivalSchedule,
 			CareDayService:         live.CareDay,
@@ -167,7 +170,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			SettingsService:        live.Settings,
 			StudentConsents:        NewStudentHTTPTestConsents(store),
 			StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
-				rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
+				rooms, err := repoFactoryRooms.Room.FindByIDs(ctx, ids)
 				if err != nil {
 					return nil, err
 				}
@@ -176,8 +179,8 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 					names[room.ID] = room.Name
 				}
 				return names, nil
-			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactory.InstanceStudent)),
-			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
+			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent)),
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
 		presenceStudentsHTTP.ResourceConfig{
@@ -190,7 +193,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			Persons:                 peopleCompose.NewStudentRoutePersons(live.Users),
 			PrivacyConsents:         presence,
 			SettingsService:         live.Settings,
-			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
 		deleteStudentsHTTP.ResourceConfig{
@@ -257,8 +260,9 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
-		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
-		Blocks: NewStudentHTTPTestPickupReviewBlocks(store),
+		ObserveCare:      func(requestreviewcompose.CareObservation) {},
+		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		Blocks:           NewStudentHTTPTestPickupReviewBlocks(store),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -275,7 +279,8 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
-		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		ObserveCare:      func(requestreviewcompose.CareObservation) {},
+		ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
 	})
 	if err != nil {
 		return nil, nil, err

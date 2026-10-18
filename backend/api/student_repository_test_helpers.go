@@ -44,7 +44,11 @@ func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, membe
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	care, err := NewCarePlan(db, members.People, enrollment.InstanceStudent)
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
+	}
+	care, err := NewCarePlan(db, members.People, tt.InstanceStudent)
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}

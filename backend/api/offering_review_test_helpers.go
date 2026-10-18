@@ -29,6 +29,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 	if err != nil {
 		return nil, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
 	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
@@ -36,7 +37,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 	return careplanCompose.NewOfferingReviews(db.Pool(), func(careplanCompose.Observation) {}, careplanCompose.OfferingReviewDependencies{
 		People:     offeringReviewTestDirectory{people: people},
 		Enrollment: offeringReviewTestEnrollment{enrollment: repos.Enrollment()},
-		Courses:    offeringReviewTestCourses{query: repos.Timetable},
+		Courses:    offeringReviewTestCourses{query: reposTimetable.Timetable},
 		Scope: func(context.Context) (careplanCompose.ReviewScope, error) {
 			return careplanCompose.ReviewScope{SchoolWide: true}, nil
 		},

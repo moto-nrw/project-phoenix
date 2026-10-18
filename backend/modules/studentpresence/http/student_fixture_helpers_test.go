@@ -113,10 +113,11 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
+		enrollmentCare := api.NewEnrollmentCarePlanRows(testpkg.MustDatabase(db))
 		return studentsAPI.StudentRows{
 			PeopleDirectory:  api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)),
 			Companions:       api.NewStudentHTTPTestCompanions(rows, enrollment.Student, api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)), nil),
-			StudentStatusDay: enrollment.StudentStatusDay,
+			StudentStatusDay: enrollmentCare.StudentStatusDay,
 			LockExceptionDay: rows.CarePlan.LockExceptionDay,
 		}
 	}

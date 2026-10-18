@@ -21,6 +21,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 	if err != nil {
 		return nil, err
 	}
+	reposCare := NewEnrollmentCarePlanRows(db)
 	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
@@ -41,10 +42,12 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Runtime:         ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(members.GuardianProfile),
-		Settings: BindParentSettings(live.Settings), ArrivalSchedules: NewParentArrivalSchedules(live.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(live.PickupSchedule),
-		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(students.CarePlan),
+		Settings:         BindParentSettings(live.Settings),
+		ArrivalSchedules: NewParentArrivalSchedules(live.ArrivalSchedule),
+		PickupSchedules:  NewParentPickupSchedules(live.PickupSchedule),
+		CareRequests:     module.CareRequests, CareRequestRepo: NewParentCareRequestReads(students.CarePlan),
 		FamilyProtectionEvents: BindParentFamilyProtectionReads(studentPeople.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(studentPeople.ParentRequestShare),
-		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(messages.ParentMessageThread),
+		StatusDayRepo: reposCare.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(messages.ParentMessageThread),
 		MessageRepo: BindParentMessageReads(messages.ParentMessage),
 		Logger:      slog.Default(),
 

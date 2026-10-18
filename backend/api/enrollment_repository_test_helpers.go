@@ -3,50 +3,64 @@
 package api
 
 import (
+	"fmt"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// EnrollmentTestRepositories is the enrollment suites' repository graph;
-// DataAccessLog is filled by the composition that owns Audit persistence
-// (NewEnrollmentTestRepositories).
+// EnrollmentTestRepositories are the People Directory rows of the
+// enrollment suites and the Enrollment booking projection. The Timetable
+// rows, the Care Plan rows, the access log, the schools and School
+// Membership come from NewEnrollmentTimetableRows, NewEnrollmentCarePlanRows,
+// NewEnrollmentAuditRows, NewOrganizationTestRows and
+// NewSchoolMembershipSuiteRepositories over the same database (#4080).
 type EnrollmentTestRepositories struct {
-	TimetableTestRepositories
-	// The other owners' rows beside the Timetable rows (#4080).
 	MembershipTestRepositories
-	TimetablePresenceRows
-	TimetableCarePlanRows
-	TimetableRoomRows
-	TimetableDeviationAudit
-	TimetableSchoolCalendar
-	School organizationtenancy.Capability
-
 	StudentGuardian     peoplePorts.StudentGuardianRepository
 	GuardianProfile     peoplePorts.GuardianProfileRepository
 	GuardianPhoneNumber peoplePorts.GuardianPhoneNumberRepository
-	Membership          schoolmembership.Capability
-	DataAccessLog       auditModels.DataAccessLogRepository
+}
+
+// Enrollment is the Enrollment booking projection the suites read and write.
+func (r EnrollmentTestRepositories) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(newEnrollmentBookings(enrollmentCompose.New()))
 }
 
 func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (EnrollmentTestRepositories, error) {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	return EnrollmentTestRepositories{
+		MembershipTestRepositories: members,
+		StudentGuardian:            members.StudentGuardian, GuardianProfile: members.GuardianProfile,
+		GuardianPhoneNumber: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
+	}, nil
+}
+
+// NewEnrollmentTimetableRows are the Timetable rows of the enrollment
+// suites, with the deviation protocol bound to the Audit Platform.
+func NewEnrollmentTimetableRows(db transactionruntime.Database) TimetableTestRepositories {
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return EnrollmentTestRepositories{}, err
+		panic(fmt.Sprintf("enrollment test rows: compose timetable: %v", err))
 	}
-	presence, care, rooms, calendar, err := newTimetableTestCompanions(db, tt, members)
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
-	organizations, err := NewOrganizationTenancy(db)
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
-	return EnrollmentTestRepositories{TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
-		School:          organizations,
-		StudentGuardian: members.StudentGuardian, GuardianProfile: members.GuardianProfile, GuardianPhoneNumber: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		Membership: MustNewSchoolMembership(db)}, nil
+	return withTimetableTestAudit(db, tt)
+}
+
+// NewEnrollmentCarePlanRows are the Care Plan rows of the enrollment suites.
+func NewEnrollmentCarePlanRows(db transactionruntime.Database) TimetableCarePlanRows {
+	return NewEnrollmentFlowCarePlanRows(db)
+}
+
+// EnrollmentAuditRows are the Audit Platform access log the enrollment
+// suites read back.
+type EnrollmentAuditRows struct {
+	DataAccessLog auditModels.DataAccessLogRepository
+}
+
+// NewEnrollmentAuditRows composes the access log over the test database with
+// its writes routed through command.
+func NewEnrollmentAuditRows(db transactionruntime.Database, command auditModels.Command) *EnrollmentAuditRows {
+	return &EnrollmentAuditRows{DataAccessLog: NewTestAuditPersistence(db, command).DataAccessLog}
 }

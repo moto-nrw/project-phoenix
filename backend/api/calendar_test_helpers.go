@@ -35,6 +35,9 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	reposRooms := MustNewTimetableRoomRows(db)
+	reposSchools := NewOrganizationTestRows(db)
 	members := MustNewMembershipTestRepositories(db)
 	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
@@ -65,8 +68,8 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	cfg := CurrentServiceConfig()
 	calendarConfig := NewCalendarFacts(repos.Staff, repos.Student, NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 		repos.StudentGuardian, parents.ParentChildLinks(), NewSchoolStructureSuiteRepositories(db).Group)
-	calendarConfig = BindCalendarScheduleFacts(calendarConfig, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
-	calendarConfig = BindCalendarFeedFacts(calendarConfig, repos.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
+	calendarConfig = BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
+	calendarConfig = BindCalendarFeedFacts(calendarConfig, reposSchools.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
 	calendarConfig = BindCalendarCaller(calendarConfig, identity.Caller())
 	calendarConfig.Appointments = appointments
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())

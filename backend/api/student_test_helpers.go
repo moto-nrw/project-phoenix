@@ -97,6 +97,12 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	reposCalendar := MustNewTimetableSchoolCalendar(db)
+	reposSchools := NewOrganizationTestRows(db)
+	reposAudit := NewEnrollmentAuditRows(db, auditCommand)
+	reposPresence := MustNewTimetablePresenceRows(db)
+	reposCare := NewEnrollmentCarePlanRows(db)
 	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -167,12 +173,12 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: students.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: students.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(reposTimetable.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
+	rosterReconciler := timetableCompose.NewRosterReconciler(reposTimetable.ActivityInstance, reposTimetable.InstanceStudent, reposTimetable.StudentEnrollment, logger, now)
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -201,7 +207,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	careBookingDeps, err := bookingMaterializationOwners(
-		repos.Timetable, rosterReconciler, persons, repos.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
+		reposTimetable.Timetable, rosterReconciler, persons, reposCalendar.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
 		studentAudits.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, students.CarePlan,
 	)
 	if err != nil {
@@ -228,7 +234,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Phases:         repos.Enrollment(),
 		Schemas:        repos.Enrollment(),
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(students.CarePlan),
-		Notifications:  NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
+		Notifications:  NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: reposSchools.School}),
 		Bookings:       careBookings,
 		GuardianAccess: guardianAccess,
 		People: EnrollmentDecisionPeopleDirectory(
@@ -236,9 +242,9 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		),
 		StudentEnrollment:      persons,
 		Companions:             EnrollmentDecisionCompanions(NewStudentCompanionRepository(students.CarePlan), students.CarePlan.DeleteCompanionEdges),
-		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
-		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
-		AccessLog:              EnrollmentDecisionAccessLog(repos.DataAccessLog),
+		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(reposTimetable.StudentPickupSchedule),
+		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(reposTimetable.StudentArrivalSchedule),
+		AccessLog:              EnrollmentDecisionAccessLog(reposAudit.DataAccessLog),
 		Adjustments:            EnrollmentDecisionAdjustments(studentAudits.EnrollmentOfferingAdjustment),
 		Restorations:           EnrollmentDecisionRestorations(studentAudits.EnrollmentRestorationAudit),
 		Payers:                 EnrollmentDecisionPayers(studentAudits.GuardianFinancialChange),
@@ -283,7 +289,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	offeringChangeDeps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
+	offeringChangeDeps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
 	offeringChangeDeps.Bookings = careBookings
 	offeringChangeDeps.Today = today
 	offeringChangeDeps.Logger = logger.With("service", "offering-change-requests")
@@ -325,8 +331,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance),
+		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -335,7 +341,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Groups: NewSchoolStructureSuiteRepositories(db).Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions, NewTestGroupHandovers(db)),
 		Persons: NewEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
 		Staff: NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
@@ -354,7 +360,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Now: now,
 	})
 	studentStatusDayService := presenceservice.NewStatusDays(
-		repos.StudentStatusDay,
+		reposCare.StudentStatusDay,
 		NewManualPartialAbsenceDates(students.CarePlan),
 		db.Pool(),
 		students.CarePlan.LockExceptionDay,

@@ -45,18 +45,21 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
+	rCare := NewEnrollmentCarePlanRows(db)
+	rAudit := NewEnrollmentAuditRows(db, command)
+	rMembership := NewSchoolMembershipSuiteRepositories(db)
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	reports := NewEnrollmentReports(EnrollmentReportSources{
-		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
+		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(rCare.CarePlan), AccessLog: rAudit.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,
-		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
+		Companions: NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: NewClassListEntryRosterReader(rMembership.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: active.UserContext, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
-		Companions: NewStudentCompanionRepository(r.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
+		Companions: NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts: active.TimetableOperations,
-	}, reports, r.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, r.DataAccessLog, active.Settings,
+	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, active.Settings,
 		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())
 	return ClassDayTestModule{ActiveTestModule: active, EnrollmentReports: reports, ClassDay: classDay}, nil
 }

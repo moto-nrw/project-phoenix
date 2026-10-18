@@ -65,11 +65,13 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	reposCalendar := MustNewTimetableSchoolCalendar(db)
 	settings, err := bookingTestSettings(db, unit, options)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	catalog, err := bookingTestCatalog(db, repos.TimetableTestRepositories, settings, options)
+	catalog, err := bookingTestCatalog(db, reposTimetable, settings, options)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -89,7 +91,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 		return BookingMaterializationTestModule{}, err
 	}
 	deps, err := bookingMaterializationOwners(
-		repos.Timetable, repos.RosterMaintenance(slog.Default(), nil), people, repos.SchoolCalendar(), repos.Enrollment(),
+		reposTimetable.Timetable, reposTimetable.RosterMaintenance(slog.Default(), nil), people, reposCalendar.SchoolCalendar(), repos.Enrollment(),
 		approved, NewStudentAuditRows(db, auditCommand).EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, students.CarePlan,
 	)
 	if err != nil {

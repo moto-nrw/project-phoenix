@@ -54,6 +54,7 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
 	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
@@ -65,7 +66,7 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
-	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
+	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
 	deps.Bookings = options.Bookings
 	deps.Today = options.Today
 	deps.Logger = slog.Default()

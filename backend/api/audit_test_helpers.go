@@ -80,21 +80,11 @@ func NewWorkforceTestRepositories(db transactionruntime.Database, clocks ...func
 	return NewWorkforceTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 }
 
-// NewEnrollmentTestRepositories composes the enrollment test graph with its
-// access log.
-func NewEnrollmentTestRepositories(db transactionruntime.Database, command auditModels.Command) (EnrollmentTestRepositories, error) {
-	result, err := NewEnrollmentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
-	return withEnrollmentTestAudit(db, command, result), nil
-}
-
-func withEnrollmentTestAudit(db transactionruntime.Database, command auditModels.Command, enrollment EnrollmentTestRepositories) EnrollmentTestRepositories {
-	enrollment.TimetableTestRepositories = withTimetableTestAudit(db, enrollment.TimetableTestRepositories)
-	enrollment.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
-	enrollment.DataAccessLog = NewTestAuditPersistence(db, command).DataAccessLog
-	return enrollment
+// NewEnrollmentTestRepositories composes the enrollment suites' People
+// Directory rows; the access log recording into command comes from
+// NewEnrollmentAuditRows.
+func NewEnrollmentTestRepositories(db transactionruntime.Database, _ auditModels.Command) (EnrollmentTestRepositories, error) {
+	return NewEnrollmentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 }
 
 // NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
@@ -118,14 +108,15 @@ func NewCareLifecycleTestRepositories(db transactionruntime.Database, command au
 }
 
 // NewStudentTestRepositories composes the student suites' Care Plan rows
-// and returns them with the Enrollment graph and its access log. The audit
-// trails the suites read back come from NewStudentAuditRows.
-func NewStudentTestRepositories(db transactionruntime.Database, command auditModels.Command) (StudentTestRepositories, EnrollmentTestRepositories, error) {
+// and returns them with the Enrollment graph. The audit trails the suites
+// read back come from NewStudentAuditRows, the access log recording into
+// the suite's command from NewEnrollmentAuditRows.
+func NewStudentTestRepositories(db transactionruntime.Database, _ auditModels.Command) (StudentTestRepositories, EnrollmentTestRepositories, error) {
 	result, enrollment, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	return result, withEnrollmentTestAudit(db, command, enrollment), nil
+	return result, enrollment, nil
 }
 
 // NewStudentConsents composes unobserved owners behind the consent seam.
