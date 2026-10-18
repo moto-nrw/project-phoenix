@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The photo runtime passed as a value serves the photo lifecycle directly;
@@ -15,17 +17,16 @@ func TestStudentPhotoPort_TakesTheRuntimeValue(t *testing.T) {
 	ctx := context.Background()
 
 	runtime := &enabledPhotoRuntime{}
-	port, err := studentPhotoPort(Dependencies{StudentPhotos: runtime})
-	require.NoError(t, err)
+	port := studentPhotoPort(Dependencies{StudentPhotos: runtime})
 	enabled, err := port.PhotoFeatureEnabled(ctx)
 	require.NoError(t, err)
 	require.True(t, enabled)
 	port.UnlinkStoredPhoto(t.Name())
 	require.Equal(t, []string{t.Name()}, runtime.unlinked)
 
-	_, err = studentPhotoPort(Dependencies{
-		StudentPhotos:       runtime,
-		StudentPhotoRuntime: func() StudentPhotoRuntime { return runtime },
+	err = checkDependencies(Dependencies{
+		DB: testpkg.SetupTestDB(t), Observe: func(Observation) {}, StudentDirectory: testpkg.StudentDirectory{},
+		StudentPhotos: runtime, StudentPhotoRuntime: func() StudentPhotoRuntime { return runtime },
 	})
 	require.ErrorContains(t, err, "exclusive")
 }
@@ -37,10 +38,8 @@ func TestDisabledStudentPhotos_MatchesTheUnboundRuntime(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	disabled, err := studentPhotoPort(Dependencies{StudentPhotos: DisabledStudentPhotos()})
-	require.NoError(t, err)
-	unbound, err := studentPhotoPort(Dependencies{})
-	require.NoError(t, err)
+	disabled := studentPhotoPort(Dependencies{StudentPhotos: DisabledStudentPhotos()})
+	unbound := studentPhotoPort(Dependencies{})
 	for _, port := range []interface {
 		PhotoFeatureEnabled(context.Context) (bool, error)
 		ActingAccountID(context.Context) int64
@@ -52,7 +51,7 @@ func TestDisabledStudentPhotos_MatchesTheUnboundRuntime(t *testing.T) {
 	}
 
 	// A consent change fails with the error the unbound runtime reports.
-	err = DisabledStudentPhotos().RecordPhotoConsent(ctx, StudentPhotoConsentSnapshot{}, StudentPhotoConsentSnapshot{}, nil, time.Now())
+	err := DisabledStudentPhotos().RecordPhotoConsent(ctx, StudentPhotoConsentSnapshot{}, StudentPhotoConsentSnapshot{}, nil, time.Now())
 	require.ErrorIs(t, err, errStudentPhotoRuntimeUnbound)
 	require.EqualError(t, err, "people directory: student photo runtime is not bound")
 }

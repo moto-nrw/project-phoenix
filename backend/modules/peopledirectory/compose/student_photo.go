@@ -53,16 +53,12 @@ func (disabledStudentPhotos) RecordPhotoConsent(context.Context, StudentPhotoCon
 var errStudentPhotoRuntimeUnbound = errors.New("people directory: student photo runtime is not bound")
 
 // studentPhotoPort is the photo runtime value or, for the current root, the
-// resolver; both at once is a composition mistake.
-func studentPhotoPort(dependencies Dependencies) (internalports.StudentPhotoRuntime, error) {
-	runtime := dependencies.StudentPhotos
-	if runtime == nil {
-		return studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime}, nil
+// resolver; New refuses both at once.
+func studentPhotoPort(dependencies Dependencies) internalports.StudentPhotoRuntime {
+	if runtime := dependencies.StudentPhotos; runtime != nil {
+		return studentPhotoRuntime{resolve: func() StudentPhotoRuntime { return runtime }}
 	}
-	if dependencies.StudentPhotoRuntime != nil {
-		return nil, errors.New("people directory compose: the student photo runtime and its resolver are exclusive")
-	}
-	return studentPhotoRuntime{resolve: func() StudentPhotoRuntime { return runtime }}, nil
+	return studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime}
 }
 
 // studentPhotoRuntime adapts the composition root's public-typed seam to the

@@ -77,16 +77,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	runtime := tenant.NewRuntimeRef(nil)
-	if dependencies.Sessions != nil {
-		sessions := *dependencies.Sessions
-		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
-		sessions.TenantRuntime = runtime.Attach
-		dependencies.Sessions = &sessions
-	}
-	if !dependencies.TenantRuntime.IsZero() {
-		runtime.Bind(dependencies.TenantRuntime)
-	}
+	dependencies, runtime := bindTenantRuntime(dependencies)
 	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
@@ -164,6 +155,23 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
 	return application.NewGuardianInvitationReads(newStore(db)), nil
+}
+
+// bindTenantRuntime is the reference the module opens its transactions
+// under: the sessions attach through it, falling back to their own runtime,
+// and Dependencies.TenantRuntime is bound into it at construction.
+func bindTenantRuntime(dependencies Dependencies) (Dependencies, *tenant.RuntimeRef) {
+	runtime := tenant.NewRuntimeRef(nil)
+	if dependencies.Sessions != nil {
+		sessions := *dependencies.Sessions
+		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
+		sessions.TenantRuntime = runtime.Attach
+		dependencies.Sessions = &sessions
+	}
+	if !dependencies.TenantRuntime.IsZero() {
+		runtime.Bind(dependencies.TenantRuntime)
+	}
+	return dependencies, runtime
 }
 
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
