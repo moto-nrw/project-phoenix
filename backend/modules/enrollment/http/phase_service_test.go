@@ -32,9 +32,11 @@ func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *api.Enr
 	phaseNamePrefix := "phase-" + t.Name()
 	repoFactory := flowRepositories(t, db)
 	svc := NewTestPhases(TestPhaseDependencies{
-		Records:   repoFactory.Enrollment(),
-		Offerings: phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
-		Logger:    slog.Default(),
+		Records:                repoFactory.Enrollment(),
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		LockTemplateRecurrence: func(context.Context) error { return nil },
+		Resyncer:               &recordingSourcedTemplateResyncer{},
+		Logger:                 slog.Default(),
 	})
 
 	cleanup := func() {
@@ -197,7 +199,8 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 			assert.Equal(t, enrollmentOwner.Date(calendar.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
 			return fmt.Errorf("%w: synthetic uncovered occurrence", careplan.ErrCareOfferingConfigInvalid)
 		},
-		Logger: slog.Default(),
+		Resyncer: &recordingSourcedTemplateResyncer{},
+		Logger:   slog.Default(),
 	})
 
 	created.Name += "-metadata-only"
@@ -266,7 +269,7 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 		Records:                repoFactory.Enrollment(),
 		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		SourcedTemplates:       func() enrollmentOwner.SourcedTemplateResyncer { return resyncer },
+		Resyncer:               resyncer,
 		Logger:                 slog.Default(),
 	})
 
@@ -315,7 +318,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 		Records:                repoFactory.Enrollment(),
 		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		SourcedTemplates:       func() enrollmentOwner.SourcedTemplateResyncer { return resyncer },
+		Resyncer:               resyncer,
 		Logger:                 slog.Default(),
 	})
 
@@ -622,7 +625,8 @@ func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
 
 	repoErr := errors.New("database unavailable")
 	svc := NewTestPhases(TestPhaseDependencies{
-		Records: findByIDErrorPhaseRepo{err: repoErr},
+		Records: findByIDErrorPhaseRepo{err: repoErr}, Offerings: phaseOfferings{},
+		LockTemplateRecurrence: func(context.Context) error { return nil }, Resyncer: &recordingSourcedTemplateResyncer{},
 	})
 
 	_, err := svc.PhaseByID(context.Background(), 123)
@@ -647,10 +651,12 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdminis
 	t.Helper()
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := NewTestPhases(TestPhaseDependencies{
-		Records:   repoFactory.Enrollment(),
-		Offerings: phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
-		Calendar:  repoFactory.SchoolCalendar(),
-		Logger:    slog.Default(),
+		Records:                repoFactory.Enrollment(),
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		Calendar:               repoFactory.SchoolCalendar(),
+		LockTemplateRecurrence: func(context.Context) error { return nil },
+		Resyncer:               &recordingSourcedTemplateResyncer{},
+		Logger:                 slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }
@@ -778,6 +784,8 @@ func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T)
 
 	lookupErr := errors.New("synthetic database failure")
 	svc := NewTestPhases(TestPhaseDependencies{
+		Records: unusedPhaseRecords{}, Offerings: phaseOfferings{},
+		LockTemplateRecurrence: func(context.Context) error { return nil }, Resyncer: &recordingSourcedTemplateResyncer{},
 		Calendar: failingCalendarPeriodService{err: lookupErr},
 		Logger:   slog.Default(),
 	})
