@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -45,7 +46,7 @@ type InvitationWiring struct {
 	WelcomeDelay time.Duration
 }
 
-func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -56,10 +57,12 @@ func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 	return &identityaccessCompose.SchoolInvitationDependencies{
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
-		Delivery: invitationDelivery{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
-			identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-			settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
+			return invitationDelivery{
+				dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
+				identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+			}
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.Expiry,
@@ -89,7 +92,7 @@ type invitationDelivery struct {
 	schoolURL    string
 	identity     email.ReplyToResolver
 	backoff      []time.Duration
-	invitations  func() identityaccess.SchoolInvitations
+	invitations  identityaccess.SchoolInvitationDeliveryRecorder
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
 	outbox       MailOutbox
@@ -194,7 +197,7 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
-	if err := d.invitations().RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.invitations.RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update invitation delivery status",
 			slog.Int64("invitation_id", meta.ReferenceID),
 			slog.Any("error", err),

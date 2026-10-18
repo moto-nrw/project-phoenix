@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // Identity & Access owns the password reset flows (#2722). This file binds
@@ -34,7 +35,7 @@ type PasswordResetWiring struct {
 	Backoff []time.Duration
 }
 
-func passwordResetDependencies(wiring *PasswordResetWiring, records func() identityaccess.PasswordResets, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
+func passwordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -48,10 +49,12 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 		identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
 	}
 	return &identityaccessCompose.PasswordResetDependencies{
-		Delivery: passwordResetDelivery{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
-			backoff: backoff,
-			host:    func(scope identityaccess.PasswordResetScope) string { return hosts[scope] },
+		DeliveryFor: func(records identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {
+			return passwordResetDelivery{
+				dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
+				backoff: backoff,
+				host:    func(scope identityaccess.PasswordResetScope) string { return hosts[scope] },
+			}
 		},
 		Passwords:        passwordPolicy{},
 		Expiry:           wiring.Expiry,
@@ -68,7 +71,7 @@ type passwordResetDelivery struct {
 	// host is the portal origin of a reset scope.
 	host    func(identityaccess.PasswordResetScope) string
 	backoff []time.Duration
-	records func() identityaccess.PasswordResets
+	records identityaccess.PasswordResetDeliveryRecorder
 	logger  *slog.Logger
 }
 
@@ -106,7 +109,7 @@ func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.De
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
-	if err := d.records().RecordPasswordResetDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.records.RecordPasswordResetDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update password reset delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

@@ -119,12 +119,11 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 	if err != nil {
 		return nil, err
 	}
-	// The reset delivery records its outcome through the module it is
-	// composed into, so it reads the module back at call time.
-	var module *identityaccess.Module
-	resets := passwordResetDependencies(wiring.Resets, func() identityaccess.PasswordResets { return module }, wiring.Logger)
-	invitations := invitationDependencies(wiring.Invitations, wiring.Codec, func() identityaccess.SchoolInvitations { return module }, wiring.Logger)
-	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.Logger)
+	// The deliveries record their outcome through the recorder the
+	// composition hands them at construction.
+	resets := passwordResetDependencies(wiring.Resets, wiring.Logger)
+	invitations := invitationDependencies(wiring.Invitations, wiring.Codec, wiring.Logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, wiring.Logger)
 	base.Lifecycle = lifecycle
 	base.Resets = resets
 	base.Invitations = invitations
@@ -144,11 +143,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 	}
 	base.Operators = wiring.Operators
 	base.Demo = demo
-	module, err = identityaccessCompose.New(base)
-	if err != nil {
-		return nil, err
-	}
-	return module, nil
+	return identityaccessCompose.New(base)
 }
 
 func demoDependencies(wiring *DemoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
