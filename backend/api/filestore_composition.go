@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
@@ -42,16 +41,12 @@ type FileStorageEvents struct {
 }
 
 func (e FileStorageEvents) Record(ctx context.Context, event filestorageCompose.Event) error {
-	name := strings.TrimSpace(event.Actor.Name)
-	if name == "" {
-		name = "Unbekannt"
-	}
 	row := &auditModels.FileEvent{
 		FolderID:       event.FolderID,
 		AnnouncementID: event.AnnouncementID,
 		FileID:         event.FileID,
 		Action:         event.Action,
-		ActorName:      name,
+		ActorName:      event.Actor.DisplayName(),
 		Detail:         event.Detail,
 	}
 	if event.Actor.AccountID > 0 {
