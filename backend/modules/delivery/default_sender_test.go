@@ -11,3 +11,13 @@ func TestSenderOrDefaultFallsBackWithoutAnAddress(t *testing.T) {
 		t.Errorf("default sender = %q <%s>", name, address)
 	}
 }
+
+func TestSchoolSenderSendsUnderTheSchoolNameFromTheDefaultAddress(t *testing.T) {
+	t.Parallel()
+	if name, address := SchoolSender("OGS Sonnenschein", "moto", "no-reply@moto.local"); name != "OGS Sonnenschein" || address != "no-reply@moto.local" {
+		t.Errorf("school sender = %q <%s>", name, address)
+	}
+	if name, address := SchoolSender("", "moto", "no-reply@moto.local"); name != "moto" || address != "no-reply@moto.local" {
+		t.Errorf("default sender = %q <%s>", name, address)
+	}
+}
