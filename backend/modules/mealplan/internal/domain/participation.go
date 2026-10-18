@@ -137,6 +137,18 @@ type DailyList struct {
 	Deadline     time.Time
 	Closed       bool
 	Participants []DailyParticipant
+	// Others are the enrolled children who do not eat that day, for the
+	// school's late changes.
+	Others []DailyParticipant
+}
+
+// Add puts a child on the list of those who eat or of the others.
+func (l *DailyList) Add(child DailyParticipant, participating bool) {
+	if participating {
+		l.Participants = append(l.Participants, child)
+		return
+	}
+	l.Others = append(l.Others, child)
 }
 
 // SortDailyParticipants orders the kitchen list by class, last name, first

@@ -17,6 +17,16 @@ import (
 type engine struct {
 	available bool
 	entries   []mealplanModule.Entry
+	// dayChange records the last day change: account, date, participating,
+	// by school.
+	dayChange *dayChange
+}
+
+type dayChange struct {
+	accountID     int64
+	date          string
+	participating bool
+	bySchool      bool
 }
 
 var moduleFailures = map[error]struct {
@@ -55,13 +65,17 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
+		CurrentAccountID: func(context.Context) int64 { return 9 },
 	})
 
 	resource.Router()
 	if !protected {
 		t.Fatal("routes were registered outside the protected tenant boundary")
 	}
-	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
+	// #3873: the school's changes need the permission of the lists with
+	// names, like the lists themselves.
+	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants,
+		mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
 	if !reflect.DeepEqual(accesses, want) {
 		t.Fatalf("permission boundaries = %v, want %v", accesses, want)
 	}
@@ -85,20 +99,24 @@ func (e engine) RegistrationAvailable(context.Context) (bool, error) { return e.
 func (e engine) Participation(context.Context, int64, string, string) (mealplanModule.ParticipationPlan, error) {
 	return mealplanModule.ParticipationPlan{}, nil
 }
-func (e engine) ReplaceParticipationSchedule(context.Context, int64, int64, []mealplanModule.Weekday) (mealplanModule.Date, error) {
+func (e engine) ReplaceParticipationSchedule(context.Context, int64, int64, []mealplanModule.Weekday, string) (mealplanModule.Date, error) {
 	return "2026-09-07", nil
 }
-func (e engine) SetParticipationDay(context.Context, int64, int64, string, bool) error {
+func (e engine) SetParticipationDay(_ context.Context, _ int64, accountID int64, date string, participating, bySchool bool) error {
+	if e.dayChange != nil {
+		*e.dayChange = dayChange{accountID: accountID, date: date, participating: participating, bySchool: bySchool}
+	}
 	return nil
 }
 func (e engine) SetParticipationWeek(context.Context, int64, int64, string, bool) (mealplanModule.WeekChange, error) {
 	return mealplanModule.WeekChange{}, nil
 }
-func (e engine) ClearParticipationDay(context.Context, int64, int64, string) error {
+func (e engine) ClearParticipationDay(context.Context, int64, int64, string, bool) error {
 	return nil
 }
 func (e engine) DailyParticipants(context.Context, string) (mealplanModule.DailyList, error) {
-	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}}, nil
+	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
+		Others: []mealplanModule.DailyParticipant{{StudentID: 43, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"}}}, nil
 }
 
 func resource(available bool) *mealplanHTTP.Resource {
@@ -117,6 +135,7 @@ func resource(available bool) *mealplanHTTP.Resource {
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
+		CurrentAccountID: func(context.Context) int64 { return 9 },
 	})
 }
 
@@ -180,4 +199,40 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	if response.Body.String() != want {
 		t.Fatalf("weekend write body = %q, want %q", response.Body.String(), want)
 	}
+}
+
+func TestStaffDailyListListsTheOthersOnRequest(t *testing.T) {
+	t.Parallel()
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants?date=2026-09-07&include=all", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.Contains(t, response.Body.String(), `"others":[{"student_id":"43","first_name":"Ben","last_name":"Bauer","school_class":"3b"}]`)
+}
+
+func TestStaffDayChangeIsTheSchools(t *testing.T) {
+	t.Parallel()
+	recorded := &dayChange{}
+	module := mealplanModule.NewModule(engine{available: true, dayChange: recorded})
+	router := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
+		Protected:  routetest.UnprotectedGroupFunc(),
+		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware { return routetest.IdentityMiddleware },
+		Success:    routetest.RespondSuccess, InvalidRequest: routetest.RespondInvalidRequest,
+		ModuleFailure: routetest.ErrorResponder(resolveModuleFailure),
+		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+			return mealplanHTTP.ExportFile{}, nil
+		},
+		CurrentAccountID: func(context.Context) int64 { return 9 },
+	}).Router()
+
+	response := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/42/days/2026-09-10", strings.NewReader(`{"participating":false}`)))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.Equal(t, dayChange{accountID: 9, date: "2026-09-10", participating: false, bySchool: true}, *recorded)
+
+	missing := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/42/days/2026-09-10", strings.NewReader(`{}`)))
+	assert.Equal(t, 400, missing.Code)
+	badStudent := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/abc/days/2026-09-10", strings.NewReader(`{"participating":true}`)))
+	assert.Equal(t, 400, badStudent.Code)
 }

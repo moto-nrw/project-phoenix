@@ -131,6 +131,25 @@ type SetParticipationDay struct {
 	Participating     bool
 }
 
+// SchoolChange is a change of a child's registration by the school (#3873).
+// The school changes at any time, deadlines included, but never a past or
+// closed day.
+type SchoolChange struct {
+	StudentID      int64
+	StaffAccountID int64
+	Date           Date
+	Participating  bool
+}
+
+// SchoolSchedule replaces a child's regular days from EffectiveFrom on, at
+// the earliest today. The school uses it after the annual registration.
+type SchoolSchedule struct {
+	StudentID      int64
+	StaffAccountID int64
+	Weekdays       []Weekday
+	EffectiveFrom  Date
+}
+
 type DailyParticipant struct {
 	StudentID   int64
 	FirstName   string
@@ -147,6 +166,8 @@ type DailyList struct {
 	// Closed is a closing day or public holiday: nobody eats.
 	Closed       bool
 	Participants []DailyParticipant
+	// Others are the enrolled children who do not eat that day.
+	Others []DailyParticipant
 }
 
 type ReplaceDay struct {
@@ -179,10 +200,12 @@ type engine interface {
 	Clear(context.Context, string) error
 	RegistrationAvailable(context.Context) (bool, error)
 	Participation(context.Context, int64, string, string) (ParticipationPlan, error)
-	ReplaceParticipationSchedule(context.Context, int64, int64, []Weekday) (Date, error)
-	SetParticipationDay(context.Context, int64, int64, string, bool) error
+	// The empty effective date is a parent's change; a set one is the
+	// school's.
+	ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []Weekday, effectiveFrom string) (Date, error)
+	SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating, bySchool bool) error
 	SetParticipationWeek(context.Context, int64, int64, string, bool) (WeekChange, error)
-	ClearParticipationDay(context.Context, int64, int64, string) error
+	ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error
 	DailyParticipants(context.Context, string) (DailyList, error)
 }
 
@@ -257,7 +280,36 @@ func (m *Module) ReplaceParticipationSchedule(ctx context.Context, command Repla
 	if !ok {
 		return "", ErrInvalidParticipation
 	}
-	return m.engine.ReplaceParticipationSchedule(ctx, command.StudentID, command.GuardianAccountID, weekdays)
+	return m.engine.ReplaceParticipationSchedule(ctx, command.StudentID, command.GuardianAccountID, weekdays, "")
+}
+
+// ReplaceScheduleBySchool sets a child's regular days for the school.
+func (m *Module) ReplaceScheduleBySchool(ctx context.Context, command SchoolSchedule) (Date, error) {
+	weekdays, ok := normalizeWeekdays(command.Weekdays)
+	effectiveFrom, err := calendar.ParseDate(string(command.EffectiveFrom))
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || !ok || err != nil {
+		return "", ErrInvalidParticipation
+	}
+	return m.engine.ReplaceParticipationSchedule(ctx, command.StudentID, command.StaffAccountID, weekdays, effectiveFrom.String())
+}
+
+// SetParticipationBySchool registers or cancels a day for the school.
+func (m *Module) SetParticipationBySchool(ctx context.Context, command SchoolChange) error {
+	date, err := participationDate(command.Date)
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
+		return ErrInvalidParticipation
+	}
+	return m.engine.SetParticipationDay(ctx, command.StudentID, command.StaffAccountID, date.String(), command.Participating, true)
+}
+
+// ClearParticipationBySchool drops a day's exception for the school, so the
+// regular days apply again.
+func (m *Module) ClearParticipationBySchool(ctx context.Context, command SchoolChange) error {
+	date, err := participationDate(command.Date)
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
+		return ErrInvalidParticipation
+	}
+	return m.engine.ClearParticipationDay(ctx, command.StudentID, command.StaffAccountID, date.String(), true)
 }
 
 func (m *Module) SetParticipationForDay(ctx context.Context, command SetParticipationDay) error {
@@ -265,7 +317,7 @@ func (m *Module) SetParticipationForDay(ctx context.Context, command SetParticip
 	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
 		return ErrInvalidParticipation
 	}
-	return m.engine.SetParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), command.Participating)
+	return m.engine.SetParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), command.Participating, false)
 }
 
 func (m *Module) SetParticipationForWeek(ctx context.Context, command SetParticipationWeek) (WeekChange, error) {
@@ -281,7 +333,7 @@ func (m *Module) ClearParticipationForDay(ctx context.Context, command SetPartic
 	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
 		return ErrInvalidParticipation
 	}
-	return m.engine.ClearParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String())
+	return m.engine.ClearParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), false)
 }
 
 func (m *Module) DailyList(ctx context.Context, date Date) (DailyList, error) {

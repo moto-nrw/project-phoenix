@@ -16,6 +16,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MealRegistrationChangeModal } from "~/components/meal-plan/meal-registration-change-modal";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -60,6 +61,9 @@ export function MealParticipantList() {
   const [deadline, setDeadline] = useState("");
   const [closed, setClosed] = useState(false);
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
+  // Die übrigen Kinder des Tages, für Änderungen durch die Schule (#3873).
+  const [others, setOthers] = useState<DailyMealParticipant[]>([]);
+  const [changing, setChanging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
@@ -67,8 +71,9 @@ export function MealParticipantList() {
     setLoading(true);
     clearLoadError();
     try {
-      const list = await getDailyMealParticipants(date);
+      const list = await getDailyMealParticipants(date, true);
       setParticipants(list.participants);
+      setOthers(list.others);
       setDeadline(list.deadline);
       setClosed(list.closed);
     } catch (cause) {
@@ -76,6 +81,7 @@ export function MealParticipantList() {
         error: cause instanceof Error ? cause.message : String(cause),
       });
       setParticipants([]);
+      setOthers([]);
       void showLoadError(cause, {
         object: t("errorObject"),
         retry: () => reloadRef.current(),
@@ -185,6 +191,17 @@ export function MealParticipantList() {
               triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="bg-white"
+              onClick={() => setChanging(true)}
+              disabled={loading || Boolean(loadError) || closed || date < today}
+            >
+              {t("change")}
+            </Button>
+
             <div
               role="group"
               aria-label={t("downloadGroup")}
@@ -253,6 +270,14 @@ export function MealParticipantList() {
           }
         />
       )}
+      <MealRegistrationChangeModal
+        isOpen={changing}
+        onClose={() => setChanging(false)}
+        onSaved={() => void load()}
+        date={date}
+        participants={participants}
+        others={others}
+      />
     </section>
   );
 }

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"context"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -36,6 +38,9 @@ type Runtime struct {
 	InvalidRequest  func(http.ResponseWriter, *http.Request, error)
 	ModuleFailure   func(http.ResponseWriter, *http.Request, error, string)
 	ExportDailyList func(mealplanModule.DailyList, string) (ExportFile, error)
+	// CurrentAccountID is the staff account of the request, recorded on a
+	// school's change.
+	CurrentAccountID func(context.Context) int64
 }
 
 type Resource struct {
@@ -44,7 +49,7 @@ type Resource struct {
 }
 
 func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil || runtime.CurrentAccountID == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -59,6 +64,10 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Put("/participation/{studentId}/schedule", rs.replaceChildSchedule)
 	})
 	return router
 }
@@ -83,6 +92,9 @@ type DailyListResponse struct {
 	Deadline     time.Time                  `json:"deadline"`
 	Closed       bool                       `json:"closed"`
 	Participants []DailyParticipantResponse `json:"participants"`
+	// Others are the enrolled children who do not eat that day; only with
+	// include=all, for the school's late changes (#3873).
+	Others []DailyParticipantResponse `json:"others,omitempty"`
 }
 
 type DishRequest struct {
@@ -164,11 +176,19 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	participants := make([]DailyParticipantResponse, 0, len(list.Participants))
-	for _, participant := range list.Participants {
-		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	response := DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: participantResponses(list.Participants)}
+	if r.URL.Query().Get("include") == "all" {
+		response.Others = participantResponses(list.Others)
 	}
-	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: participants}, "Meal participation list retrieved successfully")
+	rs.runtime.Success(w, r, http.StatusOK, response, "Meal participation list retrieved successfully")
+}
+
+func participantResponses(participants []mealplanModule.DailyParticipant) []DailyParticipantResponse {
+	responses := make([]DailyParticipantResponse, 0, len(participants))
+	for _, participant := range participants {
+		responses = append(responses, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	}
+	return responses
 }
 
 func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {

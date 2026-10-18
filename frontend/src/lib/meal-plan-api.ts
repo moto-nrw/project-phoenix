@@ -46,6 +46,8 @@ export interface DailyMealList {
   // A closing day or public holiday: nobody eats.
   closed: boolean;
   participants: DailyMealParticipant[];
+  // Enrolled children who do not eat that day; only when asked for.
+  others: DailyMealParticipant[];
 }
 
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
@@ -97,11 +99,32 @@ export async function setDay(date: string, dishes: DishInput[]): Promise<void> {
   }
 }
 
+interface BackendDailyParticipant {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+}
+
+function dailyParticipant(participant: BackendDailyParticipant) {
+  return {
+    studentId: participant.student_id,
+    firstName: participant.first_name,
+    lastName: participant.last_name,
+    schoolClass: participant.school_class,
+  };
+}
+
+/**
+ * The day list; with `includeOthers` it also names the enrolled children who
+ * do not eat that day, for the school's late changes (#3873).
+ */
 export async function getDailyMealParticipants(
   date: string,
+  includeOthers = false,
 ): Promise<DailyMealList> {
   const response = await sessionFetch(
-    `/api/meal-plan/participants?date=${encodeURIComponent(date)}`,
+    `/api/meal-plan/participants?date=${encodeURIComponent(date)}${includeOthers ? "&include=all" : ""}`,
     { credentials: "include" },
   );
   if (!response.ok) {
@@ -113,12 +136,8 @@ export async function getDailyMealParticipants(
       cutoff_time: string;
       deadline: string;
       closed: boolean;
-      participants: Array<{
-        student_id: string;
-        first_name: string;
-        last_name: string;
-        school_class: string;
-      }>;
+      participants: BackendDailyParticipant[];
+      others?: BackendDailyParticipant[];
     };
   };
   const data = json.data;
@@ -128,13 +147,75 @@ export async function getDailyMealParticipants(
     cutoffTime: data.cutoff_time,
     deadline: data.deadline,
     closed: data.closed === true,
-    participants: data.participants.map((participant) => ({
-      studentId: participant.student_id,
-      firstName: participant.first_name,
-      lastName: participant.last_name,
-      schoolClass: participant.school_class,
-    })),
+    participants: data.participants.map(dailyParticipant),
+    others: (data.others ?? []).map(dailyParticipant),
   };
+}
+
+/** A child's regular meal days as the school sees them (#3873). */
+export interface ChildMealSchedule {
+  weekdays: number[];
+  effectiveFrom: string | null;
+}
+
+export async function getChildMealSchedule(
+  studentId: string,
+  date: string,
+): Promise<ChildMealSchedule> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participation/${encodeURIComponent(studentId)}?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal schedule load failed");
+  }
+  const json = (await response.json()) as {
+    data?: { weekdays: number[]; effective_from?: string };
+  };
+  return {
+    weekdays: json.data?.weekdays ?? [],
+    effectiveFrom: json.data?.effective_from ?? null,
+  };
+}
+
+/** The school registers (true) or cancels (false) a child's day. */
+export async function setChildMealDay(
+  studentId: string,
+  date: string,
+  participating: boolean,
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participation/${encodeURIComponent(studentId)}/days/${encodeURIComponent(date)}`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participating }),
+    },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal day change failed");
+  }
+}
+
+/** The school sets a child's regular days from a day on. */
+export async function replaceChildMealSchedule(
+  studentId: string,
+  weekdays: number[],
+  effectiveFrom: string,
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participation/${encodeURIComponent(studentId)}/schedule`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weekdays, effective_from: effectiveFrom }),
+    },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal schedule change failed");
+  }
 }
 
 export async function downloadDailyMealParticipants(

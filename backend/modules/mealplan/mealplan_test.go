@@ -15,6 +15,10 @@ type recordingEngine struct {
 	replaced  mealplan.ReplaceDay
 	weekdays  []mealplan.Weekday
 	weekOf    string
+	// effectiveFrom is the school's date of a pattern change; a parent's
+	// change leaves it empty.
+	effectiveFrom string
+	bySchool      bool
 }
 
 func (e *recordingEngine) Available(context.Context) (bool, error) { return e.available, nil }
@@ -30,18 +34,20 @@ func (e *recordingEngine) RegistrationAvailable(context.Context) (bool, error) {
 func (e *recordingEngine) Participation(context.Context, int64, string, string) (mealplan.ParticipationPlan, error) {
 	return mealplan.ParticipationPlan{}, nil
 }
-func (e *recordingEngine) ReplaceParticipationSchedule(_ context.Context, _ int64, _ int64, weekdays []mealplan.Weekday) (mealplan.Date, error) {
+func (e *recordingEngine) ReplaceParticipationSchedule(_ context.Context, _ int64, _ int64, weekdays []mealplan.Weekday, effectiveFrom string) (mealplan.Date, error) {
+	e.effectiveFrom = effectiveFrom
 	e.weekdays = weekdays
 	return "2026-09-07", nil
 }
-func (e *recordingEngine) SetParticipationDay(context.Context, int64, int64, string, bool) error {
+func (e *recordingEngine) SetParticipationDay(_ context.Context, _ int64, _ int64, _ string, _ bool, bySchool bool) error {
+	e.bySchool = bySchool
 	return nil
 }
 func (e *recordingEngine) SetParticipationWeek(_ context.Context, _ int64, _ int64, monday string, _ bool) (mealplan.WeekChange, error) {
 	e.weekOf = monday
 	return mealplan.WeekChange{}, nil
 }
-func (e *recordingEngine) ClearParticipationDay(context.Context, int64, int64, string) error {
+func (e *recordingEngine) ClearParticipationDay(context.Context, int64, int64, string, bool) error {
 	return nil
 }
 func (e *recordingEngine) DailyParticipants(context.Context, string) (mealplan.DailyList, error) {
@@ -149,6 +155,37 @@ func TestModuleAnchorsWeekChangesOnMonday(t *testing.T) {
 	} {
 		if _, err := module.SetParticipationForWeek(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
 			t.Fatalf("SetParticipationForWeek(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
+	}
+}
+
+func TestModuleRoutesSchoolChangesAroundTheDeadlines(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{available: true}
+	module := mealplan.NewModule(engine)
+	if err := module.SetParticipationBySchool(context.Background(), mealplan.SchoolChange{StudentID: 42, StaffAccountID: 9, Date: "2026-09-10", Participating: true}); err != nil {
+		t.Fatalf("SetParticipationBySchool() error = %v", err)
+	}
+	if !engine.bySchool {
+		t.Fatal("a school change must reach the engine as one")
+	}
+	if err := module.SetParticipationForDay(context.Background(), mealplan.SetParticipationDay{StudentID: 42, GuardianAccountID: 7, Date: "2026-09-10", Participating: true}); err != nil || engine.bySchool {
+		t.Fatalf("a parent change must not reach the engine as the school's (err %v)", err)
+	}
+	if _, err := module.ReplaceScheduleBySchool(context.Background(), mealplan.SchoolSchedule{StudentID: 42, StaffAccountID: 9, Weekdays: []mealplan.Weekday{mealplan.Monday}, EffectiveFrom: "2026-09-14"}); err != nil {
+		t.Fatalf("ReplaceScheduleBySchool() error = %v", err)
+	}
+	if engine.effectiveFrom != "2026-09-14" {
+		t.Fatalf("school pattern starts %q, want 2026-09-14", engine.effectiveFrom)
+	}
+	for _, command := range []mealplan.SchoolSchedule{
+		{StudentID: 42, StaffAccountID: 9, Weekdays: []mealplan.Weekday{mealplan.Monday}},
+		{StudentID: 42, StaffAccountID: 0, Weekdays: []mealplan.Weekday{mealplan.Monday}, EffectiveFrom: "2026-09-14"},
+		{StudentID: 42, StaffAccountID: 9, Weekdays: []mealplan.Weekday{6}, EffectiveFrom: "2026-09-14"},
+	} {
+		if _, err := module.ReplaceScheduleBySchool(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("ReplaceScheduleBySchool(%+v) error = %v, want ErrInvalidParticipation", command, err)
 		}
 	}
 }

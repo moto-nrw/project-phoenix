@@ -190,21 +190,21 @@ func (e engine) Participation(ctx context.Context, studentID int64, from, to str
 	return publicParticipationPlan(plan), nil
 }
 
-func (e engine) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []mealplan.Weekday) (mealplan.Date, error) {
+func (e engine) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []mealplan.Weekday, effectiveFrom string) (mealplan.Date, error) {
 	values := make([]domain.Weekday, 0, len(weekdays))
 	for _, weekday := range weekdays {
 		values = append(values, domain.Weekday(weekday))
 	}
-	effectiveFrom, err := e.service.ReplaceParticipationSchedule(ctx, studentID, accountID, values)
-	return mealplan.Date(effectiveFrom.String()), mapError(err)
+	from, err := e.service.ReplaceParticipationSchedule(ctx, studentID, accountID, values, domain.Date(effectiveFrom))
+	return mealplan.Date(from.String()), mapError(err)
 }
 
-func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating bool) error {
+func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating, bySchool bool) error {
 	parsed, err := domain.ParseDate(date)
 	if err != nil {
 		return err
 	}
-	return mapError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating))
+	return mapError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating, bySchool))
 }
 
 func (e engine) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday string, participating bool) (mealplan.WeekChange, error) {
@@ -227,12 +227,12 @@ func publicDates(dates []domain.Date) []mealplan.Date {
 	return result
 }
 
-func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string) error {
+func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error {
 	parsed, err := domain.ParseDate(date)
 	if err != nil {
 		return err
 	}
-	return mapError(e.service.ClearParticipationDay(ctx, studentID, accountID, parsed))
+	return mapError(e.service.ClearParticipationDay(ctx, studentID, accountID, parsed, bySchool))
 }
 
 func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.DailyList, error) {
@@ -246,7 +246,10 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 	}
 	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
 	for _, participant := range list.Participants {
-		result.Participants = append(result.Participants, mealplan.DailyParticipant{StudentID: participant.StudentID, FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+		result.Participants = append(result.Participants, mealplan.DailyParticipant(participant))
+	}
+	for _, other := range list.Others {
+		result.Others = append(result.Others, mealplan.DailyParticipant(other))
 	}
 	return result, nil
 }
@@ -276,7 +279,7 @@ func mapError(err error) error {
 	if errors.Is(err, application.ErrCutoffPassed) {
 		return mealplan.ErrParticipationCutoff
 	}
-	if errors.Is(err, application.ErrInvalidCutoff) {
+	if errors.Is(err, application.ErrInvalidCutoff) || errors.Is(err, application.ErrPastDay) {
 		return mealplan.ErrInvalidParticipation
 	}
 	return err

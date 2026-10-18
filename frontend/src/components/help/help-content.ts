@@ -4050,6 +4050,7 @@ function mealOrderingTopic(): HelpTopic {
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
+      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Essensplan` mit `Anmeldung ändern`, für einen Tag oder die festen Tage.",
     ],
     troubleshootingDetails: [
       "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
