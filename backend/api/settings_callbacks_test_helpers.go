@@ -13,6 +13,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,9 +47,13 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 		ActingAccount: actingAccountID,
 	})
-	RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, append(module.sideEffects,
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle})...)
+	if err != nil {
+		return SettingsCallbacksTestModule{}, err
+	}
 	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
-		module.SettingsSideEffects.Dispatch,
+		registry.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
 		})

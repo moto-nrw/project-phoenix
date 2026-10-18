@@ -7,11 +7,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,6 +28,8 @@ type OperatorSettingsTestModule struct {
 	// Schools is the Organisation & Tenancy owner the slug lookup reads.
 	Schools organizationtenancy.Capability
 	db      transactionruntime.Database
+	// sideEffects are the effects SettingsSideEffects was built with.
+	sideEffects []settingsCompose.SettingSideEffect
 }
 
 func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (OperatorSettingsTestModule, error) {
@@ -45,11 +49,19 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	registry := settingsCompose.NewSideEffectRegistry()
 	wc := facilitiesCompose.NewWCService(active.Facilities, FacilitiesActivityCatalog(active.Activities), slog.Default())
-	registerCheckoutSettingsSideEffects(registry, active.Schulhof, wc)
-	RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	schulhof, wcSwitch := facilitiesLegacy.SettingHandlers(active.Schulhof, wc)
+	effects := []settingsCompose.SettingSideEffect{
+		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},
+		{Key: configModels.KeyCheckoutWCEnabled, Handle: wcSwitch},
+		careWithdrawalSettingSideEffect(care.CareLifecycle),
+	}
+	registry, err := settingsCompose.NewSideEffects(func(string) {}, effects...)
+	if err != nil {
+		return OperatorSettingsTestModule{}, err
+	}
 	return OperatorSettingsTestModule{
+		sideEffects:         effects,
 		ActiveTestModule:    active,
 		CareLifecycle:       care.CareLifecycle,
 		SettingsSideEffects: registry,

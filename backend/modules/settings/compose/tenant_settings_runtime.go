@@ -27,16 +27,6 @@ func NewTenantSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) TenantSetting
 	return TenantSettingsRuntime{db: db, unit: unit}
 }
 
-// BindTenantSettingsRuntime is NewTenantSettingsRuntime for a root that hands
-// its unit of work over as an opaque value; a value of another type fails.
-func BindTenantSettingsRuntime(db *bun.DB, unit any) (TenantSettingsRuntime, error) {
-	runtime, ok := unit.(tenant.UnitOfWork)
-	if !ok {
-		return TenantSettingsRuntime{}, fmt.Errorf("settings runtime: unsupported unit of work %T", unit)
-	}
-	return NewTenantSettingsRuntime(db, &runtime), nil
-}
-
 func (r TenantSettingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (r TenantSettingsRuntime) HasTransaction(ctx context.Context) bool {

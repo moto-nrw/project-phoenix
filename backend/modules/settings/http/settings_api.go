@@ -36,7 +36,6 @@ type SettingsResource struct {
 }
 
 type Operations interface {
-	SetValueSetHook(func(context.Context, int64, string, any) (func(), error))
 	Schema(context.Context, []string) (any, error)
 	Reveal(context.Context, string, []string) (any, error)
 	SetValue(context.Context, int64, int64, []string, string, any) error

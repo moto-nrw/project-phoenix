@@ -25,19 +25,24 @@ type (
 	SFTPExportKeys            = configSvc.SFTPExportKeys
 	SideEffectRegistry        = sideeffects.Registry
 	SideEffectFailureObserver = sideeffects.FailureObserver
+	// SettingsDependencies are every collaborator of the settings service at
+	// construction (ADR 0059); SettingSideEffect binds one setting key to its
+	// write side effect.
+	SettingsDependencies = configSvc.SettingsServiceDependencies
+	SettingSideEffect    = sideeffects.Handler
 )
 
 var (
-	NewSettingsService                = configSvc.NewSettingsService
-	NewSettingsServiceWithHomeLayouts = configSvc.NewSettingsServiceWithHomeLayouts
-	NewHomeLayoutService              = configSvc.NewHomeLayoutService
-	NewTenantOperations               = configSvc.NewTenantOperations
-	NewPayrollStatusService           = configSvc.NewPayrollStatusService
-	NewSFTPExportSettings             = configSvc.NewSFTPExportSettings
-	NewSideEffectRegistry             = sideeffects.NewRegistry
-	WithSettingsSnapshot              = configSvc.WithSettingsSnapshot
-	WithSettingsRequestCache          = configSvc.WithSettingsRequestCache
-	ResolveBoolOrDefault              = configSvc.ResolveBoolOrDefault
-	ResolveIntOrDefault               = configSvc.ResolveIntOrDefault
-	ResolveStringOrDefault            = configSvc.ResolveStringOrDefault
+	NewSettingsService       = configSvc.NewSettingsService
+	NewHomeLayoutService     = configSvc.NewHomeLayoutService
+	NewTenantOperations      = configSvc.NewTenantOperations
+	NewPayrollStatusService  = configSvc.NewPayrollStatusService
+	NewSFTPExportSettings    = configSvc.NewSFTPExportSettings
+	NewSettings              = configSvc.NewSettingsServiceWithDependencies
+	NewSideEffects           = sideeffects.NewRegistryWith
+	WithSettingsSnapshot     = configSvc.WithSettingsSnapshot
+	WithSettingsRequestCache = configSvc.WithSettingsRequestCache
+	ResolveBoolOrDefault     = configSvc.ResolveBoolOrDefault
+	ResolveIntOrDefault      = configSvc.ResolveIntOrDefault
+	ResolveStringOrDefault   = configSvc.ResolveStringOrDefault
 )
