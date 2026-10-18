@@ -35,6 +35,11 @@ type ParticipantCandidate struct {
 
 type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
 
+// CalendarFinder reads the school calendar for the inclusive window
+// [from, to]: the closed days (closing days, public holidays) and the days of
+// school holiday periods, both as YYYY-MM-DD sets.
+type CalendarFinder func(ctx context.Context, from, to string) (closed, holiday map[string]bool, err error)
+
 type Dependencies struct {
 	DB       *bun.DB
 	Settings interface {
@@ -45,10 +50,11 @@ type Dependencies struct {
 	Observe      func(Observation)
 	Now          func() time.Time
 	Participants ParticipantFinder
+	Calendar     CalendarFinder
 }
 
 func New(dependencies Dependencies) (*mealplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
@@ -66,7 +72,7 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 		}
 		return tx, tenantID.Int64(), nil
 	})
-	service := application.New(store, participantDirectory{find: dependencies.Participants}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
+	service := application.New(store, participantDirectory{find: dependencies.Participants}, schoolCalendar{find: dependencies.Calendar}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return mealplan.NewModule(engine{service: service}), nil
 }
 
@@ -87,6 +93,14 @@ func (d participantDirectory) FindDailyCandidates(ctx context.Context, date doma
 		})
 	}
 	return candidates, stats, nil
+}
+
+type schoolCalendar struct{ find CalendarFinder }
+
+func (c schoolCalendar) Days(ctx context.Context, from, to domain.Date) (domain.CalendarDays, domain.OperationStats, error) {
+	started := time.Now()
+	closed, holiday, err := c.find(ctx, from.String(), to.String())
+	return domain.NewCalendarDays(closed, holiday), domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.

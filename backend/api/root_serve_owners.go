@@ -38,6 +38,7 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The owner modules of the serving roots, observed into the metrics sinks.
@@ -193,7 +194,7 @@ func observePeopleDirectory(observation peopleCompose.Observation) {
 
 // buildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
-func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (*mealplanModule.Module, error) {
+func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, calendarRecords *schoolcalendar.Records) (*mealplanModule.Module, error) {
 	return mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,
@@ -202,7 +203,41 @@ func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 		},
 		Now:          time.Now,
 		Participants: mealPlanParticipantFinder(students, time.Now),
+		Calendar:     mealPlanCalendar(calendarRecords),
 	})
+}
+
+// mealPlanCalendar binds the School Calendar for the Meal Plan: closing days
+// and public holidays close a day, school holiday periods suspend the weekly
+// registration pattern (#3873).
+func mealPlanCalendar(records *schoolcalendar.Records) mealplanCompose.CalendarFinder {
+	return func(ctx context.Context, from, to string) (map[string]bool, map[string]bool, error) {
+		closed, err := records.NonWorkingDayDates(ctx, from, to)
+		if err != nil {
+			return nil, nil, err
+		}
+		periods, err := records.ListCalendarPeriods(ctx, schoolcalendar.HolidaysOverlapping(from, to))
+		if err != nil {
+			return nil, nil, err
+		}
+		holiday := make(map[string]bool)
+		for _, period := range periods {
+			for day := max(period.StartDate, from); day <= min(period.EndDate, to); day = calendarNextDay(day) {
+				holiday[day] = true
+			}
+		}
+		return closed, holiday, nil
+	}
+}
+
+// calendarNextDay advances a YYYY-MM-DD day by one. The School Calendar
+// validated it, so a parse failure only ends the loop.
+func calendarNextDay(day string) string {
+	value, err := timezone.ParseDate(day)
+	if err != nil {
+		return "9999-12-31"
+	}
+	return value.AddDays(1).String()
 }
 
 // buildServeFeedback composes Feedback over its settings.

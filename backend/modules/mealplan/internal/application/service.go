@@ -20,17 +20,18 @@ var (
 type Service struct {
 	store     ports.Store
 	directory ports.Directory
+	calendar  ports.Calendar
 	settings  ports.Settings
 	tx        ports.Transaction
 	observe   ports.Observer
 	now       func() time.Time
 }
 
-func New(store ports.Store, directory ports.Directory, settings ports.Settings, tx ports.Transaction, observe ports.Observer, now func() time.Time) *Service {
-	if store == nil || directory == nil || settings == nil || tx == nil || observe == nil || now == nil {
+func New(store ports.Store, directory ports.Directory, calendar ports.Calendar, settings ports.Settings, tx ports.Transaction, observe ports.Observer, now func() time.Time) *Service {
+	if store == nil || directory == nil || calendar == nil || settings == nil || tx == nil || observe == nil || now == nil {
 		panic("meal plan application: all dependencies are required")
 	}
-	return &Service{store: store, directory: directory, settings: settings, tx: tx, observe: observe, now: now}
+	return &Service{store: store, directory: directory, calendar: calendar, settings: settings, tx: tx, observe: observe, now: now}
 }
 
 func (s *Service) RegistrationAvailable(ctx context.Context) (available bool, err error) {
@@ -54,7 +55,12 @@ func (s *Service) Participation(ctx context.Context, studentID int64, from, to d
 		if findErr != nil {
 			return stats, findErr
 		}
-		plan = s.resolveParticipation(data, from, to, rules)
+		days, calendarStats, calendarErr := s.calendar.Days(txCtx, from, to)
+		stats = addStats(stats, calendarStats)
+		if calendarErr != nil {
+			return stats, calendarErr
+		}
+		plan = s.resolveParticipation(data, from, to, rules, days)
 		return stats, nil
 	})
 	return plan, err
@@ -87,25 +93,37 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 		if !parentMayChange(rules, s.now(), date, participating) {
 			return domain.OperationStats{}, ErrCutoffPassed
 		}
-		return s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
+		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
+		if calendarErr != nil {
+			return stats, calendarErr
+		}
+		if days.Closed[date] {
+			return stats, ErrCutoffPassed
+		}
+		writeStats, err := s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
+		return addStats(stats, writeStats), err
 	})
 }
 
 // SetParticipationWeek registers or cancels every remaining weekday of the
 // week for a parent. Days whose deadline has passed stay as they are and are
-// returned as locked; past days are skipped. Nothing changeable at all is a
-// passed deadline.
+// returned as locked; past and closed days are skipped. Nothing changeable at
+// all is a passed deadline.
 func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday domain.Date, participating bool) (changed, locked []domain.Date, err error) {
 	err = s.run(ctx, "set_participation_week", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
+		days, stats, calendarErr := s.calendar.Days(txCtx, monday, monday.AddDays(4))
+		if calendarErr != nil {
+			return stats, calendarErr
+		}
 		now := s.now()
 		today := domain.DateFromInstant(now)
 		for date := monday; date.Before(monday.AddDays(5)); date = date.AddDays(1) {
 			switch {
-			case date.Before(today):
+			case date.Before(today), days.Closed[date]:
 			case parentMayChange(rules, now, date, participating):
 				changed = append(changed, date)
 			default:
@@ -113,9 +131,10 @@ func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID
 			}
 		}
 		if len(changed) == 0 {
-			return domain.OperationStats{}, ErrCutoffPassed
+			return stats, ErrCutoffPassed
 		}
-		return s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
+		writeStats, err := s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
+		return addStats(stats, writeStats), err
 	})
 	return changed, locked, err
 }
@@ -159,8 +178,14 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
+		list = domain.DailyList{Date: date, CutoffTime: rules.Registration.Clock, Participants: []domain.DailyParticipant{}}
+		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
+		if calendarErr != nil || days.Closed[date] {
+			return stats, calendarErr
+		}
 		cutoff := rules.AbsenceCutoff(date)
-		candidates, stats, findErr := s.directory.FindDailyCandidates(txCtx, date)
+		candidates, candidateStats, findErr := s.directory.FindDailyCandidates(txCtx, date)
+		stats = addStats(stats, candidateStats)
 		if findErr != nil {
 			return stats, findErr
 		}
@@ -173,17 +198,10 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		if findErr != nil {
 			return stats, findErr
 		}
-		list = domain.DailyList{Date: date, CutoffTime: rules.Registration.Clock, Participants: make([]domain.DailyParticipant, 0, len(candidates))}
 		for _, candidate := range candidates {
 			state := participation[candidate.StudentID]
-			participating := state.Regular
-			if state.Override != nil {
-				participating = *state.Override
-			}
-			if state.SickReportedAt != nil && sickAtCutoff(*state.SickReportedAt, state.SickClearedAt, cutoff) {
-				participating = false
-			}
-			if participating {
+			day := dayState{holiday: days.Holiday[date], scheduled: state.Regular, override: state.Override, absences: state.Absences}
+			if participating, _ := resolveDay(day, cutoff); participating {
 				list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
 			}
 		}
@@ -268,22 +286,15 @@ func (s *Service) requireRegistration(ctx context.Context) (domain.OrderingRules
 	return orderingRules(settings)
 }
 
-func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, rules domain.OrderingRules) domain.ParticipationPlan {
+func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, rules domain.OrderingRules, days domain.CalendarDays) domain.ParticipationPlan {
 	now := s.now()
 	overrides := make(map[domain.Date]bool, len(data.Overrides))
 	for _, override := range data.Overrides {
 		overrides[override.Date] = override.Participating
 	}
-	sickDays := make(map[domain.Date]domain.SickDay, len(data.SickDays))
-	for _, sick := range data.SickDays {
-		cutoff := rules.AbsenceCutoff(sick.Date)
-		if sick.ChangedAt.After(cutoff) {
-			continue
-		}
-		current, exists := sickDays[sick.Date]
-		if !exists || sick.ChangedAt.After(current.ChangedAt) || (sick.ChangedAt.Equal(current.ChangedAt) && sick.ID > current.ID) {
-			sickDays[sick.Date] = sick
-		}
+	absences := make(map[domain.Date][]domain.SickDay, len(data.SickDays))
+	for _, absence := range data.SickDays {
+		absences[absence.Date] = append(absences[absence.Date], absence)
 	}
 	plan := domain.ParticipationPlan{
 		CutoffTime: rules.Registration.Clock, Model: rules.Model, ScheduleChangeable: rules.ParentCanChangeSchedule(now), Sick: rules.Sick,
@@ -293,25 +304,22 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 			continue
 		}
-		schedule := scheduleForDate(data.Schedules, date)
-		participating := scheduleContains(schedule, date.Weekday())
-		source := domain.ParticipationNone
-		if participating {
-			source = domain.ParticipationRegular
+		state := dayState{
+			closed: days.Closed[date], holiday: days.Holiday[date],
+			scheduled: scheduleContains(scheduleForDate(data.Schedules, date), date.Weekday()), absences: absences[date],
 		}
 		if value, exists := overrides[date]; exists {
-			participating = value
-			source = domain.ParticipationOverride
+			state.override = &value
 		}
-		if sick, exists := sickDays[date]; exists && sickAtCutoff(sick.ReportedAt, sick.ClearedAt, rules.AbsenceCutoff(date)) {
-			participating = false
-			source = domain.ParticipationSick
-		}
-		plan.Days = append(plan.Days, domain.ParticipationDay{
+		participating, source := resolveDay(state, rules.AbsenceCutoff(date))
+		day := domain.ParticipationDay{
 			Date: date, Participating: participating, Source: source,
-			CanRegister: rules.ParentCanRegister(now, date), CanCancel: rules.ParentCanCancel(now, date),
 			RegisterUntil: rules.RegistrationAt(date), CancelUntil: rules.CancellationAt(date),
-		})
+		}
+		if !state.closed {
+			day.CanRegister, day.CanCancel = rules.ParentCanRegister(now, date), rules.ParentCanCancel(now, date)
+		}
+		plan.Days = append(plan.Days, day)
 	}
 	editableSchedule := scheduleForDate(data.Schedules, rules.NextEffectiveDate(now))
 	if editableSchedule != nil {
@@ -342,10 +350,6 @@ func scheduleContains(schedule *domain.ParticipationSchedule, weekday time.Weekd
 		}
 	}
 	return false
-}
-
-func sickAtCutoff(reportedAt time.Time, clearedAt *time.Time, cutoff time.Time) bool {
-	return !reportedAt.After(cutoff) && (clearedAt == nil || clearedAt.After(cutoff))
 }
 
 func (s *Service) run(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) (err error) {

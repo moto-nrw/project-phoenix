@@ -4044,6 +4044,8 @@ function mealOrderingTopic(): HelpTopic {
       "`Laufend, mit eigener Abmeldefrist` passt, wenn der Caterer früh bestellt, Abmelden aber später noch geht.",
       "`Für das Schuljahr`: Eltern melden bis zum `Anmeldeschluss für das Schuljahr` an. Danach meldet nur die Schule an.",
       "Bei `Abmelden nach dem Anmeldeschluss` legen Sie fest, ob Eltern danach noch Tage oder Wochen abmelden.",
+      "An Schließtagen und Feiertagen isst niemand. In den Ferien gelten die festen Tage nicht, einzeln angemeldete Tage zählen.",
+      "`Entschuldigt` und `Klassenfahrt` melden das Essen ab wie eine Krankmeldung.",
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
@@ -6601,6 +6603,8 @@ function parentMealPlanTopic(): HelpTopic {
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
       "Fehlt `Ändern` bei den festen Tagen? Dann ist die Anmeldung für das Schuljahr abgeschlossen. Die festen Tage ändert jetzt die Schule.",
       "Nach `Woche abmelden` bleiben Tage angemeldet, deren Frist schon vorbei ist. moto nennt sie.",
+      "Steht `An diesem Tag ist die OGS zu`, gibt es an diesem Tag kein Essen.",
+      "In den Ferien gelten die festen Tage nicht. Für die Ferienbetreuung melden Sie einzelne Tage an.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Essensplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",

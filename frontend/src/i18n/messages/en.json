@@ -237,6 +237,8 @@
     "registered": "Registered for lunch",
     "notRegistered": "Not registered for lunch",
     "cancelledBySickNote": "Cancelled by the sick note",
+    "cancelledByAbsence": "Cancelled because your child is absent",
+    "closedDay": "The OGS is closed on this day",
     "participationUnavailable": "Registration not loaded",
     "mealUnavailable": "Meal not loaded",
     "singleChange": "Changed for this day only",

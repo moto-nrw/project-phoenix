@@ -25,6 +25,29 @@ type testParticipantRow struct {
 	SchoolClass string `bun:"school_class"`
 }
 
+// openCalendar is a school calendar without closing days or holidays.
+func openCalendar(context.Context, string, string) (map[string]bool, map[string]bool, error) {
+	return map[string]bool{}, map[string]bool{}, nil
+}
+
+// fixedCalendar is a school calendar with the given closed and holiday days.
+func fixedCalendar(closed, holiday []string) CalendarFinder {
+	return func(_ context.Context, from, to string) (map[string]bool, map[string]bool, error) {
+		closedDays, holidayDays := map[string]bool{}, map[string]bool{}
+		for _, day := range closed {
+			if day >= from && day <= to {
+				closedDays[day] = true
+			}
+		}
+		for _, day := range holiday {
+			if day >= from && day <= to {
+				holidayDays[day] = true
+			}
+		}
+		return closedDays, holidayDays, nil
+	}
+}
+
 func testParticipantFinder(ctx context.Context, date string) ([]ParticipantCandidate, error) {
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
@@ -138,6 +161,7 @@ func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return now },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 	return module
@@ -257,6 +281,7 @@ func TestModuleReportsPersistenceQueryAndRowCounts(t *testing.T) {
 		Observe:      func(observation Observation) { observations = append(observations, observation) },
 		Now:          func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 
@@ -305,6 +330,7 @@ func TestParticipationRejectsSameDayChangeAfterKitchenCutoff(t *testing.T) {
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Beispiel", "3b")
@@ -330,6 +356,7 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 	available, err := disabledModule.RegistrationAvailable(testpkg.Ctx(t))
@@ -348,6 +375,7 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 	require.NoError(t, enabledModule.SetParticipationForDay(testpkg.Ctx(t), mealplan.SetParticipationDay{
@@ -523,6 +551,7 @@ func buildModuleWithRules(t *testing.T, db *bun.DB, ordering OrderingSettings, n
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return now },
 		Participants: testParticipantFinder,
+		Calendar:     openCalendar,
 	})
 	require.NoError(t, err)
 	return module
@@ -687,4 +716,122 @@ func TestSickCancelledModeCancelsAbsencesReportedAfterTheDeadline(t *testing.T) 
 	require.NoError(t, err)
 	assert.False(t, plan.SickCancels)
 	assert.True(t, plan.Days[0].Participating, "with the default the meal stays ordered")
+}
+
+func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar CalendarFinder, now time.Time) *mealplan.Module {
+	t.Helper()
+	module, err := New(Dependencies{
+		DB:           db,
+		Settings:     enabledTestSettings(nil),
+		Observe:      func(Observation) {},
+		Now:          func() time.Time { return now },
+		Participants: testParticipantFinder,
+		Calendar:     calendar,
+	})
+	require.NoError(t, err)
+	return module
+}
+
+func createStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date, status string, reportedAt time.Time) {
+	t.Helper()
+	row := &testStatusDayRow{TenantID: tenantID, StudentID: studentID, Date: date, Status: status, ReportedAt: reportedAt, Source: "manual"}
+	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// #3873: on a closing day or public holiday nobody eats, and parents cannot
+// register for it.
+func TestClosedDaysCountNobodyAndStayClosedForParents(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModuleWithCalendar(t, db, fixedCalendar([]string{"2026-09-09"}, nil), time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Clara", "Schließtag", "2f")
+	account := testpkg.CreateTestAccount(t, db, "meal-closed-day")
+	ctx := testpkg.Ctx(t)
+	_, err := module.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Monday, mealplan.Wednesday}})
+	require.NoError(t, err)
+
+	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	wednesday := plan.Days[2]
+	assert.Equal(t, mealplan.ParticipationClosed, wednesday.Source)
+	assert.False(t, wednesday.Participating)
+	assert.False(t, wednesday.Changeable, "a closed day offers nothing to change")
+	assert.True(t, plan.Days[0].Participating, "Monday stays registered")
+
+	err = module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-09", Participating: true})
+	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff)
+
+	list, err := module.DailyList(ctx, "2026-09-09")
+	require.NoError(t, err)
+	assert.Empty(t, list.Participants)
+
+	change, err := module.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-07", Participating: false})
+	require.NoError(t, err)
+	assert.NotContains(t, change.Changed, mealplan.Date("2026-09-09"))
+	assert.NotContains(t, change.Locked, mealplan.Date("2026-09-09"))
+}
+
+// #3873: the weekly pattern does not apply in school holidays, but a single
+// day registered for holiday care still counts.
+func TestHolidaysSuspendTheWeeklyPatternButKeepSingleRegistrations(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModuleWithCalendar(t, db, fixedCalendar(nil, []string{"2026-09-07", "2026-09-08"}), time.Date(2026, 9, 4, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Henri", "Ferien", "3d")
+	account := testpkg.CreateTestAccount(t, db, "meal-holidays")
+	ctx := testpkg.Ctx(t)
+	_, err := module.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Monday, mealplan.Tuesday, mealplan.Wednesday}})
+	require.NoError(t, err)
+	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-08", Participating: true}))
+
+	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-09")
+	require.NoError(t, err)
+	assert.False(t, plan.Days[0].Participating, "no pattern in the holidays")
+	assert.Equal(t, mealplan.ParticipationNone, plan.Days[0].Source)
+	assert.True(t, plan.Days[0].Changeable, "holiday care can still be registered")
+	assert.True(t, plan.Days[1].Participating, "holiday care registered for the day")
+	assert.True(t, plan.Days[2].Participating, "the pattern applies after the holidays")
+
+	monday, err := module.DailyList(ctx, "2026-09-07")
+	require.NoError(t, err)
+	assert.NotContains(t, dailyParticipantIDs(monday), student.ID)
+	tuesday, err := module.DailyList(ctx, "2026-09-08")
+	require.NoError(t, err)
+	assert.Contains(t, dailyParticipantIDs(tuesday), student.ID)
+}
+
+// #3873: an excused child or one on a class trip does not eat either; the
+// parent sees "absent", never the reason, and a cleared status does not hide
+// another one of the same day.
+func TestExcusedAndClassTripCancelTheMealLikeASickNote(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, true, nil)
+	student := testpkg.CreateTestStudent(t, db, "Ella", "Entschuldigt", "4c")
+	account := testpkg.CreateTestAccount(t, db, "meal-excused")
+	ctx := testpkg.Ctx(t)
+	for _, date := range []mealplan.Date{"2026-09-07", "2026-09-08", "2026-09-09"} {
+		require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: date, Participating: true}))
+	}
+	before := time.Date(2026, 9, 6, 18, 0, 0, 0, testBerlin)
+	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", "excused", before)
+	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-08", "class_trip", before)
+	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-09", "excused", before)
+	sick := createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-09", before)
+	_, err := db.NewUpdate().Model(sick).ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+		Set(`cleared_at = ?`, before.Add(time.Hour)).WherePK().Exec(context.Background())
+	require.NoError(t, err)
+
+	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-09")
+	require.NoError(t, err)
+	for _, day := range plan.Days {
+		assert.False(t, day.Participating, day.Date)
+		assert.Equal(t, mealplan.ParticipationAbsent, day.Source, day.Date)
+	}
+	for _, date := range []mealplan.Date{"2026-09-07", "2026-09-08", "2026-09-09"} {
+		list, err := module.DailyList(ctx, date)
+		require.NoError(t, err)
+		assert.NotContains(t, dailyParticipantIDs(list), student.ID, date)
+	}
 }

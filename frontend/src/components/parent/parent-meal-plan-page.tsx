@@ -928,9 +928,13 @@ function ParticipationWeek({
               const statusLabel = day
                 ? displayedSource === "sick"
                   ? t("cancelledBySickNote")
-                  : displayedParticipation
-                    ? t("registered")
-                    : t("notRegistered")
+                  : displayedSource === "absent"
+                    ? t("cancelledByAbsence")
+                    : displayedSource === "closed"
+                      ? t("closedDay")
+                      : displayedParticipation
+                        ? t("registered")
+                        : t("notRegistered")
                 : t("participationUnavailable");
               const statusTone =
                 displayedSource === "sick"
@@ -938,6 +942,8 @@ function ParticipationWeek({
                   : displayedParticipation
                     ? "green"
                     : "gray";
+              const absence =
+                displayedSource === "sick" || displayedSource === "absent";
 
               return (
                 <li
@@ -995,7 +1001,7 @@ function ParticipationWeek({
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge label={statusLabel} tone={statusTone} />
                         {day?.changeable &&
-                        day.source !== "sick" &&
+                        !absence &&
                         !editingRegularDays &&
                         editingDate === null ? (
                           <Button
@@ -1021,7 +1027,7 @@ function ParticipationWeek({
                         {t("singleChange")}
                       </p>
                     ) : null}
-                    {day && !day.changeable ? (
+                    {day && !day.changeable && day.source !== "closed" ? (
                       <p className="mt-1.5 text-xs text-gray-500">
                         {t("closed")}
                       </p>
@@ -1036,9 +1042,7 @@ function ParticipationWeek({
                           </p>
                         ))
                       : null}
-                    {editingDate === date &&
-                    day?.changeable &&
-                    day.source !== "sick" ? (
+                    {editingDate === date && day?.changeable && !absence ? (
                       <fieldset
                         ref={dayEditorRef}
                         tabIndex={-1}

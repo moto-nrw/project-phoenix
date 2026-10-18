@@ -1074,6 +1074,42 @@ describe("ParentMealPlanPage", () => {
       expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
     });
 
+    it("names absent and closed days without a change button", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", { participating: false, source: "absent" }),
+            day("2026-08-13", {
+              participating: false,
+              source: "closed",
+              can_register: false,
+              can_cancel: false,
+            }),
+          ],
+        }),
+      );
+
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText("Abgemeldet, weil Ihr Kind fehlt"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("An diesem Tag ist die OGS zu"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Nicht mehr änderbar")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Anmeldung ändern: Mittwoch, 12. August",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Anmeldung ändern: Donnerstag, 13. August",
+        }),
+      ).not.toBeInTheDocument();
+    });
+
     it("reaches four weeks and loads the meal plan only for the first two", async () => {
       mocks.getMealParticipation.mockResolvedValue(plan());
 

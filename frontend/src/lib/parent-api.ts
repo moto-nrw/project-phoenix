@@ -881,7 +881,10 @@ export async function getChildMealPlan(
   );
 }
 
-type MealParticipationSource = "none" | "regular" | "override" | "sick";
+// "absent": excused or on a class trip; "closed": a closing day or public
+// holiday, nobody eats (#3873).
+type MealParticipationSource =
+  "none" | "regular" | "override" | "sick" | "absent" | "closed";
 
 interface MealParticipationDay {
   readonly date: string;

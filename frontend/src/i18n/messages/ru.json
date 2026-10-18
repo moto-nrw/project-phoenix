@@ -237,6 +237,8 @@
     "registered": "Записан на обед",
     "notRegistered": "Не записан на обед",
     "cancelledBySickNote": "Отменено из-за сообщения о болезни",
+    "cancelledByAbsence": "Отменено, так как ребёнок отсутствует",
+    "closedDay": "В этот день продлёнка закрыта",
     "participationUnavailable": "Запись не загружена",
     "mealUnavailable": "Меню не загружено",
     "singleChange": "Изменено только для этого дня",

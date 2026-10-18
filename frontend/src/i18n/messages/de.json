@@ -237,6 +237,8 @@
     "registered": "Zum Mittagessen angemeldet",
     "notRegistered": "Nicht zum Mittagessen angemeldet",
     "cancelledBySickNote": "Durch die Krankmeldung abgemeldet",
+    "cancelledByAbsence": "Abgemeldet, weil Ihr Kind fehlt",
+    "closedDay": "An diesem Tag ist die OGS zu",
     "participationUnavailable": "Anmeldung nicht geladen",
     "mealUnavailable": "Essen nicht geladen",
     "singleChange": "Nur für diesen Tag geändert",

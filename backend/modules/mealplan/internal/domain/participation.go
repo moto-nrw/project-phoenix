@@ -16,7 +16,15 @@ const (
 	ParticipationRegular  ParticipationSource = "regular"
 	ParticipationOverride ParticipationSource = "override"
 	ParticipationSick     ParticipationSource = "sick"
+	// ParticipationAbsent: excused or on a class trip (#3873).
+	ParticipationAbsent ParticipationSource = "absent"
+	// ParticipationClosed: a closing day or public holiday; nobody eats.
+	ParticipationClosed ParticipationSource = "closed"
 )
+
+// AbsenceSick is the status of a sick day; every other absence status
+// (excused, class trip) shows as absent.
+const AbsenceSick = "sick"
 
 type ParticipationSchedule struct {
 	EffectiveFrom Date
@@ -28,12 +36,35 @@ type DayOverride struct {
 	Participating bool
 }
 
+// SickDay is one recorded change of an absence status of a day. Despite
+// its name it covers every absence status since #3873.
 type SickDay struct {
 	ID         int64
 	Date       Date
+	Status     string
 	ChangedAt  time.Time
 	ReportedAt time.Time
 	ClearedAt  *time.Time
+}
+
+// CalendarDays are the school calendar's days in a window: Closed days
+// (closing days, public holidays) on which nobody eats, and Holiday days
+// (school holiday periods) on which the weekly pattern does not apply.
+type CalendarDays struct {
+	Closed  map[Date]bool
+	Holiday map[Date]bool
+}
+
+// NewCalendarDays builds the calendar days from YYYY-MM-DD sets.
+func NewCalendarDays(closed, holiday map[string]bool) CalendarDays {
+	days := CalendarDays{Closed: make(map[Date]bool, len(closed)), Holiday: make(map[Date]bool, len(holiday))}
+	for date := range closed {
+		days.Closed[Date(date)] = true
+	}
+	for date := range holiday {
+		days.Holiday[Date(date)] = true
+	}
+	return days
 }
 
 type ParticipationData struct {
@@ -79,11 +110,12 @@ type DailyCandidate struct {
 	SchoolClass string
 }
 
+// DailyParticipation is one child's state on one day. Absences holds the
+// latest recorded change of each absence status up to the cutoff.
 type DailyParticipation struct {
-	Regular        bool
-	Override       *bool
-	SickReportedAt *time.Time
-	SickClearedAt  *time.Time
+	Regular  bool
+	Override *bool
+	Absences []SickDay
 }
 
 type DailyParticipant struct {

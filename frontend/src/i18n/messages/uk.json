@@ -237,6 +237,8 @@
     "registered": "Записано на обід",
     "notRegistered": "Не записано на обід",
     "cancelledBySickNote": "Скасовано через повідомлення про хворобу",
+    "cancelledByAbsence": "Скасовано, бо дитина відсутня",
+    "closedDay": "Цього дня продовжений день не працює",
     "participationUnavailable": "Запис не завантажено",
     "mealUnavailable": "Обід не завантажено",
     "singleChange": "Змінено лише на цей день",

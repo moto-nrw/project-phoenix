@@ -237,6 +237,8 @@
     "registered": "I regjistruar për drekë",
     "notRegistered": "I paregjistruar për drekë",
     "cancelledBySickNote": "U çregjistrua nga njoftimi i sëmundjes",
+    "cancelledByAbsence": "Anuluar, sepse fëmija mungon",
+    "closedDay": "Në këtë ditë OGS është e mbyllur",
     "participationUnavailable": "Regjistrimi nuk u ngarkua",
     "mealUnavailable": "Ushqimi nuk u ngarkua",
     "singleChange": "Ndryshuar vetëm për këtë ditë",

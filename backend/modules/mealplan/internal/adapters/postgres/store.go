@@ -49,6 +49,7 @@ type sickDayRow struct {
 	ID         int64         `bun:"id"`
 	StudentID  int64         `bun:"student_id"`
 	Date       calendar.Date `bun:"date,type:date"`
+	Status     string        `bun:"status"`
 	ChangedAt  time.Time     `bun:"changed_at"`
 	ReportedAt time.Time     `bun:"reported_at"`
 	ClearedAt  *time.Time    `bun:"cleared_at"`
@@ -177,14 +178,7 @@ func (s *Store) FindParticipation(ctx context.Context, studentID int64, start, e
 
 	var sickDays []sickDayRow
 	if err := timedQuery(&stats, func() error {
-		return db.NewSelect().Model(&sickDays).
-			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
-			ColumnExpr(`"sickness_history".id`).
-			ColumnExpr(`"sickness_history".date`).
-			ColumnExpr(`"sickness_history".changed_at`).
-			ColumnExpr(`"sickness_history".reported_at`).
-			ColumnExpr(`"sickness_history".cleared_at`).
-			Where(`"sickness_history".tenant_id = ?`, tenantID).
+		return absenceHistory(db, &sickDays, tenantID).
 			Where(`"sickness_history".student_id = ?`, studentID).
 			Where(`"sickness_history".date BETWEEN ? AND ?`, start, end).
 			OrderExpr(`"sickness_history".date ASC, "sickness_history".changed_at ASC, "sickness_history".id ASC`).
@@ -205,7 +199,7 @@ func (s *Store) FindParticipation(ctx context.Context, studentID int64, start, e
 		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
 	}
 	for _, sick := range sickDays {
-		data.SickDays = append(data.SickDays, domain.SickDay{ID: sick.ID, Date: sick.Date, ChangedAt: sick.ChangedAt, ReportedAt: sick.ReportedAt, ClearedAt: sick.ClearedAt})
+		data.SickDays = append(data.SickDays, sick.absence())
 	}
 	return data, stats, nil
 }
@@ -373,20 +367,13 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 
 	var sickDays []sickDayRow
 	if err := timedQuery(&stats, func() error {
-		return db.NewSelect().Model(&sickDays).
-			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
-			ColumnExpr(`"sickness_history".id`).
-			ColumnExpr(`"sickness_history".student_id`).
-			ColumnExpr(`"sickness_history".date`).
-			ColumnExpr(`"sickness_history".changed_at`).
-			ColumnExpr(`"sickness_history".reported_at`).
-			ColumnExpr(`"sickness_history".cleared_at`).
-			DistinctOn(`"sickness_history".student_id`).
-			Where(`"sickness_history".tenant_id = ?`, tenantID).
+		return absenceHistory(db, &sickDays, tenantID).
+			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
 			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
 			Where(`"sickness_history".date = ?`, date).
 			Where(`"sickness_history".changed_at <= ?`, cutoff).
 			OrderExpr(`"sickness_history".student_id ASC`).
+			OrderExpr(`"sickness_history".status ASC`).
 			OrderExpr(`"sickness_history".changed_at DESC`).
 			OrderExpr(`"sickness_history".id DESC`).
 			Scan(ctx)
@@ -396,12 +383,23 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 	stats.Rows += int64(len(sickDays))
 	for _, sickDay := range sickDays {
 		state := states[sickDay.StudentID]
-		reportedAt := sickDay.ReportedAt
-		state.SickReportedAt = &reportedAt
-		state.SickClearedAt = sickDay.ClearedAt
+		state.Absences = append(state.Absences, sickDay.absence())
 		states[sickDay.StudentID] = state
 	}
 	return states, stats, nil
+}
+
+// absenceHistory selects the tenant's recorded absence changes (#3873).
+func absenceHistory(db bun.IDB, rows *[]sickDayRow, tenantID int64) *bun.SelectQuery {
+	return db.NewSelect().Model(rows).
+		ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
+		ColumnExpr(`"sickness_history".id, "sickness_history".student_id, "sickness_history".date, "sickness_history".status`).
+		ColumnExpr(`"sickness_history".changed_at, "sickness_history".reported_at, "sickness_history".cleared_at`).
+		Where(`"sickness_history".tenant_id = ?`, tenantID)
+}
+
+func (row sickDayRow) absence() domain.SickDay {
+	return domain.SickDay{ID: row.ID, Date: row.Date, Status: row.Status, ChangedAt: row.ChangedAt, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt}
 }
 
 func scheduleIncludes(row participationScheduleRow, weekday time.Weekday) bool {

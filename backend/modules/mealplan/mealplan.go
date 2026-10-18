@@ -57,6 +57,11 @@ const (
 	ParticipationRegular  ParticipationSource = "regular"
 	ParticipationOverride ParticipationSource = "override"
 	ParticipationSick     ParticipationSource = "sick"
+	// ParticipationAbsent: excused or on a class trip. The reason stays
+	// with the school.
+	ParticipationAbsent ParticipationSource = "absent"
+	// ParticipationClosed: a closing day or public holiday; nobody eats.
+	ParticipationClosed ParticipationSource = "closed"
 )
 
 // RegistrationModel is how a school's parents register for lunch (#3873).

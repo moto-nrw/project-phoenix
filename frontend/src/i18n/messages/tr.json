@@ -237,6 +237,8 @@
     "registered": "Öğle yemeğine kayıtlı",
     "notRegistered": "Öğle yemeğine kayıtlı değil",
     "cancelledBySickNote": "Hastalık bildirimiyle iptal edildi",
+    "cancelledByAbsence": "Çocuğunuz gelmediği için iptal edildi",
+    "closedDay": "OGS bu gün kapalı",
     "participationUnavailable": "Kayıt yüklenmedi",
     "mealUnavailable": "Yemek yüklenmedi",
     "singleChange": "Sadece bu gün için değiştirildi",

@@ -237,6 +237,8 @@
     "registered": "Zapisane na obiad",
     "notRegistered": "Niezapisane na obiad",
     "cancelledBySickNote": "Wypisane przez zgłoszenie choroby",
+    "cancelledByAbsence": "Wypisane, bo dziecko jest nieobecne",
+    "closedDay": "W tym dniu świetlica jest zamknięta",
     "participationUnavailable": "Zapis nie został wczytany",
     "mealUnavailable": "Posiłek nie został wczytany",
     "singleChange": "Zmienione tylko na ten dzień",

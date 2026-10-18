@@ -19,6 +19,12 @@ type Store interface {
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
 }
 
+// Calendar is the school calendar of the tenant in the caller's unit of
+// work.
+type Calendar interface {
+	Days(context.Context, domain.Date, domain.Date) (domain.CalendarDays, domain.OperationStats, error)
+}
+
 type Directory interface {
 	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
 }
