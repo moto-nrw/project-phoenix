@@ -3685,3 +3685,18 @@ func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
 	assert.Contains(t, err.Error(), "months ahead")
 	assert.False(t, createCalled)
 }
+
+// A sick report cascades into the plans (#1843) and the cascade is
+// fail-closed, so an absence service without one is refused at construction
+// instead of committing sick reports without their plan effects.
+func TestNewStaffAbsenceService_RequiresTheSickCascade(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t, "staff absence service: the sick cascade is required", func() {
+		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil)
+	})
+	require.NotPanics(t, func() {
+		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil,
+			WithAbsenceShiftPlanSyncer(noopShiftPlanSyncer{}))
+	})
+}

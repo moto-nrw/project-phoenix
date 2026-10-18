@@ -150,3 +150,16 @@ func TestGuardianLinkHasPermission(t *testing.T) {
 		t.Fatal("an entry without a profile id creates a profile")
 	}
 }
+
+// A guardian provider handed to the module is required to be one: a nil
+// provider is a composition error, not a module that answers unbound.
+func TestNewModuleRefusesANilGuardianProvider(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recovered := recover(); recovered != "people directory: guardian provider is required" {
+			t.Fatalf("expected the provider panic, got %v", recovered)
+		}
+	}()
+	peopledirectory.NewModule(&recordingEngine{}, nil)
+}
