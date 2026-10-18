@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -42,11 +41,4 @@ func (a EnrollmentBookingProjection) CareExitOfferingSnapshots(ctx context.Conte
 
 func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {
 	return a.bookings.RestoreCareExitOfferingLinks(ctx, snapshots)
-}
-
-func CarePlanBookingDate(date *enrollment.Date) *careplan.Date {
-	if date == nil {
-		return nil
-	}
-	return new(careplan.Date(*date))
 }
