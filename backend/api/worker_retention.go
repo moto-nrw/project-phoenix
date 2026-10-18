@@ -108,7 +108,7 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: append(append(studentRetentionSteps(students), staffRetentionSteps(staff)...), retentionSteps(owners)...),
+		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff), retentionSteps(owners)),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -179,37 +179,35 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	return append(steps, cleanupJobRetentionSteps(owners)...)
 }
 
-// studentRetentionSteps is the automatic deletion of children (#3962). It
+// studentRetentionStep is the automatic deletion of children (#3962). It
 // runs first: the shorter windows of the other steps then apply to the rows
-// of the children that stay.
-func studentRetentionSteps(students studentRetention) []schedulerPorts.RetentionStep {
+// of the children that stay (schedulerPorts.RetentionPlan).
+func studentRetentionStep(students studentRetention) schedulerPorts.SubjectRetention {
 	if students == nil {
-		return nil
+		return schedulerPorts.SubjectRetention{}
 	}
-	return []schedulerPorts.RetentionStep{{
-		Kind:         auditModels.DeletionTypeStudentRetention,
-		LogsSubjects: true,
+	return schedulerPorts.SubjectRetention{
+		Kind: auditModels.DeletionTypeStudentRetention,
 		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 			result, err := students.DeleteExpiredStudents(ctx)
 			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
 		},
-	}}
+	}
 }
 
-// staffRetentionSteps is the automatic deletion of staff (#3963). It runs
+// staffRetentionStep is the automatic deletion of staff (#3963). It runs
 // with the deletion of children before the other steps.
-func staffRetentionSteps(staff staffRetention) []schedulerPorts.RetentionStep {
+func staffRetentionStep(staff staffRetention) schedulerPorts.SubjectRetention {
 	if staff == nil {
-		return nil
+		return schedulerPorts.SubjectRetention{}
 	}
-	return []schedulerPorts.RetentionStep{{
-		Kind:         auditModels.DeletionTypeStaffRetention,
-		LogsSubjects: true,
+	return schedulerPorts.SubjectRetention{
+		Kind: auditModels.DeletionTypeStaffRetention,
 		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 			result, err := staff.DeleteExpiredStaff(ctx)
 			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
 		},
-	}}
+	}
 }
 
 // newStaffRetention composes the automatic deletion of staff over the
