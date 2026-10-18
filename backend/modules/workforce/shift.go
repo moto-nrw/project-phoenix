@@ -2,8 +2,11 @@ package workforce
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Week pattern values shared with the timetable recurrence primitives.
@@ -776,4 +779,20 @@ type StaffAssignment struct {
 // ErrStaffShiftRangeTooLarge.
 type StaffAssignmentQuery interface {
 	ListStaffAssignments(ctx context.Context, staffID int64, from, to string) ([]StaffAssignment, error)
+}
+
+// ShiftMovedEvent is the shift_moved Änderungsprotokoll entry (#1884) of one
+// changing move. It anchors on the shift row, because a shift is not an
+// activity slot; OccurrenceDate and StartTime snapshot the NEW slot, OldValue
+// and NewValue the audit-relevant slot before and after the move.
+type ShiftMovedEvent struct {
+	OccurrenceDate calendar.Date
+	StartTime      time.Time
+	StaffShiftID   int64
+	SubjectStaffID int64
+	// RelatedStaffID is the new owner of a cross-person move, nil otherwise.
+	RelatedStaffID *int64
+	ActorAccountID *int64
+	OldValue       json.RawMessage
+	NewValue       json.RawMessage
 }

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"

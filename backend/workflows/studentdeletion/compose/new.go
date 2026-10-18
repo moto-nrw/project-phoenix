@@ -7,15 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -46,9 +42,10 @@ type Dependencies struct {
 	UnlinkPhoto func(context.Context, string)
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
-	Audit       auditModels.Command
-	Today       func() string
-	Now         func() time.Time
+	// Audit overrides the append command of Owners.
+	Audit AuditLog
+	Today func() string
+	Now   func() time.Time
 	// Owners are the owners the root builds for the deletion; the composition
 	// builds no other owner's composition (#4004, ADR 0059 point 6).
 	Owners Owners
@@ -65,6 +62,16 @@ type Owners struct {
 	// consents, appointment recipients and pending guardian invitations.
 	Attendance, Visits, Consents      studentdeletion.Counter
 	Appointments, GuardianInvitations studentdeletion.Counter
+	// Audit appends the deletion's audit records, as DeletionRecords builds
+	// them; AuditReferences counts the child's audit rows.
+	Audit           AuditLog
+	DeletionRecords func(studentdeletion.Actor, studentdeletion.Result) []any
+	AuditReferences studentdeletion.Counter
+}
+
+// AuditLog is the Audit owner's append command.
+type AuditLog interface {
+	Append(context.Context, any) error
 }
 
 // Authorize applies the tenant-portal permission boundary: a tenant principal
@@ -118,6 +125,8 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		"enrollment": deps.Owners.Enrollment == nil, "attendance": deps.Owners.Attendance == nil,
 		"visits": deps.Owners.Visits == nil, "consents": deps.Owners.Consents == nil,
 		"appointments": deps.Owners.Appointments == nil, "guardian invitations": deps.Owners.GuardianInvitations == nil,
+		"audit": deps.Audit == nil && deps.Owners.Audit == nil, "deletion records": deps.Owners.DeletionRecords == nil,
+		"audit references": deps.Owners.AuditReferences == nil,
 	} {
 		if missing {
 			return studentdeletion.Dependencies{}, fmt.Errorf("student deletion composition: %s is required", name)
@@ -135,23 +144,7 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	if now == nil {
 		now = time.Now
 	}
-	audit := deps.Audit
-	if audit == nil {
-		command, err := auditSvc.NewCommand(auditpostgres.NewAppender(ambientTransaction), func(event auditSvc.AppendObservation) {
-			if event.Err != nil {
-				logger.Error("student deletion audit append failed",
-					"event_type", event.EventType,
-					"error", event.Err,
-				)
-			}
-		})
-		if err != nil {
-			return studentdeletion.Dependencies{}, err
-		}
-		audit = command
-	}
 	owners := deps.Owners
-	auditReferences := auditpostgres.NewStudentDeletionRepository(ambientTransaction)
 	return studentdeletion.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
 		Authorize: func(ctx context.Context) (studentdeletion.Actor, error) {
@@ -172,10 +165,10 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		},
 		CountAppointments:        owners.Appointments,
 		CountFeedback:            deps.Feedback.CountForStudent,
-		CountAuditReferences:     auditReferences.CountStudentReferences,
+		CountAuditReferences:     owners.AuditReferences,
 		CountGuardianInvitations: owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
-		AppendAudit:              appendDeletionAudit(audit),
+		AppendAudit:              appendDeletionAudit(deps.Audit, owners),
 		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) {
 			if deps.UnlinkPhoto != nil {
 				deps.UnlinkPhoto(ctx, path)
@@ -209,24 +202,18 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	}, nil
 }
 
-// appendDeletionAudit writes the deletion log entry and the tombstone. Actor
-// account 0 is the nightly retention run (#3962): no actor, written by system.
-func appendDeletionAudit(audit auditModels.Command) func(context.Context, studentdeletion.Actor, studentdeletion.Result) error {
+// appendDeletionAudit appends the deletion's audit records through audit,
+// or the Owners' command without one.
+func appendDeletionAudit(audit AuditLog, owners Owners) func(context.Context, studentdeletion.Actor, studentdeletion.Result) error {
+	if audit == nil {
+		audit = owners.Audit
+	}
 	return func(ctx context.Context, actor studentdeletion.Actor, result studentdeletion.Result) error {
-		deletionType, deletedBy, actorID := auditModels.DeletionTypeManual, "account:"+strconv.FormatInt(actor.AccountID, 10), &actor.AccountID
-		if actor.AccountID == 0 {
-			deletionType, deletedBy, actorID = auditModels.DeletionTypeStudentRetention, "system", nil
+		for _, record := range owners.DeletionRecords(actor, result) {
+			if err := audit.Append(ctx, record); err != nil {
+				return err
+			}
 		}
-		dataDeletion := auditModels.NewDataDeletion(result.StudentID, deletionType, result.Counts.Total()+result.PrimaryRowsDeleted, deletedBy)
-		dataDeletion.DeletionReason = result.Reason
-		dataDeletion.SetTenantID(actor.TenantID)
-		dataDeletion.SetMetadata("student_deletion", true)
-		dataDeletion.SetMetadata("counts", result.Counts)
-		if err := audit.Append(ctx, dataDeletion); err != nil {
-			return err
-		}
-		tombstone := &auditModels.StudentDeletion{StudentID: result.StudentID, ActorAccountID: actorID, Reason: result.Reason, Counts: auditModels.StudentDeletionCounts(result.Counts)}
-		tombstone.SetTenantID(actor.TenantID)
-		return audit.Append(ctx, tombstone)
+		return nil
 	}
 }

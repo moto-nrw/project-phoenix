@@ -202,7 +202,7 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
 func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
-	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())))
+	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())), logger)
 	if err != nil {
 		panic(err)
 	}

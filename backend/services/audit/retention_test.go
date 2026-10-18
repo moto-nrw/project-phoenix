@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

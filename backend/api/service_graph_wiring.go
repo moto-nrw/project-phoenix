@@ -19,7 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"

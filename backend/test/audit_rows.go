@@ -8,8 +8,8 @@ import (
 )
 
 // DataDeletion is one audit.data_deletions row the fixtures write. The Audit
-// Platform keeps its row mapping in models/audit, which the shared fixtures
-// may not import (#2748), so test support maps the table itself.
+// Platform keeps its row mapping in its records port, which the shared
+// fixtures may not import (#2748), so test support maps the table itself.
 type DataDeletion struct {
 	bun.BaseModel  `bun:"table:audit.data_deletions,alias:data_deletion"`
 	ID             int64          `bun:"id,pk,autoincrement"`
@@ -50,7 +50,7 @@ type EnrollmentOfferingAdjustment struct {
 const AuditStammdatenSectionSchoolClasses = "school-classes"
 
 // The audit rows and stored values the People Directory and Care Plan
-// contract suites assert. Those suites may not import models/audit either,
+// contract suites assert. Those suites may not import the Audit records either,
 // so the rows map the columns the suites read.
 
 // Stored audit.staff_master_data_changes sections (#1772).

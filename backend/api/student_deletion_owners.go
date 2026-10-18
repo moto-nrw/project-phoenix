@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -15,7 +17,8 @@ import (
 
 // NewStudentDeletionOwners builds the owners the student deletion workflow
 // counts in and deletes through, over db and without observation, as the
-// workflow composition did before (#4004, ADR 0059 point 6).
+// workflow composition did before (#4004, ADR 0059 point 6), with the
+// ambient-transaction audit command and the Audit owner's deletion records.
 func NewStudentDeletionOwners(db transactionruntime.Database) (studentdeletioncompose.Owners, error) {
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
@@ -33,6 +36,14 @@ func NewStudentDeletionOwners(db transactionruntime.Database) (studentdeletionco
 	if err != nil {
 		return studentdeletioncompose.Owners{}, err
 	}
+	audit, err := newWorkflowAuditCommand(db, slog.Default(), "student deletion audit append failed")
+	if err != nil {
+		return studentdeletioncompose.Owners{}, err
+	}
+	audits, err := auditCompose.NewTenantPersistence(db.Pool(), false)
+	if err != nil {
+		return studentdeletioncompose.Owners{}, err
+	}
 	return studentdeletioncompose.Owners{
 		Structure: structure, Conversations: parentstore.NewStudentConversations(db.Pool()), Enrollment: enrollmentCompose.New(),
 		Attendance: presence.CountAttendanceRecords, Visits: presence.CountStudentVisitsForDeletion,
@@ -42,5 +53,7 @@ func NewStudentDeletionOwners(db transactionruntime.Database) (studentdeletionco
 		},
 		Appointments:        appointments.CountAppointmentRecipientStudents,
 		GuardianInvitations: identity.CountStudentGuardianInvitations,
+		Audit:               audit, DeletionRecords: studentDeletionRecords,
+		AuditReferences: audits.StudentDeletionAudit.CountStudentReferences,
 	}, nil
 }

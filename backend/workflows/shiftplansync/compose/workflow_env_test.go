@@ -62,7 +62,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Workforce:       capability,
 		Staff:           api.NewPlanStaffDirectory(repos.Staff),
 		CalendarPeriods: repos.SchoolCalendar(),
-		DeviationEvents: repos.DeviationEvent,
+		ShiftMoveAudit:  api.NewShiftMoveAudit(repos.DeviationEvent),
 		Instances:       repos.InstanceReads(),
 		InstanceStaff:   repos.InstanceStaffReads(),
 		Rooms:           api.NewTimetableRoomNames(repos.Facilities),

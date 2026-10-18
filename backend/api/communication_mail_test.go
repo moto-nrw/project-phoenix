@@ -7,7 +7,7 @@ import (
 	"net"
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"

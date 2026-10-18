@@ -12,8 +12,8 @@ import (
 	"github.com/uptrace/bun"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

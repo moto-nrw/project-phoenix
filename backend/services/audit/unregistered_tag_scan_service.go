@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 )
 
 // UnregisteredTagScanRetentionDays is the fixed retention of unregistered

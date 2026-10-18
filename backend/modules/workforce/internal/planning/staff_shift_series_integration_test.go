@@ -50,7 +50,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
 	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
-		planning.WithStaffShiftDeviationEvents(workforceCompose.NewShiftMoveAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
+		planning.WithStaffShiftDeviationEvents(api.NewShiftMoveAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
 	)
 	series := planning.NewStaffShiftSeriesService(
 		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), planning.SchoolCalendarPeriods(dependencies.Calendar),
