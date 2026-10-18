@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -163,8 +164,8 @@ func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
 	// Guardian withdrawal was retired in #2267 (guardians edit instead); the
 	// withdrawn STATUS survives for historic rows, so it is written straight
 	// through the repository here.
-	err := f.repos.CareScheduleChangeRequest.Decide(
-		f.staffCtx(f.chain.AccountID), req.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	err := careplantest.NewScheduleRecords(f.repos.CarePlan()).CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), req.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)
 

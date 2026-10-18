@@ -4,7 +4,8 @@ import (
 	"context"
 	"strings"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -15,11 +16,11 @@ import (
 // consumer-owned ports from those rows.
 
 type staffListRecords interface {
-	ListAllWithPerson(context.Context) ([]*users.Staff, error)
+	ListAllWithPerson(context.Context) ([]*peopleValues.Staff, error)
 }
 
 type staffNameRecords interface {
-	FindWithPersonByIDs(context.Context, []int64) (map[int64]*users.Staff, error)
+	FindWithPersonByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 type monthCloseStaffQuery struct{ source staffListRecords }

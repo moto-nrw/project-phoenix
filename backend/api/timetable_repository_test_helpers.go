@@ -27,7 +27,7 @@ import (
 
 // TimetableOwnerRows are the retained rows the Timetable owner's reads run
 // over (#3551), named for the suites of other owners that bind them.
-type TimetableOwnerRows = timetableCompose.OwnerRows
+type TimetableOwnerRows = timetableCompose.NativeMirrorRows
 
 type TimetableTestRepositories struct {
 	enrollment          *enrollmentCapability.Module
@@ -165,7 +165,7 @@ func (r TimetableTestRepositories) CalendarPeriodUsage() timetablePorts.Calendar
 func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
 	rows := timetableCompose.OwnerRows{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
-		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
+		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: NewTimetableRosterStudents(r.Student),
 		EducationGroups: TimetableEducationGroupNames(r.Group), Rooms: facilitiesCompose.NewRoomNameDirectory(r.Room),
 		PickupExceptions: r.StudentPickupException, ArrivalExceptions: r.StudentArrivalException,
 	}

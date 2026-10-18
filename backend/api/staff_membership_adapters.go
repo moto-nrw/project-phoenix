@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	staffCalendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -45,8 +47,8 @@ type staffMembershipDeps struct {
 
 // staffPersonRows are the person reads the staff projections attach.
 type staffPersonRows interface {
-	FindByID(ctx context.Context, id interface{}) (*userModels.Person, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
+	FindByID(ctx context.Context, id interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {
@@ -79,7 +81,7 @@ func membershipError(op string, err error) error {
 	case errors.Is(err, schoolmembership.ErrPersonnelNumberConflict):
 		// Classified in the legacy vocabulary, so the service layer keeps
 		// recognizing the duplicate without importing the owner.
-		return repositoryError(op, userModels.ErrPersonnelNumberConflict)
+		return repositoryError(op, peopleValues.ErrPersonnelNumberConflict)
 	default:
 		return repositoryError(op, err)
 	}
@@ -98,7 +100,7 @@ func membershipID(id any) (int64, error) {
 	}
 }
 
-func staffFieldsFromLegacy(staff *userModels.Staff) schoolmembership.StaffFields {
+func staffFieldsFromLegacy(staff *peopleValues.Staff) schoolmembership.StaffFields {
 	return schoolmembership.StaffFields{
 		PersonID:              staff.PersonID,
 		StaffNotes:            staff.StaffNotes,
@@ -110,7 +112,7 @@ func staffFieldsFromLegacy(staff *userModels.Staff) schoolmembership.StaffFields
 	}
 }
 
-func applyStaffToLegacy(target *userModels.Staff, value schoolmembership.Staff) {
+func applyStaffToLegacy(target *peopleValues.Staff, value schoolmembership.Staff) {
 	target.ID = value.ID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
@@ -126,14 +128,14 @@ func applyStaffToLegacy(target *userModels.Staff, value schoolmembership.Staff) 
 	target.IsGuest = value.IsGuest
 }
 
-func toLegacyStaff(value schoolmembership.Staff) *userModels.Staff {
-	staff := new(userModels.Staff)
+func toLegacyStaff(value schoolmembership.Staff) *peopleValues.Staff {
+	staff := new(peopleValues.Staff)
 	applyStaffToLegacy(staff, value)
 	return staff
 }
 
-func toLegacyStaffList(values []schoolmembership.Staff) []*userModels.Staff {
-	result := make([]*userModels.Staff, 0, len(values))
+func toLegacyStaffList(values []schoolmembership.Staff) []*peopleValues.Staff {
+	result := make([]*peopleValues.Staff, 0, len(values))
 	for _, value := range values {
 		result = append(result, toLegacyStaff(value))
 	}
@@ -142,7 +144,7 @@ func toLegacyStaffList(values []schoolmembership.Staff) []*userModels.Staff {
 
 // --- CRUD ---
 
-func (r StaffMembershipRepository) Create(ctx context.Context, entity *userModels.Staff) error {
+func (r StaffMembershipRepository) Create(ctx context.Context, entity *peopleValues.Staff) error {
 	if entity == nil {
 		return repositoryError("create staff", errors.New("staff cannot be nil"))
 	}
@@ -154,7 +156,7 @@ func (r StaffMembershipRepository) Create(ctx context.Context, entity *userModel
 	return nil
 }
 
-func (r StaffMembershipRepository) Update(ctx context.Context, entity *userModels.Staff) error {
+func (r StaffMembershipRepository) Update(ctx context.Context, entity *peopleValues.Staff) error {
 	if entity == nil {
 		return repositoryError("update staff", errors.New("staff cannot be nil"))
 	}
@@ -174,7 +176,7 @@ func (r StaffMembershipRepository) Delete(ctx context.Context, id any) error {
 	return membershipError("delete staff", r.Membership.DeleteStaff(ctx, staffID))
 }
 
-func (r StaffMembershipRepository) FindByID(ctx context.Context, id any) (*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindByID(ctx context.Context, id any) (*peopleValues.Staff, error) {
 	staffID, err := membershipID(id)
 	if err != nil {
 		return nil, repositoryError("find staff by id", err)
@@ -186,7 +188,7 @@ func (r StaffMembershipRepository) FindByID(ctx context.Context, id any) (*userM
 	return toLegacyStaff(value), nil
 }
 
-func (r StaffMembershipRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.Staff, error) {
 	value, err := r.Membership.FindStaffForMutation(ctx, id)
 	if err != nil {
 		return nil, membershipError("find staff by id for update", err)
@@ -194,7 +196,7 @@ func (r StaffMembershipRepository) FindByIDForUpdate(ctx context.Context, id int
 	return toLegacyStaff(value), nil
 }
 
-func (r StaffMembershipRepository) FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error) {
 	value, err := r.Membership.FindStaffByPerson(ctx, personID)
 	if err != nil {
 		return nil, membershipError("find by person ID", err)
@@ -205,7 +207,7 @@ func (r StaffMembershipRepository) FindByPersonID(ctx context.Context, personID 
 // List keeps the legacy equality-filter shape. Only the keys real callers pass
 // are supported; anything else is an explicit error instead of a silently
 // ignored filter.
-func (r StaffMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*userModels.Staff, error) {
+func (r StaffMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*peopleValues.Staff, error) {
 	filter := schoolmembership.StaffFilter{}
 	for field, value := range filters {
 		if value == nil {
@@ -240,7 +242,7 @@ func (r StaffMembershipRepository) List(ctx context.Context, filters map[string]
 // hydrateStaffPersons attaches the person rows to the staff members. Persons
 // that are gone (soft-deleted or missing) leave Person nil, which is what the
 // LEFT JOIN produced.
-func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, members []*userModels.Staff) error {
+func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, members []*peopleValues.Staff) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -265,7 +267,7 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 	return nil
 }
 
-func (r StaffMembershipRepository) ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
+func (r StaffMembershipRepository) ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error) {
 	values, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{})
 	if err != nil {
 		return nil, membershipError("list all with person", err)
@@ -277,7 +279,7 @@ func (r StaffMembershipRepository) ListAllWithPerson(ctx context.Context) ([]*us
 	return members, nil
 }
 
-func (r StaffMembershipRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindWithPerson(ctx context.Context, id int64) (*peopleValues.Staff, error) {
 	value, err := r.Membership.FindStaff(ctx, id)
 	if err != nil {
 		return nil, membershipError("find with person - staff", err)
@@ -297,9 +299,9 @@ func (r StaffMembershipRepository) FindWithPerson(ctx context.Context, id int64)
 	return staff, nil
 }
 
-func (r StaffMembershipRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error) {
 	if len(ids) == 0 {
-		return make(map[int64]*userModels.Staff), nil
+		return make(map[int64]*peopleValues.Staff), nil
 	}
 	// Live rows only: the legacy query scanned the Staff model, whose
 	// soft-delete tag excluded offboarded staff, and the callers validate
@@ -308,16 +310,16 @@ func (r StaffMembershipRepository) FindByIDs(ctx context.Context, ids []int64) (
 	if err != nil {
 		return nil, membershipError("find by IDs", err)
 	}
-	result := make(map[int64]*userModels.Staff, len(values))
+	result := make(map[int64]*peopleValues.Staff, len(values))
 	for _, member := range toLegacyStaffList(values) {
 		result[member.ID] = member
 	}
 	return result, nil
 }
 
-func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error) {
 	if len(ids) == 0 {
-		return make(map[int64]*userModels.Staff), nil
+		return make(map[int64]*peopleValues.Staff), nil
 	}
 	// Offboarded staff stay resolvable here: the legacy query scanned a plain
 	// result struct without the soft-delete filter, and the historical
@@ -330,7 +332,7 @@ func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 	if err := r.hydrateStaffPersons(ctx, members); err != nil {
 		return nil, repositoryError("find with person by IDs", err)
 	}
-	result := make(map[int64]*userModels.Staff, len(members))
+	result := make(map[int64]*peopleValues.Staff, len(members))
 	for _, member := range members {
 		result[member.ID] = member
 	}
@@ -398,37 +400,37 @@ func (p staffViewPersons) PersonsByID(ctx context.Context, ids []int64) (map[int
 	return result, nil
 }
 
-func staffViewPerson(person *userModels.Person) staffdirectoryview.Person {
+func staffViewPerson(person *peopleValues.DirectoryPersonSnapshot) staffdirectoryview.Person {
 	return staffdirectoryview.Person{
 		ID: person.ID, FirstName: person.FirstName, LastName: person.LastName,
 		AccountID: person.AccountID, Birthday: person.Birthday,
 	}
 }
 
-func staffRoleInfo(contact staffdirectoryview.StaffContact) *userModels.StaffWithRoleInfo {
-	return &userModels.StaffWithRoleInfo{
+func staffRoleInfo(contact staffdirectoryview.StaffContact) *peopleValues.StaffWithRoleInfo {
+	return &peopleValues.StaffWithRoleInfo{
 		StaffID: contact.StaffID, CreatedAt: contact.CreatedAt, UpdatedAt: contact.UpdatedAt,
 		PersonID: contact.PersonID, FirstName: contact.FirstName, LastName: contact.LastName,
 		AccountID: contact.AccountID, Email: contact.Email,
 	}
 }
 
-func staffRoleInfos(contacts []staffdirectoryview.StaffContact) []*userModels.StaffWithRoleInfo {
-	result := make([]*userModels.StaffWithRoleInfo, 0, len(contacts))
+func staffRoleInfos(contacts []staffdirectoryview.StaffContact) []*peopleValues.StaffWithRoleInfo {
+	result := make([]*peopleValues.StaffWithRoleInfo, 0, len(contacts))
 	for _, contact := range contacts {
 		result = append(result, staffRoleInfo(contact))
 	}
 	return result
 }
 
-func staffBirthdayEntries(birthdays []staffdirectoryview.StaffBirthday) []userModels.BirthdayEntry {
+func staffBirthdayEntries(birthdays []staffdirectoryview.StaffBirthday) []peopleCompose.BirthdayEntry {
 	if birthdays == nil {
 		return nil
 	}
-	entries := make([]userModels.BirthdayEntry, 0, len(birthdays))
+	entries := make([]peopleCompose.BirthdayEntry, 0, len(birthdays))
 	for _, birthday := range birthdays {
-		entries = append(entries, userModels.BirthdayEntry{
-			Kind: userModels.BirthdayKindStaff, ID: birthday.StaffID,
+		entries = append(entries, peopleCompose.BirthdayEntry{
+			Kind: peopleCompose.BirthdayKindStaff, ID: birthday.StaffID,
 			FirstName: birthday.FirstName, LastName: birthday.LastName, Birthday: birthday.Birthday,
 		})
 	}
@@ -455,7 +457,7 @@ func (r StaffMembershipRepository) ListAllStaffAccountIDs(ctx context.Context) (
 	return result, staffDirectoryError(op, err)
 }
 
-func (r StaffMembershipRepository) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*userModels.StaffWithRoleInfo, error) {
+func (r StaffMembershipRepository) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopleValues.StaffWithRoleInfo, error) {
 	const op = "list staff with permission"
 	directory, err := r.staffDirectory()
 	if err != nil {
@@ -483,7 +485,7 @@ func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 	return result, nil
 }
 
-func (r StaffMembershipRepository) GetStaffContactInfo(ctx context.Context, staffID int64) (*userModels.StaffWithRoleInfo, error) {
+func (r StaffMembershipRepository) GetStaffContactInfo(ctx context.Context, staffID int64) (*peopleValues.StaffWithRoleInfo, error) {
 	const op = "get staff contact info"
 	directory, err := r.staffDirectory()
 	if err != nil {
@@ -496,7 +498,7 @@ func (r StaffMembershipRepository) GetStaffContactInfo(ctx context.Context, staf
 	return staffRoleInfo(contact), nil
 }
 
-func (r StaffMembershipRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
+func (r StaffMembershipRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*peopleValues.StaffWithRoleInfo, error) {
 	const op = "list staff by roles"
 	directory, err := r.staffDirectory()
 	if err != nil {
@@ -509,7 +511,7 @@ func (r StaffMembershipRepository) ListStaffByRoles(ctx context.Context, roles [
 	return staffRoleInfos(contacts), nil
 }
 
-func (r StaffMembershipRepository) FindBirthdaysOn(ctx context.Context, days []userModels.MonthDay) ([]userModels.BirthdayEntry, error) {
+func (r StaffMembershipRepository) FindBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error) {
 	const op = "find staff birthdays"
 	directory, err := r.staffDirectory()
 	if err != nil {
@@ -526,7 +528,7 @@ func (r StaffMembershipRepository) FindBirthdaysOn(ctx context.Context, days []u
 	return staffBirthdayEntries(birthdays), nil
 }
 
-func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) ([]userModels.BirthdayEntry, error) {
+func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) ([]peopleCompose.BirthdayEntry, error) {
 	const op = "list staff birthdays for export"
 	directory, err := r.staffDirectory()
 	if err != nil {

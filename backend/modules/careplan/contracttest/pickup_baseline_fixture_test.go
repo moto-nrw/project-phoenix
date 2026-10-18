@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
@@ -35,7 +34,7 @@ func (f fixedPickupBaseline) Project(
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		row := &careplan.PickupSchedule{
 			StudentID: f.StudentID, Weekday: f.Weekday, PickupTime: calendar.NormalizeWallClock(parsed),
-			Source: scheduleModel.PickupScheduleSourceCareOffering, CareOfferingName: f.OfferingName,
+			Source: careplan.ScheduleSourceCareOffering, CareOfferingName: f.OfferingName,
 		}
 		offering[f.StudentID][date] = careplan.PickupWeek{f.Weekday: row}
 		weekly[f.StudentID][date] = careplan.PickupWeek{f.Weekday: row}

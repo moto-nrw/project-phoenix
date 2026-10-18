@@ -15,7 +15,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -52,11 +52,11 @@ type emergencyFakeMode struct {
 func (f emergencyFakeMode) GetPresenceMode(_ context.Context) (string, error) { return f.mode, f.err }
 
 type emergencyFakeStudents struct {
-	rows map[int64]*users.Student
+	rows map[int64]*peopledirectory.StudentState
 	err  error
 }
 
-func (f emergencyFakeStudents) FindByIDs(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+func (f emergencyFakeStudents) FindByIDs(_ context.Context, _ []int64) (map[int64]*peopledirectory.StudentState, error) {
 	return f.rows, f.err
 }
 
@@ -70,11 +70,11 @@ func (f emergencyFakePersons) ListPersonsByID(_ context.Context, _ []int64) ([]p
 }
 
 type emergencyFakeContacts struct {
-	rows []users.GuardianEmergencyContactRow
+	rows []peopledirectory.GuardianEmergencyContactRow
 	err  error
 }
 
-func (f emergencyFakeContacts) ListEmergencyContactRows(_ context.Context, _ []int64) ([]users.GuardianEmergencyContactRow, error) {
+func (f emergencyFakeContacts) ListEmergencyContactRows(_ context.Context, _ []int64) ([]peopledirectory.GuardianEmergencyContactRow, error) {
 	return f.rows, f.err
 }
 
@@ -140,7 +140,7 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 	sources := emergencyFullSources()
 	sources.Presence = presence
 	sources.Rooms = rooms
-	sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{
+	sources.Students = emergencyFakeStudents{rows: map[int64]*peopledirectory.StudentState{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: new("Nussallergie, Epipen im Gruppenraum")},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
@@ -148,7 +148,7 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		{ID: 301, FirstName: "Mila", LastName: "Albrecht"},
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
-	sources.Contacts = emergencyFakeContacts{rows: []users.GuardianEmergencyContactRow{
+	sources.Contacts = emergencyFakeContacts{rows: []peopledirectory.GuardianEmergencyContactRow{
 		{StudentID: 202, FirstName: emergencyOptionalText("Familie"), LastName: emergencyOptionalText("Schmitt"), PhoneNumber: emergencyOptionalText("02551 444")},
 		{StudentID: 101, FirstName: emergencyOptionalText("Lea"), LastName: emergencyOptionalText("Albrecht"), PhoneNumber: emergencyOptionalText("02551 111")},
 		{StudentID: 101, FirstName: emergencyOptionalText("Noah"), LastName: emergencyOptionalText("Albrecht"), PhoneNumber: emergencyOptionalText("02551 222")},
@@ -215,7 +215,7 @@ func TestEmergencySnapshotBinaryModeMapsSchoolStatuses(t *testing.T) {
 		{StudentID: 101, Status: "checked_in"},
 		{StudentID: 202, Status: "on_yard"},
 	}}
-	sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{
+	sources.Students = emergencyFakeStudents{rows: map[int64]*peopledirectory.StudentState{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b"},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
@@ -259,7 +259,7 @@ func TestEmergencySnapshotOwnerFailuresSurface(t *testing.T) {
 			sources.Presence = &emergencyFakePresence{open: []int64{101}, visits: []studentpresence.VisitLocation{{
 				Visit: studentpresence.Visit{StudentID: 101}, Group: &studentpresence.VisitGroup{RoomID: 1},
 			}}}
-			sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{101: {PersonID: 301}}}
+			sources.Students = emergencyFakeStudents{rows: map[int64]*peopledirectory.StudentState{101: {PersonID: 301}}}
 			sources.Persons = emergencyFakePersons{rows: []peopledirectory.Person{{ID: 301, FirstName: "Mila", LastName: "Albrecht"}}}
 			breakSource(&sources)
 			query, err := newEmergencySnapshot(sources)
@@ -372,9 +372,9 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 			visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkIn, nil)
 			guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Guardian", side, "guardian-"+side)
 			link := testpkg.CreateTestStudentGuardianLink(t, db, student.ID, guardian.ID, "parent")
-			phone := &users.GuardianPhoneNumber{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: peopledirectory.PhoneTypeMobile, IsPrimary: true}
+			phone := &peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: peopledirectory.PhoneTypeMobile, IsPrimary: true}
 			phone.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Scan(ctx))
+			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "is_primary", "priority").Returning("*").Scan(ctx))
 			var membershipID int64
 			require.NoError(t, db.NewSelect().Table("users.student_school_memberships").Column("id").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membershipID))
 			fixtures = append(fixtures, fixture{
@@ -468,15 +468,15 @@ func newEmergencyOwnerStudents(t *testing.T, db *bun.DB) emergencyOwnerStudents 
 func (s emergencyOwnerStudents) FindByIDs(
 	ctx context.Context,
 	ids []int64,
-) (map[int64]*users.Student, error) {
+) (map[int64]*peopledirectory.StudentState, error) {
 	records, err := s.directory.ListStudentRecordsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	// Only what the snapshot renders; the owner's record carries the rest.
-	result := make(map[int64]*users.Student, len(records))
+	result := make(map[int64]*peopledirectory.StudentState, len(records))
 	for _, record := range records {
-		student := &users.Student{
+		student := &peopledirectory.StudentState{
 			PersonID: record.PersonID, SchoolClass: record.SchoolClass,
 			HealthInfo: record.HealthInfo,
 		}

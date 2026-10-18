@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
@@ -22,7 +22,7 @@ type OperatorSettingsTestModule struct {
 	SettingsSideEffects *settingsCompose.SideEffectRegistry
 	// CareWithdrawals stores the pending withdrawal tasks a booking
 	// authority test starts from.
-	CareWithdrawals userModels.CareWithdrawalCompletionRepository
+	CareWithdrawals CareWithdrawalRecords
 	// Schools is the Organisation & Tenancy owner the slug lookup reads.
 	Schools organizationtenancy.Capability
 	db      transactionruntime.Database

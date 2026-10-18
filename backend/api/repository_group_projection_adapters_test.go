@@ -83,7 +83,7 @@ func TestStudentRosterGroupNamesAreEmptyWithoutGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, rows)
 	for _, row := range rows {
-		if row.GroupID == nil {
+		if row.Record.GroupID == nil {
 			assert.Empty(t, row.GroupName)
 		}
 	}

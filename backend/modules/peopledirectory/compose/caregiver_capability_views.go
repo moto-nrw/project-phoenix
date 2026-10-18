@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,7 +48,7 @@ func (v CaregiverCapabilityViews) GetCaregiverCapability(ctx context.Context, ac
 // EnableCaregiverCapability activates the account as a caregiver in the
 // tenant of ctx, completing the missing profile data.
 func (v CaregiverCapabilityViews) EnableCaregiverCapability(ctx context.Context, accountID int64, firstName, lastName, position string) (json.RawMessage, error) {
-	return caregiverView(v.service.EnableCaregiverCapability(ctx, accountID, userModels.EnableCaregiverCapabilityInput{
+	return caregiverView(v.service.EnableCaregiverCapability(ctx, accountID, peopleValues.EnableCaregiverCapabilityInput{
 		FirstName: firstName,
 		LastName:  lastName,
 		Position:  position,
@@ -96,7 +97,7 @@ func (v CaregiverCapabilityViews) inSchool(ctx context.Context, schoolID int64, 
 	return view, nil
 }
 
-func caregiverView(state *userModels.CaregiverCapabilityState, err error) (json.RawMessage, error) {
+func caregiverView(state *peopleValues.CaregiverCapabilityState, err error) (json.RawMessage, error) {
 	if err != nil {
 		return nil, caregiverCapabilityError(err)
 	}
@@ -108,7 +109,7 @@ func caregiverView(state *userModels.CaregiverCapabilityState, err error) (json.
 }
 
 func caregiverCapabilityError(err error) error {
-	if blocked, ok := errors.AsType[*userModels.CaregiverCapabilityBlockedError](err); ok {
+	if blocked, ok := errors.AsType[*peopleValues.CaregiverCapabilityBlockedError](err); ok {
 		var reasons []string
 		if blocked.Reasons != nil {
 			reasons = make([]string, 0, len(blocked.Reasons))
@@ -118,7 +119,7 @@ func caregiverCapabilityError(err error) error {
 		}
 		return caregiverBlockedError{error: blocked, chain: err, blockers: reasons}
 	}
-	if _, notAssigned := errors.AsType[*userModels.AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, userscontract.ErrAccountNotFound) {
+	if _, notAssigned := errors.AsType[*peopleValues.AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, userscontract.ErrAccountNotFound) {
 		return caregiverAccountMissingError{error: err}
 	}
 	if invalid, ok := errors.AsType[*userscontract.ValidationError](err); ok {

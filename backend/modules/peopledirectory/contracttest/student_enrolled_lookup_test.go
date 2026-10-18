@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -64,7 +66,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 
 	// Inactive student → false: the check targets currently enrolled
 	// children only.
-	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, userModels.StudentStatusInactive, student.ID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, peopleValues.StudentStatusInactive, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
@@ -95,7 +97,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// Flip the student to pending (approved-but-not-yet-activated).
-	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, userModels.StudentStatusPending, student.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, peopleValues.StudentStatusPending, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

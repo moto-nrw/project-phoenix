@@ -1,15 +1,15 @@
 package ports
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"context"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 type FamilyProtectionRecords interface {
-	users.FamilyProtectionEventRepository
 	peopledirectory.GuardianFamilyProtectionReads
+	Create(context.Context, *peopledirectory.GuardianFamilyProtectionRecord) error
 }
 type ParentRequestShareRecords interface {
-	users.ParentRequestShareEventRepository
 	peopledirectory.ParentRequestShares
 }

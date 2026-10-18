@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -39,10 +40,10 @@ type studentDocumentScenario struct {
 // A nil staff models a guest or guardian account — which children a staff
 // member may reach is no longer a group question.
 type stubDocumentUserContext struct {
-	staff *userModels.Staff
+	staff *peopleValues.Staff
 }
 
-func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
+func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*peopleValues.Staff, error) {
 	return s.staff, nil
 }
 
@@ -65,7 +66,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 
 	return &studentDocumentScenario{
 		db:        db,
-		svc:       newStudentDocuments(t, db, stubDocumentUserContext{staff: &userModels.Staff{}}),
+		svc:       newStudentDocuments(t, db, stubDocumentUserContext{staff: &peopleValues.Staff{}}),
 		ctx:       testpkg.TenantContext(student.TenantID),
 		studentID: student.ID,
 		account:   account.ID,
@@ -428,7 +429,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	staff := stubDocumentUserContext{staff: &userModels.Staff{}}
+	staff := stubDocumentUserContext{staff: &peopleValues.Staff{}}
 
 	unaudited, err := api.NewStudentDocumentsTestModule(testpkg.NewDatabase(t, db), repos.CarePlan(), repos.Student, staff, nil, api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog)
 	require.Error(t, err)

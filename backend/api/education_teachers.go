@@ -3,7 +3,8 @@ package api
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 
@@ -16,8 +17,8 @@ type EducationTeachers struct{ teachers educationTeacherRows }
 // educationTeacherRows are the teacher reads the group service's directory
 // takes.
 type educationTeacherRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.Teacher, error)
-	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*userModels.Teacher, error)
+	FindByID(ctx context.Context, id any) (*peopleValues.Teacher, error)
+	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopleValues.Teacher, error)
 }
 
 // NewEducationTeachers binds the teacher directory to the teacher repository.
@@ -46,7 +47,7 @@ func (t EducationTeachers) ListTeachers(ctx context.Context, ids []int64) ([]*ed
 	return result, nil
 }
 
-func educationTeacher(teacher *userModels.Teacher) *education.Teacher {
+func educationTeacher(teacher *peopleValues.Teacher) *education.Teacher {
 	result := &education.Teacher{
 		ID: teacher.ID, StaffID: teacher.StaffID,
 		Specialization: teacher.Specialization, Role: teacher.Role, Qualifications: teacher.Qualifications,

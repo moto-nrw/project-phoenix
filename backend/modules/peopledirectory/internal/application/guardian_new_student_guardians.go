@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
@@ -91,7 +93,7 @@ func (s *RetainedGuardianService) validateExistingGuardian(ctx context.Context, 
 func (s *RetainedGuardianService) validateNewGuardian(ctx context.Context, position int, guardian peoplePorts.NewStudentGuardian, seenEmails map[string]struct{}) error {
 	// Profile rules (email format, contact method) via the shared model
 	// Validate() — the same checks the repository runs on insert.
-	probe := &users.GuardianProfile{
+	probe := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              guardian.Profile.FirstName,
 		LastName:               guardian.Profile.LastName,
 		Email:                  guardian.Profile.Email,
@@ -159,11 +161,11 @@ func (s *RetainedGuardianService) validateNewGuardianEmail(ctx context.Context, 
 // accepts.
 func validateNewGuardianPhones(position int, phones []peoplePorts.PhoneNumberCreateRequest) error {
 	for j := range phones {
-		phoneType := users.PhoneType(phones[j].PhoneType)
-		if !users.ValidPhoneTypes[phoneType] {
-			phoneType = users.PhoneTypeMobile
+		phoneType := string(phones[j].PhoneType)
+		if !peopleValues.ValidPhoneType(phoneType) {
+			phoneType = peopleValues.PhoneTypeMobile
 		}
-		phoneProbe := &users.GuardianPhoneNumber{
+		phoneProbe := &peopleValues.GuardianProfilePhoneSnapshot{
 			GuardianProfileID: 1,
 			PhoneNumber:       phones[j].PhoneNumber,
 			PhoneType:         phoneType,

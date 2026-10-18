@@ -3,11 +3,13 @@ package enrollmenthttp_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -37,7 +39,7 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ida", "Laufend", "1a")
 	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
 	require.NoError(t, err)
-	existing.Status = usersModels.StudentStatusActive
+	existing.Status = peopleValues.StudentStatusActive
 	existing.EnrolledFrom = &runningFrom
 	existing.EnrolledUntil = &runningUntil
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
@@ -53,7 +55,7 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 
 	student, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, student.Status)
+	assert.Equal(t, peopleValues.StudentStatusActive, student.Status)
 	assert.Equal(t, "1a", student.SchoolClass, "the running class stays until the new school year")
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t, runningFrom, *student.EnrolledFrom, "the running enrollment start stays")
@@ -108,7 +110,7 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ole", "Pause", "1a")
 	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
 	require.NoError(t, err)
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopleValues.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 	requestID, childID := submitReEnrollment(t, env, "Eltern", "Pause", "renewal-inactive@example.com", nil,
@@ -122,7 +124,7 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 
 	student, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusPending, student.Status)
+	assert.Equal(t, peopleValues.StudentStatusPending, student.Status)
 	assert.Equal(t, "2", student.SchoolClass)
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t, newYearStart, *student.EnrolledFrom)
@@ -154,7 +156,7 @@ func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitche
 			existingFixture := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
 			existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
 			require.NoError(t, err)
-			existing.Status = usersModels.StudentStatusActive
+			existing.Status = peopleValues.StudentStatusActive
 			require.NoError(t, env.repos.Student.Update(ctx, existing))
 
 			requestID, childID := submitReEnrollment(t, env, "Eltern", kind, kind+"-renewal@example.com", nil,

@@ -24,7 +24,7 @@ func (d phaseResponseRoster) ListRunningStudents(ctx context.Context, today time
 	for _, entry := range entries {
 		result = append(result, enrollmentOwner.PhaseResponseStudent{
 			ID: entry.Record.ID, FirstName: entry.FirstName, LastName: entry.LastName,
-			SchoolClass: entry.Record.SchoolClass, NotActive: !entry.Record.IsActive(),
+			SchoolClass: entry.Record.SchoolClass, NotActive: entry.Record.Status != peopledirectory.StudentStatusActive,
 		})
 	}
 	return result, nil

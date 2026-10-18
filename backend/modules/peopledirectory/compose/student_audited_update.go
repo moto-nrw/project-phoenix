@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 )
@@ -13,7 +12,7 @@ import (
 // adapters reach, in the caller's transaction: the audited write, the locked
 // companion widening and the live absence flags (application.AuditedStudentUpdates).
 type AuditedStudentUpdates interface {
-	UpdateStudentAudited(ctx context.Context, before, after *userModels.Student, actorAccountID int64) (bool, error)
+	UpdateStudentAudited(ctx context.Context, before, after *peopleModule.StudentState, actorAccountID int64) (bool, error)
 	WidenAccompaniedDaysByID(ctx context.Context, studentID int64, days []string, actorAccountID int64) (bool, error)
 	SetLiveAbsenceFlags(ctx context.Context, studentID int64, flags peopleModule.LiveAbsenceFlags, at time.Time) error
 }

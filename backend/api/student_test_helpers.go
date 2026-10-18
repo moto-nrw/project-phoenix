@@ -316,11 +316,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
-		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
-		Offering: newOfferingChangeConflicts(offeringChanges), Events: parentRequestEvents,
-		Permissions: requestTokenReads.Permissions,
-	})
+	parentRequestCoordinator, err := NewParentRequestCoordinator(masterDataDecisions, excusedRequestService, careRequestService,
+		newOfferingChangeConflicts(offeringChanges), parentRequestEvents, requestTokenReads.Permissions)
 	if err != nil {
 		return StudentTestModule{}, err
 	}

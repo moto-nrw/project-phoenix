@@ -3,7 +3,8 @@ package api
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -18,14 +19,14 @@ type CaregiverSupervisionBlockers struct {
 
 // ListActiveSupervisionBlockers returns the rows the owner listed, converted,
 // together with the owner's error.
-func (b CaregiverSupervisionBlockers) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]usersModels.BlockerSupervision, error) {
+func (b CaregiverSupervisionBlockers) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]peopleValues.BlockerSupervision, error) {
 	rows, err := b.Records.ListActiveSupervisionBlockers(ctx, staffID)
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]usersModels.BlockerSupervision, len(rows))
+	result := make([]peopleValues.BlockerSupervision, len(rows))
 	for i, row := range rows {
-		result[i] = usersModels.BlockerSupervision{ID: row.ID, GroupID: row.GroupID, GroupName: row.GroupName, StartDate: row.StartDate}
+		result[i] = peopleValues.BlockerSupervision{ID: row.ID, GroupID: row.GroupID, GroupName: row.GroupName, StartDate: row.StartDate}
 	}
 	return result, err
 }

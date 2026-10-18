@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -46,17 +46,17 @@ func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.M
 	return carePlanCompose.NewMasterDataDecisions(deps)
 }
 
-func NewParentRequestCoordinator(wiring ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
-	care, ok := wiring.Care.(carePlanCompose.ParentRequestConflicts)
+func NewParentRequestCoordinator(masterData *carePlanCompose.MasterDataDecisions, excused careplan.ExcusedAbsenceRequests, careRequests any, offering carePlanCompose.ParentRequestConflicts, events peopledirectory.ParentRequestEvents, permissions func(context.Context) []string) (parentrequests.Coordinator, error) {
+	care, ok := careRequests.(carePlanCompose.ParentRequestConflicts)
 	if !ok {
 		return nil, errors.New("parent request coordinator: the care request service is not a conflict port")
 	}
 	deps := carePlanCompose.ParentRequestCoordinatorDependencies{
-		Rights: parentRequestRights(wiring.Permissions), MasterData: wiring.MasterData, Excused: wiring.Excused,
-		Care: care, Offering: wiring.Offering,
+		Rights: parentRequestRights(permissions), MasterData: masterData, Excused: excused,
+		Care: care, Offering: offering,
 	}
-	if wiring.Events != nil {
-		deps.Ledger = NewParentRequestLedger(wiring.Events)
+	if events != nil {
+		deps.Ledger = NewParentRequestLedger(events)
 	}
 	return carePlanCompose.NewParentRequestCoordinator(deps)
 }
@@ -142,14 +142,14 @@ type masterDataRecords struct {
 // masterDataStudentRows and masterDataPersonRows are the retained student and
 // person reads and writes the decision's records port takes.
 type masterDataStudentRows interface {
-	FindByID(ctx context.Context, id interface{}) (*usersModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error)
-	Update(ctx context.Context, student *usersModels.Student) error
+	FindByID(ctx context.Context, id interface{}) (*peopledirectory.StudentState, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
+	Update(ctx context.Context, student *peopledirectory.StudentState) error
 }
 
 type masterDataPersonRows interface {
-	FindByID(ctx context.Context, id interface{}) (*usersModels.Person, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Person, error)
+	FindByID(ctx context.Context, id interface{}) (*peopledirectory.DirectoryPersonSnapshot, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 var _ carePlanCompose.MasterDataRecords = masterDataRecords{}
@@ -226,7 +226,7 @@ func (r masterDataRecords) UpdatePerson(ctx context.Context, id int64, change ca
 	return nil
 }
 
-func masterDataStudent(student *usersModels.Student) carePlanCompose.MasterDataStudent {
+func masterDataStudent(student *peopledirectory.StudentState) carePlanCompose.MasterDataStudent {
 	view := carePlanCompose.MasterDataStudent{
 		ReviewStudent: carePlanCompose.ReviewStudent{
 			ID: student.ID, PersonID: student.PersonID, SchoolClass: student.SchoolClass,
@@ -245,17 +245,17 @@ func masterDataStudent(student *usersModels.Student) carePlanCompose.MasterDataS
 	return view
 }
 
-func allowedDepartureModes(modes carePlanCompose.DepartureModes) usersModels.AllowedDepartureModes {
-	allowed := make(usersModels.AllowedDepartureModes, len(modes))
+func allowedDepartureModes(modes carePlanCompose.DepartureModes) peopledirectory.AllowedDepartureModes {
+	allowed := make(peopledirectory.AllowedDepartureModes, len(modes))
 	for day, values := range modes {
 		for _, value := range values {
-			allowed[day] = append(allowed[day], usersModels.DepartureMode(value))
+			allowed[day] = append(allowed[day], peopledirectory.DepartureMode(value))
 		}
 	}
 	return allowed
 }
 
-func masterDataPerson(person *usersModels.Person) carePlanCompose.MasterDataPerson {
+func masterDataPerson(person *peopledirectory.DirectoryPersonSnapshot) carePlanCompose.MasterDataPerson {
 	view := carePlanCompose.MasterDataPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName}
 	if person.Birthday != nil {
 		view.Birthday = person.Birthday.String()

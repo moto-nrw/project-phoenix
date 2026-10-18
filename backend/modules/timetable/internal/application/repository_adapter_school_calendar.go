@@ -90,13 +90,13 @@ type calendarPeriodCalendarRepository struct {
 	UnfilteredListing[*scheduleModels.CalendarPeriod]
 	CalendarPeriodOverlapListing
 	calendar schoolcalendar.Capability
-	usage    ports.CalendarPeriodUsageRepository
+	ports.CalendarPeriodUsageRepository
 }
 
 var _ scheduleModels.CalendarPeriodRepository = calendarPeriodCalendarRepository{}
 
 func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
-	repo := calendarPeriodCalendarRepository{calendar: capability, usage: usage}
+	repo := calendarPeriodCalendarRepository{calendar: capability, CalendarPeriodUsageRepository: usage}
 	repo.UnfilteredListing.Source = repo.FindByTenantID
 	repo.CalendarPeriodOverlapListing.Source = repo.listActiveOverlapping
 	return repo
@@ -264,10 +264,6 @@ func (r calendarPeriodCalendarRepository) listActiveOverlapping(ctx context.Cont
 		return nil, calendarError(op, err)
 	}
 	return toLegacyCalendarPeriods(values), nil
-}
-
-func (r calendarPeriodCalendarRepository) UsageCounts(ctx context.Context) (map[int64]scheduleModels.CalendarPeriodUsage, error) {
-	return r.usage.UsageCounts(ctx)
 }
 
 // calendarNotFoundError is the retained not-found shape: a repository error

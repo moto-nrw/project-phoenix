@@ -10,7 +10,7 @@ import (
 )
 
 type careExitRow struct {
-	bun.BaseModel          `bun:"table:student_care_exits,alias:care_exit"`
+	bun.BaseModel          `bun:"table:users.student_care_exits,alias:care_exit"`
 	ID                     int64         `bun:"id,pk,autoincrement"`
 	TenantID               int64         `bun:"tenant_id,notnull"`
 	CreatedAt              time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`

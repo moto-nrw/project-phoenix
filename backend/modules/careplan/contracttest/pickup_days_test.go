@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,7 +31,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupDaysForDate(t *testing.T) {
 	for _, studentID := range []int64{usual.ID, changed.ID} {
 		require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 			StudentID:  studentID,
-			Weekday:    scheduleModels.WeekdayThursday,
+			Weekday:    timetable.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			CreatedBy:  staffID,
 		}))

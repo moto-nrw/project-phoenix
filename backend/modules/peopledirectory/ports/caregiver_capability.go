@@ -3,15 +3,15 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // CaregiverCapabilityService manages the operational caregiver capability of an
 // existing account inside a tenant.
 type CaregiverCapabilityService interface {
-	GetCaregiverCapability(ctx context.Context, accountID int64) (*users.CaregiverCapabilityState, error)
-	EnableCaregiverCapability(ctx context.Context, accountID int64, input users.EnableCaregiverCapabilityInput) (*users.CaregiverCapabilityState, error)
-	DisableCaregiverCapability(ctx context.Context, accountID int64) (*users.CaregiverCapabilityState, error)
+	GetCaregiverCapability(ctx context.Context, accountID int64) (*peopleValues.CaregiverCapabilityState, error)
+	EnableCaregiverCapability(ctx context.Context, accountID int64, input peopleValues.EnableCaregiverCapabilityInput) (*peopleValues.CaregiverCapabilityState, error)
+	DisableCaregiverCapability(ctx context.Context, accountID int64) (*peopleValues.CaregiverCapabilityState, error)
 }
 
 // CaregiverCapabilityServiceDependencies contains the repositories and ports
@@ -44,26 +44,26 @@ type CaregiverCapabilityAudit interface {
 // GroupTeacherBlockers lists the group assignments a teacher still holds, as
 // caregiver-capability blocker rows.
 type GroupTeacherBlockers interface {
-	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]users.BlockerGroup, error)
+	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]peopleValues.BlockerGroup, error)
 }
 
 // SubstitutionBlockers lists the current and upcoming group handovers a staff
 // member holds, as caregiver-capability blocker rows.
 type SubstitutionBlockers interface {
-	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error)
+	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]peopleValues.BlockerSubstitution, error)
 }
 
 // SupervisionBlockers lists the Student Presence supervision a staff member
 // still holds today, as caregiver-capability blocker rows.
 type SupervisionBlockers interface {
-	ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]users.BlockerSupervision, error)
+	ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]peopleValues.BlockerSupervision, error)
 }
 
 // PlannedSupervisionBlockers lists the planned activity supervisions
 // (Timetable & Activities) a staff member holds, as caregiver-capability
 // blocker rows.
 type PlannedSupervisionBlockers interface {
-	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error)
+	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]peopleValues.BlockerActivity, error)
 }
 
 // CaregiverRoleAssignments is the consumer-owned port over the Identity &

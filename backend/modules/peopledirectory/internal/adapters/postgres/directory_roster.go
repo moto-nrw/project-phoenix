@@ -23,7 +23,7 @@ type studentRosterRow struct {
 
 func (r studentRosterRow) toRosterEntry() directory.StudentRosterEntry {
 	return directory.StudentRosterEntry{
-		Record:    r.toDomain(),
+		Record:    directory.StudentStateFromRecord(r.toDomain()),
 		FirstName: r.FirstName,
 		LastName:  r.LastName,
 		TagID:     r.TagID,

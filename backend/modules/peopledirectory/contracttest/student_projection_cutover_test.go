@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -81,7 +83,7 @@ func TestParentInboxWithoutStudentCompatibilityView(t *testing.T) {
 	ctx := tenantCtx(t)
 	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
 	require.NoError(t, repos.Thread.Create(ctx, thread))
-	message := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, userModels.ParentMessageSenderGuardian, "Owner read")
+	message := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Owner read")
 	require.NoError(t, repos.Message.Create(ctx, message))
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)
 	testpkg.AssertStudentCompatibilityStorageAbsent(t, db)

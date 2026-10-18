@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -41,7 +43,7 @@ func TestMissingStudentErrorKeepsTheCallerSentinels(t *testing.T) {
 
 	err := ports.MissingStudentError("find student")
 
-	for _, target := range []error{ports.ErrRepositoryNotFound, sql.ErrNoRows, usersModels.ErrStudentRowMissing} {
+	for _, target := range []error{ports.ErrRepositoryNotFound, sql.ErrNoRows, owner0.ErrStudentRowMissing} {
 		if !errors.Is(err, target) {
 			t.Fatalf("MissingStudentError does not wrap %v", target)
 		}

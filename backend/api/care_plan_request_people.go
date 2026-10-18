@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -29,10 +29,10 @@ func requestDeparturePlan(student peopledirectory.StudentRecord) peopledirectory
 
 // Only the retained audit contract needs a model row. Capture the effective
 // plan both before the write and from the directory's persisted result.
-func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *usersModels.Student {
+func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *peopledirectory.StudentState {
 	plan := requestDeparturePlan(student)
-	row := &usersModels.Student{
-		Status:                 usersModels.StudentStatus(student.Status),
+	row := &peopledirectory.StudentState{
+		Status:                 string(student.Status),
 		SupervisorNotes:        student.SupervisorNotes,
 		ExtraInfo:              student.ExtraInfo,
 		HealthInfo:             student.HealthInfo,
@@ -40,7 +40,7 @@ func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *usersMo
 		DepartureCompanionNote: student.DepartureCompanionNote,
 		AllowedDepartureModes:  plan.AllowedDepartureModes,
 		DepartureDays:          plan.DepartureDays,
-		EnrolledUntil:          usersModels.OptionalCalendarDate(student.EnrolledUntil),
+		EnrolledUntil:          peopledirectory.OptionalCalendarDate(student.EnrolledUntil),
 	}
 	row.ID = student.ID
 	return row
@@ -56,11 +56,11 @@ func requestStudentReadError(err error) error {
 func requestStudentWriteError(err error) error {
 	switch {
 	case errors.Is(err, peopledirectory.ErrCompanionWouldLoseDeparture):
-		return usersModels.ErrCompanionWouldLoseDeparture
+		return peopledirectory.TranslateStudentWriteError(err)
 	case errors.Is(err, peopledirectory.ErrCompanionLockBusy):
-		return usersModels.ErrCompanionLockBusy
+		return peopledirectory.TranslateStudentWriteError(err)
 	case errors.Is(err, peopledirectory.ErrStudentNotFound):
-		return usersModels.ErrStudentRowMissing
+		return peopledirectory.ErrStudentRowMissing
 	default:
 		return err
 	}

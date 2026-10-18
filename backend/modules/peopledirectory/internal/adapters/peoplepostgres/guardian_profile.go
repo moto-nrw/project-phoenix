@@ -50,8 +50,8 @@ func WithPortalLoginMemberships(query PortalLoginMembershipQuery) GuardianProfil
 	return func(r *guardianProfileRepository) { r.portalLoginMemberships = query }
 }
 
-// NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianProfileOption) ports.GuardianProfileRepository {
+// newRawGuardianProfileRepository creates a new GuardianProfileRepository instance
+func newRawGuardianProfileRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianProfileOption) rawGuardianProfileRepository {
 	repository := &guardianProfileRepository{
 		runtime:  requireRuntime(runtime),
 		students: requireStudentRows(students),

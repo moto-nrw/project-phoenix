@@ -511,7 +511,7 @@ func withdrawalOfferings(completion *careplan.WithdrawalCompletion) map[int64][]
 	if completion == nil || completion.StudentID == nil {
 		return nil
 	}
-	return map[int64][]careplan.CareExitSourceOffering{*completion.StudentID: withdrawalSourceOfferings(*completion)}
+	return map[int64][]careplan.CareExitSourceOffering{*completion.StudentID: completion.SourceOfferings}
 }
 
 func carePlanDate(value *calendar.Date) *careplan.Date {

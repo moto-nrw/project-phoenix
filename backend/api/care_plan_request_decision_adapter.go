@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 type requestDecisionAdapter struct{ requestEditAdapter }
@@ -23,7 +24,7 @@ func (a requestDecisionAdapter) LockStudent(ctx context.Context, id int64) (comp
 	return result, nil
 }
 func (a requestDecisionAdapter) CanReview(ctx context.Context, student compose.ReviewStudent) (bool, error) {
-	row := &usersModels.Student{PersonID: student.PersonID, SchoolClass: student.SchoolClass, GroupID: student.GroupID}
+	row := &peopleValues.StudentState{PersonID: student.PersonID, SchoolClass: student.SchoolClass, GroupID: student.GroupID}
 	row.ID = student.ID
 	return a.s.canReviewStudent(ctx, row)
 }

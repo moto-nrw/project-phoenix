@@ -1,7 +1,8 @@
 package api
 
 import (
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -12,7 +13,7 @@ import (
 // ClassDayEnrolledOn reports whether a child with the given status and
 // enrollment window is enrolled on date.
 func ClassDayEnrolledOn(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool {
-	return userModels.EnrolledOn(&userModels.Student{
-		Status: userModels.StudentStatus(status), EnrolledFrom: enrolledFrom, EnrolledUntil: enrolledUntil,
+	return peopleValues.EnrolledOn(&peopleValues.StudentState{
+		Status: string(status), EnrolledFrom: enrolledFrom, EnrolledUntil: enrolledUntil,
 	}, date, today)
 }

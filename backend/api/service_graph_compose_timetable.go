@@ -58,7 +58,7 @@ func composeCareDays(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	b.timetableRows = arrivalTimetable.OwnerRows{
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, Participants: repos.InstanceStudent,
-		Templates: repos.ActivityGroup, Categories: repos.ActivityCategory, Students: b.People.Students,
+		Templates: repos.ActivityGroup, Categories: repos.ActivityCategory, Students: NewTimetableRosterStudents(b.People.Students),
 		EducationGroups:  b.TimetableWiring.EducationGroupNames,
 		Rooms:            facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRepository(b.Rooms)),
 		PickupExceptions: b.People.PickupExceptions, ArrivalExceptions: b.People.ArrivalExceptions,
@@ -133,7 +133,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	activities, err := arrivalTimetable.NewService(
 		b.Timetable, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
-		b.Presence.SessionRecords, NewTimetableStaff(b.People.Staff), b.People.Students,
+		b.Presence.SessionRecords, NewTimetableStaff(b.People.Staff), NewTimetableRosterStudents(b.People.Students),
 	)
 	if err != nil {
 		return b, err

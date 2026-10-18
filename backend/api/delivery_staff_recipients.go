@@ -5,7 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
@@ -17,7 +18,7 @@ import (
 // from People Directory.
 type deliveryStudentGroups struct {
 	students interface {
-		FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
+		FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
 	}
 }
 

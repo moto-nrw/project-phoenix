@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,13 +40,13 @@ func caregiverRoleFlagsOf(roles []string) caregiverRoleFlags {
 func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	ctx context.Context,
 	accountID int64,
-) (*userModels.CaregiverCapabilityState, caregiverRoleFlags, error) {
+) (*peopleValues.CaregiverCapabilityState, caregiverRoleFlags, error) {
 	account, tenantID, err := s.loadAccountAndTenant(ctx, accountID)
 	if err != nil {
 		return nil, caregiverRoleFlags{}, err
 	}
 
-	state := &userModels.CaregiverCapabilityState{
+	state := &peopleValues.CaregiverCapabilityState{
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
@@ -85,7 +86,7 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 func (s *caregiverCapabilityService) loadCaregiverProfile(
 	ctx context.Context,
 	accountID int64,
-	state *userModels.CaregiverCapabilityState,
+	state *peopleValues.CaregiverCapabilityState,
 ) error {
 	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
@@ -134,7 +135,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, err
 	}
 	if !exists {
-		return nil, 0, &userModels.AccountNotAssignedToTenantError{AccountID: accountID, TenantID: tenantID}
+		return nil, 0, &peopleValues.AccountNotAssignedToTenantError{AccountID: accountID, TenantID: tenantID}
 	}
 
 	return account, tenantID, nil
@@ -143,20 +144,20 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 func (s *caregiverCapabilityService) listDisableBlockers(
 	ctx context.Context,
 	tenantID int64,
-	state *userModels.CaregiverCapabilityState,
+	state *peopleValues.CaregiverCapabilityState,
 	hasLegacyTeacherRole bool,
 	hasOtherUsableRole bool,
-) ([]userModels.CaregiverCapabilityBlockerCode, error) {
+) ([]peopleValues.CaregiverCapabilityBlockerCode, error) {
 	if state == nil {
 		return nil, nil
 	}
 
-	var blockers []userModels.CaregiverCapabilityBlockerCode
+	var blockers []peopleValues.CaregiverCapabilityBlockerCode
 
 	if (state.HasUserRole || hasLegacyTeacherRole) &&
 		!state.HasAdminRole &&
 		!hasOtherUsableRole {
-		blockers = append(blockers, userModels.CaregiverCapabilityBlockerMissingUsableRole)
+		blockers = append(blockers, peopleValues.CaregiverCapabilityBlockerMissingUsableRole)
 	}
 
 	if state.StaffID != nil {
@@ -174,7 +175,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 		}
 		if len(groups) > 0 {
 			state.GroupAssignments = groups
-			blockers = append(blockers, userModels.CaregiverCapabilityBlockerGroupAssignments)
+			blockers = append(blockers, peopleValues.CaregiverCapabilityBlockerGroupAssignments)
 		}
 	}
 
@@ -187,9 +188,9 @@ func (s *caregiverCapabilityService) listStaffBlockers(
 	ctx context.Context,
 	staffID int64,
 	tenantID int64,
-	state *userModels.CaregiverCapabilityState,
-) ([]userModels.CaregiverCapabilityBlockerCode, error) {
-	var blockers []userModels.CaregiverCapabilityBlockerCode
+	state *peopleValues.CaregiverCapabilityState,
+) ([]peopleValues.CaregiverCapabilityBlockerCode, error) {
+	var blockers []peopleValues.CaregiverCapabilityBlockerCode
 
 	supervisions, err := s.GroupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID)
 	if err != nil {
@@ -197,7 +198,7 @@ func (s *caregiverCapabilityService) listStaffBlockers(
 	}
 	if len(supervisions) > 0 {
 		state.ActiveSupervisions = supervisions
-		blockers = append(blockers, userModels.CaregiverCapabilityBlockerActiveGroupSupervisions)
+		blockers = append(blockers, peopleValues.CaregiverCapabilityBlockerActiveGroupSupervisions)
 	}
 
 	substitutions, err := s.GroupSubstitutionRepo.ListActiveSubstitutionBlockers(ctx, staffID, tenantID)
@@ -206,7 +207,7 @@ func (s *caregiverCapabilityService) listStaffBlockers(
 	}
 	if len(substitutions) > 0 {
 		state.ActiveSubstitutions = substitutions
-		blockers = append(blockers, userModels.CaregiverCapabilityBlockerActiveGroupSubstitutions)
+		blockers = append(blockers, peopleValues.CaregiverCapabilityBlockerActiveGroupSubstitutions)
 	}
 
 	activities, err := s.ActivitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
@@ -215,7 +216,7 @@ func (s *caregiverCapabilityService) listStaffBlockers(
 	}
 	if len(activities) > 0 {
 		state.ActivitySupervisions = activities
-		blockers = append(blockers, userModels.CaregiverCapabilityBlockerActivitySupervisions)
+		blockers = append(blockers, peopleValues.CaregiverCapabilityBlockerActivitySupervisions)
 	}
 
 	return blockers, nil

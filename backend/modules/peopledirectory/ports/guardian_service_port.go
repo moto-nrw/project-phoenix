@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // GuardianService manages guardian profiles, their student relationships,
@@ -14,26 +14,26 @@ type GuardianService interface {
 	// GuardianProfiles is the retained guardian profile repository.
 	GuardianProfiles() GuardianProfileRepository
 	AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error
-	AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error)
-	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error)
+	AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*peopleValues.GuardianProfilePhoneSnapshot, error)
+	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error)
 	DeleteGuardian(ctx context.Context, id int64, changedByAccountID int64) error
 	DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error
 	DeletePhoneNumber(ctx context.Context, phoneID int64) error
 	EvaluateGuardianDelete(ctx context.Context, guardianProfileID int64, force bool, isAdmin bool) (hasLinks bool, err error)
-	GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error)
+	GetGuardianByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
 	GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
 	GetGuardianPaymentMasked(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentMasked, error)
-	GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error)
+	GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*peopleValues.GuardianProfilePhoneSnapshot, error)
 	GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error)
-	GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)
-	GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error)
+	GetGuardiansWithoutAccount(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error)
+	GetInvitableGuardians(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error)
 	GetPendingInvitations(ctx context.Context) ([]GuardianInvitationRecord, error)
-	GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error)
-	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error)
+	GetPhoneNumberByID(ctx context.Context, phoneID int64) (*peopleValues.GuardianProfilePhoneSnapshot, error)
+	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error)
 	GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error)
 	GuardianDisplays(ctx context.Context, ids []int64) ([]GuardianDisplay, error)
-	LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error)
-	ListGuardians(ctx context.Context, options *QueryOptions) ([]*users.GuardianProfile, error)
+	LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*peopleValues.GuardianRelationshipSnapshot, error)
+	ListGuardians(ctx context.Context, options *QueryOptions) ([]*peopleValues.GuardianProfileSnapshot, error)
 	ListPaymentExportRows(ctx context.Context, actorAccountID int64, actorRole string, format string) ([]GuardianPaymentRow, error)
 	ListPaymentOverview(ctx context.Context, actorAccountID int64, actorRole string) ([]GuardianPaymentRow, error)
 	RemoveGuardianFromStudent(ctx context.Context, studentID int64, guardianProfileID int64, changedByAccountID int64, mayClearPayer bool) error

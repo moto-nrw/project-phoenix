@@ -4,9 +4,7 @@ import (
 	"context"
 
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -34,7 +32,7 @@ func NewStudentAuditService(actor peoplePorts.RequestAuditActor, recorder people
 
 func (s *studentAuditActorPort) RecordChanges(
 	ctx context.Context,
-	before, after *userModels.Student,
+	before, after *directory.StudentState,
 	editedBy int64,
 	editedByName string,
 ) error {
@@ -43,10 +41,10 @@ func (s *studentAuditActorPort) RecordChanges(
 
 func (s *studentAuditActorPort) RecordChangesForActor(
 	ctx context.Context,
-	before, after *userModels.Student,
+	before, after *directory.StudentState,
 	editedBy int64,
 ) error {
-	return s.RecordStudentChangesForActor(ctx, usersRepo.NativeStudentAuditSnapshot(before), usersRepo.NativeStudentAuditSnapshot(after), editedBy)
+	return s.RecordStudentChangesForActor(ctx, studentAuditSnapshot(before), studentAuditSnapshot(after), editedBy)
 }
 
 func (s *studentAuditActorPort) RecordPickupPlanForActor(
@@ -62,7 +60,7 @@ func (s *studentAuditActorPort) RecordPickupPlanForActor(
 func (s *studentAuditActorPort) RecordSystemStatusChange(
 	ctx context.Context,
 	studentID int64,
-	before, after userModels.StudentStatus,
+	before, after string,
 ) error {
 	return s.recorder.RecordSystemStatusChange(ctx, studentID, before, after)
 }
@@ -89,4 +87,12 @@ func (s *studentAuditActorPort) RecordStudentChangesForActor(ctx context.Context
 		name = ""
 	}
 	return s.recorder.RecordStudentChanges(ctx, *before, *after, editedBy, name)
+}
+
+func studentAuditSnapshot(value *directory.StudentState) *directory.StudentAuditSnapshot {
+	if value == nil {
+		return nil
+	}
+	snapshot := value.AuditSnapshot()
+	return &snapshot
 }

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("guardian-%d@test.local", time.Now().UnixNano())
-		profile := &userModels.GuardianProfile{
+		profile := &peopleValues.GuardianProfileSnapshot{
 			FirstName:              "Test",
 			LastName:               "Guardian",
 			Email:                  &uniqueEmail,
@@ -51,7 +52,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 	t.Run("creates guardian profile without email", func(t *testing.T) {
 		// Note: Phone numbers are now stored in separate table (guardian_phone_numbers)
-		profile := &userModels.GuardianProfile{
+		profile := &peopleValues.GuardianProfileSnapshot{
 			FirstName:          "Minimal",
 			LastName:           "Guardian",
 			LanguagePreference: "de",
@@ -147,7 +148,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
 		fakeEmail := "fake@test.local"
-		profile := &userModels.GuardianProfile{
+		profile := &peopleValues.GuardianProfileSnapshot{
 			FirstName:          "Fake",
 			LastName:           "Profile",
 			Email:              &fakeEmail,
@@ -373,22 +374,21 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
 
-	visibleRel := &userModels.StudentGuardian{
+	visibleRel := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:         visible.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
 		GuardianRole:      testpkg.GuardianRoleLegalGuardian,
-		Permissions: map[string]interface{}{
-			testpkg.GuardianPermissionPortalAccess: true,
-		},
+		Permissions: []byte(`{
+			"parent_portal.access": true}`),
 	}
 	visibleRel.SetTenantID(testpkg.Tenant(t))
-	hiddenRel := &userModels.StudentGuardian{
+	hiddenRel := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:         hidden.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
 		GuardianRole:      testpkg.GuardianRolePickupOnly,
-		Permissions:       map[string]interface{}{},
+		Permissions:       []byte(`{}`),
 	}
 	hiddenRel.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian.Create(ctx, visibleRel))
@@ -404,10 +404,10 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 
 // seedNamedGuardian inserts a guardian with a caller-controlled first name (so
 // search assertions can key off a unique token) and registers cleanup.
-func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo peoplePorts.GuardianProfileRepository, firstName, lastName string) *userModels.GuardianProfile {
+func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo peoplePorts.GuardianProfileRepository, firstName, lastName string) *peopleValues.GuardianProfileSnapshot {
 	t.Helper()
 	email := fmt.Sprintf("%s-%d@search.local", firstName, time.Now().UnixNano())
-	profile := &userModels.GuardianProfile{
+	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              firstName,
 		LastName:               lastName,
 		Email:                  &email,
@@ -560,7 +560,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 	newerEmail := fmt.Sprintf("localeordering-b-%d@example.test", time.Now().UnixNano())
 	enLocale := "en"
-	newer := &userModels.GuardianProfile{
+	newer := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              "Guardian",
 		LastName:               "Test",
 		Email:                  &newerEmail,
@@ -572,6 +572,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 	err := db.NewInsert().
 		Model(newer).
 		ModelTableExpr(`users.guardian_profiles`).
+		ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").
 		Scan(context.Background())
 	require.NoError(t, err, "failed to insert second-tenant guardian profile")
 	require.NoError(t, repo.LinkAccount(testpkg.ContextForTenant(ctx, tenantB), newer.ID, account.ID))
@@ -612,6 +613,6 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 		err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			return repo.LockByIDForUpdate(txCtx, 999999999)
 		})
-		assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound)
+		assert.ErrorIs(t, err, peopleValues.ErrGuardianProfileNotFound)
 	})
 }

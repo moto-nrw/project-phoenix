@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,7 +52,7 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
+		for _, weekday := range []int{timetable.WeekdayMonday, timetable.WeekdayWednesday} {
 			sched := &careplan.ArrivalSchedule{
 				StudentID:       student.ID,
 				Weekday:         weekday,
@@ -88,18 +90,18 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayTuesday,
+			Weekday:         timetable.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		result, err := service.GetStudentArrivalScheduleForWeekday(ctx, student.ID, scheduleModels.WeekdayTuesday)
+		result, err := service.GetStudentArrivalScheduleForWeekday(ctx, student.ID, timetable.WeekdayTuesday)
 
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, scheduleModels.WeekdayTuesday, result.Weekday)
+		assert.Equal(t, timetable.WeekdayTuesday, result.Weekday)
 	})
 
 	t.Run("returns error for invalid weekday", func(t *testing.T) {
@@ -124,7 +126,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayFriday,
+			Weekday:         timetable.WeekdayFriday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -140,7 +142,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -153,7 +155,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 
 		require.NoError(t, err)
 
-		result, err := service.GetStudentArrivalScheduleForWeekday(ctx, student.ID, scheduleModels.WeekdayMonday)
+		result, err := service.GetStudentArrivalScheduleForWeekday(ctx, student.ID, timetable.WeekdayMonday)
 		require.NoError(t, err)
 		assert.Equal(t, 8, result.ExpectedArrival.Hour())
 	})
@@ -161,7 +163,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 	t.Run("fails validation for invalid schedule", func(t *testing.T) {
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       0,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -185,17 +187,17 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 
 		schedules := []*careplan.ArrivalSchedule{
 			{
-				Weekday:         scheduleModels.WeekdayMonday,
+				Weekday:         timetable.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 			{
-				Weekday:         scheduleModels.WeekdayWednesday,
+				Weekday:         timetable.WeekdayWednesday,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 			{
-				Weekday:         scheduleModels.WeekdayFriday,
+				Weekday:         timetable.WeekdayFriday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 45, 0, 0, time.UTC),
 				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
@@ -215,7 +217,7 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 
 		schedules := []*careplan.ArrivalSchedule{
 			{
-				Weekday:         scheduleModels.WeekdayMonday,
+				Weekday:         timetable.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
@@ -288,7 +290,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	go func() {
 		writeDone <- service.UpsertBulkStudentArrivalSchedules(ctx, student.ID, []*careplan.ArrivalSchedule{
 			{
-				Weekday:         scheduleModels.WeekdayMonday,
+				Weekday:         timetable.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
 				CreatedBy:       staffID,
 			},
@@ -325,7 +327,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayThursday,
+			Weekday:         timetable.WeekdayThursday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -353,7 +355,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
+		for _, weekday := range []int{timetable.WeekdayMonday, timetable.WeekdayWednesday, timetable.WeekdayFriday} {
 			sched := &careplan.ArrivalSchedule{
 				StudentID:       student.ID,
 				Weekday:         weekday,
@@ -391,7 +393,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 
 		exception := &careplan.ArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -430,7 +432,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &careplan.ArrivalException{
 			StudentID:     0,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -529,7 +531,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 
 		exception := &careplan.ArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -641,7 +643,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 
 		exception := &careplan.ArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 5, 1)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 5, 1)),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -708,7 +710,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 		note := &careplan.ArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "Arrives by bus today",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -722,7 +724,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 	t.Run("fails validation for invalid note", func(t *testing.T) {
 		note := &careplan.ArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -737,7 +739,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 		note := &careplan.ArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -762,7 +764,7 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 
 		note := &careplan.ArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 16)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 16)),
 			Content:   "Test note",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -871,7 +873,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 
 		note := &careplan.ArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Content:   "Original content",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -893,7 +895,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &careplan.ArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -917,7 +919,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 
 		note := &careplan.ArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 5, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 5, 1)),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -984,7 +986,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -1032,7 +1034,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		recurringNote := "Arrives at side gate"
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			Notes:           &recurringNote,
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
@@ -1070,7 +1072,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayTuesday,
+			Weekday:         timetable.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -1120,7 +1122,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		notes := "Walks with sibling"
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayFriday,
+			Weekday:         timetable.WeekdayFriday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &notes,
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
@@ -1145,7 +1147,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		recurringNote := "Wait at the side entrance"
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			Notes:           &recurringNote,
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
@@ -1228,7 +1230,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 
 		sched1 := &careplan.ArrivalSchedule{
 			StudentID:       student1.ID,
-			Weekday:         scheduleModels.WeekdayThursday,
+			Weekday:         timetable.WeekdayThursday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
@@ -1306,7 +1308,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		notes := "Walked to school by aunt"
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &notes,
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
@@ -1331,7 +1333,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		recurringNote := "Ring the side entrance bell"
 		sched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &recurringNote,
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
@@ -1574,7 +1576,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		staffID := createArrivalServiceTestStaffID(t, db)
 		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
 		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
-		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
+		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, timetable.WeekdayMonday, staffID, "")
 		_, err := db.NewUpdate().
 			Table("users.student_school_memberships").
 			Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
@@ -1647,7 +1649,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		// Create existing schedule with a different time
 		existingSched := &careplan.ArrivalSchedule{
 			StudentID:       student.ID,
-			Weekday:         scheduleModels.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}

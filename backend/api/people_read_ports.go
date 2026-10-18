@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // The People Directory read ports of the room snapshot export and the live
@@ -16,8 +17,8 @@ import (
 // groupRosterSource is the slice of the person service the live group roster
 // reads.
 type groupRosterSource interface {
-	GetByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
-	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*users.Student, error)
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
+	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error)
 }
 
 type groupRosterPeople struct{ source groupRosterSource }

@@ -6,9 +6,10 @@ import (
 	"context"
 	"time"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func ParentStoreChildByID(children []*communication.PortalAnnouncementLetterChildStatus, studentID int64) *communication.PortalAnnouncementLetterChildStatus {
@@ -146,7 +147,7 @@ func ParentStoreRequestCreatedPill(tenantID int64, threadID, studentID, actorAcc
 		Body:            "Anfrage gestellt",
 		Kind:            "event",
 		EventType:       "request_created",
-		EventActorKind:  peopleVocabulary.ParentMessageSenderGuardian,
+		EventActorKind:  owner0.ParentMessageSenderGuardian,
 	}
 	m.CreatedAt, m.UpdatedAt = at, at
 	m.TenantID = tenantID

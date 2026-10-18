@@ -2,12 +2,12 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -183,7 +183,7 @@ func (p *GuardianDirectory) ListPaymentExportRows(ctx context.Context, actor peo
 }
 
 func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {
-	var profile *users.GuardianProfile
+	var profile *peopledirectory.GuardianProfileSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
@@ -216,7 +216,7 @@ func (p *GuardianDirectory) DeleteGuardian(ctx context.Context, input peopledire
 }
 
 func (p *GuardianDirectory) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {
-	var phone *users.GuardianPhoneNumber
+	var phone *peopledirectory.GuardianProfilePhoneSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{
@@ -251,7 +251,7 @@ func (p *GuardianDirectory) SetPrimaryGuardianPhone(ctx context.Context, phoneID
 }
 
 func (p *GuardianDirectory) LinkGuardianToStudent(ctx context.Context, input peopledirectory.LinkGuardian) (peopledirectory.GuardianLink, error) {
-	var link *users.StudentGuardian
+	var link *peopledirectory.GuardianRelationshipSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, peoplePorts.StudentGuardianCreateRequest{
@@ -341,9 +341,9 @@ func mapGuardianError(err error) error {
 		return peopledirectory.ErrGuardianDeletePreviewChanged
 	case errors.Is(err, peoplePorts.ErrPayerRemovalRequiresFinancial):
 		return peopledirectory.ErrPayerRemovalRequiresFinancial
-	case errors.Is(err, users.ErrGuardianProfileNotFound):
+	case errors.Is(err, peopledirectory.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
-	case errors.Is(err, users.ErrStudentGuardianNotFound):
+	case errors.Is(err, peopledirectory.ErrStudentGuardianNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
 	case peoplePorts.IsConstraintViolation(err): // a child link still references the profile
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkConflict, err)
@@ -381,7 +381,7 @@ func mapGuardianPaymentError(err error) error {
 		return nil
 	}
 	switch {
-	case errors.Is(err, transactionruntime.ErrNoRows), errors.Is(err, users.ErrGuardianProfileNotFound):
+	case errors.Is(err, transactionruntime.ErrNoRows), errors.Is(err, peopledirectory.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	case errors.Is(err, peoplePorts.ErrGuardianIBANInvalid):
 		return peopledirectory.ErrGuardianIBANInvalid
@@ -466,7 +466,7 @@ func trimToNil(value string) *string {
 	return &trimmed
 }
 
-func toDirectoryGuardians(profiles []*users.GuardianProfile) []peopledirectory.Guardian {
+func toDirectoryGuardians(profiles []*peopledirectory.GuardianProfileSnapshot) []peopledirectory.Guardian {
 	result := make([]peopledirectory.Guardian, 0, len(profiles))
 	for _, profile := range profiles {
 		if profile == nil {
@@ -477,7 +477,7 @@ func toDirectoryGuardians(profiles []*users.GuardianProfile) []peopledirectory.G
 	return result
 }
 
-func toDirectoryGuardian(profile *users.GuardianProfile) peopledirectory.Guardian {
+func toDirectoryGuardian(profile *peopledirectory.GuardianProfileSnapshot) peopledirectory.Guardian {
 	if profile == nil {
 		return peopledirectory.Guardian{}
 	}
@@ -491,7 +491,7 @@ func toDirectoryGuardian(profile *users.GuardianProfile) peopledirectory.Guardia
 	}
 }
 
-func toDirectoryPhones(phones []*users.GuardianPhoneNumber) []peopledirectory.GuardianPhone {
+func toDirectoryPhones(phones []*peopledirectory.GuardianProfilePhoneSnapshot) []peopledirectory.GuardianPhone {
 	if len(phones) == 0 {
 		return nil
 	}
@@ -505,14 +505,14 @@ func toDirectoryPhones(phones []*users.GuardianPhoneNumber) []peopledirectory.Gu
 	return result
 }
 
-func toDirectoryPhone(phone *users.GuardianPhoneNumber) peopledirectory.GuardianPhone {
+func toDirectoryPhone(phone *peopledirectory.GuardianProfilePhoneSnapshot) peopledirectory.GuardianPhone {
 	return peopledirectory.GuardianPhone{
 		ID: phone.ID, GuardianProfileID: phone.GuardianProfileID, PhoneNumber: phone.PhoneNumber,
 		PhoneType: string(phone.PhoneType), Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority,
 	}
 }
 
-func toDirectoryLink(link *users.StudentGuardian, granted func(any) bool) peopledirectory.GuardianLink {
+func toDirectoryLink(link *peopledirectory.GuardianRelationshipSnapshot, granted func(any) bool) peopledirectory.GuardianLink {
 	if link == nil {
 		return peopledirectory.GuardianLink{}
 	}
@@ -526,7 +526,7 @@ func toDirectoryLink(link *users.StudentGuardian, granted func(any) bool) people
 }
 
 // ToDirectoryStudent maps a retained student row onto the public student.
-func ToDirectoryStudent(student *users.Student) peopledirectory.Student {
+func ToDirectoryStudent(student *peopledirectory.StudentState) peopledirectory.Student {
 	if student == nil {
 		return peopledirectory.Student{}
 	}
@@ -550,11 +550,14 @@ func toDirectoryPaymentRows(rows []peoplePorts.GuardianPaymentRow) []peopledirec
 
 // grantedGuardianPermissions lists the parents-portal permission names a
 // student-guardian link grants, in stable order, under the stored-value rule.
-func grantedGuardianPermissions(link *users.StudentGuardian, granted func(any) bool) []string {
+func grantedGuardianPermissions(link *peopledirectory.GuardianRelationshipSnapshot, granted func(any) bool) []string {
 	if link == nil {
 		return nil
 	}
-	_, _, _, _, _, permissions := link.GuardianAuthorizationData()
+	var permissions map[string]any
+	if json.Unmarshal(link.Permissions, &permissions) != nil {
+		return nil
+	}
 	names := make([]string, 0, len(permissions))
 	for name, value := range permissions {
 		if granted(value) {

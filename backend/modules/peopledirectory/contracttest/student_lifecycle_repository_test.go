@@ -3,9 +3,10 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -103,16 +104,16 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		err := repo.UpdateStatus(ctx, student.ID, userModels.StudentStatusActive)
+		err := repo.UpdateStatus(ctx, student.ID, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		assert.Equal(t, userModels.StudentStatusActive, found.Status)
+		assert.Equal(t, peopleValues.StudentStatusActive, found.Status)
 	})
 
 	t.Run("returns error for non-existent student", func(t *testing.T) {
-		err := repo.UpdateStatus(ctx, int64(999999), userModels.StudentStatusActive)
+		err := repo.UpdateStatus(ctx, int64(999999), peopleValues.StudentStatusActive)
 		require.Error(t, err, "update on missing student must error")
 	})
 }
@@ -130,8 +131,8 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	applied, err := repo.TransitionStatus(
 		ctx,
 		student.ID,
-		userModels.StudentStatusPending,
-		userModels.StudentStatusActive,
+		peopleValues.StudentStatusPending,
+		peopleValues.StudentStatusActive,
 	)
 	require.NoError(t, err)
 	assert.True(t, applied)
@@ -139,13 +140,13 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	applied, err = repo.TransitionStatus(
 		ctx,
 		student.ID,
-		userModels.StudentStatusPending,
-		userModels.StudentStatusInactive,
+		peopleValues.StudentStatusPending,
+		peopleValues.StudentStatusInactive,
 	)
 	require.NoError(t, err)
 	assert.False(t, applied, "a stale expected status must not overwrite the current status")
 
 	found, err := repo.FindByID(ctx, student.ID)
 	require.NoError(t, err)
-	assert.Equal(t, userModels.StudentStatusActive, found.Status)
+	assert.Equal(t, peopleValues.StudentStatusActive, found.Status)
 }

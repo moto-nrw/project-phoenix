@@ -1,6 +1,8 @@
 package api
 
 import (
+	owner0 "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+
 	"context"
 	"errors"
 	"time"
@@ -9,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
@@ -131,11 +133,11 @@ func mapExcusedRequestError(err error) error {
 func mapStudentDataRequestError(err error) error {
 	switch {
 	case errors.Is(err, careplan.ErrStudentDataRequestNotFound):
-		return userModels.ErrChangeRequestNotFound
+		return owner0.ErrReviewNotFound
 	case errors.Is(err, careplan.ErrStudentDataRequestNotPending):
-		return userModels.ErrChangeRequestNotPending
+		return owner0.ErrReviewNotPending
 	case errors.Is(err, careplan.ErrStudentDataRequestNotDecided):
-		return userModels.ErrChangeRequestNotDecided
+		return owner0.ErrReviewNotDecided
 	default:
 		return err
 	}

@@ -16,6 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 
@@ -24,8 +28,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -131,7 +134,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	// A parent request can be approved after the exit confirmation while the
 	// child still attends on their last care day. The effect pass must remove
 	// that late plan instead of leaving it active after departure.
-	testpkg.CreateTestPickupSchedule(t, db, student.ID, scheduleModels.WeekdayMonday, staff.ID, "14:30")
+	testpkg.CreateTestPickupSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "14:30")
 
 	// STILL the last care day: everything keeps working.
 	assert.False(t, loadStudent(t, db, ctx, student.ID).CareEndedOn(today))
@@ -141,7 +144,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	applied, err := svc.ApplyDueEffects(ctx, today)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
-	latePlans, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+	latePlans, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	assert.Empty(t, latePlans, "effect-day cleanup removes plans written after exit confirmation")
 
@@ -224,20 +227,20 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 	futureInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(7), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
-	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, studentID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, studentID, studentpresence.SessionAttendancePresent)
 	checkedInAt := time.Now().Add(-time.Hour)
 	testpkg.CreateTestInstanceStudent(t, db, openInstance.ID, studentID,
-		scheduleModels.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
-	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+		studentpresence.SessionAttendancePresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
+	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, studentID, studentpresence.SessionAttendanceExpected)
 
 	// A care offering that runs open-ended.
-	booking := &activityModels.StudentEnrollment{
+	booking := &timetable.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       activityModels.Date(today.AddDays(-60)),
+		ValidFrom:       string(today.AddDays(-60)),
 	}
-	booking.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, booking))
+	booking.TenantID = testpkg.Tenant(t)
+	require.NoError(t, timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).Create(ctx, booking))
 
 	// A parent request nobody has decided yet.
 	request := &testpkg.ExcusedAbsenceRequestRow{
@@ -294,11 +297,11 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the offering ends at the last care day", func(t *testing.T) {
-		stillToday, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
+		stillToday, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindActiveByStudentIDs(ctx, []int64{studentID}, string(today))
 		require.NoError(t, err)
 		assert.Len(t, stillToday, 1)
 
-		tomorrow, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
+		tomorrow, err := timetableCompose.NativeEnrollmentRecords(timetableRepos.StudentEnrollment).FindActiveByStudentIDs(ctx, []int64{studentID}, string(today.AddDays(1)))
 		require.NoError(t, err)
 		assert.Empty(t, tomorrow)
 	})

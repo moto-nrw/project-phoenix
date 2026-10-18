@@ -3,20 +3,19 @@ package application
 import (
 	"errors"
 
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The value translation of the retained student write path (#3349): the
-// retained callers carry users.Student rows, the owner's write command takes
+// retained callers carry peopledirectory.StudentState rows, the owner's write command takes
 // and returns its own record. The composition's write seam carries values
 // across with these and decides nothing.
 
 // StudentWriteFromModel reads the plan and the baseline off the model. The
 // baseline is only present when the read that produced this struct hydrated the
 // plan; without one the owner takes the supplied fields at face value.
-func StudentWriteFromModel(student *users.Student) peopledirectory.StudentWrite {
+func StudentWriteFromModel(student *peopledirectory.StudentState) peopledirectory.StudentWrite {
 	write := peopledirectory.StudentWrite{
 		Record: studentModelToRecord(student),
 		Plan: peopledirectory.StudentPlan{
@@ -40,7 +39,7 @@ func StudentWriteFromModel(student *users.Student) peopledirectory.StudentWrite 
 	return write
 }
 
-func studentModelToRecord(student *users.Student) peopledirectory.StudentRecord {
+func studentModelToRecord(student *peopledirectory.StudentState) peopledirectory.StudentRecord {
 	record := peopledirectory.StudentRecord{
 		ID: student.ID, TenantID: student.GetTenantID(),
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass,
@@ -83,16 +82,16 @@ func studentModelToRecord(student *users.Student) peopledirectory.StudentRecord 
 // records the persisted plan as the new baseline: the in-memory plan now equals
 // the stored one, so reusing the same instance for a second write must not make
 // this write's own result look like a pending caller change.
-func ApplyStudentRecord(student *users.Student, record peopledirectory.StudentRecord) {
+func ApplyStudentRecord(student *peopledirectory.StudentState, record peopledirectory.StudentRecord) {
 	// Field by field rather than replacing the struct: the caller's value also
 	// carries things the row does not — a preloaded Person, the companion days
 	// it marked — and a write must not take those away.
 	student.ID, student.CreatedAt, student.UpdatedAt = record.ID, record.CreatedAt, record.UpdatedAt
 	student.SetTenantID(record.TenantID)
 	student.PersonID, student.SchoolClass = record.PersonID, record.SchoolClass
-	student.GroupID, student.Status = record.GroupID, users.StudentStatus(record.Status)
-	student.EnrolledFrom = users.OptionalCalendarDate(record.EnrolledFrom)
-	student.EnrolledUntil = users.OptionalCalendarDate(record.EnrolledUntil)
+	student.GroupID, student.Status = record.GroupID, string(record.Status)
+	student.EnrolledFrom = peopledirectory.OptionalCalendarDate(record.EnrolledFrom)
+	student.EnrolledUntil = peopledirectory.OptionalCalendarDate(record.EnrolledUntil)
 
 	student.AllowedDepartureModes = record.AllowedDepartureModes
 	student.DepartureDays = record.DepartureDays
@@ -114,11 +113,11 @@ func RetainedStudentWriteError(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, peopledirectory.ErrCompanionWouldLoseDeparture):
-		return users.ErrCompanionWouldLoseDeparture
+		return peopledirectory.TranslateStudentWriteError(err)
 	case errors.Is(err, peopledirectory.ErrCompanionLockBusy):
-		return users.ErrCompanionLockBusy
+		return peopledirectory.TranslateStudentWriteError(err)
 	case errors.Is(err, peopledirectory.ErrStudentNotFound):
-		return users.ErrStudentRowMissing
+		return peopledirectory.ErrStudentRowMissing
 	default:
 		return err
 	}

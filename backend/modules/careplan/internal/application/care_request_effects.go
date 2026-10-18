@@ -344,3 +344,14 @@ func careScheduleAuditSummary(payload json.RawMessage) string {
 	}
 	return "weekdays:" + strings.Join(days, ",")
 }
+
+// CorrectionHistory reads the optional decision ledger already bound to the effects.
+func (s *CareRequestEffects) CorrectionHistory(ctx context.Context, request *carerequests.Request) ([]ports.RequestCorrectionEvent, error) {
+	reader, ok := s.deps.Ledger.(interface {
+		CorrectionHistory(context.Context, *carerequests.Request) ([]ports.RequestCorrectionEvent, error)
+	})
+	if !ok {
+		return nil, nil
+	}
+	return reader.CorrectionHistory(ctx, request)
+}

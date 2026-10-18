@@ -45,7 +45,7 @@ func parentGuardianRelationship(row *peopledirectory.GuardianRelationshipSnapsho
 		return nil, nil
 	}
 	value := &parentportal.GuardianRelationship{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer, Permissions: row.Permissions}
-	student, err := parentStudentSnapshot(row.Student)
+	student, err := parentStudentSnapshot(peopledirectory.StudentSnapshotFromState(row.Student))
 	if err != nil {
 		return nil, err
 	}
