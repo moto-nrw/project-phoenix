@@ -24,23 +24,19 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
-#4078: Root bindet die Settings-Berechtigungen und meldet Serverfehler an
-Sentry. Common hält nur die unveränderten, anfragegebundenen Fehlerdaten;
-SDK, Datenschutzfilter und ursprüngliche Tests liegen bei Root. Alle
-ursprünglichen Testaussagen bleiben erhalten. Die Middleware-Golden ändert
-nur 1.127 Paketpfade von `api/common.ServerErrorReporting` zu
-`api.ServerErrorReporting`; die Vergleichslogik bleibt unverändert.
-
-`api/common` gehört zu `tenant-runtime/http`, die drei übrigen
-Communication-HTTP-Pakete zu `communication/http`. Testrollen bleiben gleich;
-Nachfolger sind auf die bisherigen Pakete begrenzt. Drei Inbound-Owner und
-zwölf Regeln entfallen, der letzte #4078-Key wechselt zum vorhandenen
-öffentlichen Settings-Key. Keys 110 → 109 (#4078: 1 → 0), Inbound-Owner 5 → 2,
-Regeln 841 → 829; Composition 1.657, Epoche 72 und Budgets unverändert.
-Die historische Epochensicherung bleibt als eigenständige Fixture erhalten.
-`architecture-check` und `dev-tools` sowie der temporäre Inbound-Übergang
-folgen im tatsächlichen #4078-Abschluss; das Ticket bleibt offen.
-Nachweis: [Common und Communication](common-communication-http-owners-4078.json).
+#4078-Abschluss: Alle HTTP-Pakete gehören ihren fachlichen, Plattform- oder
+Workflow-Ownern bzw. Root. `api/common` gehört zu `tenant-runtime/http`.
+`architecture-check` und `dev-tools` sind echte `tool`-Owner (Schema 5),
+keine Inbound-Aliasse. Ihre sechs Paket- und Testrollen bleiben unverändert.
+Die fertigen Inbound- und Rollenübergänge samt Tests sowie der obsolete
+Common-Akzeptor sind gelöscht. Parent- und HTTP-Host-Sicherungen verlieren
+nur den veralteten Common-Zweig; heutige negative Fälle bleiben geprüft.
+Inbound-Owner 2 → 0, #4078-Keys 0 → 0, Regeln 829 → 829. Nur
+`own-test.inbound.contract` wird gleich eng zu `own-test.tool.contract`.
+Epoche 72, Composition 1.657, Routen, Antworten, IoT, Goldens und Budgets
+bleiben unverändert. Historische Basisformate sind lesbar, Live-Policies
+lehnen `inbound` ab. Die normalen Ownership- und Berechtigungsprüfungen
+haben keine neue Ausnahme. Nachweis: ADR 0060, Addendum vom 18.10.2026.
 
 #4074: Communication verwendet vollständige native Workflow-Werte und eigene
 Ports für Staff-Announcements und Elternnachrichten. Die Root bindet die
