@@ -322,11 +322,6 @@ type Days interface {
 	NonWorkingDayQuery
 }
 
-type engine interface {
-	recordsEngine
-	administrationEngine
-}
-
 type administrationEngine interface {
 	AddCalendarPeriod(context.Context, CreateCalendarPeriod) (CalendarPeriod, error)
 	ChangeCalendarPeriod(context.Context, UpdateCalendarPeriod) (CalendarPeriod, error)
@@ -382,13 +377,6 @@ func NewRecords(engine recordsEngine) *Records {
 type Module struct {
 	*Records
 	administration administrationEngine
-}
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("school calendar: engine is required")
-	}
-	return &Module{Records: NewRecords(engine), administration: engine}
 }
 
 // NewAdministeredModule adds the period administration to Records built
