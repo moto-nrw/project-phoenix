@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -74,7 +73,7 @@ func (s *arrivalBaselineDirectory) ClassArrivalExceptions(ctx context.Context, c
 	}
 	out := make(map[string]careplan.ClassArrivalExceptionsByDate)
 	for _, row := range rows {
-		key := strings.ToLower(strings.TrimSpace(row.SchoolClass))
+		key := careplan.ClassKey(row.SchoolClass)
 		if out[key] == nil {
 			out[key] = make(careplan.ClassArrivalExceptionsByDate)
 		}

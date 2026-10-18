@@ -116,6 +116,9 @@ type TimeExportStaff struct {
 	ID        int64
 	FirstName string
 	LastName  string
+	// Guest marks an external caregiver (#3823), who records no working
+	// time; the exports leave them out.
+	Guest bool
 }
 
 type TimeExportStaffQuery interface {
@@ -304,6 +307,7 @@ func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportR
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to list staff for export: %w", err)
 	}
+	staffMembers = workingExportStaff(staffMembers)
 	slices.SortStableFunc(staffMembers, compareExportStaff)
 
 	staffIDs := make([]int64, len(staffMembers))
@@ -406,4 +410,10 @@ func exportFilename(base string, req TimeExportRequest) string {
 func compareExportStaff(a, b TimeExportStaff) int {
 	order := compareOrdered(strings.ToLower(a.LastName+" "+a.FirstName), strings.ToLower(b.LastName+" "+b.FirstName))
 	return orderOr(order, compareOrdered(a.ID, b.ID))
+}
+
+// workingExportStaff leaves out the external caregivers (#3823), who record
+// no working time.
+func workingExportStaff(staff []TimeExportStaff) []TimeExportStaff {
+	return slices.DeleteFunc(staff, func(member TimeExportStaff) bool { return member.Guest })
 }

@@ -193,9 +193,9 @@ func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
 	t.Parallel()
 
 	svc := compose.NewSlotLists(compose.SlotListDependencies{
-		Settings: disabledTimetableSlotListSettings{
+		Settings: api.ClassDaySlotListSettings{Settings: disabledTimetableSlotListSettings{
 			stubSlotListSettings: stubSlotListSettings{},
-		},
+		}},
 	})
 	params := classday.Params{
 		Date:   classday.Date(listDate.String()),
@@ -262,7 +262,7 @@ func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) class
 	return newTestServiceWithSettingsReader(db, settings)
 }
 
-func newTestServiceWithSettingsReader(db *bun.DB, settings compose.SettingsReader) classday.SlotLists {
+func newTestServiceWithSettingsReader(db *bun.DB, settings api.ClassDaySlotListReader) classday.SlotLists {
 	return newTestServiceWithCustomRoomRepo(db, newTestRoomRepository(db), settings)
 }
 
@@ -290,18 +290,18 @@ func newTestGroups(db *bun.DB) *schoolstructure.Module {
 	return groups
 }
 
-func newTestServiceWithCustomRoomRepo(db *bun.DB, rooms roomReader, settings compose.SettingsReader) classday.SlotLists {
+func newTestServiceWithCustomRoomRepo(db *bun.DB, rooms roomReader, settings api.ClassDaySlotListReader) classday.SlotLists {
 	return newTestServiceWithCustomAccess(db, rooms, settings, slotListUserContext{currentStaff: &testpkg.Staff{}})
 }
 
-func newTestServiceWithCustomAccess(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext) classday.SlotLists {
+func newTestServiceWithCustomAccess(db *bun.DB, rooms roomReader, settings api.ClassDaySlotListReader, userCtx slotListUserContext) classday.SlotLists {
 	return newTestServiceWithParticipation(db, rooms, settings, userCtx, slotListParticipation{})
 }
 
 // newTestServiceWithParticipation composes the projection the way the service
 // factory does: the owner facades serve the tenant-safe reads, the retained
 // schedule services stay behind the compatibility bindings.
-func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver) classday.SlotLists {
+func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings api.ClassDaySlotListReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver) classday.SlotLists {
 	return newTestServiceWithRenderer(db, rooms, settings, userCtx, participation, api.ClassDaySlotListRenderer{Renderer: lists.NewRenderer()})
 }
 
@@ -310,7 +310,7 @@ type slotListRenderer interface {
 	Render(doc classday.ExportDocument, format classday.Format, filenameBase string) (classday.File, error)
 }
 
-func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver, renderer slotListRenderer) classday.SlotLists {
+func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings api.ClassDaySlotListReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver, renderer slotListRenderer) classday.SlotLists {
 	people := newTestPeople(db)
 	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db, testpkg.StudentDirectory{})
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
@@ -327,7 +327,7 @@ func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings compose.S
 		ArrivalTimes:    arrivals,
 		PickupBaselines: carePlanTest.NewStoredPickupBaselines(carePlan, newApprovedOfferingProjection(db)),
 		ListExport:      renderer,
-		Settings:        settings,
+		Settings:        api.ClassDaySlotListSettings{Settings: settings},
 		Access:          api.ClassDaySlotListAccess{Staff: userCtx},
 		// Pin the clock to a fixed Wednesday so the pickup suite does not depend
 		// on the weekday CI runs on (see pickupNow).

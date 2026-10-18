@@ -441,7 +441,9 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 // fixedSickNoteWindow is the school's sick note retention window in days.
 type fixedSickNoteWindow int
 
-func (w fixedSickNoteWindow) ResolveInt(context.Context, string) (int, error) { return int(w), nil }
+func (w fixedSickNoteWindow) StaffSickNoteRetentionDays(context.Context) (int, error) {
+	return int(w), nil
+}
 
 // An expired sick note leaves through the nightly retention (#3961), and the
 // staff document file sweep removes its file afterwards.

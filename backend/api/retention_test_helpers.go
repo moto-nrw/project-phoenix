@@ -84,7 +84,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
 		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settingsModule.NewParentMessageRetentionValues(settings.Settings)),
-		StaffSickNotes:     workforceCompose.NewSickNoteRetention(settings.Settings),
+		StaffSickNotes:     workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings.Settings}),
 		SettledEnrollments: enrollments,
 		Deliveries:         deliveryCompose.NewRetention(),
 		FileCleanups:       filestorageCompose.NewCleanupRetention(),

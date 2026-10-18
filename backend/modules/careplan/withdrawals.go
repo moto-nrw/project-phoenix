@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Withdrawal completion vocabulary. users.care_withdrawal_completions belongs
@@ -161,4 +163,21 @@ func (m *Module) MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx context.Contex
 
 func (m *Module) ReopenWithdrawalAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error) {
 	return m.engine.ReopenWithdrawalAfterCancelledExit(ctx, completionID, studentID, at)
+}
+
+// ParticipationBoundary is the first day a child no longer participates in
+// care: the day after the enrolment end or the pending completion day of a
+// withdrawal, whichever comes first. found is false when neither exists.
+func ParticipationBoundary(enrolledUntil calendar.Date, pendingCompletion *Date) (boundary calendar.Date, found bool) {
+	if !enrolledUntil.IsZero() {
+		boundary, found = enrolledUntil.AddDays(1), true
+	}
+	if pendingCompletion != nil {
+		completion := calendar.Date(*pendingCompletion)
+		if !found || completion.Before(boundary) {
+			boundary = completion
+		}
+		found = true
+	}
+	return boundary, found
 }

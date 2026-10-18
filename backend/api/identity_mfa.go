@@ -15,7 +15,7 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Identity & Access owns the account and operator second factor and both

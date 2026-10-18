@@ -37,17 +37,18 @@ type testContext struct {
 }
 
 // RoomsComposition is what the route suites take from the root's Rooms
-// composition: the route dependencies, whose settings service the suites
-// also toggle, and the room usage the deletion asks.
+// composition: the route dependencies, the settings service the suites
+// toggle, and the room usage the deletion asks.
 type RoomsComposition struct {
 	Dependencies Dependencies
+	Settings     testpkg.SettingsWriter
 	Usage        facilitiesCompose.RoomUsage
 }
 
 // ComposeRooms composes the root's Rooms graph over the package's test
 // database. The root imports this package, so these internal tests cannot
 // import it; root_composition_test.go binds it.
-var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(context.Context, any, ...string) context.Context, func(error) bool)
+var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(error) bool)
 
 // setupRoomsRoute initializes the test environment. The router serves the
 // resource through the production middleware chain (Verifier → Authenticator →
@@ -56,7 +57,7 @@ var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router,
 func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc, protectedRoutes, prefetch, constraintViolation := ComposeRooms(t)
+	db, svc, protectedRoutes, constraintViolation := ComposeRooms(t)
 
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
@@ -65,7 +66,7 @@ func setupRoomsRoute(t *testing.T) *testContext {
 		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	resource := NewResource(rooms, svc.Dependencies, slog.Default(), protectedRoutes, prefetch, constraintViolation)
+	resource := NewResource(rooms, svc.Dependencies, slog.Default(), protectedRoutes, constraintViolation)
 
 	return &testContext{
 		services: svc,
@@ -479,9 +480,9 @@ func TestGetRoomHistory(t *testing.T) {
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Dependencies.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
 	})
 
 	// Create test room
@@ -577,9 +578,9 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Dependencies.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
@@ -693,11 +694,11 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, settingRoomDetailVisibleDays, 1, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, settingRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Dependencies.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
-		_ = tc.services.Dependencies.Settings.ResetValue(ctx, settingRoomDetailVisibleDays, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, settingRoomDetailVisibleDays, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ClampRoom")
@@ -750,9 +751,9 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, settingAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Dependencies.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, settingAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")

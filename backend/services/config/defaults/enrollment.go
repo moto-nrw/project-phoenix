@@ -1,6 +1,6 @@
 package defaults
 
-import "github.com/moto-nrw/project-phoenix/models/config"
+import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 
 const (
 	defaultGradeLevelMax = 4

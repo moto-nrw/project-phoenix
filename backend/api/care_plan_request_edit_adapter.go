@@ -1,21 +1,15 @@
 package api
 
 import (
-	"context"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
+// requestEditAdapter reads the plan facts an edited pickup request records
+// again; decisions build on it.
 type requestEditAdapter struct{ requestSubmissionAdapter }
-
-func (a requestEditAdapter) RecordGuardianEdit(ctx context.Context, request *carerequests.Request, actorID int64) error {
-	row := request
-	return a.s.recordCareRequestEvent(ctx, row, usersModels.ParentRequestEventGuardianEdit, actorID, nil)
-}
 
 func legacyEditError(err error) error {
 	switch {

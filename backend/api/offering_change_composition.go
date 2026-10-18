@@ -12,7 +12,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -145,7 +145,7 @@ func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, d
 }
 
 func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
-	effectiveFrom, selections, err := parseStaffOfferingValue(write.Value)
+	effectiveFrom, selections, err := careplan.ParseOfferingStaffValue(write.Value["value"])
 	if err != nil {
 		return err
 	}

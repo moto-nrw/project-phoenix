@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// requestSubmissionAdapter reads the plan facts a request records and the
+// child's name its review item shows.
 type requestSubmissionAdapter struct{ s *careScheduleRequestService }
 
 func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date calendar.Date) (*time.Time, error) {
@@ -24,56 +24,26 @@ func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date
 	return effective.PickupTime, nil
 }
 
-// DepartureModes is the Abholart of the day before a request changes it: the
-// OGS's day value (#3945), else the weekly plan's set for the plan weekday.
-// A weekday without a configured set is "alone", the weekly diff's reading.
-func (a requestSubmissionAdapter) DepartureModes(ctx context.Context, id int64, date calendar.Date) ([]string, error) {
+func (a requestSubmissionAdapter) DayDepartureMode(ctx context.Context, id int64, date calendar.Date) (string, bool, error) {
 	days, err := a.s.requestRecords.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: careplan.Date(date)})
+	if err != nil || len(days) == 0 {
+		return "", false, err
+	}
+	return days[0].DepartureMode, true, nil
+}
+
+func (a requestSubmissionAdapter) WeeklyDepartureModes(ctx context.Context, id int64) (map[string][]string, error) {
+	return requestDiffAdapter(a).DepartureModesForStudent(ctx, id)
+}
+
+func (a requestSubmissionAdapter) StudentName(ctx context.Context, studentID int64) (compose.PersonName, error) {
+	student, err := a.s.people.FindStudentRecord(ctx, studentID)
 	if err != nil {
-		return nil, err
+		return compose.PersonName{}, err
 	}
-	if len(days) > 0 {
-		return []string{days[0].DepartureMode}, nil
-	}
-	weekday, err := calendar.PlanWeekday(ctx, date)
-	if err != nil || weekday < 1 || weekday > 5 {
-		return nil, err
-	}
-	student, err := a.s.people.FindStudentRecord(ctx, id)
+	person, err := a.s.people.FindPerson(ctx, student.PersonID)
 	if err != nil {
-		return nil, requestStudentReadError(err)
+		return compose.PersonName{}, err
 	}
-	plan := requestDeparturePlan(student)
-	modes := make([]string, 0, 2)
-	for _, mode := range plan.AllowedDepartureModes[weekdayDepartureKeys[weekday]] {
-		modes = append(modes, string(mode))
-	}
-	if len(modes) == 0 {
-		modes = append(modes, careplan.DepartureModeAlone)
-	}
-	return modes, nil
-}
-
-var weekdayDepartureKeys = [...]string{"", "mon", "tue", "wed", "thu", "fri"}
-
-func (a requestSubmissionAdapter) RecordSubmission(ctx context.Context, request *carerequests.Request) error {
-	row := request
-	return a.s.recordCareRequestEvent(ctx, row, usersModels.ParentRequestEventSubmitted, row.SubmittedBy, nil)
-}
-
-func (a requestSubmissionAdapter) NotifySubmission(ctx context.Context, request *carerequests.Request) error {
-	row := request
-	event := communicationCompose.ParentChildEvent{EventType: "request_created", ActorKind: usersModels.ParentMessageSenderGuardian,
-		ActorAccountID: row.SubmittedBy, Body: careRequestCreatedBody, RequestType: usersModels.ParentMessageRequestCareSchedule, RequestStatus: usersModels.ParentMessageRequestStatusOpen}
-	if row.RequestKind == "pickup_change" {
-		event.Body = withPickupDetail(pickupPillBody(pickupRequestCreatedVerb, row), row)
-		event.RequestType = usersModels.ParentMessageRequestPickupChange
-		event.Payload = pickupPillPayload(row)
-	}
-	return a.s.emitRequestPillAfterCommit(ctx, row, event)
-}
-
-func (a requestSubmissionAdapter) WakeGuardians(ctx context.Context, request *carerequests.Request) {
-	row := request
-	a.s.wakeGuardiansAfterCommit(ctx, row)
+	return compose.PersonName{FirstName: person.FirstName, LastName: person.LastName}, nil
 }

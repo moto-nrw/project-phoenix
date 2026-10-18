@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Appointment reminder settings (issue #1671).

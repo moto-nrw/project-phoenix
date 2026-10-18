@@ -31,7 +31,7 @@ func NewClassDay(sources ClassDaySources) classday.ClassDay {
 		CareDays:               sources.CareDays,
 		Companions:             sources.Companions,
 		ClassArrivalExceptions: sources.ClassArrivalExceptions,
-		Settings:               sources.Settings,
+		WriteScope:             newClassDayWriteScope(sources.Settings),
 		BlockStarts:            sources.BlockStarts,
 		Announcer:              classDayArrivalAnnouncer{broadcaster: sources.Broadcaster, logger: sources.Logger},
 	}

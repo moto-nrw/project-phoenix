@@ -10,17 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, approve bool, version, reason string, actorID int64) error {
-	a := requestCorrectionAdapter{requestDecisionAdapter{requestEditAdapter{requestSubmissionAdapter{s}}}}
-	service, err := compose.NewRequestCorrections(compose.RequestCorrectionDependencies{Records: s.requestRecords, People: a, Plans: a, Effects: a})
-	if err != nil {
-		return err
-	}
-	err = service.Correct(ctx, id, approve, version, reason, actorID)
+	err := s.requests.corrections.Correct(ctx, id, approve, version, reason, actorID)
 	if errors.Is(err, careplan.ErrParentRequestNotDecided) {
 		return parentrequests.ErrNotDecided
 	}
@@ -30,14 +23,19 @@ func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, appr
 	return legacyEditError(err)
 }
 
-type requestCorrectionAdapter struct{ requestDecisionAdapter }
+// requestCorrectionEffects reads a request's decision history from the
+// People Directory ledger; Care Plan's effects record and announce the
+// correction.
+type requestCorrectionEffects struct {
+	compose.CareRequestEffects
+	ledger *ParentRequestLedger
+}
 
-func (a requestCorrectionAdapter) CorrectionHistory(ctx context.Context, request *carerequests.Request) ([]compose.RequestCorrectionEvent, error) {
-	if a.s.events == nil {
+func (e requestCorrectionEffects) CorrectionHistory(ctx context.Context, request *carerequests.Request) ([]compose.RequestCorrectionEvent, error) {
+	if e.ledger == nil {
 		return nil, nil
 	}
-	row := request
-	events, err := a.s.events.ListForRequest(ctx, careRequestLedgerType(row), row.ID)
+	events, err := e.ledger.ListForRequest(ctx, carerequests.LedgerRequestType(request.RequestKind), request.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,20 +46,4 @@ func (a requestCorrectionAdapter) CorrectionHistory(ctx context.Context, request
 		}
 	}
 	return result, nil
-}
-func (a requestCorrectionAdapter) RecordCorrection(ctx context.Context, request *carerequests.Request, actorID int64, payload map[string]any) error {
-	row := request
-	return a.s.recordCareRequestEvent(ctx, row, usersModels.ParentRequestEventCorrected, actorID, payload)
-}
-func (a requestCorrectionAdapter) NotifyCorrection(ctx context.Context, request *carerequests.Request, actorID int64, approve bool, reason string) error {
-	row := request
-	status := usersModels.ParentMessageRequestStatusRejected
-	if approve {
-		status = usersModels.ParentMessageRequestStatusDone
-	}
-	return a.s.emitRequestPillAfterCommit(ctx, row, communicationCompose.ParentChildEvent{
-		EventType: usersModels.ParentMessageEventRequestStatus, ActorKind: usersModels.ParentMessageSenderStaff,
-		ActorAccountID: actorID, Body: "Entscheidung geändert. " + correctedCarePillBody(row, approve),
-		RequestType: careRequestPillType(row.RequestKind), RequestStatus: status, DecisionReason: reason, Payload: pickupPillPayload(row),
-	})
 }

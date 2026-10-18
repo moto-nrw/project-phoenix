@@ -169,10 +169,8 @@ func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
 	return result, nil
 }
 
-// ListParticipationBoundaries returns the earliest day on which each of the
-// given tenant students is no longer operationally participating: either the
-// day after enrolled_until or a pending completion boundary, whichever comes
-// first. Booking-led boundaries count only when includeBookingBoundaries is
+// ListParticipationBoundaries returns the day each of the given tenant
+// students stops participating, as Care Plan defines it. Booking-led boundaries count only when includeBookingBoundaries is
 // set. The caller passes the student rows it already read, so the enrolment
 // end costs no extra statement.
 func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
@@ -192,19 +190,15 @@ func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 		return nil, fmt.Errorf("list care participation boundaries: %w", err)
 	}
 	for _, studentID := range studentIDs {
-		var boundary userModels.CalendarDate
-		found := false
-		if student := students[studentID]; student != nil && student.EnrolledUntil != nil && !student.EnrolledUntil.IsZero() {
-			boundary, found = student.EnrolledUntil.AddDays(1), true
+		var enrolledUntil userModels.CalendarDate
+		if student := students[studentID]; student != nil && student.EnrolledUntil != nil {
+			enrolledUntil = *student.EnrolledUntil
 		}
+		var completion *careplan.Date
 		if day, ok := pending[studentID]; ok {
-			completion := userModels.CalendarDate(day)
-			if !found || completion.Before(boundary) {
-				boundary = completion
-			}
-			found = true
+			completion = &day
 		}
-		if found {
+		if boundary, found := careplan.ParticipationBoundary(enrolledUntil, completion); found {
 			boundaries[studentID] = boundary
 		}
 	}

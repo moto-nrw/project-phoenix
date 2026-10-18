@@ -53,3 +53,16 @@ type StaffEmployments interface {
 	StaffEmploymentQuery
 	StaffEmploymentCommand
 }
+
+// MissingPersonnelNumbers counts the staff members payroll cannot export
+// yet: those without a personnel number, absent or empty. The payroll page
+// and the DATEV writers judge completeness by it.
+func MissingPersonnelNumbers(personnelNumbers []*string) int {
+	missing := 0
+	for _, number := range personnelNumbers {
+		if number == nil || *number == "" {
+			missing++
+		}
+	}
+	return missing
+}

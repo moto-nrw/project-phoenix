@@ -10,7 +10,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 )
 
 // workforceLiveStaffIDs answers Workforce's one question to School
@@ -87,8 +86,8 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 					DataAccessLog: sources.Audits.DataAccessLog, TimeTrackingAuditLog: sources.Audits.TimeTrackingAuditLog,
 				},
 				Staff: sources.Staff, People: sources.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db.Pool()),
-				WorkSchedules:  workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
-				WorkTimeModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime),
+				WorkSchedules:  NewStaffWorkScheduleRepository(workTime),
+				WorkTimeModels: NewWorkTimeModelRepository(workTime),
 				Settings:       sources.Settings, Payroll: sources.Payroll,
 				DB: db, Logger: sources.Logger,
 			})

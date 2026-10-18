@@ -60,12 +60,12 @@ type timeTrackingPortDependencies struct {
 	People          timeTrackingStaffLookup
 	StaffEmployment workforceCompose.StaffEmploymentQuery
 	WorkSchedules   interface {
-		workforceCompose.WorkSessionScheduleRecords
-		workforceCompose.WorkScheduleTargetRecords
+		WorkSessionScheduleRecords
+		WorkScheduleTargetRecords
 	}
 	WorkTimeModels interface {
-		workforceCompose.WorkSessionTimeModelRecords
-		workforceCompose.WorkTimeTargetModelRecords
+		WorkSessionTimeModelRecords
+		WorkTimeTargetModelRecords
 	}
 	Settings timeTrackingSettings
 	Payroll  settingsCompose.PayrollStatusGetter
@@ -92,10 +92,10 @@ func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeT
 	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(deps.StaffEmployment)
 	ports.MonthCloseStaff, ports.OverviewStaff = MonthCloseStaff(deps.Staff), OverviewStaff(deps.Staff)
 	ports.ExportStaff, ports.StaffNames = TimeExportStaff(deps.Staff), StaffDisplayNames(deps.Staff)
-	ports.Schedules = workforceCompose.NewWorkSessionSchedules(deps.WorkSchedules)
-	ports.TimeModels = workforceCompose.NewWorkSessionTimeModels(deps.WorkTimeModels)
-	ports.ScheduleTargets = workforceCompose.NewWorkScheduleTargets(deps.WorkSchedules)
-	ports.TargetModels = workforceCompose.NewWorkTimeTargetModels(deps.WorkTimeModels)
+	ports.Schedules = NewWorkSessionSchedules(deps.WorkSchedules)
+	ports.TimeModels = NewWorkSessionTimeModels(deps.WorkTimeModels)
+	ports.ScheduleTargets = NewWorkScheduleTargets(deps.WorkSchedules)
+	ports.TargetModels = NewWorkTimeTargetModels(deps.WorkTimeModels)
 	ports.Shifts = workforceCompose.NewTimeTrackingShifts(deps.Workforce)
 	ports.Settings = settingsCompose.PresenceSettings(deps.Settings)
 	ports.Payroll = PayrollExportSettings{Source: deps.Payroll}

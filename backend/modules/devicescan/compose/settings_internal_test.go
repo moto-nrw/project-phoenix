@@ -7,12 +7,12 @@ import (
 )
 
 type checkoutSettingsResolver struct {
-	settingsResolver
+	ScanSettings
 	value string
 	err   error
 }
 
-func (r checkoutSettingsResolver) ResolveString(context.Context, string) (string, error) {
+func (r checkoutSettingsResolver) DailyCheckoutTime(context.Context) (string, error) {
 	return r.value, r.err
 }
 

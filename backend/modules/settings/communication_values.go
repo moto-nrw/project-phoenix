@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Existing setting identifiers exposed for platform-contract consumers.

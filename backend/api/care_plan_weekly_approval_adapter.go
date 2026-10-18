@@ -35,15 +35,8 @@ func (*weeklyApprovalAdapter) TrackCompanionChanges(ctx context.Context) (contex
 	ctx, recorder := usersModels.ContextWithCompanionChangeRecorder(ctx)
 	return ctx, recorder.Changed
 }
-func (a *weeklyApprovalAdapter) ActingStaffID(ctx context.Context) (int64, error) {
-	staffID, found, err := a.s.userContext.CurrentStaffID(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("schedule: resolve acting staff: %w", err)
-	}
-	if !found {
-		return 0, carerequests.ErrCareRequestForbidden
-	}
-	return staffID, nil
+func (a *weeklyApprovalAdapter) CurrentStaffID(ctx context.Context) (int64, bool, error) {
+	return a.s.userContext.CurrentStaffID(ctx)
 }
 func (a *weeklyApprovalAdapter) LockDepartureModes(ctx context.Context, id int64) (map[string][]string, error) {
 	student, err := a.s.people.FindStudentRecordForMutation(ctx, id)

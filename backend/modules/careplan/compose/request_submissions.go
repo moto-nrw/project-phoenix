@@ -15,10 +15,7 @@ type RequestSubmissionRecords interface {
 	CreateCareScheduleRequest(context.Context, carerequests.Request) (carerequests.Request, error)
 }
 
-type RequestSubmissionPickup = ports.RequestSubmissionPickup
-type RequestSubmissionEffects = ports.RequestSubmissionEffects
-
-func NewRequestSubmissions(records RequestSubmissionRecords, pickup RequestSubmissionPickup, effects RequestSubmissionEffects, today func() calendar.Date) (carerequests.Submissions, error) {
+func NewRequestSubmissions(records RequestSubmissionRecords, pickup ports.RequestSubmissionPickup, effects ports.RequestSubmissionEffects, today func() calendar.Date) (carerequests.Submissions, error) {
 	if records == nil || effects == nil || today == nil {
 		return nil, errors.New("care request submissions: records, effects, and clock are required")
 	}
