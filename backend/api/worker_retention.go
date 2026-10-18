@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -13,13 +15,21 @@ import (
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
@@ -42,7 +52,10 @@ const (
 	retentionStaffSickNotes       = "staff_sick_note_retention"
 	// The automatic deletion of children (#3962) logs each child as
 	// student_retention, like a manual deletion; the step adds no entry.
-	retentionStudents      = "student_retention"
+	retentionStudents = "student_retention"
+	// The automatic deletion of staff (#3963) logs each staff member as
+	// staff_retention; the step adds no entry either.
+	retentionStaff         = "staff_retention"
 	retentionAuthEvents    = "auth_event_retention"
 	retentionDataAccessLog = "data_access_log_retention"
 	retentionDeletionLog   = "deletion_log_retention"
@@ -80,6 +93,7 @@ var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 	settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 	settingsModule.KeyGDPRStudentRetentionDays,
+	settingsModule.KeyGDPRTimeTrackingRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
@@ -133,7 +147,14 @@ type studentRetention interface {
 	DeleteExpiredStudents(ctx context.Context) (studentdeletion.RetentionResult, error)
 }
 
-func newWorkerRetention(owners retentionOwners, students studentRetention) (workerRetention, error) {
+// staffRetention deletes the staff members whose exit lies more than the
+// school's time-tracking window back, through the workflow beside the
+// offboarding (#3963). It reaches the Worker beside the owners as well.
+type staffRetention interface {
+	DeleteExpiredStaff(ctx context.Context) (staffoffboarding.RetentionResult, error)
+}
+
+func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention) (workerRetention, error) {
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
@@ -142,7 +163,7 @@ func newWorkerRetention(owners retentionOwners, students studentRetention) (work
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: append(studentRetentionSteps(students), retentionSteps(owners)...),
+		steps: append(append(studentRetentionSteps(students), staffRetentionSteps(staff)...), retentionSteps(owners)...),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -225,6 +246,103 @@ func studentRetentionSteps(students studentRetention) []schedulerPorts.Retention
 			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
 		},
 	}}
+}
+
+// staffRetentionSteps is the automatic deletion of staff (#3963). It runs
+// with the deletion of children before the other steps.
+func staffRetentionSteps(staff staffRetention) []schedulerPorts.RetentionStep {
+	if staff == nil {
+		return nil
+	}
+	return []schedulerPorts.RetentionStep{{
+		Kind:         retentionStaff,
+		LogsSubjects: true,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			result, err := staff.DeleteExpiredStaff(ctx)
+			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
+		},
+	}}
+}
+
+// newStaffRetention composes the automatic deletion of staff over the
+// workflow beside the offboarding (#3963). The root builds the owners over
+// db: School Membership with the Workforce employment profile, Workforce,
+// Student Presence and the People Directory. The window is the school's
+// time-tracking window; each staff member runs in a savepoint of the
+// cleanup's tenant transaction and is logged into audit by the system.
+func newStaffRetention(db transactionruntime.Database, audit auditModels.Command, settings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}, logger *slog.Logger) (*staffoffboarding.Retention, error) {
+	memberDeps := schoolMembershipCompose.Dependencies{
+		DB: db.Pool(), Observe: func(schoolMembershipCompose.Observation) {},
+		Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
+	}
+	membership, err := schoolMembershipCompose.New(memberDeps)
+	if err != nil {
+		return nil, err
+	}
+	retired, err := schoolMembershipCompose.NewOffboarding(memberDeps)
+	if err != nil {
+		return nil, err
+	}
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: func(presenceCompose.Observation) {}})
+	if err != nil {
+		return nil, err
+	}
+	plannedSupervisions, err := NewCleanupTimetable(db)
+	if err != nil {
+		return nil, err
+	}
+	retiredTimetable, ok := plannedSupervisions.(staffoffboarding.RetiredTimetable)
+	if !ok {
+		return nil, fmt.Errorf("compose staff retention: timetable lacks retired-staff deletion")
+	}
+	return staffoffboarding.NewRetention(staffoffboarding.RetentionDependencies{
+		Window: func(ctx context.Context) (int, error) {
+			return settings.ResolveInt(ctx, settingsModule.KeyGDPRTimeTrackingRetentionDays)
+		},
+		Tenant: tenant.FromContext, Today: calendar.TodayDate,
+		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(), Timetable: retiredTimetable,
+		SupervisionIDs: func(ctx context.Context, staffID int64) ([]int64, error) {
+			supervisions, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffIDs: []int64{staffID}})
+			ids := make([]int64, 0, len(supervisions))
+			for _, supervision := range supervisions {
+				ids = append(ids, supervision.ID)
+			}
+			return ids, err
+		},
+		RemoveSupervision: presence.RemoveSupervision,
+		People:            peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
+		AppendAudit: func(ctx context.Context, erasure staffoffboarding.Erasure) error {
+			return audit.Append(ctx, staffRetentionDeletion(tenant.FromContext(ctx), erasure))
+		},
+		Isolate: func(ctx context.Context, fn func(context.Context) error) error {
+			err := tenant.WithSavepoint(ctx, fn)
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return errors.Join(staffoffboarding.ErrIsolationFailed, err)
+			}
+			return err
+		},
+		Logger: logger,
+	})
+}
+
+// staffRetentionDeletion is the deletion log entry of one erased staff
+// member: the data kind staff_retention, the counts per record kind and the
+// reason retention_expired, never the deleted content, written by the
+// system like the automatic deletion of a child.
+func staffRetentionDeletion(tenantID int64, erasure staffoffboarding.Erasure) *auditModels.DataDeletion {
+	staffID := erasure.StaffID
+	metadata := map[string]interface{}{"person_anonymized": erasure.PersonAnonymized}
+	for kind, count := range erasure.Counts() {
+		metadata[kind] = count
+	}
+	event := &auditModels.DataDeletion{
+		StaffID: &staffID, DeletionType: retentionStaff, RecordsDeleted: erasure.Records(),
+		DeletionReason: "retention_expired", DeletedBy: "system", DeletedAt: time.Now(), Metadata: metadata,
+	}
+	event.SetTenantID(tenantID)
+	return event
 }
 
 // newStudentRetention composes the automatic deletion of children over the

@@ -23,6 +23,7 @@ const (
 	settingEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
 	settingStaffSickNoteRetentionDays            = "gdpr.staff_sick_note_retention_days"
 	settingStudentRetentionDays                  = "gdpr.student_retention_days"
+	settingTimeTrackingRetentionDays             = "gdpr.time_tracking_retention_days"
 	settingFeedbackDataRetentionDays             = "feedback.data_retention_days"
 	settingSessionEndEnabled                     = "operations.session_end_enabled"
 	settingSessionEndTime                        = "operations.session_end_time"

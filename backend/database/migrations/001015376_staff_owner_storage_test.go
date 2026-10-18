@@ -152,6 +152,9 @@ func TestStaffOwnerStorageColumnMapping(t *testing.T) {
 		if table == "staff_employment_profiles" {
 			expected++ // membership_id replaces the old staff row identity.
 		}
+		if table == "staff_school_memberships" {
+			expected++ // personal_data_erased_at, added by 1.15.459 (#3963).
+		}
 		require.Equal(t, expected, count)
 	}
 	var triggers int

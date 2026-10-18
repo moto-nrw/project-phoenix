@@ -71,6 +71,12 @@ type Store interface {
 	DeleteGroupAssignment(context.Context, int64) (domain.OperationStats, error)
 	DeleteGroupAssignmentsByTeacher(context.Context, int64) (domain.OperationStats, error)
 	LockGroupAssignments(context.Context) (domain.OperationStats, error)
+
+	// The erasure of retired staff (#3963).
+	MarkNextRetiredStaffErased(ctx context.Context, before time.Time, afterID int64) (domain.RetiredStaffErasure, bool, domain.OperationStats, error)
+	DeleteGroupAssignmentsByStaff(context.Context, int64) (domain.OperationStats, error)
+	DeleteTeachersByStaff(context.Context, int64) (domain.OperationStats, error)
+	DeleteGuestsByStaff(context.Context, int64) (domain.OperationStats, error)
 }
 
 // StudentDirectory is the consumer-owned People Directory port behind the
