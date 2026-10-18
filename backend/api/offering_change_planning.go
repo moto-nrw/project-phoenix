@@ -19,7 +19,12 @@ import (
 // owner's course-group read.
 type ManualPlanningReader struct {
 	Query        PlanningQuery
-	CourseGroups timetable.CourseGroupQuery
+	CourseGroups courseGroupListing
+}
+
+// courseGroupListing is the Timetable owner's course-group read.
+type courseGroupListing interface {
+	ListCourseGroups(ctx context.Context, filter timetable.CourseGroupFilter) ([]timetable.CourseGroup, error)
 }
 
 // PlanningQuery reads the planned care blocks and course groups an offering

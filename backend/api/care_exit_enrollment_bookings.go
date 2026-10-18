@@ -15,7 +15,16 @@ import (
 // workflow decides. No compatibility-view reads or writes are used.
 type EnrollmentBookingProjection struct {
 	*enrollment.BookingProjection
-	bookings careexit.Bookings
+	bookings careExitBookingWrites
+}
+
+// careExitBookingWrites are the care exit workflow's writes to Care Plan's
+// bookings that the projection forwards.
+type careExitBookingWrites interface {
+	LockCareExitOfferingLinks(ctx context.Context, childIDs []int64, from enrollment.Date) error
+	EndCareExitOfferingLinks(ctx context.Context, childIDs []int64, sourceChildID *int64, until enrollment.Date) (int64, error)
+	CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, until enrollment.Date, sourceChildID *int64) ([]enrollment.CareExitOfferingSnapshot, error)
+	RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error)
 }
 
 // NewEnrollmentBookingProjection adds the care exit's booking writes to the

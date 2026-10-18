@@ -111,7 +111,7 @@ func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*ident
 
 type staffDirectory struct {
 	repos      LifecycleRepositories
-	caregivers CaregiverProfiles
+	caregivers liveCaregiverProfile
 }
 
 func personRecord(person *userModels.Person) identityPorts.PersonRecord {

@@ -32,8 +32,7 @@ type GuardianInvitationCapability interface {
 }
 
 // GuardianInvitationWiring is the retained material the guardian invitation
-// seams are bound to. outbox is read at call time because the delivery
-// module is composed after the identity module.
+// seams are bound to.
 type GuardianInvitationWiring struct {
 	Settings    settingsCompose.SettingsService
 	Schools     organizationtenancy.Query
@@ -66,7 +65,10 @@ func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityP
 	if !wiring.complete() {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
-	return guardianInvitationDelivery{wiring: wiring}, identityaccessCompose.NewSavepointGuardianEnrollments(wiring.Enrollments), nil
+	return guardianInvitationDelivery{
+		settings: wiring.Settings, schools: wiring.Schools, outbox: wiring.Outbox,
+		parentsURL: wiring.ParentsURL, fallbackExpiry: wiring.FallbackExpiry, wiringLogger: wiring.Logger,
+	}, identityaccessCompose.NewSavepointGuardianEnrollments(wiring.Enrollments), nil
 }
 
 // unsentGuardianMail serves a root composed without the guardian mail — a
@@ -88,11 +90,20 @@ func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.Gua
 
 // --- delivery ---------------------------------------------------------------
 
-type guardianInvitationDelivery struct{ wiring *GuardianInvitationWiring }
+// guardianInvitationDelivery holds the wiring's settings, school read,
+// outbox, parents portal origin, fallback expiry and logger.
+type guardianInvitationDelivery struct {
+	settings       settingsCompose.SettingsService
+	schools        schoolFinder
+	outbox         MailResultOutbox
+	parentsURL     string
+	fallbackExpiry time.Duration
+	wiringLogger   *slog.Logger
+}
 
 func (d guardianInvitationDelivery) logger() *slog.Logger {
-	if d.wiring.Logger != nil {
-		return d.wiring.Logger
+	if d.wiringLogger != nil {
+		return d.wiringLogger
 	}
 	return slog.Default()
 }
@@ -100,8 +111,8 @@ func (d guardianInvitationDelivery) logger() *slog.Logger {
 // InvitationExpiry reads the school's token lifetime (tenant override, then
 // registry default) and lets the owner fall back to the deployment's.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := settingsCompose.ResolveIntOrDefault(ctx, d.wiring.Settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
-	return identityaccess.GuardianInvitationExpiry(hours, d.wiring.FallbackExpiry)
+	hours := settingsCompose.ResolveIntOrDefault(ctx, d.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
+	return identityaccess.GuardianInvitationExpiry(hours, d.fallbackExpiry)
 }
 
 // SchoolName resolves the school for the mail subject. Best-effort: an
@@ -110,7 +121,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	if tenantID <= 0 {
 		return ""
 	}
-	school, found, err := lookupSchool(ctx, d.wiring.Schools, tenantID)
+	school, found, err := lookupSchool(ctx, d.schools, tenantID)
 	if err != nil || !found || school.IsDeleted() {
 		return ""
 	}
@@ -119,7 +130,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	return NewGuardianInvitationMailer(GuardianInvitationMailerConfig{
-		Outbox: d.wiring.Outbox, FrontendURL: d.wiring.ParentsURL, Logger: d.logger(),
+		Outbox: d.outbox, FrontendURL: d.parentsURL, Logger: d.logger(),
 	})
 }
 
@@ -140,7 +151,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 	var helpURL string
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
-		helpURL, err = welcomeHelpURL(savepointCtx, d.wiring.ParentsURL, welcomeHelpRoleParent, tenantID, d.wiring.Settings, d.logger())
+		helpURL, err = welcomeHelpURL(savepointCtx, d.parentsURL, welcomeHelpRoleParent, tenantID, d.settings, d.logger())
 		return err
 	})
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {

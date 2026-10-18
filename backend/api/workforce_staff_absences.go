@@ -127,7 +127,19 @@ func memberPersonID(members map[int64]schoolmembership.Staff, staffID int64) (*i
 // subject and decider names of the request rows through the People Directory.
 type personStaffAbsenceRepository struct {
 	workforceCompose.StaffAbsenceRepository
-	persons peopledirectory.Query
+	persons absencePersons
+}
+
+// absencePersons are the People Directory reads behind the subject search
+// and the subject and decider names.
+type absencePersons interface {
+	SearchPersons(ctx context.Context, filter peopledirectory.PersonFilter) ([]peopledirectory.Person, error)
+	personsByIDQuery
+}
+
+// personsByIDQuery is the People Directory read of persons by ID.
+type personsByIDQuery interface {
+	ListPersonsByID(ctx context.Context, ids []int64) ([]peopledirectory.Person, error)
 }
 
 func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
@@ -154,7 +166,7 @@ func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter w
 			ids = append(ids, *row.DeciderPersonID)
 		}
 	}
-	persons, err := absencePersonsByID(ctx, r.persons, ids)
+	persons, err := livePersonsByID(ctx, r.persons, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -183,9 +195,9 @@ func staffMembersByID(ctx context.Context, query staffMemberQuery, ids []int64) 
 	return result, nil
 }
 
-// absencePersonsByID resolves the non-deleted persons for ids, keyed by
+// livePersonsByID resolves the non-deleted persons for ids, keyed by
 // person ID.
-func absencePersonsByID(ctx context.Context, query peopledirectory.Query, ids []int64) (map[int64]peopledirectory.Person, error) {
+func livePersonsByID(ctx context.Context, query personsByIDQuery, ids []int64) (map[int64]peopledirectory.Person, error) {
 	unique := positiveUniqueIDs(ids)
 	if len(unique) == 0 {
 		return map[int64]peopledirectory.Person{}, nil

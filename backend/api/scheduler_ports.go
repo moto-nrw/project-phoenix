@@ -52,7 +52,8 @@ func schedulerSettings(graph *serveGraph) (schedulerPorts.SettingsResolver, erro
 
 type schedulerSettingsPort struct {
 	schedulerPorts.SettingsResolver
-	snapshots settingsCompose.TenantSnapshots
+	// snapshots is the Settings Platform's cross-tenant batch read.
+	snapshots func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]settingsCompose.TenantSnapshot, error)
 }
 
 func (p schedulerSettingsPort) ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]schedulerPorts.SettingsSnapshot, error) {

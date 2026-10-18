@@ -10,7 +10,13 @@ import (
 
 type StudentDisplayProjection struct {
 	Students peopledirectory.Query
-	Groups   schoolstructure.Query
+	Groups   displayGroupNames
+}
+
+// displayGroupNames is the School Structure read that names the students'
+// groups.
+type displayGroupNames interface {
+	ListGroupsByID(ctx context.Context, ids []int64) ([]schoolstructure.Group, error)
 }
 
 func (q StudentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, ids []int64) ([]presenceservice.StudentDisplayFacts, error) {

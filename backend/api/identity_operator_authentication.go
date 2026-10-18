@@ -148,8 +148,8 @@ type schoolIdentityProvisioner struct {
 	teachers   teacherRows
 	students   studentRows
 	directory  peopledirectory.Query
-	membership schoolmembership.Query
-	caregivers CaregiverProfiles
+	membership staffMemberQuery
+	caregivers liveCaregiverProfile
 }
 
 func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {

@@ -30,7 +30,7 @@ type careScheduleRequestService struct {
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
 	userContext       CareRequestStaff
-	studentAudit      peoplePorts.StudentChangeRecorder
+	studentAudit      requestStudentAudit
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
 	// permissions reads the permissions of the request claims the review
@@ -73,6 +73,12 @@ func (s *careScheduleRequestService) todayDate() timezone.Date {
 		return s.today()
 	}
 	return timezone.TodayDate()
+}
+
+// requestStudentAudit is the People Directory audit a weekly approval
+// records its departure-mode change through.
+type requestStudentAudit interface {
+	RecordChangesForActor(ctx context.Context, before, after *usersModels.Student, editedBy int64) error
 }
 
 type RequestReviewPolicy interface {

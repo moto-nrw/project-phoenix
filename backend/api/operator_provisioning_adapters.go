@@ -205,13 +205,23 @@ func isForeignKeyViolation(err error) bool {
 // --- People Directory and School Membership ---------------------------------
 
 type provisioningPeople struct {
-	persons    ProvisioningPersonDirectory
+	persons    provisioningPersons
 	membership schoolmembership.Query
 	childQuota schoolmembership.ChildQuotaCounts
 	personRows provisioningPersonRows
 	staffRows  provisioningStaffRows
 	accounts   accountEmailQuery
 	students   operatorPersonStudents
+}
+
+// provisioningPersons are the People Directory reads and writes the operator
+// person listing and a person's deletion call.
+type provisioningPersons interface {
+	CountPersonsByTenant(ctx context.Context) (map[int64]int, error)
+	ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) ([]peopledirectory.Person, error)
+	UnlinkTag(ctx context.Context, personID int64) error
+	UnlinkAccount(ctx context.Context, personID int64) error
+	AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error
 }
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {

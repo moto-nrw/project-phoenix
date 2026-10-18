@@ -65,7 +65,7 @@ func NewGroupSupervisionRecords(records studentpresence.SupervisionRecords, grou
 
 type groupSupervisorRepository struct {
 	studentpresence.SupervisionRecords
-	groups schoolstructure.Query
+	groups groupNameQuery
 }
 
 func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]studentpresence.SupervisionBlocker, error) {
