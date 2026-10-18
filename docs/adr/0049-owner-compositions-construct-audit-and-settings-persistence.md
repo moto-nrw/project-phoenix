@@ -1,8 +1,11 @@
 ---
-status: accepted
+status: historical
 ---
 
 # Owner compositions construct Audit and Settings persistence once the repository Factory goes
+
+> Historical record of a completed cutover. The rules that still hold
+> are in [ADR 0068](0068-principle-owners-compose-themselves-and-the-roots-only-wire.md).
 
 Accepted for [#3972](https://github.com/moto-nrw/project-phoenix/issues/3972),
 which blocks [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743),

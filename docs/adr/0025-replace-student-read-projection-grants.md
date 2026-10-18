@@ -1,8 +1,11 @@
 ---
-status: accepted
+status: historical
 ---
 
 # Replace the three student read grants through an exact checker exception
+
+> Historical record of a completed cutover. The rules that still hold
+> are in [ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md).
 
 For [#3432](https://github.com/moto-nrw/project-phoenix/issues/3432), permit
 one bounded replacement of the three existing `users.students` read-projection
