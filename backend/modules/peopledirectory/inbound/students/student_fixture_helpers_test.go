@@ -58,12 +58,13 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 	t.Helper()
 	db, svc := setupStudentModule(t, clocks...)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	resource, _, _, _, _, _, router, err := api.NewStudentHTTPTestResources(
+	resource, _, _, _, _, _, mount, err := api.NewStudentHTTPTestResources(
 		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, broadcaster, tenantScopedCaller{svc.UserContext},
 		testpkg.StudentDirectory{}, &testpkg.FeedbackEntryCounterMock{}, testpkg.RequestAuditActor,
 		deviceAuthenticator(t, db, svc), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
 	)
 	require.NoError(t, err)
+	router := func() chi.Router { return mount(nil) }
 	return &testContext{careRequests: svc.CareRequests, enrollmentDecision: svc.EnrollmentDecision, db: db, resource: resource,
 		settingsService: svc.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
 }

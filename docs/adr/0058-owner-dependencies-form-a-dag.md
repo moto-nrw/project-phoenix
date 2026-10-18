@@ -303,7 +303,7 @@ Root. There are no aliases, cloned DTOs, private-target grants or budget
 increases. All 14 #4079 keys retire together in one PR; #4314's ownership
 decision is implemented, not only recorded.
 
-Policy epoch 73 → 74; baseline keys 89 → 75; rules 833 → 900.
-Root composition remains 1,650. The compose cap remains 34,060.
+Policy epoch 73 → 74; baseline keys 76 → 62; rules 833 → 902.
+Root composition remains 1,644 after integrating development. The integrated compose cap remains 33,216 (downstream development lowered the original 34,060).
 
 [Verification and every added/deleted rule](../architecture/4079-owner-http-evidence.md).

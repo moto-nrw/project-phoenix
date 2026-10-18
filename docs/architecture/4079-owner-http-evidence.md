@@ -6,25 +6,25 @@ Branch created from fresh `origin/development` after verifying that merge.
 ## Contract preservation
 
 - All 14 original exact #4079 edges are absent, with no replacement baseline entries.
-- Root composition: 1,650 → 1,650 across production and test scopes.
+- Root composition: 1,644 → 1,644 against integrated development (1,650 → 1,650 against the original #4318 base) across production and test scopes.
 - Original student-suite inventory: 671 tests, 3,437 assertions. AST call
   comparison is identical after only native qualifiers and fixture-name
   normalization. The manual-status notification subtest follows Care Plan;
   the planned-status notification subtest follows Student Presence.
-- Production router and response checks: final verification pending.
-- Required architecture, lint and no-fast changed-package gates: final verification pending.
+- `TestFullProductionRouterGolden` passed. Route and middleware goldens are byte-identical to the #4318 base; normalized diff is empty with zero substitutions.
+  Route SHA-256: `bd2a1e176eb9f77f5f8170294440134edc0cc3e560a0cc4ece052a1450136b61`.
+  Middleware SHA-256: `8aac8ecab2b289d4672a132a762e8dea6b5f6d2400495c262c178cf322eece45`.
+- Architecture check passed: 76 → 62 legacy keys; root composition 1,644 unchanged. Lint and no-fast changed-package final verification pending.
 - No app servers or production requests are required.
+
+
+Development was integrated locally at `ad49606eae`; register-only conflicts
+were resolved as base plus both deltas, retaining all unrelated retirements.
 
 ## Policy rules
 
-Each added rule below is an exact source-package/role rule. Existing broader
-rules remain only when still used. Test scopes are not expanded to production.
-
 | Added rule | Source package | Target | Scopes |
 |---|---|---|---|
-| `settings-platform.test-support.domain` | `` | `settings-platform/legacy-model` | production |
-| `settings-platform.domain.production.settings-platform.review-contract` | `` | `settings-platform/contract` | production |
-| `settings-platform.public.domain` | `` | `settings-platform/legacy-model` | production |
 | `group-live-view.http.group-live-view.public` | `modules/grouplive/http` | `group-live-view/public` | production |
 | `group-live-view.http.tenant-runtime.http` | `modules/grouplive/http` | `api/common` | production |
 | `group-live-view.http.security-runtime.contract` | `modules/grouplive/http` | `security-runtime/contract` | production |
@@ -107,13 +107,8 @@ Deleted rules:
 
 - `people-directory.adapter-test.student-presence-compose`
 - `domain.adapter-test.projection.public`
-- `settings-platform.test-support.records-port`
 - `people-directory.http.identity-access-contract`
-- `settings-platform.postgres.records-port`
-- `root-composition.reach.internal-test.settings-platform.port`
-- `settings-platform.records-port.review-contract`
 - `people-directory.adapter-test.student-deletion-compose`
-- `settings-platform.public.records-port`
 - `people-directory.adapter-test.request-review-compose`
 - `people-directory.http.delivery-public`
 - `people-directory.http.contract`

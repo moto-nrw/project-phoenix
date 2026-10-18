@@ -802,5 +802,5 @@ their blockers and two alternatives each. #4079 is not closed by this slice.
 
 #4079 / #4314: Option 1 für alle 14 verbleibenden HTTP-Keys umgesetzt.
 Owner-HTTP wird aus vorhandenen Root-Werten montiert; keine neuen Root-Felder.
-Keys 89 → 75, Composition 1.650 unverändert, Compose-Cap 34.060 unverändert.
+Keys 76 → 62, Composition 1.644 unverändert, Compose-Cap 33.216 unverändert.
 [Owner-HTTP-Nachweis](../../docs/architecture/4079-owner-http-evidence.md).

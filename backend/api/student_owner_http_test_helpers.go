@@ -43,7 +43,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	broadcaster realtime.Broadcaster, caller peopleStudentsHTTP.CallerContext, studentRows carePlanCompose.StudentDirectory,
 	feedback studentdeletioncompose.Feedback, auditActor peoplePorts.RequestAuditActor,
 	authenticateDevice common.Middleware, deviceID peopleStudentsHTTP.DeviceIdentity, authoritative *bool, clock func() time.Time,
-) (*peopleStudentsHTTP.Resource, *careStudentsHTTP.Resource, *projectionStudentsHTTP.Resource, *presenceStudentsHTTP.Resource, *deleteStudentsHTTP.Resource, *reviewStudentsHTTP.Resource, func() chi.Router, error) {
+) (*peopleStudentsHTTP.Resource, *careStudentsHTTP.Resource, *projectionStudentsHTTP.Resource, *presenceStudentsHTTP.Resource, *deleteStudentsHTTP.Resource, *reviewStudentsHTTP.Resource, func(func() time.Time) chi.Router, error) {
 
 	if clock == nil {
 		clock = time.Now
@@ -198,7 +198,13 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		},
 	)
 
-	router := func() chi.Router {
+	router := func(transportClock func() time.Time) chi.Router {
+		if transportClock != nil {
+			care.Now = transportClock
+			projection.Now = transportClock
+			status.Now = transportClock
+		}
+
 		return people.Router(ProtectedTenantRoutesWith(care.Register, projection.Register, status.Register, deletion.Register, review.Register, groupLiveHTTP.NewResource(svc.OGSGroupLive).Register))
 	}
 	return people, care, projection, status, deletion, review, router, nil

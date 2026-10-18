@@ -123,5 +123,5 @@
     }
   },
   "rollback_and_cleanup": "Revert owner transport moves,Root mounts,typed fixture bindings,native rule successors and14key retirements together;no data migration. Existing collation debt remains at its original People Directory path.",
-  "exit_criterion": "All14remaining4079keys retired:89to75;Rootcomposition1650unchanged;composecap34060unchanged;routes,middleware,responses,andoriginal3437assertionsunchanged;architecture,lintandfullno-fastchangedchecks pass. Closes4079and4314."
+  "exit_criterion": "All14remaining4079keys retired:76to62;Rootcomposition1644unchanged;composecap33216unchanged;routes,middleware,responses,andoriginal3437assertionsunchanged;architecture,lintandfullno-fastchangedchecks pass. Closes4079and4314."
 }
