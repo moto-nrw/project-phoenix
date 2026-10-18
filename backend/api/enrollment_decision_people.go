@@ -408,16 +408,7 @@ func (s enrollmentStudentGuardians) LinkGuardianIfMissing(ctx context.Context, l
 }
 
 func (s enrollmentStudentGuardians) UpdateGuardianLinkRole(ctx context.Context, link *enrollmentCompose.StudentGuardian) (int64, error) {
-	return s.repo.UpdateColumns(
-		ctx,
-		decisionStudentGuardianRow(link),
-		"relationship_type",
-		"is_emergency_contact",
-		"can_pickup",
-		"emergency_priority",
-		"guardian_role",
-		"permissions",
-	)
+	return s.repo.UpdateColumns(ctx, decisionStudentGuardianRow(link), peopledirectory.GuardianRoleColumns()...)
 }
 
 func decisionStudentGuardianRow(link *enrollmentCompose.StudentGuardian) *userModels.StudentGuardian {
