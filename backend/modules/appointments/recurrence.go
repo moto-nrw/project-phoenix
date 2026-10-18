@@ -435,12 +435,7 @@ func matchesRule(start, candidate Date, rule *RecurrenceRule) bool {
 		if len(rule.MonthDays) == 0 {
 			return candidate.Day() == start.Day()
 		}
-		for _, day := range rule.MonthDays {
-			if candidate.Day() == day {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(rule.MonthDays, candidate.Day())
 	case RecurrenceFrequencyYearly:
 		years := candidate.Year() - start.Year()
 		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month() == start.Month() && candidate.Day() == start.Day()
