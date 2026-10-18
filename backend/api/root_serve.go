@@ -94,7 +94,7 @@ func composeServeRoot(
 	metrics *httpMetrics, tracer *observability.Tracer, metricsToken string, embedWorker bool,
 ) (http.Handler, schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
-	communicationCompose.InstallMessageQueryInstrumentation(db.Pool())
+	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
 	var (
 		tokens           TokenAdapter
