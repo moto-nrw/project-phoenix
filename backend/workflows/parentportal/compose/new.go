@@ -69,7 +69,7 @@ type Dependencies struct {
 
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
-	StudentPhotos       func() care.StudentPhotoUnlinker
+	StudentPhotos       care.StudentPhotoUnlinker
 	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
@@ -106,9 +106,8 @@ func New(deps Dependencies) *parentportal.Portal {
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
-// NewRequestShareVisibility builds the request-share visibility the staff
-// request queues read (#2267, story 47) without the portal; both readers are
-// required and are the ones Dependencies carries.
+// NewRequestShareVisibility builds the staff queues' request-share
+// visibility (#2267, story 47) over its two required readers.
 func NewRequestShareVisibility(shares messaging.RequestShareRecords, protection messaging.FamilyProtectionReads) (*messaging.ShareRecipients, error) {
 	return messaging.NewShareRecipients(shares, protection)
 }

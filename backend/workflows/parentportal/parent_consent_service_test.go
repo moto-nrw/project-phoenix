@@ -52,7 +52,7 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		StudentConsents:     api.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
-		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
+		StudentPhotos:       photos,
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 
