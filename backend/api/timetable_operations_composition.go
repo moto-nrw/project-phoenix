@@ -43,12 +43,32 @@ func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCap
 		Arrivals:             timetableEffectiveArrivals{times: in.Arrivals},
 		Pickups:              timetableEffectivePickups{times: in.Pickups},
 		Lifecycle:            in.Lifecycle,
+		Session:              TimetableRequestSession{},
 		Locks:                in.Rows.AttendanceLocks(),
 		Announcer:            newTimetableAttendanceAnnouncer(in.Broadcaster),
 		NormalizeSchoolClass: schoolStructure.NormalizeClass,
 		Logger:               in.Logger,
 		Now:                  in.Now,
 	})
+}
+
+// TimetableRequestSession binds the operational day's session port to
+// Identity's session token adapter.
+type TimetableRequestSession struct{}
+
+// Claims are the verified claims of the request, the zero claims without
+// any.
+func (TimetableRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := requestTokenReads.claims(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: claims.AccountID, TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.SchoolScope, Admin: claims.Admin,
+	}
+}
+
+// Permissions are the permissions of the request.
+func (TimetableRequestSession) Permissions(ctx context.Context) []string {
+	return requestTokenReads.Permissions(ctx)
 }
 
 // newTimetableAttendanceAnnouncer wakes the tenant's clients after an

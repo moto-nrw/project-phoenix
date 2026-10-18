@@ -174,6 +174,25 @@ type AttendanceLocks interface {
 	LockAttendance(ctx context.Context, instanceID int64) error
 }
 
+// RequestSession reads the verified session of the request the operational
+// day authorizes. The root binds it over Identity's session token adapter.
+type RequestSession interface {
+	// Claims are the verified claims of the request, the zero claims
+	// without any.
+	Claims(ctx context.Context) RequestClaims
+	// Permissions are the permissions of the request, none without any.
+	Permissions(ctx context.Context) []string
+}
+
+// RequestClaims are the session claims the operational day reads.
+type RequestClaims struct {
+	AccountID   int64
+	TenantID    int64
+	Scope       string
+	SchoolScope bool
+	Admin       bool
+}
+
 // OperationDependencies wires the operational day. PlanningTracks and
 // Locks are optional: without tracks day-scope blocks carry no colour,
 // without locks attendance patches skip the completion lock. Announcer is
@@ -197,6 +216,7 @@ type OperationDependencies struct {
 	Arrivals             EffectiveArrivals
 	Pickups              EffectivePickups
 	Lifecycle            OperationLifecycle
+	Session              RequestSession
 	Locks                AttendanceLocks
 	Announcer            AttendanceAnnouncer
 	NormalizeSchoolClass func(string) string

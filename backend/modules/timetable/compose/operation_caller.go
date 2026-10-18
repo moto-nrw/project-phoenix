@@ -5,31 +5,31 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // operationCaller binds the operational day's caller port to the request's
-// session token and the shared authorization rules.
-type operationCaller struct{}
-
-func (operationCaller) AssignmentBoundPortal(ctx context.Context) bool {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	return claims.IsSchoolScope()
+// session and the shared authorization rules.
+type operationCaller struct {
+	ports.RequestSession
 }
 
-func (operationCaller) AdministrativeAccess(ctx context.Context) bool {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	return claims.IsAdmin || authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))
+func (c operationCaller) AssignmentBoundPortal(ctx context.Context) bool {
+	return c.Claims(ctx).SchoolScope
 }
 
-func (operationCaller) OGSActorToken(ctx context.Context, accountID int64) bool {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
+func (c operationCaller) AdministrativeAccess(ctx context.Context) bool {
+	claims := c.Claims(ctx)
+	return claims.Admin || authorize.HasAdminWildcard(c.Permissions(ctx))
+}
+
+func (c operationCaller) OGSActorToken(ctx context.Context, accountID int64) bool {
+	claims := c.Claims(ctx)
 	return (claims.Scope == "" || claims.Scope == "tenant" || claims.Scope == "org") &&
-		int64(claims.ID) == accountID && claims.TenantID > 0 && claims.TenantID == tenant.FromContext(ctx) &&
-		authorize.HasPermission("schedules:read", sessiontoken.PermissionsFromCtx(ctx))
+		claims.AccountID == accountID && claims.TenantID > 0 && claims.TenantID == tenant.FromContext(ctx) &&
+		authorize.HasPermission("schedules:read", c.Permissions(ctx))
 }
 
 func (operationCaller) SchoolWideActionScope(ctx context.Context, settings ports.OperationSettings, scopeKey string) (bool, error) {

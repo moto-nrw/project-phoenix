@@ -1161,10 +1161,27 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 		Arrivals:             stubOpArrivals{},
 		Pickups:              stubOpPickups{},
 		Lifecycle:            testOperationLifecycle{instances: instanceSvc},
+		Session:              testRequestSession{},
 		NormalizeSchoolClass: func(class string) string { return class },
 	})
 	require.NoError(t, err)
 	return operations
+}
+
+// testRequestSession reads the operational day's session from the claims and
+// permissions the test request carries, as the root's binding does.
+type testRequestSession struct{}
+
+func (testRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
+	}
+}
+
+func (testRequestSession) Permissions(ctx context.Context) []string {
+	return sessiontoken.PermissionsFromCtx(ctx)
 }
 
 func (r fakeOperationRooms) RoomName(context.Context, int64) (string, bool, error) {
