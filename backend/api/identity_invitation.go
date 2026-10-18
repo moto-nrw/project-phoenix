@@ -83,6 +83,12 @@ func (RoleGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissi
 	}, actorPermissions)
 }
 
+// schoolInvitationRecords records an invitation mail's outcome in Identity &
+// Access.
+type schoolInvitationRecords interface {
+	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // invitationDelivery mails an invitation and records the outcome through the
 // module once the send settles.
 type invitationDelivery struct {
@@ -92,7 +98,7 @@ type invitationDelivery struct {
 	schoolURL    string
 	identity     email.ReplyToResolver
 	backoff      []time.Duration
-	invitations  identityaccess.SchoolInvitationDeliveryRecorder
+	invitations  schoolInvitationRecords
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
 	outbox       MailOutbox

@@ -72,6 +72,13 @@ func (operatorEmailFormat) IsRoutable(address string) bool {
 	return peopledirectory.IsValidEmailFormat(address)
 }
 
+// operatorLinkRecords records the outcome of the operator mails that carry a
+// link in Identity & Access.
+type operatorLinkRecords interface {
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // operatorLinkDelivery mails the operator invitation and the three e-mail
 // change messages, and records the outcome of the two that carry a link
 // back through the module once the send settles.
@@ -81,7 +88,7 @@ type operatorLinkDelivery struct {
 	frontendURL string
 	operatorURL string
 	backoff     []time.Duration
-	tokens      identityaccess.OperatorLinkDeliveryRecorder
+	tokens      operatorLinkRecords
 	logger      *slog.Logger
 }
 

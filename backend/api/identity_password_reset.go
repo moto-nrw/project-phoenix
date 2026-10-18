@@ -63,6 +63,11 @@ func passwordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger)
 	}
 }
 
+// passwordResetRecords records a reset mail's outcome in Identity & Access.
+type passwordResetRecords interface {
+	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // passwordResetDelivery mails a reset link and records the outcome through
 // the module once the send settles.
 type passwordResetDelivery struct {
@@ -71,7 +76,7 @@ type passwordResetDelivery struct {
 	// host is the portal origin of a reset scope.
 	host    func(identityaccess.PasswordResetScope) string
 	backoff []time.Duration
-	records identityaccess.PasswordResetDeliveryRecorder
+	records passwordResetRecords
 	logger  *slog.Logger
 }
 
