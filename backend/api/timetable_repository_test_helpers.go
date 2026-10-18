@@ -108,8 +108,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	}
 	enrollment := enrollmentCompose.New()
 	usage := timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), bookings)
-	room := facilitiesAdapter.New()
-	room.Bind(rooms)
+	room := facilitiesAdapter.New(rooms)
 	result := TimetableTestRepositories{
 		Repositories: adapters,
 		CalendarRows: timetableCompose.CalendarRows{

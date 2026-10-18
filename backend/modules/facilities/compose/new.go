@@ -28,17 +28,14 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-// RoomsDependencies are the bindings of the Rooms: every room operation
-// except the deletion needs nothing but the database.
+// RoomsDependencies bind the Rooms: every room operation but the deletion.
 type RoomsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
 }
 
 // NewRooms composes the Facilities Catalog without the room deletion, for
-// the owners a root builds before the ones the deletion guard asks (#4080).
-// The full module comes from New once its Usage exists. Both are stateless
-// over the same tables, so a root may build both.
+// the owners a root builds before the deletion guard's (#4080); New adds it.
 func NewRooms(dependencies RoomsDependencies) (*facilities.Rooms, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
