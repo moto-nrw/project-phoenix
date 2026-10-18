@@ -49,7 +49,7 @@ func schoolSetupRuntime() schoolSetupHTTP.Runtime {
 		Protected: func(r chi.Router, fn func(chi.Router, schoolSetupHTTP.Middleware)) {
 			ProtectedTenantRoutes(r, fn)
 		},
-		RequireWrite: RequireConfigWrite(),
+		RequireWrite: apiCommon.RequiresAnyPermission(schoolSetupHTTP.WritePermissions()...),
 		Actor: func(ctx context.Context) (int64, int64) {
 			principal, err := apiCommon.CurrentPrincipal(ctx)
 			if err != nil {

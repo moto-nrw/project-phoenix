@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -192,7 +192,7 @@ func (r offeringChangeRows) find(ctx context.Context, id int64, lock bool, op st
 }
 
 func (r offeringChangeRows) PendingForStudent(ctx context.Context, studentID int64) (*careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{StudentID: studentID, Statuses: []string{careplan.OfferingChangePending}, Order: careplan.ChangeOrderCreated})
+	rows, err := r.list(ctx, careplan.PendingOfferingChanges(studentID))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("get pending offering change request", err)
 	}
@@ -203,7 +203,7 @@ func (r offeringChangeRows) PendingForStudent(ctx context.Context, studentID int
 }
 
 func (r offeringChangeRows) ListByStudent(ctx context.Context, studentID int64) ([]careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{StudentID: studentID, Order: careplan.ChangeOrderReviewed})
+	rows, err := r.list(ctx, careplan.StudentOfferingChangeHistory(studentID))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("list offering change requests by student", err)
 	}
@@ -211,7 +211,7 @@ func (r offeringChangeRows) ListByStudent(ctx context.Context, studentID int64) 
 }
 
 func (r offeringChangeRows) ListPending(ctx context.Context) ([]careplan.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, careplan.OfferingChangeFilter{Statuses: []string{careplan.OfferingChangePending}, Order: careplan.ChangeOrderCreated})
+	rows, err := r.list(ctx, careplan.PendingOfferingChanges(0))
 	if err != nil {
 		return nil, offeringChangeDatabaseError("list pending offering change requests", err)
 	}
@@ -226,30 +226,11 @@ func (r offeringChangeRows) list(ctx context.Context, filter careplan.OfferingCh
 		return nil, err
 	}
 	for _, row := range rows {
-		if err := decodableOfferingChange(row); err != nil {
+		if err := row.CheckStoredJSON(); err != nil {
 			return nil, err
 		}
 	}
 	return rows, nil
-}
-
-func decodableOfferingChange(row careplan.OfferingChangeRequest) error {
-	var payload map[string]any
-	if err := unmarshalOptionalOfferingJSON(row.Payload, &payload); err != nil {
-		return fmt.Errorf("decode offering change payload: %w", err)
-	}
-	var snapshot map[string]any
-	if err := unmarshalOptionalOfferingJSON(row.DecisionSnapshot, &snapshot); err != nil {
-		return fmt.Errorf("decode offering change decision snapshot: %w", err)
-	}
-	return nil
-}
-
-func unmarshalOptionalOfferingJSON(data json.RawMessage, target any) error {
-	if len(data) == 0 || string(data) == "null" {
-		return nil
-	}
-	return json.Unmarshal(data, target)
 }
 
 func (r offeringChangeRows) UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom calendar.Date) error {
@@ -429,10 +410,6 @@ func offeringChangeDatabaseError(op string, err error) error {
 	return fmt.Errorf("database error during %s: %w", op, err)
 }
 
-// errParentRequestEventIncomplete refuses a ledger entry that cannot name its
-// request.
-var errParentRequestEventIncomplete = errors.New("parent request event: student, request and event type are required")
-
 // ParentRequestLedger is the one append-only history of every parent request
 // (#2267), shared by all four queues so a request's history survives the
 // edits, decisions and corrections that overwrite the request rows. People
@@ -462,8 +439,8 @@ func (l *ParentRequestLedger) Record(ctx context.Context, entry carePlanCompose.
 	if l == nil {
 		return nil
 	}
-	if entry.StudentID <= 0 || entry.RequestID <= 0 || entry.RequestType == "" || entry.EventType == "" {
-		return errParentRequestEventIncomplete
+	if err := peopledirectory.ValidateParentRequestEvent(entry.StudentID, entry.RequestType, entry.RequestID, entry.EventType); err != nil {
+		return err
 	}
 	event := &usersModels.ParentRequestEvent{
 		StudentID:   entry.StudentID,
@@ -549,22 +526,4 @@ func NewExcusedRequestMessenger(emitter *communicationCompose.ParentEventEmitter
 
 type BookingSettingsReads interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
-}
-
-// BookingSettings resolves the tenant settings; without a settings service
-// the registry defaults apply.
-type BookingSettings struct{ Settings BookingSettingsReads }
-
-func (s BookingSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return true, nil
-	}
-	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
-}
-
-func (s BookingSettings) BookingsAuthoritative(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return false, nil
-	}
-	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 }

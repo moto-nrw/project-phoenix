@@ -25,6 +25,23 @@ type Attendance struct {
 	CheckOutNote *string
 }
 
+// IsOpen reports a school attendance that is checked in and not yet checked
+// out.
+func (a Attendance) IsOpen() bool { return a.CheckOutTime == nil }
+
+// AttendanceCompletion reports whether the rows hold an open attendance and
+// whether they hold a completed one; a day can hold both.
+func AttendanceCompletion(rows []Attendance) (open, completed bool) {
+	for _, row := range rows {
+		if row.IsOpen() {
+			open = true
+		} else {
+			completed = true
+		}
+	}
+	return open, completed
+}
+
 // AttendanceFilter restricts an attendance history query. Nil ID lists mean
 // unrestricted; non-nil empty lists mean no matches.
 type AttendanceFilter struct {

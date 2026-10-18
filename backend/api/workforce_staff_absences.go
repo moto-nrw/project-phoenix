@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -70,28 +69,20 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter workfor
 	return rows, nil
 }
 
-// subjectStaffIDs maps the subject persons to their staff IDs; nil means "no
-// subject filter". An explicitly empty person set, or one without staff
-// members, matches nobody; it never falls through to the unfiltered listing.
+// subjectStaffIDs maps the subject persons to their staff IDs by the
+// owner's subject rule.
 func (r staffAbsenceRepository) subjectStaffIDs(ctx context.Context, personIDs []int64) ([]int64, bool, error) {
-	if personIDs == nil {
-		return nil, false, nil
-	}
-	if len(personIDs) == 0 {
-		return nil, true, nil
-	}
-	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, IncludeDeleted: true})
-	if err != nil {
-		return nil, false, fmt.Errorf("load staff for absence subjects: %w", err)
-	}
-	if len(members) == 0 {
-		return nil, true, nil
-	}
-	ids := make([]int64, 0, len(members))
-	for _, member := range members {
-		ids = append(ids, member.ID)
-	}
-	return ids, false, nil
+	return workforceModule.AbsenceSubjectStaffIDs(personIDs, func(personIDs []int64) ([]int64, error) {
+		members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff})
+		if err != nil {
+			return nil, fmt.Errorf("load staff for absence subjects: %w", err)
+		}
+		ids := make([]int64, 0, len(members))
+		for _, member := range members {
+			ids = append(ids, member.ID)
+		}
+		return ids, nil
+	})
 }
 
 // attachPersonIDs fills SubjectPersonID and DeciderPersonID from the staff
@@ -140,7 +131,7 @@ type personStaffAbsenceRepository struct {
 }
 
 func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
-	if search := strings.TrimSpace(filter.Search); search != "" && filter.SubjectPersonIDs == nil {
+	if search := workforceModule.AbsenceSubjectSearch(filter.Search, filter.SubjectPersonIDs); search != "" {
 		matches, err := r.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: search})
 		if err != nil {
 			return nil, err
@@ -181,7 +172,7 @@ func staffMembersByID(ctx context.Context, query staffMemberQuery, ids []int64) 
 	if len(unique) == 0 {
 		return map[int64]schoolmembership.Staff{}, nil
 	}
-	values, err := query.ListStaff(ctx, schoolmembership.StaffFilter{IDs: unique, IncludeDeleted: true})
+	values, err := query.ListStaff(ctx, schoolmembership.StaffFilter{IDs: unique, IncludeDeleted: workforceModule.AbsenceRequestsIncludeOffboardedStaff})
 	if err != nil {
 		return nil, fmt.Errorf("load staff: %w", err)
 	}

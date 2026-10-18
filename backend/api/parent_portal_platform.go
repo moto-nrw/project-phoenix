@@ -1,9 +1,6 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
-
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -68,20 +65,7 @@ func NewParentGuardianPolicy() parentportal.GuardianPolicy {
 		},
 	})
 }
-func parentGuardianPermissionJSON(raw json.RawMessage, permission string) bool {
-	var values map[string]json.RawMessage
-	if json.Unmarshal(raw, &values) != nil {
-		return false
-	}
-	value, exists := values[permission]
-	if !exists {
-		return false
-	}
-	decoder := json.NewDecoder(bytes.NewReader(value))
-	decoder.UseNumber()
-	var stored any
-	if decoder.Decode(&stored) != nil {
-		return false
-	}
-	return securityruntime.GuardianPermissionGranted(stored)
-}
+
+// parentGuardianPermissionJSON reads a stored permissions object with
+// Security Runtime's fail-closed rule.
+var parentGuardianPermissionJSON = securityruntime.GuardianPermissionGrantedJSON

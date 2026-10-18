@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -29,24 +30,9 @@ func (d absenceEmailDispatcher) Dispatch(ctx context.Context, value workforceCom
 }
 
 func (d absenceEmailDispatcher) request(ctx context.Context, value workforceCompose.AbsenceEmailMessage) email.DeliveryRequest {
-	content := map[string]any{
-		"FirstName":        value.Content.FirstName,
-		"LastName":         value.Content.LastName,
-		"AbsenceTypeLabel": value.Content.AbsenceTypeLabel,
-		"DateRange":        value.Content.DateRange,
-		"LinkURL":          value.Content.LinkURL,
-		"LogoURL":          value.Content.LogoURL,
-	}
-	if value.Template == "absence-request-received.html" {
-		content["RequesterName"] = value.Content.RequesterName
-		content["Note"] = value.Content.Note
-		content["PreviousQuestion"] = value.Content.PreviousQuestion
-	} else {
-		content["DecisionNote"] = value.Content.DecisionNote
-	}
 	message := email.Message{
 		From: d.from, To: email.NewEmail(value.To.Name, value.To.Address),
-		Subject: value.Subject, Template: value.Template, Content: content,
+		Subject: value.Subject, Template: value.Template, Content: value.TemplateData(),
 	}
 	if value.TenantID > 0 {
 		identity := email.ResolveReplyToIdentity(ctx, d.identity, value.TenantID, d.logger)
@@ -80,7 +66,7 @@ func (d absenceEmailStaffDirectory) GetStaffContactInfo(ctx context.Context, id 
 }
 
 func (d absenceEmailStaffDirectory) ListAbsenceApprovers(ctx context.Context) ([]*workforceCompose.AbsenceEmailContact, error) {
-	rows, err := d.source.ListStaffWithPermission(ctx, permissions.VacationApprove)
+	rows, err := d.source.ListStaffWithPermission(ctx, timeTrackingHTTP.AbsenceApproverPermission)
 	if rows == nil {
 		return nil, err
 	}

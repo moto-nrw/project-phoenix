@@ -41,7 +41,7 @@ type Presence interface {
 type Rooms = application.Rooms
 
 // Rosters resolves the day rosters of running blocks. The roots bind it to
-// the Student Presence sessions and the Timetable roster (repositories.SessionRosters).
+// Timetable, which maps the Student Presence sessions to its day rosters.
 type Rosters = ports.Rosters
 
 // PickupReader is the slice of the retained pickup schedule service the

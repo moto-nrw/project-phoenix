@@ -3,6 +3,7 @@ package sessiontoken
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
@@ -62,6 +63,11 @@ func (c *AppClaims) IsReadOnlyPreview() bool {
 // IsPlatformScope returns true if this is a platform/operator token
 func (c *AppClaims) IsPlatformScope() bool {
 	return c.Scope == "platform"
+}
+
+// IsParentScope returns true if this is a parent-portal token.
+func (c *AppClaims) IsParentScope() bool {
+	return c.Scope == claimScopeParent
 }
 
 // IsSchoolScope returns true if this is a school-portal token ("moto schule",
@@ -333,4 +339,13 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 	}
 
 	return nil
+}
+
+// DisplayName is the caller's name as a page shows it: first and last name,
+// else the username.
+func (c AppClaims) DisplayName() string {
+	if name := strings.TrimSpace(c.FirstName + " " + c.LastName); name != "" {
+		return name
+	}
+	return c.Username
 }

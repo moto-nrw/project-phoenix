@@ -60,20 +60,10 @@ type timetableDeletionAudit struct {
 }
 
 func (a timetableDeletionAudit) RecordTimetableRetention(ctx context.Context, record timetablePorts.StudentDeletionRecord) error {
-	deletion := auditModels.NewDataDeletion(
-		record.StudentID,
-		auditModels.DeletionTypeTimetableRetention,
-		record.RecordsDeleted,
-		"system",
-	)
-	deletion.SetTenantID(record.TenantID)
-	deletion.DeletionReason = "automated timetable retention cleanup"
-	deletion.SetMetadata("retention_days", record.RetentionDays)
-	deletion.SetMetadata("cutoff_date", record.CutoffDate.String())
-	if len(record.InstanceIDsSample) > 0 {
-		deletion.SetMetadata("instance_ids_sample", record.InstanceIDsSample)
-	}
-	return a.deletions.Create(ctx, deletion)
+	return a.deletions.Create(ctx, auditModels.NewTimetableRetentionDeletion(
+		record.TenantID, record.StudentID, record.RecordsDeleted, record.RetentionDays,
+		record.CutoffDate.String(), record.InstanceIDsSample,
+	))
 }
 
 // timetableDeviationRetention deletes the Änderungsprotokoll rows of the

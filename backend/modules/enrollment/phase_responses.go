@@ -28,6 +28,10 @@ type PhaseResponseStudent struct {
 	FirstName   string
 	LastName    string
 	SchoolClass string
+	// NotActive marks a child whose status is not active yet or any more,
+	// such as a pending child that has not started. It is not asked to
+	// re-enroll: its own enrollment is still running.
+	NotActive bool
 }
 
 // PhaseResponseRoster lists the children whose care is running on the given

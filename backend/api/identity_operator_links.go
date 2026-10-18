@@ -19,12 +19,6 @@ import (
 // the retained envelope the operator routes classify on. Those routes may
 // not name the owner's contract, so the translation lives here.
 
-var operatorLinkEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
 // operatorLinkWiring is the configuration the operator link deliveries are
 // composed with. dispatcher may be nil: the link is then not mailed, as
 // before.
@@ -57,9 +51,6 @@ func operatorProvisioningDependencies(
 		logger = slog.Default()
 	}
 	backoff := wiring.backoff
-	if backoff == nil {
-		backoff = operatorLinkEmailBackoff
-	}
 	delivery := operatorLinkDelivery{
 		dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
 		frontendURL: wiring.frontendURL, operatorURL: wiring.operatorFrontendURL,
@@ -152,9 +143,9 @@ func (d operatorLinkDelivery) dispatch(
 	baseRetry int,
 	record func(context.Context, email.DeliveryMetadata, int, email.DeliveryResult),
 ) {
-	request := email.DeliveryRequest{
-		Message: message, Metadata: meta, BackoffPolicy: d.backoff, MaxAttempts: 3,
-	}
+	request := email.WithInteractiveRetry(email.DeliveryRequest{
+		Message: message, Metadata: meta,
+	}, d.backoff)
 	if record != nil {
 		request.Callback = func(cbCtx context.Context, result email.DeliveryResult) {
 			record(cbCtx, meta, baseRetry, result)

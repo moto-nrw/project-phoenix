@@ -10,32 +10,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-// staffPWAUsage records a staff session that runs in standalone display mode.
-type staffPWAUsage interface {
-	ReportStaff(ctx context.Context, accountID int64) error
-}
-
-func pwaUsageRouter(usage staffPWAUsage) chi.Router {
+func pwaUsageRouter(usage pwaHTTP.Usage) chi.Router {
 	router := chi.NewRouter()
 	ProtectedTenantRoutes(router, func(r chi.Router, withTx apiCommon.Middleware) {
-		pwaHTTP.NewResource(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			reportPWAUsage(w, r, usage)
-		}), withTx).Register(r)
+		pwaHTTP.NewResource(pwaHTTP.ReportUsage(usage, pwaUsageRuntime), withTx).Register(r)
 	})
 	return router
 }
 
-// reportPWAUsage records that the caller's session runs in standalone display
-// mode. Repeated reports only advance last_seen_at.
-func reportPWAUsage(w http.ResponseWriter, r *http.Request, usage staffPWAUsage) {
-	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
+// pwaUsageRuntime binds the session claims and the shared response
+// envelope.
+var pwaUsageRuntime = pwaHTTP.UsageRuntime{
+	AccountID: func(ctx context.Context) int64 { return int64(sessiontoken.ClaimsFromCtx(ctx).ID) },
+	Unauthorized: func(w http.ResponseWriter, r *http.Request) {
 		apiCommon.RenderError(w, r, apiCommon.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
-		return
-	}
-	if err := usage.ReportStaff(r.Context(), int64(claims.ID)); err != nil {
-		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("App-Nutzung konnte nicht gespeichert werden.", err))
-		return
-	}
-	apiCommon.Respond(w, r, http.StatusNoContent, nil, "")
+	},
+	Failed: func(w http.ResponseWriter, r *http.Request, message string, err error) {
+		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap(message, err))
+	},
+	NoContent: func(w http.ResponseWriter, r *http.Request) { apiCommon.Respond(w, r, http.StatusNoContent, nil, "") },
 }

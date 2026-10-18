@@ -92,8 +92,8 @@ func (l staffClockStaffLookup) ResolveStaffByTag(ctx context.Context, tag string
 }
 
 // staffClockTimeClock serves the kiosk workflow's TimeClock port from the
-// public Workforce time clock (#2690). Every stamp the kiosk files carries the
-// NFC source; refusals are translated into the kiosk error kinds.
+// public Workforce time clock (#2690). Refusals are translated into the kiosk
+// error kinds.
 type staffClockTimeClock struct {
 	clock workforceModule.TimeClock
 }
@@ -107,7 +107,7 @@ func newStaffClockTimeClock(clock workforceModule.TimeClock) staffclock.TimeCloc
 
 func (c staffClockTimeClock) CheckIn(ctx context.Context, stamp staffclock.Stamp) (staffclock.Session, error) {
 	session, err := c.clock.CheckIn(ctx, workforceModule.CheckInStamp{
-		StaffID: stamp.StaffID, Day: stamp.Day, Status: stamp.Status, Source: workforceModule.WorkSessionSourceNFC, Reason: stamp.Reason,
+		StaffID: stamp.StaffID, Day: stamp.Day, Status: stamp.Status, Source: stamp.Source, Reason: stamp.Reason,
 	})
 	if err != nil {
 		return staffclock.Session{}, mapStampError(err)

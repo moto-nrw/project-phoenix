@@ -50,13 +50,7 @@ func (a pickupApprovalAdapter) AttendanceCompletion(ctx context.Context, id int6
 	if err != nil {
 		return false, false, err
 	}
-	for _, row := range rows {
-		if row.CheckOutTime == nil {
-			open = true
-		} else {
-			completed = true
-		}
-	}
+	open, completed = studentpresence.AttendanceCompletion(rows)
 	return open, completed, nil
 }
 func (a pickupApprovalAdapter) Preview(ctx context.Context, id int64, date timezone.Date, pickup time.Time) ([]carerequests.Block, error) {

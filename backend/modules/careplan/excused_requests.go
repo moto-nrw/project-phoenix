@@ -66,6 +66,37 @@ const (
 	ParentMessageRequestSick         = excusedrequests.ParentMessageRequestSick
 )
 
+// PendingExcusedRequestStatuses are the statuses of the excused requests
+// still waiting for a decision.
+func PendingExcusedRequestStatuses() []string {
+	return []string{ExcusedRequestStatusPending}
+}
+
+// DecidedExcusedRequestStatuses are the statuses of the decided excused
+// requests a review history lists: approved, rejected and withdrawn.
+func DecidedExcusedRequestStatuses() []string {
+	return []string{ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn}
+}
+
+// ApprovedAbsenceLiveFlags is what an approved excused request that covers
+// today does to the child's live flags, mirroring the direct parent path.
+type ApprovedAbsenceLiveFlags struct {
+	// Sick is the live sick flag after the approval. Its start is the
+	// approval time when the flag is raised and cleared otherwise.
+	Sick bool
+	// ClearExcused clears the live excused flag and its start.
+	ClearExcused bool
+}
+
+// LiveFlagsForApprovedAbsence decides the live flags for an approved absence
+// of the given status: a sick day raises the live sick flag and clears the
+// excused flag; any other absence clears the live sick flag and leaves the
+// excused flag alone.
+func LiveFlagsForApprovedAbsence(status string) ApprovedAbsenceLiveFlags {
+	sick := status == StudentStatusDaySick
+	return ApprovedAbsenceLiveFlags{Sick: sick, ClearExcused: sick}
+}
+
 var (
 	ErrExcusedRequestForbidden             = excusedrequests.ErrExcusedRequestForbidden
 	ErrExcusedRequestGuardianAccessRevoked = excusedrequests.ErrExcusedRequestGuardianAccessRevoked

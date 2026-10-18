@@ -205,19 +205,12 @@ func schedulePresencesToModule(changes []workforceModule.SchedulePresenceChange)
 	return result
 }
 
-// wholeDaysToModule parses the whole-day dates; an empty or malformed day is
-// the module's invalid-period rejection.
+// wholeDaysToModule maps the whole-day assignment with the days Workforce
+// parsed.
 func wholeDaysToModule(wholeDays workforceModule.ScheduleWholeDayAssignment) (*education.ScheduleWholeDayAssignment, error) {
-	dates := make([]timezone.Date, 0, len(wholeDays.Dates))
-	for _, raw := range wholeDays.Dates {
-		date, err := substitutionDate(raw)
-		if err != nil {
-			return nil, err
-		}
-		if date == nil {
-			return nil, workforceModule.InvalidSubstitutionPeriod(nil)
-		}
-		dates = append(dates, *date)
+	dates, err := wholeDays.Days()
+	if err != nil {
+		return nil, err
 	}
 	return &education.ScheduleWholeDayAssignment{
 		AbsentStaffID: wholeDays.AbsentStaffID, SubstituteStaffID: wholeDays.SubstituteStaffID, Dates: dates, Reason: wholeDays.Reason,

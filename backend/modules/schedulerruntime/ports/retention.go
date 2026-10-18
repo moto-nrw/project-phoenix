@@ -37,3 +37,25 @@ type RetentionOutcome struct {
 // RetentionLog records one step's deletion in the deletion log of the school
 // in ctx: the data kind and the number of rows, never their content.
 type RetentionLog func(ctx context.Context, kind string, outcome RetentionOutcome) error
+
+// SubjectRetention is the automatic deletion of whole subjects of a school,
+// children (#3962) or staff members (#3963), which writes one deletion-log
+// entry per deleted subject itself. A nil Run leaves the deletion out.
+type SubjectRetention struct {
+	Kind string
+	Run  func(context.Context) (RetentionOutcome, error)
+}
+
+// RetentionPlan orders the deletions of one school's nightly cleanup. The
+// automatic deletion of children runs first, the deletion of staff members
+// with it, and the data kinds after them: their shorter windows then apply
+// to the rows of the children and staff members that stay.
+func RetentionPlan(children, staff SubjectRetention, dataKinds []RetentionStep) []RetentionStep {
+	var steps []RetentionStep
+	for _, subjects := range []SubjectRetention{children, staff} {
+		if subjects.Run != nil {
+			steps = append(steps, RetentionStep{Kind: subjects.Kind, Run: subjects.Run, LogsSubjects: true})
+		}
+	}
+	return append(steps, dataKinds...)
+}

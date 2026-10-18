@@ -104,19 +104,22 @@ type ReplaceDay struct {
 	Dishes []Dish
 }
 
+// Fault is a refused Meal Plan request. Code names it; Detail, when set, is
+// the client text the response carries instead of the code.
 type Fault struct {
-	Code string
+	Code   string
+	Detail string
 }
 
 func (f *Fault) Error() string { return f.Code }
 
 var (
-	ErrDisabled             = &Fault{Code: "meal_plan_disabled"}
-	ErrInvalidMealDate      = &Fault{Code: "invalid_meal_date"}
+	ErrDisabled             = &Fault{Code: "meal_plan_disabled", Detail: "feature_disabled"}
+	ErrInvalidMealDate      = &Fault{Code: "invalid_meal_date", Detail: "meal plan covers weekdays only (Monday-Friday)"}
 	ErrInvalidDishes        = &Fault{Code: "invalid_dishes"}
-	ErrRegistrationDisabled = &Fault{Code: "meal_registration_disabled"}
+	ErrRegistrationDisabled = &Fault{Code: "meal_registration_disabled", Detail: "meal_registration_disabled"}
 	ErrInvalidParticipation = &Fault{Code: "invalid_meal_participation"}
-	ErrParticipationCutoff  = &Fault{Code: "meal_participation_cutoff_passed"}
+	ErrParticipationCutoff  = &Fault{Code: "meal_participation_cutoff_passed", Detail: "meal_participation_cutoff_passed"}
 )
 
 type engine interface {

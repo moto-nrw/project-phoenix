@@ -305,7 +305,7 @@ func (w *ExcusedRequests) ListHistory(ctx context.Context, filter careplan.Reque
 	// limit+1 probes for an older page without a second count query.
 	probe := probeLimit(filter)
 	rows, err := w.carePlan.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{
-		Statuses: []string{careplan.ExcusedRequestStatusApproved, careplan.ExcusedRequestStatusRejected, careplan.ExcusedRequestStatusWithdrawn},
+		Statuses: careplan.DecidedExcusedRequestStatuses(),
 		Queue:    &probe,
 	})
 	if err != nil {

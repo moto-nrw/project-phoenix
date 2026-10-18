@@ -27,19 +27,5 @@ func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (
 }
 
 func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64, update func(string) (string, error)) error {
-	school, err := s.schools.FindSchoolForMutation(ctx, schoolID)
-	if err != nil {
-		return err
-	}
-	settings, err := update(school.Settings)
-	if err != nil {
-		return err
-	}
-	_, err = s.schools.UpdateSchool(ctx, organizationtenancy.UpdateSchool{
-		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
-		Subdomain: school.Subdomain, Active: school.Active, Hidden: school.Hidden, Settings: settings,
-		Address: school.Address, City: school.City, Zip: school.Zip, Phone: school.Phone,
-		Email: school.Email,
-	})
-	return err
+	return s.schools.UpdateSchoolSettings(ctx, schoolID, update)
 }

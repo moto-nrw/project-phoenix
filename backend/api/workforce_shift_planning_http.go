@@ -60,10 +60,7 @@ func staffShiftsRuntime(deps staffShiftsDependencies) staffshiftsHTTP.Runtime {
 			if err != nil {
 				return staffshiftsHTTP.Actor{}, err
 			}
-			if staffID <= 0 {
-				return staffshiftsHTTP.Actor{}, errors.New("staff record not found")
-			}
-			return staffshiftsHTTP.Actor{StaffID: staffID, AccountID: deps.ActorAccountID(ctx)}, nil
+			return staffshiftsHTTP.NewActor(staffID, deps.ActorAccountID(ctx))
 		},
 		MarkRollback: tenant.MarkRollback,
 		CanExportInternalPlan: func(ctx context.Context) bool {

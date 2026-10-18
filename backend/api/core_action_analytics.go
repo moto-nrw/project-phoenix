@@ -32,14 +32,9 @@ func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
 	)
 }
 
-// analyticsDeployment is the deployment property of every analytics event:
-// "demo" for the public demo, otherwise the tenant domain of this instance.
-// The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
+// analyticsDeployment binds the deployment property to the environment.
 func analyticsDeployment(appEnv, tenantDomain string) string {
-	if IsDemoEnvironment(appEnv) {
-		return "demo"
-	}
-	return strings.TrimSpace(tenantDomain)
+	return analytics.Deployment(IsDemoEnvironment(appEnv), tenantDomain)
 }
 
 // coreActionAnalytics binds the core-action middleware (#3602) to the
@@ -74,29 +69,13 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.To
 	})
 }
 
-// analyticsActor maps the token scope to the analytics surface and role, the
-// same values the frontend registers. Role names are school data, so the OGS
-// portal reports only the admin flag. Operator tokens are no portal. Only an
-// OGS session names its account, for the pseudonymous ID under
-// Analyse-Freigabe; the read-only staff preview (#2893) is an admin looking
-// at someone else's view, so it names none.
+// analyticsActor hands the session facts of the token to the analytics
+// rule.
 func analyticsActor(claims sessiontoken.AppClaims) (analytics.Actor, bool) {
-	switch {
-	case claims.IsPlatformScope():
-		return analytics.Actor{}, false
-	case claims.Scope == "parent":
-		return analytics.Actor{Surface: analytics.SurfaceParents, Role: analytics.RoleGuardian}, true
-	case claims.IsSchoolScope():
-		return analytics.Actor{Surface: analytics.SurfaceSchool, Role: analytics.RoleLehrkraft, SchoolID: claims.TenantID}, true
-	case claims.TenantID == 0:
-		return analytics.Actor{}, false
-	case claims.IsReadOnlyPreview():
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID}, true
-	case claims.IsAdmin:
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
-	default:
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleStaff, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
-	}
+	return analytics.ActorOf(analytics.SessionFacts{
+		Platform: claims.IsPlatformScope(), Parent: claims.IsParentScope(), School: claims.IsSchoolScope(),
+		TenantID: claims.TenantID, ReadOnlyPreview: claims.IsReadOnlyPreview(), Admin: claims.IsAdmin, AccountID: int64(claims.ID),
+	})
 }
 
 // requireCoreActionClassification refuses to start a server with a writing
@@ -147,11 +126,7 @@ func coreActionRouteGaps(router chi.Routes) (unclassified, stale []string, err e
 
 func collectWritingPortalRoutes(router chi.Routes, into map[analytics.RouteKey]bool) error {
 	return chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		switch method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
-			return nil
-		}
-		if isCoreActionPortalRoute(route) {
+		if analytics.IsWritingMethod(method) && isCoreActionPortalRoute(route) {
 			into[analytics.RouteKey{Method: method, Pattern: route}] = true
 		}
 		return nil

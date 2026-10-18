@@ -73,10 +73,12 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 			})
 		},
 		TimeTracking: func(sources WorkforceTimeTrackingSources) (*workforceCompose.TimeTracking, error) {
+			employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 			return newTimeTracking(timeTrackingPortDependencies{
 				Workforce: workTime,
 				Bound: workforceCompose.TimeTrackingPorts{
 					Absences: staffAbsences, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
+					Staff:        WorkSessionStaff(sources.Staff, employment, membership),
 					Supervisions: sources.Supervisions, SessionRecords: sources.SessionRecords, Holidays: sources.Holidays,
 					Events: timeTrackingEvents(sources.Broadcaster), AbsenceEmail: timeTrackingAbsenceEmail(sources, organizations),
 					ShiftPlanSync: sources.ShiftPlanSync,
@@ -85,7 +87,7 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 					WorkSessionEdit: sources.Audits.WorkSessionEdit, TimeTrackingDeletion: sources.Audits.TimeTrackingDeletion,
 					DataAccessLog: sources.Audits.DataAccessLog, TimeTrackingAuditLog: sources.Audits.TimeTrackingAuditLog,
 				},
-				Staff: sources.Staff, People: sources.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db.Pool()),
+				Staff: sources.Staff, People: sources.People, StaffEmployment: employment,
 				WorkSchedules:  NewStaffWorkScheduleRepository(workTime),
 				WorkTimeModels: NewWorkTimeModelRepository(workTime),
 				Settings:       sources.Settings, Payroll: sources.Payroll,

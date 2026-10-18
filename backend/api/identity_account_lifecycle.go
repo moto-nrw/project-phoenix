@@ -494,6 +494,6 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 		FieldName:         auditModels.GuardianPaymentFieldIsPayer,
 		OldValue:          "true",
 		NewValue:          "false",
-		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
+		Note:              identityaccess.PayerRemovedAuditNote,
 	})
 }

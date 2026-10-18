@@ -213,6 +213,13 @@ type CareParticipationResolution struct {
 	ActuallyPresentIDs map[int64]bool
 }
 
+// GroupRosterIncludesPendingWithdrawals is the includePending argument of
+// ResolveListParticipation for the dated group roster People Directory reads
+// (#3350). The roster shows the children who still take part in care, so a
+// pending withdrawal task does not keep a child on it; only the
+// administrative lists retain those children.
+const GroupRosterIncludesPendingWithdrawals = false
+
 // BookingAuthorityImpactChild is one child an operator reviews before
 // switching to booking-led care.
 type BookingAuthorityImpactChild struct {

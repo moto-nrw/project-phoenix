@@ -13,16 +13,7 @@ import (
 // exceptions.
 func newPartialAbsencePreview(reads timetableCompose.PresenceReads, students peopledirectory.StudentQuery, exceptions carePlanPorts.ExceptionQueries) timetableCompose.PartialAbsencePreview {
 	enrolled := func(ctx context.Context, studentID int64) (bool, error) {
-		values, err := students.ListStudentsByID(ctx, []int64{studentID})
-		if err != nil {
-			return false, err
-		}
-		for _, student := range values {
-			if student.ID == studentID && !student.IsAlumnus() {
-				return true, nil
-			}
-		}
-		return false, nil
+		return peopledirectory.StudentStillEnrolled(ctx, students, studentID)
 	}
 	return timetableCompose.NewPartialAbsencePreview(reads, enrolled, pickupExceptionDirectory{query: exceptions})
 }

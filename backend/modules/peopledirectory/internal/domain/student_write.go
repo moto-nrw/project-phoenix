@@ -68,7 +68,7 @@ var (
 // HasCompanionNote reports whether the free-text "mit wem" note carries the
 // detail. A blank note is no answer.
 func HasCompanionNote(note *string) bool {
-	return note != nil && strings.TrimSpace(*note) != ""
+	return departure.HasCompanionNote(note)
 }
 
 // ValidateStudentRecord checks a child before it is written.

@@ -118,7 +118,7 @@ func (timetableOperationSettings) ActionScopeKey(action timetablePorts.ScopedAct
 
 func (s timetableOperationSettings) StudentAbsenceEditAllStaff(ctx context.Context) (bool, error) {
 	scope, err := s.settings.ResolveString(ctx, configModels.KeyStudentAbsenceEditScope)
-	return scope == configModels.StudentAbsenceEditScopeAllStaff, err
+	return configModels.StudentAbsenceEditOpenToAllStaff(scope), err
 }
 
 // timetableEffectiveArrivals serves Care Plan's effective arrivals.

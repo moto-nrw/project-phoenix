@@ -14,6 +14,7 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 )
 
 // CareLifecycleOwnerSources are the owners the Care Plan lifecycle (#3427)
@@ -42,7 +43,7 @@ func NewCareLifecycleOwners(sources CareLifecycleOwnerSources, changeTrail careP
 			students: sources.Students, persons: sources.Persons,
 			membership: sources.Membership, people: sources.People,
 		},
-		Roster:      newCareExitRoster(sources.PlanReads, sources.Timetable, presence),
+		Roster:      careexit.NewRoster(sources.Timetable, presence, sources.PlanReads),
 		Bookings:    careExitBookings{capability: sources.Timetable},
 		Enrollment:  careExitEnrollment{projection: sources.Enrollment},
 		Presence:    careExitPresence{presence: presence},

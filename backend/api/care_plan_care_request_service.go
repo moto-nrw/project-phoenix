@@ -233,14 +233,10 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 	return s.requests.submissions.CreateRequest(ctx, studentID, guardianAccountID, payload)
 }
 
-// CreatePickupChangeRequest keeps the mandatory-reason behaviour every
-// existing caller relies on. A caller that has resolved the school's reason
-// policy uses CreatePickupChange instead.
+// CreatePickupChangeRequest is the legacy mandatory-reason entry point; the
+// owner names its input.
 func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*carerequests.Request, error) {
-	return s.CreatePickupChange(ctx, carerequests.PickupChangeCreateInput{
-		StudentID: studentID, GuardianAccountID: guardianAccountID,
-		Date: date, PickupTime: pickupTime, Reason: reason, ReasonRequired: true,
-	})
+	return s.CreatePickupChange(ctx, carerequests.MandatoryReasonPickupChange(studentID, guardianAccountID, date, pickupTime, reason))
 }
 
 func (s *careScheduleRequestService) CreatePickupChange(ctx context.Context, input carerequests.PickupChangeCreateInput) (*carerequests.Request, error) {

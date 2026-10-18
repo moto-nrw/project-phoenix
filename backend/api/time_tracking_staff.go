@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
@@ -116,19 +116,22 @@ func (q staffDisplayNameQuery) StaffDisplayNames(ctx context.Context, ids []int6
 
 type workSessionStaffRecords interface {
 	staffNameRecords
-	FindByID(context.Context, any) (*users.Staff, error)
-	Update(context.Context, *users.Staff) error
 }
+
+// staffScheduleBinder is School Membership's schedule binding command.
+type staffScheduleBinder func(context.Context, schoolmembership.BindSchedule) (schoolmembership.Staff, error)
 
 type workSessionStaff struct {
-	source    workSessionStaffRecords
-	schedules workforceCompose.StaffEmploymentQuery
+	source       workSessionStaffRecords
+	schedules    workforceCompose.StaffEmploymentQuery
+	bindSchedule staffScheduleBinder
 }
 
-// WorkSessionStaff reads names and writes the schedule binding through the
-// staff records, and reads the binding from Workforce's employment query.
-func WorkSessionStaff(source workSessionStaffRecords, schedules workforceCompose.StaffEmploymentQuery) workforceCompose.WorkSessionStaff {
-	return workSessionStaff{source: source, schedules: schedules}
+// WorkSessionStaff reads names through the staff records and the binding
+// from Workforce's employment query, and writes the schedule binding through
+// School Membership's command.
+func WorkSessionStaff(source workSessionStaffRecords, schedules workforceCompose.StaffEmploymentQuery, membership schoolmembership.StaffEmploymentCommands) workforceCompose.WorkSessionStaff {
+	return workSessionStaff{source: source, schedules: schedules, bindSchedule: membership.BindSchedule}
 }
 
 func (q workSessionStaff) ScheduleAssignment(ctx context.Context, staffID int64) (*workforceCompose.StaffScheduleAssignment, error) {
@@ -149,18 +152,11 @@ func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int6
 	return names, nil
 }
 
-// BindSchedule writes the schedule binding onto the staff row through the
-// owner's update path: the row is re-read so the write carries the current
-// master data and only the binding columns change.
+// BindSchedule writes the schedule binding of a live staff member through
+// School Membership; only the binding columns change.
 func (q workSessionStaff) BindSchedule(ctx context.Context, binding workforceCompose.StaffScheduleBinding) error {
-	staff, err := q.source.FindByID(ctx, binding.ID)
-	if err != nil {
-		return err
-	}
-	if staff == nil {
-		return fmt.Errorf("bind schedule: staff %d not found", binding.ID)
-	}
-	staff.WorkTimeModelID = binding.WorkTimeModelID
-	staff.RotationAnchorDate = binding.RotationAnchorDate
-	return q.source.Update(ctx, staff)
+	_, err := q.bindSchedule(ctx, schoolmembership.BindSchedule{
+		ID: binding.ID, WorkTimeModelID: binding.WorkTimeModelID, RotationAnchorDate: calendarDateString(binding.RotationAnchorDate),
+	})
+	return membershipError("update staff", err)
 }

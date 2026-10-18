@@ -64,7 +64,7 @@ func (r ExcusedAbsenceRequestRepository) ListWithOptions(ctx context.Context, op
 }
 
 func (r ExcusedAbsenceRequestRepository) ListPendingForStudent(ctx context.Context, studentID int64) ([]*absencerecords.ExcusedAbsenceRequest, error) {
-	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{StudentID: studentID, Statuses: []string{absencerecords.ExcusedRequestStatusPending}})
+	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{StudentID: studentID, Statuses: careplan.PendingExcusedRequestStatuses()})
 	return excusedRequestsToLegacy(values), err
 }
 
@@ -74,12 +74,12 @@ func (r ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Contex
 }
 
 func (r ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
-	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{absencerecords.ExcusedRequestStatusPending}, Queue: publicQueueFilter(filters)})
+	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: careplan.PendingExcusedRequestStatuses(), Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
 
 func (r ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
-	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{absencerecords.ExcusedRequestStatusApproved, absencerecords.ExcusedRequestStatusRejected, absencerecords.ExcusedRequestStatusWithdrawn}, Queue: publicQueueFilter(filters)})
+	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: careplan.DecidedExcusedRequestStatuses(), Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
 

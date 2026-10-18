@@ -89,6 +89,12 @@ type SettledEnrollmentCleanupResult struct {
 	RetentionDays      int
 }
 
+// Deleted is the number of rows the run deleted: the requests and the
+// invitations to enroll late.
+func (r SettledEnrollmentCleanupResult) Deleted() int {
+	return r.DeletedRequests + int(r.DeletedLateInvites)
+}
+
 // SettledEnrollmentRetention deletes the withdrawn and lapsed enrollments of
 // the school in context no child was created from, once the school's window
 // after settling passed (#3960). Accepted enrollments go with their child,

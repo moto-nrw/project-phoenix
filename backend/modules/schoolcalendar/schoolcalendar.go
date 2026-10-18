@@ -154,6 +154,12 @@ type CalendarPeriodFilter struct {
 	ExcludeID int64
 }
 
+// HolidaysOverlapping selects the holiday periods in force that touch the
+// inclusive window [from, to]; only active periods count.
+func HolidaysOverlapping(from, to string) CalendarPeriodFilter {
+	return CalendarPeriodFilter{PeriodType: PeriodTypeHoliday, ActiveOnly: true, OverlappingFrom: from, OverlappingTo: to}
+}
+
 // ClosingDay is one tenant-defined closure range (pädagogischer Tag,
 // Weihnachtswoche). A single closed day has StartDate == EndDate.
 type ClosingDay struct {

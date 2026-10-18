@@ -2,10 +2,8 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -228,7 +226,7 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	for _, invitation := range invitations {
 		result = append(result, parentportal.GuardianInvitationRecord{
 			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
-			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, Rejected: invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalRejected,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, Rejected: invitation.IsRejected(),
 		})
 	}
 	return result, nil
@@ -250,32 +248,10 @@ func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peop
 
 // --- school branding --------------------------------------------------------
 
-// The keys a school's settings JSON carries its branding image under. The
-// login image serves as the fallback so a school that only set that one
-// still brands its invitation pages.
-const (
-	schoolLogoURLKey       = "logoUrl"
-	schoolLoginImageURLKey = "loginImageUrl"
-)
-
 // schoolLogoURLFromSettings reads the branding image out of a school's
-// settings JSON; malformed settings simply carry no branding.
+// settings JSON by Organisation & Tenancy's rule.
 func schoolLogoURLFromSettings(settingsJSON string) string {
-	settingsJSON = strings.TrimSpace(settingsJSON)
-	if settingsJSON == "" {
-		return ""
-	}
-	var settings map[string]any
-	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
-		return ""
-	}
-	for _, key := range []string{schoolLogoURLKey, schoolLoginImageURLKey} {
-		value, ok := settings[key].(string)
-		if ok && strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
+	return organizationtenancy.SchoolLogoURL(settingsJSON)
 }
 
 // --- the parents portal's guardian access runtime ---------------------------
@@ -313,14 +289,11 @@ func (a parentGuardianAccess) InviteToStudent(ctx context.Context, request paren
 	}, nil
 }
 
-// RevokeAccess always runs as a parent removal: the parents portal never
-// holds the staff authority, and it never carries guardians:financial, so the
-// payer guard stays closed.
+// RevokeAccess runs as Identity & Access's parents-portal removal.
 func (a parentGuardianAccess) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {
-	return parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
-		StudentID: revocation.StudentID, GuardianProfileID: revocation.GuardianProfileID,
-		ActorAccountID: revocation.ActorAccountID, ByParent: true,
-	}))
+	return parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.ParentRevokeAccessRequest(
+		revocation.StudentID, revocation.GuardianProfileID, revocation.ActorAccountID,
+	)))
 }
 
 // parentGuardianAccessError maps the owner's refusals onto the portal's

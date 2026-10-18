@@ -1,29 +1,29 @@
-package api
+package careexit
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // A later pickup decision (#3261) writes to two owners since the presence
 // cutover (#2762): Timetable & Activities adds the child to the chosen
 // blocks, Student Presence then re-applies the reported day statuses and
-// partial absences of each block's date to the new participant. The root
-// binds the two steps over the caller's tenant transaction.
+// partial absences of each block's date to the new participant. Both steps
+// run on the caller's tenant transaction.
 
-// pickupExtensionRules is the Student Presence surface the decision re-applies.
-type pickupExtensionRules interface {
-	ApplyActiveStatusDaysForInstance(context.Context, int64, string) (int, error)
-	ApplyActivePartialAbsencesForInstance(context.Context, int64, string) (int, error)
+// PickupExtensionRules is the Student Presence surface the decision
+// re-applies.
+type PickupExtensionRules interface {
+	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date string) (int, error)
+	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (int, error)
 }
 
-// newPickupExtensions binds the decision over the Timetable pickup extensions and the
-// Student Presence attendance rules.
-func newPickupExtensions(extensions timetable.PickupExtensionCapability, rules pickupExtensionRules) (timetable.PickupExtensionCapability, error) {
+// NewPickupExtensions binds the decision over the Timetable pickup
+// extensions and the Student Presence attendance rules.
+func NewPickupExtensions(extensions timetable.PickupExtensionCapability, rules PickupExtensionRules) (timetable.PickupExtensionCapability, error) {
 	if extensions == nil || rules == nil {
 		return nil, errors.New("pickup extension workflow: timetable and student presence are required")
 	}
@@ -32,7 +32,7 @@ func newPickupExtensions(extensions timetable.PickupExtensionCapability, rules p
 
 type pickupExtensions struct {
 	timetable.PickupExtensionCapability
-	rules pickupExtensionRules
+	rules PickupExtensionRules
 }
 
 // ResolvePickupExtension adds the child to the chosen blocks and lets Student
@@ -53,5 +53,3 @@ func (w pickupExtensions) ResolvePickupExtension(ctx context.Context, taskID int
 	}
 	return resolution, nil
 }
-
-var _ pickupExtensionRules = (studentpresence.SessionAttendanceRules)(nil)

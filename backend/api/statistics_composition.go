@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -50,7 +52,7 @@ func newStatisticsReports(owners statisticsOwners) func(StatisticsSources) stude
 			Students:    StatisticsReportStudents{owners.Students},
 			Rooms:       StatisticsReportRooms{owners.Rooms},
 			AccessLog:   StatisticsAuditLog{sources.AccessLog},
-			Retention:   StatisticsRetention{sources.Settings},
+			Retention:   settingsModule.NewStatisticsRetention(sources.Settings),
 			Logger:      owners.Logger.With("service", "statistics"),
 			Now:         owners.Now,
 		})

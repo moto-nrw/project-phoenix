@@ -746,3 +746,13 @@ func TestRefreshClaims_ParseClaims_BackwardCompatNoTenantID(t *testing.T) {
 
 	assert.Equal(t, int64(0), c.TenantID)
 }
+
+func TestAppClaimsDisplayNameFallsBackToTheUsername(t *testing.T) {
+	t.Parallel()
+	if got := (AppClaims{FirstName: " Mia", LastName: "Meier ", Username: "mia"}).DisplayName(); got != "Mia Meier" {
+		t.Errorf("DisplayName() = %q", got)
+	}
+	if got := (AppClaims{FirstName: " ", Username: "mia"}).DisplayName(); got != "mia" {
+		t.Errorf("DisplayName() = %q, want the username", got)
+	}
+}

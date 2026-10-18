@@ -86,42 +86,12 @@ func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry ide
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
-	if changes := operatorAuditChanges(entry); len(changes) > 0 {
-		if err := setOperatorAuditChanges(row, changes); err != nil {
-			return fmt.Errorf("encode operator audit log changes: %w", err)
-		}
+	changes, err := entry.AuditChanges()
+	if err != nil {
+		return fmt.Errorf("encode operator audit log changes: %w", err)
 	}
+	row.Changes = changes
 	return a.ledger.Create(ctx, row)
-}
-
-// operatorAuditChanges renders the typed change summary into the JSON keys
-// the operator audit log has always stored for each action.
-func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]any {
-	if evidence := entry.RevokedSessions; evidence != nil {
-		return map[string]any{
-			"portal_scope":        evidence.PortalScope,
-			"family_fingerprint":  evidence.FamilyFingerprint,
-			"reason":              evidence.Reason,
-			"revoked_token_count": evidence.Count,
-		}
-	}
-	change := entry.AccessChange
-	if change == nil {
-		return nil
-	}
-	changes := map[string]any{"schoolID": change.SchoolID, "email": change.Email}
-	switch entry.Action {
-	case identityaccess.OperatorAuditActionCreate:
-		changes["roleID"] = change.RoleID
-		changes["roleName"] = change.RoleName
-	case identityaccess.OperatorAuditActionUpdate:
-		changes["roleID"] = change.RoleID
-		changes["roleName"] = change.RoleName
-		changes["removedRoles"] = change.RemovedRoles
-	case identityaccess.OperatorAuditActionDelete:
-		changes["accountDeactivated"] = change.AccountDeactivated
-	}
-	return changes
 }
 
 // passwordHasher binds the credential policy Security Runtime owns to the
@@ -187,7 +157,7 @@ func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, ac
 	if err != nil {
 		return false, err
 	}
-	return person != nil && person.DeletedAt == nil, nil
+	return person != nil && peopledirectory.PersonIsLive(person.DeletedAt), nil
 }
 
 func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]identityPorts.AccountPersonIdentity, error) {
@@ -201,7 +171,7 @@ func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accou
 			continue
 		}
 		identity := identityPorts.AccountPersonIdentity{
-			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName, Deleted: person.DeletedAt != nil,
+			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName, Deleted: !peopledirectory.PersonIsLive(person.DeletedAt),
 		}
 		if !identity.Deleted {
 			isStudent, err := p.personIsStudent(ctx, person.ID)
@@ -240,8 +210,8 @@ func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identit
 }
 
 // ListAccountIdentityFacts resolves, per school, whether a person and a
-// live staff record back the account: the most recently updated person per
-// school counts, and its staff record only at that same school.
+// live staff record back the account: the People Directory's latest person
+// per school, and the staff record Identity & Access counts for it.
 func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]identityPorts.AccountIdentityFact, error) {
 	persons, err := p.directory.ListPersonsByAccount(ctx, []int64{accountID})
 	if err != nil {
@@ -259,16 +229,17 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("load staff for account identity facts: %w", err)
 	}
-	staffTenantByPerson := make(map[int64]int64, len(members))
+	records := make([]identityaccess.PersonStaffRecord, 0, len(members))
 	for _, member := range members {
-		if _, found := staffTenantByPerson[member.PersonID]; !found {
-			staffTenantByPerson[member.PersonID] = member.TenantID
-		}
+		records = append(records, identityaccess.PersonStaffRecord{PersonID: member.PersonID, SchoolID: member.TenantID})
 	}
+	staffTenantByPerson := identityaccess.StaffSchoolByPerson(records)
 	facts := make([]identityPorts.AccountIdentityFact, 0, len(personByTenant))
 	for tenantID, person := range personByTenant {
 		staffTenant, hasStaff := staffTenantByPerson[person.ID]
-		facts = append(facts, identityPorts.AccountIdentityFact{TenantID: tenantID, HasPerson: true, HasStaff: hasStaff && staffTenant == tenantID})
+		facts = append(facts, identityPorts.AccountIdentityFact{
+			TenantID: tenantID, HasPerson: true, HasStaff: identityaccess.StaffRecordCountsAtSchool(hasStaff, staffTenant, tenantID),
+		})
 	}
 	return facts, nil
 }

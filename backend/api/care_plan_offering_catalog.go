@@ -171,10 +171,7 @@ func (t careOfferingCatalogTimetable) FindGroup(ctx context.Context, id int64) (
 }
 
 func (t careOfferingCatalogTimetable) TemplateSeries(ctx context.Context, groupID int64) ([]careplan.LinkedGroup, error) {
-	isTemplate := true
-	groups, err := t.timetable.ListGroups(ctx, timetable.GroupFilter{
-		IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true,
-	})
+	groups, err := t.timetable.ListGroups(ctx, timetable.ActiveTemplateSeries(groupID))
 	if err != nil {
 		return nil, err
 	}
@@ -337,28 +334,7 @@ func (s careOfferingCatalogSettings) GradeLevelMax(ctx context.Context) (int, er
 type careOfferingCatalogTranslations struct{}
 
 func (careOfferingCatalogTranslations) NormalizeTranslations(raw json.RawMessage) (json.RawMessage, bool, error) {
-	var translations enrollmentOwner.Translations
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &translations); err != nil {
-			return nil, false, nil
-		}
-	}
-	normalized, err := translations.Normalize(
-		enrollmentOwner.TranslationAttrName,
-		enrollmentOwner.TranslationAttrDescription,
-		enrollmentOwner.TranslationAttrSelectionGroup,
-	)
-	if err != nil {
-		return nil, true, err
-	}
-	if normalized == nil {
-		return nil, true, nil
-	}
-	encoded, err := json.Marshal(normalized)
-	if err != nil {
-		return nil, true, fmt.Errorf("encode care offering translations: %w", err)
-	}
-	return encoded, true, nil
+	return enrollmentOwner.NormalizeOfferingTranslations(raw)
 }
 
 // careOfferingSourceRules is the Timetable owner's offering-source contract.

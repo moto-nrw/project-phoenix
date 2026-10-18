@@ -110,6 +110,16 @@ func (e *recordingEngine) UpdateStaff(_ context.Context, input schoolmembership.
 	return schoolmembership.Staff{ID: input.ID}, nil
 }
 
+func (e *recordingEngine) UpdateEmploymentDetails(context.Context, schoolmembership.UpdateEmploymentDetails) (schoolmembership.Staff, error) {
+	e.calls++
+	return schoolmembership.Staff{}, nil
+}
+
+func (e *recordingEngine) BindSchedule(context.Context, schoolmembership.BindSchedule) (schoolmembership.Staff, error) {
+	e.calls++
+	return schoolmembership.Staff{}, nil
+}
+
 func (e *recordingEngine) DeleteStaff(context.Context, int64) error { e.calls++; return nil }
 
 func (e *recordingEngine) FindTeacher(context.Context, int64) (schoolmembership.Teacher, error) {

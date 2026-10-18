@@ -621,6 +621,16 @@ func CoreActionExcludedPrefixes() []string {
 	return []string{"/api/iot/", "/api/caldav"}
 }
 
+// IsWritingMethod reports whether a route with method writes, so the route
+// guard expects it in the table: every method except GET, HEAD and OPTIONS.
+func IsWritingMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	}
+	return true
+}
+
 func coreActionFor(method, pattern string) (CoreAction, bool) {
 	for _, candidate := range normalizePattern(pattern) {
 		if action, ok := coreActions[RouteKey{Method: method, Pattern: candidate}]; ok {

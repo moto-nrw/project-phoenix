@@ -121,7 +121,7 @@ func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) 
 				Date:      calendar.Date(row.Date),
 				StartTime: row.StartTime,
 				RoomID:    row.RoomID,
-				Planned:   row.Status == timetable.InstanceStatusPlanned,
+				Planned:   timetable.IsPlannedInstanceStatus(row.Status),
 			})
 		}
 		return dayInstances, nil

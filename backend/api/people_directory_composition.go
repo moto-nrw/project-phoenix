@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
@@ -16,7 +15,6 @@ import (
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
@@ -96,22 +94,13 @@ type studentNoteDeletionAudit struct {
 func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
 	ctx context.Context, studentID, noteID, actorAccountID int64,
 ) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1,
-		"account:"+strconv.FormatInt(actorAccountID, 10))
-	record.DeletionReason = "student note deleted"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("deleted_by_account_id", actorAccountID)
-	return a.repo.Create(ctx, record)
+	return a.repo.Create(ctx, auditModels.NewStudentNoteDeletion(studentID, noteID, actorAccountID))
 }
 
 func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
 	ctx context.Context, studentID, noteID int64,
 ) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1, "system")
-	record.DeletionReason = "legacy supervisor notes cleared"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("source", "supervisor_notes")
-	return a.repo.Create(ctx, record)
+	return a.repo.Create(ctx, auditModels.NewLegacyStudentNoteDeletion(studentID, noteID))
 }
 
 type studentFieldAuditLog struct {
@@ -250,18 +239,8 @@ func (c careplanCompanions) CompanionDaysCoveredExcluding(
 	return c.carePlan.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
 }
 
-// DeleteCompanionEdges also records that this write touched links, which is the
-// only honest basis for announcing student_companions_changed. It belongs here
-// rather than in the owner: the signal is carried on the caller's context, and
-// this is the moment the links actually change.
 func (c careplanCompanions) DeleteCompanionEdges(ctx context.Context, edgeIDs []int64) error {
-	if err := c.carePlan.DeleteCompanionEdges(ctx, edgeIDs); err != nil {
-		return err
-	}
-	if len(edgeIDs) > 0 {
-		userModels.RecordCompanionChange(ctx)
-	}
-	return nil
+	return c.carePlan.DeleteCompanionEdges(ctx, edgeIDs)
 }
 
 // The student-guardian relationship has three owners since Cutover #2756.

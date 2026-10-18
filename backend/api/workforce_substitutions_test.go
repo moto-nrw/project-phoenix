@@ -45,8 +45,8 @@ func TestRenderSubstitutionsFailureUsesSharedEnvelope(t *testing.T) {
 func TestSubstitutionCallerRequiresPrincipal(t *testing.T) {
 	t.Parallel()
 
-	_, err := substitutionCaller(testpkg.TenantContext(testpkg.Tenant(t)))
+	_, err := substitutionsHTTP.RequestCaller(testpkg.TenantContext(testpkg.Tenant(t)))
 	require.ErrorIs(t, err, workforce.ErrSubstitutionForbidden)
-	_, err = substitutionCaller(context.Background())
+	_, err = substitutionsHTTP.RequestCaller(context.Background())
 	require.ErrorIs(t, err, workforce.ErrSubstitutionForbidden)
 }

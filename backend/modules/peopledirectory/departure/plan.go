@@ -1,5 +1,7 @@
 package departure
 
+import "slices"
+
 // Plan is a child's departure plan as one write carries it: the unified
 // per-weekday mode set plus the three legacy projections clients still send.
 // A nil field means "not supplied", which is what keeps an update that touches
@@ -104,6 +106,21 @@ func (p Plan) AccompaniedDays() map[string]bool {
 		}
 	}
 	return out
+}
+
+// MissingAccompaniedDays returns, in weekday order, the requested weekdays on
+// which the plan does not yet let the child leave with another child: the
+// days a confirmed companion link has to add. Requested keys outside Mon..Fri
+// are ignored; nil means the plan already allows every requested day.
+func (p Plan) MissingAccompaniedDays(requested []string) []string {
+	allowed := p.AccompaniedDays()
+	var missing []string
+	for _, day := range PickupDayOrder {
+		if slices.Contains(requested, day) && !allowed[day] {
+			missing = append(missing, day)
+		}
+	}
+	return missing
 }
 
 // Rebase replaces every field that still carries exactly what the read

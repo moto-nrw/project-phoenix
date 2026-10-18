@@ -14,11 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
-	"strings"
 	"time"
 
+	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -148,16 +149,15 @@ type groupLiveAccess struct {
 }
 
 func (a groupLiveAccess) Caller(ctx context.Context) (grouplive.Caller, error) {
-	principal, principalErr := permissions.PrincipalFromContext(ctx)
-	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
-	admin := principalErr == nil && principal.HasAdminScope()
+	assignmentBound := common.IsAssignmentBoundPortal(ctx)
+	admin := common.HasEffectiveAdminScope(ctx)
 	overview, err := securityruntime.CanViewOperationalOverview(ctx, a.settings, a.userContext, assignmentBound, admin)
 	if err != nil {
 		return grouplive.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
 	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return grouplive.Caller{
-		CanReadGroups:            securityruntime.HasPermission(permissions.GroupsRead, userPermissions),
+		CanReadGroups:            securityruntime.HasPermission(groupLiveHTTP.GroupReadPermission, userPermissions),
 		CanReviewExcusedRequests: securityruntime.CanReviewExcusedAbsenceRequests(userPermissions),
 		OperationalOverview:      overview,
 	}, nil
@@ -260,7 +260,7 @@ func (p groupLivePresence) Snapshot(ctx context.Context, studentIDs []int64, dat
 			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
 		}
 	}
-	if mode == studentpresence.PresenceModeBinary {
+	if !snapshot.ReadsRooms() {
 		snapshot.YardRoomColor = studentpresence.ResolveYardRoomColor(ctx, p.active)
 		return groupLiveLocations{snapshot: snapshot}, nil
 	}
@@ -271,26 +271,16 @@ func (p groupLivePresence) Snapshot(ctx context.Context, studentIDs []int64, dat
 }
 
 func (p groupLivePresence) loadVisits(ctx context.Context, snapshot *studentpresence.StudentLocationSnapshot, studentIDs []int64) error {
-	visits, err := p.presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true})
+	visits, err := p.presence.ListVisits(ctx, studentpresence.CurrentVisitsFilter(studentIDs))
 	if err != nil {
 		return err
 	}
-	for _, visit := range visits {
-		if _, found := snapshot.Visits[visit.StudentID]; found {
-			continue
-		}
-		snapshot.Visits[visit.StudentID] = &visit
-	}
-	groupSet := make(map[int64]struct{})
-	for _, visit := range snapshot.Visits {
-		if visit != nil && visit.ActiveGroupID > 0 {
-			groupSet[visit.ActiveGroupID] = struct{}{}
-		}
-	}
-	if len(groupSet) == 0 {
+	snapshot.KeepCurrentVisits(visits)
+	groupIDs := snapshot.ActiveGroupIDs()
+	if len(groupIDs) == 0 {
 		return nil
 	}
-	groups, err := p.active.GetActiveGroupsByIDs(ctx, slices.Collect(maps.Keys(groupSet)))
+	groups, err := p.active.GetActiveGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		return err
 	}
@@ -545,21 +535,7 @@ func (s groupLiveSettings) StudentPhotosEnabled(ctx context.Context) (bool, erro
 }
 
 func (s groupLiveSettings) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {
-	enabled, err := s.settings.ResolveBool(ctx, settingsplatform.KeyTrackingIndicatorsEnabled)
-	if err != nil || !enabled {
-		return nil, err
-	}
-	labels := make([]string, 0, 3)
-	for _, key := range []string{settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3} {
-		value, err := s.settings.ResolveString(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if value = strings.TrimSpace(value); value != "" {
-			labels = append(labels, value)
-		}
-	}
-	return labels, nil
+	return settingsplatform.PrefetchedTrackingIndicatorLabels(ctx, s.settings)
 }
 
 type groupLiveCalendar struct{ now func() time.Time }

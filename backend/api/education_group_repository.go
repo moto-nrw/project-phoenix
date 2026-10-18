@@ -22,7 +22,9 @@ func NewGroupRepository(runtime educationRepo.LegacyRepositoryRuntime, rooms fac
 	return NewEducationGroupStore(runtime, educationRepo.GroupRepositoryDependencies{
 		Rooms:               func() educationRepo.GroupRoomLookup { return educationRoomDirectory{rooms: rooms} },
 		TeachingAssignments: groupTeachingAssignments(membership),
-		SupervisingStaff:    SupervisionStaffResolver(membership, WorkforceSubstitutedStaff(workTime)),
+		TeacherStaffIDs:     supervisionTeacherStaff(membership),
+		LiveStaffIDs:        supervisionLiveStaff(membership),
+		GroupSubstitutes:    supervisionSubstitutes(workTime),
 	})
 }
 

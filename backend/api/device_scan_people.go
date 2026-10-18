@@ -168,7 +168,7 @@ func scanStudent(student *userModels.Student) *devicescanCompose.ScanStudent {
 	}
 	return &devicescanCompose.ScanStudent{
 		ID: student.ID, PersonID: student.PersonID, GroupID: student.GroupID, SchoolClass: student.SchoolClass,
-		Alumnus: student.Status == userModels.StudentStatusAlumnus, EnrolledUntil: student.EnrolledUntil,
+		Alumnus: student.IsAlumnus(), EnrolledUntil: student.EnrolledUntil,
 		Person: scanPerson(student.Person),
 	}
 }

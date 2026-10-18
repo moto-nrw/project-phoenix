@@ -79,6 +79,9 @@ func (NoSessions) NotScheduledParticipantIDs(context.Context, []int64) ([]int64,
 func (NoSessions) ExecutionFacts(context.Context, []int64, []int64) ([]int64, []int64, error) {
 	return nil, nil, nil
 }
+func (NoSessions) RunningSessionsByInstance(context.Context, []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
+}
 
 // FixedSessions is the session facts port with the answers a test fixes up
 // front: which blocks started or ended, which participants were observed or
@@ -111,6 +114,9 @@ func (s *FixedSessions) NotScheduledParticipantIDs(_ context.Context, ids []int6
 }
 func (s *FixedSessions) ExecutionFacts(_ context.Context, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
 	return intersectIDs(instanceIDs, s.Completed), intersectIDs(participantIDs, s.NotScheduled), nil
+}
+func (s *FixedSessions) RunningSessionsByInstance(context.Context, []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
 }
 
 // NewWithSessions composes the owner over the given session facts.

@@ -2,6 +2,7 @@ package organizationtenancy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -47,6 +48,37 @@ type School struct {
 }
 
 func (s School) IsDeleted() bool { return s.DeletedAt != nil }
+
+// The keys a school's settings JSON carries its branding image under. The
+// login image serves as the fallback so a school that only set that one
+// still brands its pages.
+const (
+	schoolLogoURLKey       = "logoUrl"
+	schoolLoginImageURLKey = "loginImageUrl"
+)
+
+// LogoURL is the school's branding image; malformed settings carry none.
+func (s School) LogoURL() string { return SchoolLogoURL(s.Settings) }
+
+// SchoolLogoURL reads the branding image out of a school's settings JSON:
+// the logo, else the login image, trimmed. Malformed settings carry none.
+func SchoolLogoURL(settingsJSON string) string {
+	settingsJSON = strings.TrimSpace(settingsJSON)
+	if settingsJSON == "" {
+		return ""
+	}
+	var settings map[string]any
+	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+		return ""
+	}
+	for _, key := range []string{schoolLogoURLKey, schoolLoginImageURLKey} {
+		value, ok := settings[key].(string)
+		if ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
 
 // Operational reports a school accounts can work in: switched active and
 // not deleted.
@@ -122,6 +154,27 @@ func (m *Module) SetSchoolChildQuota(ctx context.Context, id int64, quota *Child
 		}
 	}
 	return m.engine.SetSchoolChildQuota(ctx, id, quota)
+}
+
+// UpdateSchoolSettings rewrites the school's settings JSON under a row lock:
+// update receives the stored settings and returns the new ones. Every other
+// school field keeps its stored value.
+func (m *Module) UpdateSchoolSettings(ctx context.Context, id int64, update func(string) (string, error)) error {
+	school, err := m.FindSchoolForMutation(ctx, id)
+	if err != nil {
+		return err
+	}
+	settings, err := update(school.Settings)
+	if err != nil {
+		return err
+	}
+	_, err = m.UpdateSchool(ctx, UpdateSchool{
+		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
+		Subdomain: school.Subdomain, Active: school.Active, Hidden: school.Hidden, Settings: settings,
+		Address: school.Address, City: school.City, Zip: school.Zip, Phone: school.Phone,
+		Email: school.Email,
+	})
+	return err
 }
 
 func (m *Module) SoftDeleteSchool(ctx context.Context, id int64) (School, error) {

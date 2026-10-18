@@ -82,6 +82,9 @@ const (
 	ChildActivationScheduled = "scheduled"
 )
 
+// IsApproved reports whether the child's application was approved.
+func (c *RequestChild) IsApproved() bool { return c.Status == ChildStatusApproved }
+
 // IsTerminal reports whether a child has an approved, rejected, or withdrawn status.
 func (c *RequestChild) IsTerminal() bool {
 	switch c.Status {

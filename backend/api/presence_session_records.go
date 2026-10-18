@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -68,7 +69,7 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 	if d.membership == nil {
 		return result, nil
 	}
-	members, err := schoolMembershipCompose.StaffByID(ctx, d.membership, staffIDs, true)
+	members, err := schoolMembershipCompose.StaffByID(ctx, d.membership, staffIDs, studentpresence.SupervisionStaffIncludesRemoved)
 	if err != nil {
 		return nil, err
 	}

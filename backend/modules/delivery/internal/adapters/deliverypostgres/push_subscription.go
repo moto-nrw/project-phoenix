@@ -231,6 +231,20 @@ func (r *PushSubscriptionRepository) DeleteParentUnboundByAccount(ctx context.Co
 	return r.deleteUnboundByAccount(ctx, accountID, tenantID, deliveryModels.PushPortalParent, "delete unbound parent push subscriptions")
 }
 
+// DeleteUnboundByAccountForPortal removes the account's subscriptions
+// without a token family on the given portal. A portal other than parent or
+// school is the staff portal.
+func (r *PushSubscriptionRepository) DeleteUnboundByAccountForPortal(ctx context.Context, accountID, tenantID int64, portal string) error {
+	switch portal {
+	case deliveryModels.PushPortalParent:
+		return r.DeleteParentUnboundByAccount(ctx, accountID, tenantID)
+	case deliveryModels.PushPortalSchool:
+		return r.DeleteSchoolUnboundByAccount(ctx, accountID, tenantID)
+	default:
+		return r.DeleteStaffUnboundByAccount(ctx, accountID, tenantID)
+	}
+}
+
 func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Context) error {
 	_, err := base.GetDB(ctx, r.DB).NewDelete().
 		TableExpr(tablePushSubscriptions + ` AS "push_subscription"`).

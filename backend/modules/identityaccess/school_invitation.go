@@ -13,6 +13,31 @@ const (
 	MailRelatedSchoolInvitation = "school_invitation"
 )
 
+// The deployment's invitation link lifetime (invitation_token_expiry_hours)
+// is bounded: an unset or non-positive value means two days, and no link
+// lives longer than a week. Staff, operator and guardian invitations share it.
+const (
+	invitationTokenExpiryFallbackHours = 48
+	invitationTokenExpiryMaxHours      = 168
+)
+
+// InvitationTokenExpiry is the invitation link lifetime for the configured
+// hours.
+func InvitationTokenExpiry(configuredHours int) time.Duration {
+	return boundedLifetime(configuredHours, invitationTokenExpiryFallbackHours, invitationTokenExpiryMaxHours, time.Hour)
+}
+
+// boundedLifetime bounds a configured count to (0, upper], falling back to
+// fallback for a value at or below zero.
+func boundedLifetime(value, fallback, upper int, unit time.Duration) time.Duration {
+	if value <= 0 {
+		value = fallback
+	} else if value > upper {
+		value = upper
+	}
+	return time.Duration(value) * unit
+}
+
 // School invitations (#2722): the one-time link that gives an invitee access
 // to a school with a role. A link is never stored already expired or spent,
 // is redeemable exactly once, and accepting it writes the account, its
@@ -93,6 +118,18 @@ type SchoolInvitationRequest struct {
 	ActorPermissions []string
 	// OperatorGrant marks an invitation issued from the operator portal.
 	OperatorGrant bool
+}
+
+// OperatorSchoolInvitation is the school invitation the operator portal
+// issues: an operator grant, so the tenant-side role-grant check does not
+// apply to the operator-authenticated caller.
+func OperatorSchoolInvitation(email string, roleID, tenantID int64, firstName, lastName, position *string, caregiverEnabled bool) SchoolInvitationRequest {
+	return SchoolInvitationRequest{
+		Email: email, RoleID: roleID, TenantID: tenantID,
+		FirstName: firstName, LastName: lastName, Position: position,
+		CaregiverEnabled: caregiverEnabled,
+		OperatorGrant:    true,
+	}
 }
 
 // InvitationRegistration is what an invitee supplies when accepting.

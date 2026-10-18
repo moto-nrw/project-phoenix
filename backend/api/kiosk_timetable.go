@@ -60,8 +60,8 @@ func (m mirrorTimetable) CreateInstance(ctx context.Context, input devicescanCom
 	}
 	id, err := m.records.CreateMirroredSessionInstance(ctx, timetable.ScheduledInstance{
 		Date: date, ActivityGroupID: input.ActivityGroupID, Title: input.Title,
-		StartTime: start, EndTime: end, RoomID: input.RoomID, IsSpontaneous: true, CreatedBy: input.CreatedBy,
-		Status: timetable.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
+		StartTime: start, EndTime: end, RoomID: input.RoomID, CreatedBy: input.CreatedBy,
+		ActiveGroupID: input.ActiveGroupID, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
 	})
 	if err != nil {
 		return devicescanCompose.MirroredSession{}, err

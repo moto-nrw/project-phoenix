@@ -233,10 +233,10 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 			ActiveGroups: b.Presence.SessionRecords, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords()),
 			PickupSchedule: b.graph.PickupSchedule,
 		}),
-		Tenants:      NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),
-		Now:          timezone.Now,
-		OnlineWindow: NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
-		APIKeys:      DeviceAPIKeys{},
+		Tenants:             NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),
+		Now:                 timezone.Now,
+		OnlineWindowMinutes: NewOnlineWindowMinutes(b.settingsService, b.Logger.With("module", "device-fleet")),
+		APIKeys:             DeviceAPIKeys{},
 		Observe: func(observation devicefleetCompose.Observation) {
 			b.ObserveDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
 		},

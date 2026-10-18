@@ -16,12 +16,6 @@ import (
 // root knows, and serves the retained auth service's consumer-owned port
 // over the public module.
 
-var passwordResetEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
 // cleanupResetExpiry configures the reset flows of the maintenance roots,
 // which only clean up and never issue a link.
 const cleanupResetExpiry = time.Hour
@@ -48,9 +42,6 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	if backoff == nil {
-		backoff = passwordResetEmailBackoff
-	}
 	return &identityaccessCompose.PasswordResetDependencies{
 		Delivery: passwordResetDelivery{
 			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
@@ -95,15 +86,13 @@ func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link i
 	baseRetry := link.Delivery.RetryCount
 	// Async delivery must outlive the HTTP request without retaining its tx.
 	detached := identityaccessCompose.DetachedMailContext(ctx)
-	d.dispatcher.Dispatch(detached, email.DeliveryRequest{
-		Message:       message,
-		Metadata:      meta,
-		BackoffPolicy: d.backoff,
-		MaxAttempts:   3,
+	d.dispatcher.Dispatch(detached, email.WithInteractiveRetry(email.DeliveryRequest{
+		Message:  message,
+		Metadata: meta,
 		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
 			d.recordDelivery(cbCtx, meta, baseRetry, result)
 		},
-	})
+	}, d.backoff))
 }
 
 func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {

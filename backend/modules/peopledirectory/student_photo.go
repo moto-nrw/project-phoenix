@@ -26,6 +26,42 @@ func StudentPhotosSwitchedOff(value any) bool {
 	return ok && !enabled
 }
 
+// Source labels of the tenant-wide photo broadcast a new photo feature
+// setting causes.
+const (
+	StudentPhotoSourceFeatureDisabled = "tenant_photos_disabled"
+	StudentPhotoSourceFeatureEnabled  = "tenant_photos_enabled"
+)
+
+// StudentPhotoPurge detaches every photo of the tenant (the
+// PurgeStudentPhotos of StudentPhotoCommand).
+type StudentPhotoPurge interface {
+	PurgeStudentPhotos(ctx context.Context) ([]string, error)
+}
+
+// StudentPhotoFeatureChange is what a new photo feature setting did inside the
+// caller's transaction: the stored references it detached, whose files the
+// caller removes after the commit, and the source label of the tenant-wide
+// photo broadcast that follows it.
+type StudentPhotoFeatureChange struct {
+	Purged          []string
+	BroadcastSource string
+}
+
+// ApplyPhotoFeatureSetting applies a new value of the school's photo feature
+// setting. Switching the feature off detaches every photo; any other value
+// leaves the photos in place (StudentPhotosSwitchedOff).
+func ApplyPhotoFeatureSetting(ctx context.Context, photos StudentPhotoPurge, value any) (StudentPhotoFeatureChange, error) {
+	if !StudentPhotosSwitchedOff(value) {
+		return StudentPhotoFeatureChange{BroadcastSource: StudentPhotoSourceFeatureEnabled}, nil
+	}
+	purged, err := photos.PurgeStudentPhotos(ctx)
+	if err != nil {
+		return StudentPhotoFeatureChange{}, err
+	}
+	return StudentPhotoFeatureChange{Purged: append([]string(nil), purged...), BroadcastSource: StudentPhotoSourceFeatureDisabled}, nil
+}
+
 // StudentPhotoState is the photo slice of a child's row: where the image is
 // stored and whether the voluntary consent behind it is on record.
 type StudentPhotoState struct {

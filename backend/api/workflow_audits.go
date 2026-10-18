@@ -2,9 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"strconv"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -55,58 +53,46 @@ func GradeTransitionClassListRecord(actor gradetransition.Actor, change gradetra
 	return event
 }
 
+// The student deletion names the Audit Platform's deletion types itself; a
+// drift must not compile: a false comparison repeats the false key of this
+// map literal.
+var _ = map[bool]struct{}{
+	false: {},
+	studentdeletion.DeletionTypeManual == auditModels.DeletionTypeManual &&
+		studentdeletion.DeletionTypeRetention == auditModels.DeletionTypeStudentRetention: {},
+}
+
 // studentDeletionRecords are the deletion log entry and the tombstone of one
-// deleted child. Actor account 0 is the nightly retention run (#3962): no
-// actor, written by system.
+// deleted child, as the student deletion workflow attributes them.
 func studentDeletionRecords(actor studentdeletion.Actor, result studentdeletion.Result) []any {
-	deletionType, deletedBy, actorID := auditModels.DeletionTypeManual, "account:"+strconv.FormatInt(actor.AccountID, 10), &actor.AccountID
-	if actor.AccountID == 0 {
-		deletionType, deletedBy, actorID = auditModels.DeletionTypeStudentRetention, "system", nil
-	}
-	dataDeletion := auditModels.NewDataDeletion(result.StudentID, deletionType, result.Counts.Total()+result.PrimaryRowsDeleted, deletedBy)
-	dataDeletion.DeletionReason = result.Reason
-	dataDeletion.SetTenantID(actor.TenantID)
-	dataDeletion.SetMetadata("student_deletion", true)
-	dataDeletion.SetMetadata("counts", result.Counts)
-	tombstone := &auditModels.StudentDeletion{StudentID: result.StudentID, ActorAccountID: actorID, Reason: result.Reason, Counts: auditModels.StudentDeletionCounts(result.Counts)}
-	tombstone.SetTenantID(actor.TenantID)
+	deletion := studentdeletion.NewDeletionAudit(actor, result)
+	dataDeletion := auditModels.NewDataDeletion(deletion.StudentID, deletion.DeletionType, deletion.RecordsDeleted, deletion.DeletedBy)
+	dataDeletion.DeletionReason = deletion.Reason
+	dataDeletion.SetTenantID(deletion.TenantID)
+	deletion.EachMetadata(dataDeletion.SetMetadata)
+	tombstone := &auditModels.StudentDeletion{StudentID: deletion.StudentID, ActorAccountID: deletion.ActorAccountID, Reason: deletion.Reason, Counts: auditModels.StudentDeletionCounts(deletion.Counts)}
+	tombstone.SetTenantID(deletion.TenantID)
 	return []any{dataDeletion, tombstone}
 }
 
 // staffAbsenceDeletionRecord is the time-tracking deletion record of one
-// absence the offboarding removes.
+// absence the offboarding removes, as the workflow builds it.
 func staffAbsenceDeletionRecord(absence workforce.StaffAbsence, actorID int64) (any, error) {
-	payload, err := json.Marshal(absence)
+	deletion, err := staffoffboarding.NewAbsenceDeletion(absence, actorID)
 	if err != nil {
 		return nil, err
 	}
-	return &auditModels.TimeTrackingDeletion{StaffID: absence.StaffID, Source: auditModels.TimeTrackingDeletionSourceAbsence, SourceID: absence.ID, DeletedBy: actorID, Payload: payload, Note: "Personal-Offboarding"}, nil
+	return &auditModels.TimeTrackingDeletion{StaffID: deletion.StaffID, Source: auditModels.TimeTrackingDeletionSourceAbsence, SourceID: deletion.AbsenceID, DeletedBy: deletion.DeletedBy, Payload: deletion.Payload, Note: deletion.Note}, nil
 }
 
-// staffOffboardingRecord is the data deletion record of one offboarded staff
-// member, with the removed row counts as metadata.
+// staffOffboardingRecord is the manual data deletion record of one
+// offboarded staff member, as the workflow builds it.
 func staffOffboardingRecord(actor staffoffboarding.Actor, result staffoffboarding.Result) any {
-	counts := map[string]int64{
-		"group_teacher": result.Membership.GroupAssignments, "class_teachers": result.Membership.ClassAssignments,
-		"activity_supervisors": result.Timetable.PlannedSupervisors, "timetable_instance_staff": result.Timetable.InstanceAssignments,
-		"group_substitutions": result.Workforce.Substitutions, "staff_shifts": result.Workforce.Shifts,
-		"staff_shift_series": result.Workforce.Series, "staff_absences": result.Workforce.Absences,
-		"account_permissions": result.Access.PermissionsRevoked,
-	}
-	records := 1
-	for _, count := range counts {
-		records += int(count)
-	}
-	deletedBy := actor.Username
-	if deletedBy == "" {
-		// Preserve the legacy provider's audit value for authenticated
-		// sessions without a display name, including the API seeder.
-		deletedBy = "system"
-	}
-	event := auditModels.NewStaffDataDeletion(result.StaffID, auditModels.DeletionTypeManual, records, deletedBy)
-	event.DeletionReason = "staff offboarding"
-	event.SetTenantID(actor.TenantID)
-	for key, count := range counts {
+	deletion := staffoffboarding.NewStaffDeletion(actor, result)
+	event := auditModels.NewStaffDataDeletion(deletion.StaffID, auditModels.DeletionTypeManual, deletion.RecordsDeleted, deletion.DeletedBy)
+	event.DeletionReason = deletion.Reason
+	event.SetTenantID(deletion.TenantID)
+	for key, count := range deletion.Counts {
 		event.Metadata[key] = count
 	}
 	return event

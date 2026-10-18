@@ -61,6 +61,16 @@ type Group struct {
 	Category              *Category  `json:"category,omitempty"`
 }
 
+// ParticipantLimit is the group's participant cap; MaxParticipants 0 means
+// the group has none.
+func (g Group) ParticipantLimit() *int {
+	if g.MaxParticipants <= 0 {
+		return nil
+	}
+	limit := g.MaxParticipants
+	return &limit
+}
+
 // GroupFilter is the bounded compatibility filter used by activity listings.
 type GroupFilter struct {
 	Name              string
@@ -75,6 +85,28 @@ type GroupFilter struct {
 	ActiveOnly        bool
 	OrderByName       bool
 	OrderByID         bool
+}
+
+// ActiveTemplateSeries selects the live templates of the series the given
+// group belongs to, in id order: the template rows a linked care offering
+// materializes from.
+func ActiveTemplateSeries(groupID int64) GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true}
+}
+
+// ActiveOfferingSourcedTemplates selects every live template that declares a
+// care offering source, in id order.
+func ActiveOfferingSourcedTemplates() GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true}
+}
+
+// ActiveTemplatesSourcedFrom selects the live templates that name one of the
+// care offerings as their source, in id order.
+func ActiveTemplatesSourcedFrom(offeringIDs []int64) GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true}
 }
 
 // CourseGroupFilter selects activity templates that are reached through a
@@ -192,6 +224,11 @@ func IsValidGroupType(value string) bool {
 	}
 	return false
 }
+
+// GroupTypeHasChildren reports whether blocks of the type carry children,
+// and so appear on children lists such as the Tageslisten. A duty (#3822)
+// is a staff task without children.
+func GroupTypeHasChildren(value string) bool { return value != GroupTypeDuty }
 
 // TemplateShape is what the duty rule (#3822) looks at on a template write.
 // RoomID 0 means no room; the bool fields summarize the roster parts a
