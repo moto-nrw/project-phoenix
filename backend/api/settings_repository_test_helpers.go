@@ -45,20 +45,14 @@ func NewSettingsTestService(runtime interface {
 	return settingsCompose.NewSettingsService(repos.Values, repos.Audit, nil, runtime, slog.Default())
 }
 
-// DisplayTestRepositories bundles the readers the info-point dashboard
-// aggregates with the settings stores the dashboard resolves its feature
-// switch through.
-type DisplayTestRepositories struct {
-	DisplayReadRepositories
-	SettingsTestRepositories
-}
-
-// NewDisplayTestRepositories composes the dashboard's read dependencies.
-func NewDisplayTestRepositories(db transactionruntime.Database, runtime settingsCompose.PersistenceRuntime) (DisplayTestRepositories, error) {
+// NewDisplayTestRepositories composes the readers the info-point dashboard
+// aggregates and returns them with the settings stores the dashboard
+// resolves its feature switch through.
+func NewDisplayTestRepositories(db transactionruntime.Database, runtime settingsCompose.PersistenceRuntime) (DisplayReadRepositories, SettingsTestRepositories, error) {
 	readers, err := NewDisplayTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return DisplayTestRepositories{}, err
+		return DisplayReadRepositories{}, SettingsTestRepositories{}, err
 	}
 	readers.TimetableTestRepositories = withTimetableTestAudit(db, readers.TimetableTestRepositories)
-	return DisplayTestRepositories{DisplayReadRepositories: readers, SettingsTestRepositories: NewSettingsTestRepositories(runtime)}, nil
+	return readers, NewSettingsTestRepositories(runtime), nil
 }

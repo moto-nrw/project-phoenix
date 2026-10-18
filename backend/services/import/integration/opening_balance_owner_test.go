@@ -20,7 +20,7 @@ func TestDataImportCutover_OpeningBalanceOwnerContract(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	now := time.Date(2026, time.September, 12, 12, 0, 0, 0, time.UTC)
-	module, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), func() time.Time { return now })
+	module, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), func() time.Time { return now })
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Opening", "Subject")
 	actor := newImporter(t, db)

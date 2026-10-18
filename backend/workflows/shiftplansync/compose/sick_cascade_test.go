@@ -69,7 +69,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 func buildSickCascadeEnvWith(t *testing.T, cascadeBroadcaster realtime.Broadcaster) *sickCascadeEnv {
 	t.Helper()
 	env := newPlanSyncEnv(t, cascadeBroadcaster, sickCascadeNow)
-	absences, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
+	absences, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()

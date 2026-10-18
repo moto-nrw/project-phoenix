@@ -59,7 +59,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	schoolCalendar, err := api.NewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deviations := api.NewTimetableDeviationAudit(testpkg.NewDatabase(t, db))
-	timetable, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	timetable, _, realtimeHub, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Rooms:           api.NewTimetableRoomNames(rooms.Facilities),
 		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
-		Broadcaster:     timetable.RealtimeHub,
+		Broadcaster:     realtimeHub,
 		Logger:          logger,
 		Today:           today,
 	})
@@ -86,7 +86,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	broadcaster := cascadeBroadcaster
 	if broadcaster == nil {
-		broadcaster = timetable.RealtimeHub
+		broadcaster = realtimeHub
 	}
 	lock := workforceCompose.NewStaffShiftLock(db)
 	cascade, err := compose.NewSickCascade(compose.SickCascadeDependencies{

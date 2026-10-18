@@ -222,8 +222,8 @@ func TestAbsenceTypesRouteRejectsWritesWithoutManage(t *testing.T) {
 func setupAbsenceTypesRoute(t *testing.T, clocks ...func() time.Time) (*testpkg.DB, chi.Router) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	svc, err := NewAbsenceTypeTestModule(testpkg.NewDatabase(t, db), clocks...)
+	svc, userContext, err := NewAbsenceTypeTestModule(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
-	resource := newAbsenceTypesResource(svc.Administration, svc.UserContext.Caller().StaffID)
+	resource := newAbsenceTypesResource(svc.Administration, userContext.Caller().StaffID)
 	return db, resource.Router()
 }

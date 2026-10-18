@@ -23,7 +23,7 @@ import (
 // deletion.
 func TestSchedulesTimeframeGuardRefusesChangesACareOfferingNeeds(t *testing.T) {
 	t.Parallel()
-	db, services := setupScheduleModule(t)
+	db, services, dateframes := setupScheduleModule(t)
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "guarded")
 
 	var seen []*timetableModule.TimeframeInput
@@ -32,7 +32,7 @@ func TestSchedulesTimeframeGuardRefusesChangesACareOfferingNeeds(t *testing.T) {
 		seen = append(seen, replacement)
 		return fmt.Errorf("%w: no complete timeframe", timetableModule.ErrTimeframeRequiredByCareOffering)
 	})
-	resource := schedulesAPI.NewSchedulesResource(services.Calendar, services.Timetable, guard, db)
+	resource := schedulesAPI.NewSchedulesResource(dateframes, services.Timetable, guard, db)
 	router := resource.Router(rootAPI.ProtectedTenantRoutes)
 
 	update := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/timeframes/%d", timeframe.ID), map[string]any{

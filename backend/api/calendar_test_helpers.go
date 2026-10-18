@@ -66,7 +66,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		repos.StudentGuardian, parents.ParentChildLinks(), repos.Group)
 	calendarConfig = BindCalendarScheduleFacts(calendarConfig, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
 	calendarConfig = BindCalendarFeedFacts(calendarConfig, repos.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
-	calendarConfig = BindCalendarCaller(calendarConfig, identity.UserContext.Caller())
+	calendarConfig = BindCalendarCaller(calendarConfig, identity.Caller())
 	calendarConfig.Appointments = appointments
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
 	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)

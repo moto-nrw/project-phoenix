@@ -33,7 +33,7 @@ type idempotentCreateSetup struct {
 
 func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	t.Helper()
-	db, serviceFactory := setupTimetableModule(t)
+	db, serviceFactory, schoolCalendar := setupTimetableModule(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Idempotent-Room-%d", suffix))
@@ -41,7 +41,7 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), calendar.TodayDate().AddDays(-1), calendar.TodayDate().AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
-		CalendarPeriods: serviceFactory.SchoolCalendar,
+		CalendarPeriods: schoolCalendar,
 		Templates:       serviceFactory.TimetableData.Templates,
 		TimetableData:   serviceFactory.TimetableData.Data,
 		InstanceService: serviceFactory.Instance,

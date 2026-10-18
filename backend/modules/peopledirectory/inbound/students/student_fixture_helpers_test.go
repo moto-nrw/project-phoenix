@@ -137,12 +137,12 @@ func deviceAuthenticator(t testing.TB, db *bun.DB, svc api.StudentTestModule) co
 	return testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), schools, svc.Settings, testDevicePIN).Device()
 }
 
-func setupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.BirthdayTestModule) {
+func setupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.BirthdayTestModule, *api.CallerRows, api.SettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewBirthdayTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, userContext, settings, err := api.NewBirthdayTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, userContext, settings
 }
 
 func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.StudentTestModule) {

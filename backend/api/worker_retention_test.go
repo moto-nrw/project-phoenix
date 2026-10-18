@@ -37,21 +37,13 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	t.Cleanup(func() { require.NoError(t, serve.Close()) })
 	db, err := transactionruntime.NewDatabase(admin)
 	require.NoError(t, err)
-	owners, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
+	audit, settings, steps, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
-	students, err := NewStudentTestRetention(db, owners.Audit, owners.Settings)
+	students, err := NewStudentTestRetention(db, audit, settings)
 	require.NoError(t, err)
-	staff, err := newStaffRetention(db, owners.Audit, owners.Settings, nil)
+	staff, err := newStaffRetention(db, audit, settings, nil)
 	require.NoError(t, err)
-	steps := dataRetentionSteps(
-		owners.Settings, owners.UnregisteredTagScans, owners.StatusDays, owners.ParentMessages,
-		owners.SettledEnrollments, owners.StaffSickNotes, owners.Audit, owners.Deliveries,
-	)
-	steps = append(steps, protocolRetentionSteps(owners.Audit, owners.SettingAudit, owners.ExportTransfers)...)
-	steps = append(steps, cleanupJobRetentionSteps(
-		owners.FileCleanups, owners.StaffCleanups, owners.CarePlanCleanups, owners.SubmissionLimits,
-	)...)
-	retention, err := newWorkerRetention(owners.Audit, owners.Settings, students, staff, steps)
+	retention, err := newWorkerRetention(audit, settings, students, staff, steps)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }

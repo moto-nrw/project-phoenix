@@ -17,12 +17,12 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.TimetableTestModule) {
+func setupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.TimetableTestModule, timetableAPI.CalendarPeriods) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, calendar, _, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, calendar
 }
 
 // The root imports this package, so the internal suites reach its
@@ -31,7 +31,7 @@ func init() {
 	root := &timetableAPI.RootCompositions
 	root.Module = func(t *testing.T, clocks ...func() time.Time) (*bun.DB, timetableAPI.TimetableModule) {
 		t.Helper()
-		db, module := setupTimetableModule(t, clocks...)
+		db, module, _ := setupTimetableModule(t, clocks...)
 		return db, timetableAPI.TimetableModule{
 			Instance: module.Instance, Templates: module.TimetableData.Templates, Data: module.TimetableData.Data,
 			Deviations: module.TimetableData.Deviations, ConflictDetection: module.ConflictDetection,

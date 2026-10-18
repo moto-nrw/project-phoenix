@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -52,17 +53,17 @@ type birthdayTestContext struct {
 func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *birthdayTestContext {
 	t.Helper()
 
-	db, svc := setupBirthdayModule(t, clocks...)
+	db, svc, userContext, settings := setupBirthdayModule(t, clocks...)
 	return &birthdayTestContext{
 		db: db,
 		resource: birthdaysAPI.NewResource(
-			svc.Birthdays, svc.ListExport, svc.UserContext, slog.Default(),
+			svc.Birthdays, lists.NewRendererService(), userContext, slog.Default(),
 		),
 		setFlag: func(ctx context.Context, key string, value bool) error {
-			return svc.Settings.SetValue(ctx, key, value, nil, nil)
+			return settings.Settings.SetValue(ctx, key, value, nil, nil)
 		},
 		resetFlag: func(ctx context.Context, key string) error {
-			return svc.Settings.ResetValue(ctx, key, nil, nil)
+			return settings.Settings.ResetValue(ctx, key, nil, nil)
 		},
 	}
 }

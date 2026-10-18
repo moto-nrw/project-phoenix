@@ -22,8 +22,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	audits := NewTestAuditPersistence(testpkg.MustDatabase(db), nil)
-	svc, err := NewStaffAdmin(StaffAdminDependencies{
-		DB: testpkg.MustDatabase(db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+	svc, err := NewStaffAdmin(testpkg.MustDatabase(db), repos.Staff, repos.Person, repos.SchoolMembership(), StaffAdminDependencies{
 		MasterDataAudit: audits.StaffMasterDataChange, PersonnelNumber: audits.PersonnelNumberChange, DataAccessLog: audits.DataAccessLog,
 	})
 	require.NoError(t, err)
