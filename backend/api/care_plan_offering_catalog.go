@@ -171,10 +171,7 @@ func (t careOfferingCatalogTimetable) FindGroup(ctx context.Context, id int64) (
 }
 
 func (t careOfferingCatalogTimetable) TemplateSeries(ctx context.Context, groupID int64) ([]careplan.LinkedGroup, error) {
-	isTemplate := true
-	groups, err := t.timetable.ListGroups(ctx, timetable.GroupFilter{
-		IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true,
-	})
+	groups, err := t.timetable.ListGroups(ctx, timetable.ActiveTemplateSeries(groupID))
 	if err != nil {
 		return nil, err
 	}

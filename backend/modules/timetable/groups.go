@@ -77,6 +77,28 @@ type GroupFilter struct {
 	OrderByID         bool
 }
 
+// ActiveTemplateSeries selects the live templates of the series the given
+// group belongs to, in id order: the template rows a linked care offering
+// materializes from.
+func ActiveTemplateSeries(groupID int64) GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true}
+}
+
+// ActiveOfferingSourcedTemplates selects every live template that declares a
+// care offering source, in id order.
+func ActiveOfferingSourcedTemplates() GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true}
+}
+
+// ActiveTemplatesSourcedFrom selects the live templates that name one of the
+// care offerings as their source, in id order.
+func ActiveTemplatesSourcedFrom(offeringIDs []int64) GroupFilter {
+	isTemplate := true
+	return GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true}
+}
+
 // CourseGroupFilter selects activity templates that are reached through a
 // legacy group link or an offering-source declaration.
 type CourseGroupFilter struct {

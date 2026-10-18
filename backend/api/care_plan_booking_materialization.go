@@ -240,16 +240,14 @@ func (r bookingRosters) ReconcileTemplateRosters(ctx context.Context, templateID
 type bookingTemplates struct{ timetable bookingTimetableOwner }
 
 func (t bookingTemplates) TemplatesWithOfferingSource(ctx context.Context) ([]careplanCompose.SourcedTemplate, error) {
-	isTemplate := true
-	return t.list(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true})
+	return t.list(ctx, timetable.ActiveOfferingSourcedTemplates())
 }
 
 func (t bookingTemplates) TemplatesSourcedFrom(ctx context.Context, offeringIDs []int64) ([]careplanCompose.SourcedTemplate, error) {
 	if len(offeringIDs) == 0 {
 		return []careplanCompose.SourcedTemplate{}, nil
 	}
-	isTemplate := true
-	return t.list(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true})
+	return t.list(ctx, timetable.ActiveTemplatesSourcedFrom(offeringIDs))
 }
 
 func (t bookingTemplates) Groups(ctx context.Context, ids []int64) ([]careplanCompose.SourcedTemplate, error) {
