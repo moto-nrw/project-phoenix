@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -24,7 +24,7 @@ const cleanupResetExpiry = time.Hour
 // PasswordResetWiring is the configuration the reset flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type PasswordResetWiring struct {
-	Dispatcher       *email.Dispatcher
+	Dispatcher       email.Dispatcher
 	Durable          DurableMailOutbox
 	DefaultFrom      email.Email
 	StaffURL         string
@@ -72,7 +72,7 @@ type passwordResetRecords interface {
 // passwordResetDelivery mails a reset link and records the outcome through
 // the module once the send settles.
 type passwordResetDelivery struct {
-	dispatcher *email.Dispatcher
+	dispatcher email.Dispatcher
 	durable    DurableMailOutbox
 	from       email.Email
 	// host is the portal origin of a reset scope.

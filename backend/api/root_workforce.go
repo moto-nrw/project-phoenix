@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -29,7 +31,7 @@ import (
 // Timetable lifecycle, which ends sessions through Student Presence, so
 // Workforce completes them once the cascade exists.
 func buildWorkSessionSide(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, mailIdentity email.ReplyToResolver,
+	db transactionruntime.Database, env RootEnvironment, mailFrom email.Email, hub *realtime.Hub, mailIdentity email.ReplyToResolver,
 	workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability,
 	organizations organizationtenancy.Query, people PeopleRows, users peoplePorts.PersonDirectory, audit AuditOwner,
 	supervisions studentpresence.SupervisionRecords, sessions *presenceCompose.SessionRecords, calendar schoolcalendar.Days,
@@ -42,8 +44,8 @@ func buildWorkSessionSide(
 		Absences: NewStaffAbsenceRepository(workTime, membership, persons), AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
 		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NonWorkingDays{Calendar: calendar},
-		Events:       timeTrackingEvents(transport.Hub),
-		AbsenceEmail: absenceEmailDependencies(settings, transport, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
+		Events:       timeTrackingEvents(hub),
+		AbsenceEmail: absenceEmailDependencies(settings, mailFrom, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
 		Logger:       logger,
 	}, timeTrackingAudits{
 		WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
@@ -60,13 +62,13 @@ func buildWorkSessionSide(
 // mail, to the People Directory's staff contacts, linking the school's
 // subdomain.
 func absenceEmailDependencies(
-	settings settingsCompose.SettingsService, transport MailTransport, mailIdentity email.ReplyToResolver, frontendURL string,
+	settings settingsCompose.SettingsService, mailFrom email.Email, mailIdentity email.ReplyToResolver, frontendURL string,
 	logger *slog.Logger, people PeopleRows, organizations organizationtenancy.Query, durable DurableMailOutbox,
 ) *workforceCompose.AbsenceEmailDeps {
 	return &workforceCompose.AbsenceEmailDeps{
 		Settings: settingsCompose.PresenceSettings(settings),
 		Dispatcher: absenceEmailDispatcher{
-			durable: durable, from: transport.DefaultFrom, identity: mailIdentity, logger: logger,
+			durable: durable, from: mailFrom, identity: mailIdentity, logger: logger,
 		},
 		StaffRepo:   absenceEmailStaffDirectory{source: people.Staff},
 		SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
@@ -90,7 +92,7 @@ type WorkforcePlanning struct {
 // which runs over the staff shifts, the deviation writes and the timetable
 // rows.
 func buildWorkforcePlanning(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, workTime workforceModule.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, workTime workforceModule.Capability,
 	membership schoolmembership.Capability, persons peopledirectory.Capability, shifts *workforceCompose.ShiftPlanning,
 	planExport planexport.Service, side *workforceCompose.WorkSessionSide, lifecycle TimetableLifecycle, owner TimetableOwner,
 	audit AuditOwner, settings settingsCompose.BatchSettingsService,
@@ -101,7 +103,7 @@ func buildWorkforcePlanning(
 		Deviations:    lifecycle.Deviations,
 		TimetableData: lifecycle.Rows.SickCascadeRows(arrivalTimetable.SubstituteDayLock(db.Pool())),
 		InstanceStaff: arrivalTimetable.NewTimetableInstanceStaffReads(owner.Repositories.InstanceStaff),
-		Broadcaster:   transport.Hub, Logger: env.Logger.With("service", "shift_plan_sync"), Today: env.Today,
+		Broadcaster:   hub, Logger: env.Logger.With("service", "shift_plan_sync"), Today: env.Today,
 	})
 	if err != nil {
 		return WorkforcePlanning{}, err

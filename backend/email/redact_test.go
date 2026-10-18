@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gomail "github.com/wneessen/go-mail"
@@ -134,11 +136,11 @@ func TestSMTPMailer_RejectedRecipientStaysOutOfLogsAndError(t *testing.T) {
 				client:      client,
 				templates:   templates,
 				logger:      slog.New(slog.NewTextHandler(&logs, nil)),
-				defaultFrom: NewEmail("moto", "system@example.invalid"),
+				defaultFrom: mailcontract.NewEmail("moto", "system@example.invalid"),
 			}
 
-			sendErr := mailer.SendContext(context.Background(), Message{
-				To:       NewEmail("Erika Muster", recipient),
+			sendErr := mailer.SendContext(context.Background(), mailcontract.Message{
+				To:       mailcontract.NewEmail("Erika Muster", recipient),
 				Subject:  "Einladung zum Eltern-Portal",
 				Template: "regression.html",
 				Content:  map[string]string{"Message": "Hallo"},

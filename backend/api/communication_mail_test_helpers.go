@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 type communicationCapturingOutbox func(context.Context, communication.MailEnqueueInput) error

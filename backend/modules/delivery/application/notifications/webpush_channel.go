@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	webpush "github.com/SherClockHolmes/webpush-go"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -60,7 +62,7 @@ var ErrNoWebPushSubscribers = errors.New("no web push subscribers are available"
 // that must know whether a push service accepted the message before returning.
 type webPushChannel struct {
 	db            *bun.DB
-	repo          deliveryModels.PushSubscriptionRepository
+	repo          deliveryPorts.PushSubscriptionRepository
 	vapid         VAPIDConfig
 	sender        pushSender
 	logger        *slog.Logger
@@ -107,7 +109,7 @@ func (c *webPushChannel) withTenantRuntime(ctx context.Context) context.Context 
 // NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
 // channel stays inert (no-op Deliver) so environments without push keep
 // today's behavior.
-func NewWebPushChannel(db *bun.DB, repo deliveryModels.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
+func NewWebPushChannel(db *bun.DB, repo deliveryPorts.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
 	return &webPushChannel{
 		db:        db,
 		repo:      repo,
@@ -118,7 +120,7 @@ func NewWebPushChannel(db *bun.DB, repo deliveryModels.PushSubscriptionRepositor
 	}
 }
 
-func NewDurableWebPushChannel(db *bun.DB, repo deliveryModels.PushSubscriptionRepository, vapid VAPIDConfig, outbox PushOutbox, logger *slog.Logger) Channel {
+func NewDurableWebPushChannel(db *bun.DB, repo deliveryPorts.PushSubscriptionRepository, vapid VAPIDConfig, outbox PushOutbox, logger *slog.Logger) Channel {
 	channel := NewWebPushChannel(db, repo, vapid, logger).(*webPushChannel)
 	channel.outbox = outbox
 	return channel

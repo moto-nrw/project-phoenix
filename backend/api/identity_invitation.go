@@ -8,7 +8,7 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -26,7 +26,7 @@ import (
 // InvitationWiring is the configuration the invitation flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type InvitationWiring struct {
-	Dispatcher  *email.Dispatcher
+	Dispatcher  email.Dispatcher
 	Durable     DurableMailOutbox
 	DefaultFrom email.Email
 	// StaffURL and schoolURL are the portal hosts an invitee accepts on.
@@ -93,7 +93,7 @@ type schoolInvitationRecords interface {
 // invitationDelivery mails an invitation and records the outcome through the
 // module once the send settles.
 type invitationDelivery struct {
-	dispatcher   *email.Dispatcher
+	dispatcher   email.Dispatcher
 	durable      DurableMailOutbox
 	from         email.Email
 	staffURL     string

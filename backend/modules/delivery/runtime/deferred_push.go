@@ -5,28 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
-// DeferredPushIntent persists a feature-owned push request before its audience
-// is revalidated at dispatch time. Delivery owns the same lease and terminal
-// states as device-snapshot intents; the root binds the feature dispatcher.
-type DeferredPushIntent struct {
-	TenantID       int64
-	Template       string
-	IdempotencyKey string
-	Related        RelatedEntity
-	Payload        json.RawMessage
-}
-
-func (m *Module) EnqueueDeferredPush(ctx context.Context, intent DeferredPushIntent) (Enqueued, error) {
+func (m *Module) EnqueueDeferredPush(ctx context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
 	if intent.TenantID <= 0 || strings.TrimSpace(intent.Template) == "" || strings.TrimSpace(intent.IdempotencyKey) == "" {
-		return Enqueued{}, errors.New("delivery: deferred push requires tenant, template, and idempotency key")
+		return deliveryContract.Enqueued{}, errors.New("delivery: deferred push requires tenant, template, and idempotency key")
 	}
 	if len(intent.Payload) == 0 || !json.Valid(intent.Payload) {
-		return Enqueued{}, errors.New("delivery: invalid deferred push payload")
+		return deliveryContract.Enqueued{}, errors.New("delivery: invalid deferred push payload")
 	}
 	if err := validateRelated(intent.Related); err != nil {
-		return Enqueued{}, err
+		return deliveryContract.Enqueued{}, err
 	}
 	return m.engine.EnqueueDeferredPush(ctx, intent)
 }

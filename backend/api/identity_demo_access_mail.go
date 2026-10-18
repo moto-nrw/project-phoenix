@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -18,7 +18,7 @@ var demoContact = email.NewEmail(identityaccess.DemoContactName, identityaccess.
 // DemoAccessWiring configures the demo access; nil composes the module
 // without it, as every environment but APP_ENV=demo does.
 type DemoAccessWiring struct {
-	Dispatcher  *email.Dispatcher
+	Dispatcher  email.Dispatcher
 	Durable     DurableMailOutbox
 	DefaultFrom email.Email
 	FrontendURL string
@@ -42,7 +42,7 @@ func IsDemoEnvironment(appEnv string) bool {
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger, durable DurableMailOutbox) *DemoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger, durable DurableMailOutbox) *DemoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
@@ -54,7 +54,7 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 }
 
 type demoAccessMail struct {
-	dispatcher *email.Dispatcher
+	dispatcher email.Dispatcher
 	durable    DurableMailOutbox
 	from       email.Email
 	origin     string

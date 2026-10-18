@@ -1,6 +1,15 @@
 # 4086 relocation inventory
 
-## Final cluster round 4 (current follow-up)
+## Final cluster round 5 (current follow-up)
+
+Fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee`: the three remaining scoped carriers are dissolved. Scheduler moves 66 files into Scheduler Runtime internal/application with unchanged owner, role and byte-normalized code. The canonical SQLSTATE detector moves into Transaction Runtime, with a one-to-one path-literal repair and the same 4 literal sites. Delivery owns native subscription records, its internal persistence port and test fixtures. `database/repositories/base` stays absent.
+
+Conventional carriers: **5 → 2**, only `models/activities` and `models/schedule`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**; the last key waits for the agreed post-#3021 zero-ratchet cutover. Legacy-prefixed files stay unchanged for round 6. Projection locations/grants stay unchanged. The complete package-layout exit is not established.
+
+[Round-5 proof, native contract split and inventory](final-legacy-cluster.md#one-to-one-relocation-proof). All sections below are historical snapshots.
+
+
+## Final cluster round 4 (historical)
 
 Development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` → candidate: 15 → 1 exact keys, eight → five conventional production carriers, 30 → 23 foreign compose aliases. The dead generic CRUD/model API is deleted after production dead-code proof; `database/repositories/base` disappears. The live canonical unique-violation detector stays in `models/base` because the unchanged helper-consolidation guard pins that path. `models/enrollment` is dissolved into native values and existing Enrollment internal application. `services/parentmessaging` moves to Communication internal application with unchanged owner/application roles.
 

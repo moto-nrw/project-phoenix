@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -135,10 +137,10 @@ func buildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironmen
 // acting account, the stored-file cleanup with the live refresh and the
 // Audit Platform consent trail. None of them needs the directory, so the
 // module receives the runtime at construction.
-func buildStudentPhotoRuntime(db transactionruntime.Database, env RootEnvironment, settings settingsCompose.SettingsService, transport MailTransport, audit AuditOwner, unlinker peoplePorts.PhotoUnlinker, actor func(context.Context) int64) studentPhotoRuntime {
+func buildStudentPhotoRuntime(db transactionruntime.Database, env RootEnvironment, settings settingsCompose.SettingsService, hub *realtime.Hub, audit AuditOwner, unlinker peoplePorts.PhotoUnlinker, actor func(context.Context) int64) studentPhotoRuntime {
 	return studentPhotoRuntime{
 		cleanup:  fileStorageCompose.NewUploadCleanup(db.Pool(), "student-photos").Queue,
-		settings: settings, broadcaster: transport.Hub, unlinker: unlinker,
+		settings: settings, broadcaster: hub, unlinker: unlinker,
 		consents: studentConsentTrail{trail: audit.Persistence.StudentConsentChange},
 		logger:   env.Logger.With("service", "student-photo"), actor: actor,
 	}

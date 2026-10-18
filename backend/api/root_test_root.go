@@ -7,6 +7,7 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
@@ -15,10 +16,10 @@ import (
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -48,7 +49,7 @@ import (
 // Audit trails appending outside a tenant transaction. It returns the
 // single-owner values the test roots hand out.
 func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg ServiceConfig, clocks ...func() time.Time) (
-	env RootEnvironment, transport MailTransport, identity *identityaccess.Module, caller *CallerRows, settings SettingsOwner,
+	env RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity *identityaccess.Module, caller *CallerRows, settings SettingsOwner,
 	persons *peopledirectory.Module, services PeopleServices, schedules CarePlanSchedules, requests CarePlanRequests,
 	active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
@@ -59,7 +60,7 @@ func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg Se
 }
 
 func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cfg ServiceConfig, observe RootObservers, clocks ...func() time.Time) (
-	env RootEnvironment, transport MailTransport, identity *identityaccess.Module, caller *CallerRows, settings SettingsOwner,
+	env RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity *identityaccess.Module, caller *CallerRows, settings SettingsOwner,
 	persons *peopledirectory.Module, services PeopleServices, schedules CarePlanSchedules, requests CarePlanRequests,
 	active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
@@ -71,7 +72,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		return
 	}
 	env.AllowAuditRootWrites = true
-	hub := deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
+	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
 	communicationCompose.InstallMessageQueryInstrumentation(db.Pool())
 	var (
@@ -132,14 +133,17 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return stepError("resolve uploads backend", err)
 		},
 		func() (err error) { audit, err = buildAuditOwner(db, env); return },
-		func() (err error) { transport, err = buildMailTransport(env, hub); return },
+		func() (err error) {
+			mailSender, mailDispatcher, mailFrom, pushVAPID, err = buildMailTransport(env)
+			return
+		},
 		func() (err error) { organizations, err = buildServeOrganizations(db); return },
 		func() (err error) { groups, err = buildServeSchoolStructure(db); return },
 		func() (err error) { rooms, err = buildServeRooms(db); return },
 		func() (err error) { membership, err = composeSchoolMembership(db); return },
 		func() error { bookings = NewEnrollmentBookings(); return nil },
 		func() (err error) {
-			settings, err = buildSettingsOwner(db, unit, env, organizations, transport.Hub, bookings)
+			settings, err = buildSettingsOwner(db, unit, env, organizations, hub, bookings)
 			return
 		},
 		func() (err error) {
@@ -154,7 +158,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		func() (err error) { guardian, err = buildGuardianService(db, people, audit); return },
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
-			photoRuntime = buildStudentPhotoRuntime(db, env, settings.Service, transport, audit, unlinker, actingAccountID)
+			photoRuntime = buildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)
 			return nil
 		},
 		func() (err error) {
@@ -208,7 +212,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			mailIdentity = tenantMailIdentity(organizations, settings.Service, env)
 			portalReads = NewParentPortalReads(db, persons, peopleIdentity, enrollmentCompose.New(), organizations)
 			identity, caller, err = buildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
-				audit, operatorAuditLog, transport, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
+				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
 				presence.SessionRecords, presence.Presence)
 			return
@@ -221,12 +225,12 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			notifications, err = buildDeliveryNotifications(db, unit, env, transport, deliveryModuleOf(delivery), settings.Service,
+			notifications, err = buildDeliveryNotifications(db, unit, env, pushVAPID, hub, deliveryModuleOf(delivery), settings.Service,
 				consent, identity, people, structure, workTime, messaging)
 			return
 		},
 		func() (err error) {
-			emitter = buildParentEventEmitter(db, unit, env, transport, settings.Service, messaging, notifications)
+			emitter = buildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications)
 			purger, err = buildAttachmentPurger(db, env, objects)
 			return
 		},
@@ -253,12 +257,12 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			side, err = buildWorkSessionSide(db, env, transport, mailIdentity, workTime, membership, persons, organizations, people,
+			side, err = buildWorkSessionSide(db, env, mailFrom, hub, mailIdentity, workTime, membership, persons, organizations, people,
 				services.Users, audit, supervisions, presence.SessionRecords, calendar, settings.Service, payroll, delivery.Enqueuer())
 			return
 		},
 		func() (err error) {
-			active, err = buildActivePresence(db, unit, env, transport, settings.Service, presence, presencePeople, carePlanRows, people,
+			active, err = buildActivePresence(db, unit, env, hub, settings.Service, presence, presencePeople, carePlanRows, people,
 				services.Users, rooms, devices, timetableRows, days, side.AutoCheckIn, emitter, nil)
 			return
 		},
@@ -272,22 +276,22 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			materialization, err = buildTimetableMaterialization(db, env, transport, timetableRows, people, calendar)
+			materialization, err = buildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
 			return
 		},
 		func() (err error) {
-			lifecycle, err = buildTimetableLifecycle(db, env, transport, timetableRows, days, people, careRows, presence, supervisions,
+			lifecycle, err = buildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
 				workforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
 			return
 		},
 		func() (err error) {
-			lifecycle, err = buildTimetableDay(env, transport, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
+			lifecycle, err = buildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
 				services.Users, membership, active, schedules)
 			return
 		},
 		func() (err error) {
-			structureViews.Education = buildGroupManagement(db, transport, structure, people, substitutions, audit)
-			structureViews.Substitution, err = buildSubstitutions(db, env, transport, structure, people, substitutions, workTime,
+			structureViews.Education = buildGroupManagement(db, hub, structure, people, substitutions, audit)
+			structureViews.Substitution, err = buildSubstitutions(db, env, hub, structure, people, substitutions, workTime,
 				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service)
 			return
 		},
@@ -298,7 +302,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			offerings, err = buildCarePlanOfferings(env, carePlan, persons, people, timetableOwner, calendar, timetableRows, enrollment,
-				settings.Service, schedules, audit, identity, transport.Hub, emitter)
+				settings.Service, schedules, audit, identity, hub, emitter)
 			return
 		},
 		func() error {
@@ -306,7 +310,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return nil
 		},
 		func() (err error) {
-			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, transport.Hub)
+			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, hub)
 			return
 		},
 		func() error {
@@ -314,7 +318,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return nil
 		},
 		func() (err error) {
-			requests, err = buildCarePlanRequests(db, env, transport, carePlan, persons, people, schedules, offerings, enrollment,
+			requests, err = buildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
 				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier)
 			return
 		},
@@ -324,13 +328,13 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			planning, err = buildTimetablePlanning(db, env, transport, timetableRows, lifecycle, schedules, presence, timetableOwner,
+			planning, err = buildTimetablePlanning(db, env, hub, timetableRows, lifecycle, schedules, presence, timetableOwner,
 				offerings, audit, people)
 			return
 		},
 		func() (err error) {
-			outbox, err = buildDeliveryWorker(db, env, transport, mailIdentity, delivery, buildCalendarAppointmentRenderer(db, transport, people),
-				identityDeliveryRenderers(identity, transport.DefaultFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil)
+			outbox, err = buildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, buildCalendarAppointmentRenderer(db, mailFrom, people),
+				identityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil)
 			return
 		},
 		func() error { statusDays = presence.StatusDays; return nil },
@@ -367,26 +371,26 @@ func NewTestIdentityAccess(db transactionruntime.Database, logger *slog.Logger, 
 // NewTestIdentityAccessWithConfig builds the Identity & Access module of a
 // test root over the given configuration.
 func NewTestIdentityAccessWithConfig(db transactionruntime.Database, logger *slog.Logger, cfg ServiceConfig, clocks ...func() time.Time) (*identityaccess.Module, error) {
-	_, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, cfg, clocks...)
+	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, cfg, clocks...)
 	return identity, err
 }
 
 // NewTestActivePresence builds the active service of a test root.
 func NewTestActivePresence(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (studentpresence.Presence, error) {
-	_, _, _, _, _, _, _, _, _, active, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, _, _, _, _, _, _, _, active, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return active, err
 }
 
 // NewTestPresenceCleanup builds the presence cleanup of a test root.
 func NewTestPresenceCleanup(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (studentpresence.PresenceCleanup, error) {
-	_, _, _, _, _, _, _, _, _, _, reports, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, _, _, _, _, _, _, _, _, reports, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return reports.ActiveCleanup, err
 }
 
 // NewTestCarePlanSchedules builds Care Plan's lifecycle and schedules of a
 // test root.
 func NewTestCarePlanSchedules(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (CarePlanSchedules, error) {
-	_, _, _, _, _, _, _, schedules, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, _, _, _, _, _, schedules, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return schedules, err
 }
 
@@ -396,14 +400,14 @@ func NewTestCarePlanSchedules(db transactionruntime.Database, logger *slog.Logge
 func NewTestCareRequests(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (
 	CarePlanRequests, CarePlanSchedules, PeopleServices, *CallerRows, *peopledirectory.Module, settingsCompose.BatchSettingsService, error,
 ) {
-	_, _, _, caller, settings, persons, services, schedules, requests, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, _, caller, settings, persons, services, schedules, requests, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return requests, schedules, services, caller, persons, settings.Service, err
 }
 
 // NewTestPeopleServices builds the People Directory services of a test root
 // with the Identity & Access module they are composed over.
 func NewTestPeopleServices(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (PeopleServices, *identityaccess.Module, error) {
-	_, _, identity, _, _, _, services, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, identity, _, _, _, services, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return services, identity, err
 }
 
@@ -414,7 +418,7 @@ func NewTestTimetable(db transactionruntime.Database, logger *slog.Logger, clock
 	TimetableLifecycle, TimetablePlanning, timetable.MaterializationCapability, studentpresence.Presence, CarePlanSchedules,
 	carePlanModule.CareOfferingCapability, studentpresence.StatusDays, error,
 ) {
-	_, _, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	_, _, _, _, _, _, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, err
 }
 func currentTestServiceConfig() ServiceConfig {

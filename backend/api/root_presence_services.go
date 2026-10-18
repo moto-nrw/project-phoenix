@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -58,7 +60,7 @@ func buildTimetableDays(owner TimetableOwner, people PeopleRows, rooms facilitie
 // completion, the NFC auto-check-in and the parent event emitter that wakes
 // the guardians (#2252).
 func buildActivePresence(
-	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport,
+	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, hub *realtime.Hub,
 	settings settingsCompose.BatchSettingsService, presence PresenceOwner, presencePeople PresencePeopleReads,
 	carePlanRows CarePlanRows, people PeopleRows, users peoplePorts.PersonDirectory, rooms facilitiesModule.Catalog,
 	devices devicefleet.Capability, owner TimetableOwner, days TimetableDays, autoCheckIn workforceCompose.AutoCheckIn,
@@ -86,7 +88,7 @@ func buildActivePresence(
 		EducationGroupRepo: presence.AttendanceEducationGroups,
 		DeviceRepo:         NewSessionDeviceDirectory(devicefleetRepositoryAdapter.NewDeviceRepository(devices), settings, logger),
 		StaffNames:         NewAttendanceStaffNames(people.Staff, users), DB: db.Pool(),
-		Broadcaster: NewPresenceEvents(transport.Hub, logger), Tracker: tracker,
+		Broadcaster: NewPresenceEvents(hub, logger), Tracker: tracker,
 		WorkSessionService: presenceAutoCheckIn{checkIn: autoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: days.Bridge, Logger: logger, Now: env.Now,
 	},

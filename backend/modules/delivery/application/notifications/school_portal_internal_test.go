@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/subscriptiontest"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -113,7 +115,7 @@ func TestPortalPayloadsPickTheSchoolDeepLink(t *testing.T) {
 	require.NoError(t, err)
 	payloads := &portalPayloads{event: event, base: base}
 
-	staffWire, err := payloads.forSubscription(&deliveryModels.PushSubscription{Portal: deliveryModels.PushPortalStaff})
+	staffWire, err := payloads.forSubscription(subscriptiontest.NewSubscription(deliveryModels.PushSubscription{Portal: deliveryModels.PushPortalStaff}))
 	require.NoError(t, err)
 	assert.Equal(t, "/team-chat/7", deepLinkOf(t, staffWire))
 

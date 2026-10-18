@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"testing"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +21,7 @@ import (
 var errPushRepository = errors.New("push repository failed")
 
 type recordingPushRepository struct {
-	deliveryModels.PushSubscriptionRepository
+	deliveryPorts.PushSubscriptionRepository
 	upserted        []*deliveryModels.PushSubscription
 	deletedAccount  int64
 	deletedEndpoint string

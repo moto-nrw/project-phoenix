@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
@@ -60,25 +63,25 @@ type StructureServices struct {
 // buildGroupManagement binds School Structure's group management over the
 // People Directory, School Membership and Facilities directories; its group
 // events wake the open views.
-func buildGroupManagement(db transactionruntime.Database, transport MailTransport, structure StructureRows, people PeopleRows, substitutions GroupSubstitutionRepository, audit AuditOwner) schoolstructure.GroupManagement {
+func buildGroupManagement(db transactionruntime.Database, hub *realtime.Hub, structure StructureRows, people PeopleRows, substitutions GroupSubstitutionRepository, audit AuditOwner) schoolstructure.GroupManagement {
 	return education.NewGroupManagement(
 		structure.Groups, structure.GroupTeachers, structure.ClassTeachers, structure.GroupRooms, structure.GroupTeacherDirectory,
 		structure.StaffChecks, people.Students, substitutions, education.NewLegacyRepositoryRuntime(db.Pool()),
-		education.GroupServiceOptions{Broadcaster: NewGroupEvents(transport.Hub, nil), Audit: NewEducationClassAssignmentAudit(audit.Persistence.StaffMasterDataChange)},
+		education.GroupServiceOptions{Broadcaster: NewGroupEvents(hub, nil), Audit: NewEducationClassAssignmentAudit(audit.Persistence.StaffMasterDataChange)},
 	)
 }
 
 // buildSubstitutions binds the substitution module; the shift-plan-sync
 // workflow serves its schedule port.
 func buildSubstitutions(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, structure StructureRows, people PeopleRows,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, structure StructureRows, people PeopleRows,
 	substitutions GroupSubstitutionRepository, workTime workforce.Capability, callerContext identityaccess.CallerContext,
 	sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
 	deviations timetable.StaffDeviations, owner TimetableOwner, audit AuditOwner, settings settingsCompose.SettingsService,
 ) (education.SubstitutionModule, error) {
 	repos := owner.Repositories
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: deviations, Staff: NewPlanStaffDirectory(people.Staff), Broadcaster: transport.Hub,
+		Deviations: deviations, Staff: NewPlanStaffDirectory(people.Staff), Broadcaster: hub,
 		Logger:            env.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -95,7 +98,7 @@ func buildSubstitutions(
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
 		ActiveSupervisorCreator: active,
 		Audit:                   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(transport.Hub, logger),
+		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(hub, logger),
 		Logger: logger, Schedule: schedule,
 		CanSeeAll: substitutionOverviewScope(settings), Now: env.Now,
 	}), nil
@@ -159,8 +162,8 @@ func buildCalendarApp(
 
 // buildCalendarAppointmentRenderer renders the four appointment mail kinds
 // of the calendars with one renderer.
-func buildCalendarAppointmentRenderer(db transactionruntime.Database, transport MailTransport, people PeopleRows) deliveryCompose.MailRenderer {
-	return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(transport.DefaultFrom, calendarCompose.NewTenantRuntime(db.Pool()), people.StudentGuardians))
+func buildCalendarAppointmentRenderer(db transactionruntime.Database, mailFrom email.Email, people PeopleRows) deliveryCompose.MailRenderer {
+	return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(mailFrom, calendarCompose.NewTenantRuntime(db.Pool()), people.StudentGuardians))
 }
 
 // buildReminders binds the reminder evaluation's readers to the owners and
@@ -230,9 +233,9 @@ type DeliveryDevices struct {
 
 // buildDeliveryDevices binds the push subscriptions and the PWA standalone
 // usage over the root's unit of work.
-func buildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport, identity *identityaccess.Module, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
+func buildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, identity *identityaccess.Module, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
 	push, err := deliveryCompose.NewTenantPushSubscriptionService(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()), identity,
-		transport.VAPID, env.Logger.With("service", "push_subscriptions"))
+		pushVAPID, env.Logger.With("service", "push_subscriptions"))
 	if err != nil {
 		return DeliveryDevices{}, err
 	}
@@ -285,7 +288,7 @@ type ClassDayViews struct {
 
 // buildClassDayViews binds the class day and the slot lists.
 func buildClassDayViews(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, caller *CallerRows, reports enrollmentOwner.Reports,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, caller *CallerRows, reports enrollmentOwner.Reports,
 	carePlanRows CarePlanRows, schedules CarePlanSchedules, carePlan careplan.Capability, people PeopleRows, audit AuditOwner,
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
@@ -299,7 +302,7 @@ func buildClassDayViews(
 		Companions: NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
 		BlockStarts: operations,
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
-		audit.Persistence.DataAccessLog, settings, transport.Hub, env.Logger.With("service", "class-day-arrival-exceptions"))
+		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
 		Timetable: NewClassDayTimetableRows(classDayReads), Presence: presence.Presence, CarePlan: carePlan,
 		Students: persons, Persons: persons, Groups: groups, Rooms: rooms, CareDays: schedules.CareDay,

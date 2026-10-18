@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	auditRecords "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -52,45 +54,30 @@ func buildAuditOwner(db transactionruntime.Database, env RootEnvironment) (Audit
 	return AuditOwner{Persistence: audits.WithRoutedWrites(command), Command: command}, nil
 }
 
-// MailTransport is Delivery's synchronous side: the realtime hub every live
-// view shares, the SMTP mailer and its dispatcher, the default sender and the
-// validated web push keys.
-type MailTransport struct {
-	Hub         *realtime.Hub
-	Mailer      email.Mailer
-	Dispatcher  *email.Dispatcher
-	DefaultFrom email.Email
-	VAPID       deliveryCompose.VAPIDConfig
-}
-
 // buildMailTransport binds the process's realtime hub, builds the mail
 // transport and the web push configuration. An invalid VAPID configuration fails startup.
-func buildMailTransport(env RootEnvironment, hub *realtime.Hub) (MailTransport, error) {
+func buildMailTransport(env RootEnvironment) (email.Mailer, email.Dispatcher, email.Email, deliveryCompose.VAPIDConfig, error) {
 	cfg, logger := env.Config, env.Logger
-	mailer, err := email.NewMailer(email.MailerConfig{
+	mailer, err := deliveryCompose.NewMailTransport(email.MailerConfig{
 		Host: cfg.EmailSMTPHost, Port: cfg.EmailSMTPPort, User: cfg.EmailSMTPUser, Password: cfg.EmailSMTPPassword,
 		DefaultFrom: email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress), TemplateDir: "./templates",
 		Logger: logger.With("service", "email"), AppEnv: cfg.AppEnv,
 	})
 	if err != nil {
-		return MailTransport{}, fmt.Errorf("initialize email transport: %w", err)
+		return nil, nil, email.Email{}, deliveryCompose.VAPIDConfig{}, fmt.Errorf("initialize email transport: %w", err)
 	}
-	if _, ok := mailer.(*email.MockMailer); ok {
+	if deliveryCompose.IsLoggingMailTransport(mailer) {
 		logger.Warn("SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 	vapid := deliveryCompose.VAPIDConfig{
 		PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey), Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
 	}
 	if err := vapid.Validate(); err != nil {
-		return MailTransport{}, fmt.Errorf("invalid VAPID configuration: %w", err)
+		return nil, nil, email.Email{}, deliveryCompose.VAPIDConfig{}, fmt.Errorf("invalid VAPID configuration: %w", err)
 	}
-	return MailTransport{
-		Hub:         hub,
-		Mailer:      mailer,
-		Dispatcher:  email.NewDispatcher(mailer, logger.With("component", "email"), email.DeliveryObserver(env.Observe.Delivery)),
-		DefaultFrom: email.NewEmail(deliveryModule.SenderOrDefault(cfg.EmailFromName, cfg.EmailFromAddress)),
-		VAPID:       vapid,
-	}, nil
+	return mailer,
+		deliveryCompose.NewMailDispatcher(mailer, logger.With("component", "email"), email.DeliveryObserver(env.Observe.Delivery)),
+		email.NewEmail(deliveryModule.SenderOrDefault(cfg.EmailFromName, cfg.EmailFromAddress)), vapid, nil
 }
 
 // SettingsOwner is the Settings Platform: the tenant settings runtime its
@@ -182,7 +169,7 @@ func buildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, g
 	observe := env.Observe.DurableDelivery
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
 		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians},
-		Observe: func(observation deliveryModule.Observation) {
+		Observe: func(observation deliveryContract.Observation) {
 			observe(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
 		},
 	})
@@ -195,5 +182,5 @@ func buildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, g
 // Enqueuer serves the root's mail outbox contract over Delivery's enqueue
 // facade.
 func (r DeliveryRuntime) Enqueuer() OutboxEnqueuer {
-	return OutboxEnqueuer{Outbox: r.Outbox, Module: r.Runtime.Module}
+	return OutboxEnqueuer{Outbox: r.Outbox, Runtime: r.Runtime}
 }

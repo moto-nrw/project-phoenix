@@ -8,10 +8,12 @@ import (
 	"strings"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -49,7 +51,6 @@ func NewEnrollmentAdminSubscribersForTests(db transactionruntime.Database) (enro
 
 type DeliveryTestModule struct {
 	Runtime                 *deliveryCompose.Runtime
-	Delivery                *deliveryModule.Module
 	EmailOutbox             *deliveryCompose.EmailOutbox
 	Notifications           deliveryCompose.Notifier
 	PushSubscriptions       deliveryCompose.PushSubscriptionService
@@ -90,13 +91,17 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		}, logger)
 	guardians := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db)}, db.Pool())
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryModule.Observation) {},
+		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryContract.Observation) {},
 	})
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	_, err = deliveryCompose.NewWorker(delivery, &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(nil), Mailer: email.NewMockMailer(), MailIdentity: identity,
-		Push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, deliveryCompose.NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db.Pool()), pushRepo)),
+	fallbackMailer, err := deliveryCompose.NewMailTransport(email.MailerConfig{AppEnv: "test"})
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	_, err = deliveryCompose.NewWorker(delivery, &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(nil), Mailer: fallbackMailer, MailIdentity: identity,
+		Push:   deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, deliveryCompose.NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db.Pool()), pushRepo)),
 		Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(db.Pool()), PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db.Pool()), pushRepo)})
 	if err != nil {
 		return DeliveryTestModule{}, err
@@ -119,6 +124,6 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	return DeliveryTestModule{Runtime: delivery, Delivery: delivery.Module, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
+	return DeliveryTestModule{Runtime: delivery, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }

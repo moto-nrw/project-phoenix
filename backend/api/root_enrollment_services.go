@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -76,7 +78,7 @@ func buildEnrollmentPhases(
 // buildEnrollmentDecisions binds Enrollment's decision flow over the owners
 // and the retained rows.
 func buildEnrollmentDecisions(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, enrollment EnrollmentRows, notices EnrollmentNotices,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, enrollment EnrollmentRows, notices EnrollmentNotices,
 	audit AuditOwner, people PeopleRows, careRows TimetableCareRows, persons peopledirectory.Capability, carePlan careplan.Capability,
 	offerings CarePlanOfferings, identity *identityaccess.Module, services PeopleServices, schedules CarePlanSchedules,
 	carePlanRows CarePlanRows, owner TimetableOwner, settings settingsCompose.BatchSettingsService,
@@ -101,7 +103,7 @@ func buildEnrollmentDecisions(
 		StudentAudit:           EnrollmentDecisionStudentAudit(services.StudentAudit),
 		StudentConsents:        EnrollmentDecisionStudentConsents(services.StudentConsents),
 		CareWithdrawal:         schedules.Lifecycle,
-		Broadcasts:             EnrollmentDecisionBroadcasts(transport.Hub),
+		Broadcasts:             EnrollmentDecisionBroadcasts(hub),
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,

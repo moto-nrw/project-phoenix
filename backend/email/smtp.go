@@ -8,32 +8,23 @@ import (
 	"strings"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/wneessen/go-mail"
 )
 
 // SMTPMailer is a SMTP mailer.
 type SMTPMailer struct {
 	client      *mail.Client
-	defaultFrom Email
+	defaultFrom mailcontract.Email
 	templates   *template.Template
 	logger      *slog.Logger
-}
-
-type MailerConfig struct {
-	Host        string
-	Port        int
-	User        string
-	Password    string
-	DefaultFrom Email
-	TemplateDir string
-	Logger      *slog.Logger
-	AppEnv      string
 }
 
 const smtpShutdownTimeout = time.Second
 
 // NewMailer returns a configured SMTP Mailer.
-func NewMailer(cfg MailerConfig) (Mailer, error) {
+func NewMailer(cfg mailcontract.MailerConfig) (mailcontract.Mailer, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -99,7 +90,8 @@ func NewMailer(cfg MailerConfig) (Mailer, error) {
 // buildMessage turns a Message into the go-mail message that goes on the
 // wire. Split out of Send so the header contract (From, Reply-To,
 // List-Unsubscribe) is testable without an SMTP dial.
-func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
+func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, error) {
+	email := renderedMessage{Message: message}
 	if err := email.parse(m.templates); err != nil {
 		return nil, err
 	}
@@ -132,12 +124,12 @@ func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
 }
 
 // Send sends the mail via smtp.
-func (m *SMTPMailer) Send(email Message) error {
+func (m *SMTPMailer) Send(email mailcontract.Message) error {
 	return m.SendContext(context.Background(), email)
 }
 
 // SendContext terminates an in-flight SMTP exchange when the caller cancels.
-func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
+func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message) error {
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}

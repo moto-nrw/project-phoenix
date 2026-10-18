@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -37,7 +39,7 @@ func buildAttachmentPurger(db transactionruntime.Database, env RootEnvironment, 
 // buildParentPortal binds the parents portal workflow over the owners, the
 // rows and the services it reads and writes through.
 func buildParentPortal(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, settings settingsCompose.BatchSettingsService,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, settings settingsCompose.BatchSettingsService,
 	people PeopleRows, portal carePlanCompose.ParentPortalRepositories, messaging parentStore.MessagingRepositories,
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan *mealplanModule.Module, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
@@ -62,7 +64,7 @@ func buildParentPortal(
 		EnrollmentSettings: settings, EnrollmentRequestRepo: NewParentEnrollmentReads(carePlanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles), Attendance: BindParentAttendance(presence.Presence), StatusDayRepo: carePlanRows.StatusDays,
 		MealPlan: mealPlan, StudentRepo: NewParentStudentReads(people.Students), CarePlan: NewParentCarePlanCommands(carePlan, schedules.AutoExcusal), DataRequests: NewParentDataRequestCommands(carePlan), People: persons,
-		Settings: BindParentSettings(settings), StudentUpdates: BindParentStudentUpdates(transport.Hub),
+		Settings: BindParentSettings(settings), StudentUpdates: BindParentStudentUpdates(hub),
 		PersonRepo: NewParentPersonReads(people.Persons), ChangeRequestRepo: NewParentDataRequestReads(carePlan),
 		CareRequestRepo: NewParentCareRequestReads(carePlan), ExcusedRequestRepo: carePlanRows.ExcusedRequestRows,
 		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(carePlan)),
@@ -72,7 +74,7 @@ func buildParentPortal(
 		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
-			Broadcaster: transport.Hub, Logger: env.Logger.With("service", "parent"),
+			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),
 		})),
 		ParentMessageNotifier: bindParentMessageNotifier(notifications.StaffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(schedules.Arrivals),
 		PickupSchedules: NewParentPickupSchedules(schedules.Pickups), CareRequests: requests.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(requests.Excused),

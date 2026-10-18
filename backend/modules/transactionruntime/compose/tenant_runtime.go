@@ -1,5 +1,5 @@
 // Package compose bootstraps the PostgreSQL tenant runtime: it turns a
-// *bun.DB into the tenant.UnitOfWork that units of work run under, and opens
+// *bun.DB into the tenant.UnitOfWork and opens
 // the pools it runs on. The composition roots and the shared fixtures build
 // the runtime here instead of assembling the adapter themselves (#3970).
 package compose
@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -19,18 +20,18 @@ import (
 // savepoints, advisory locks and retry-safe deadlock/serialization replay.
 // It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
-	unitOfWork, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	return bindTenantRuntime(unitOfWork, err, database.IsRetryableTransactionError)
+	unitOfWork, err := postgres.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
+	return bindTenantRuntime(unitOfWork, err, postgres.IsRetryableTransactionError)
 }
 
 // NewDemoTenantRuntime keeps the demo's RLS without switching database role;
 // commands are not replayed and pool waits are not observed.
 func NewDemoTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
-	unitOfWork, err := database.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
+	unitOfWork, err := postgres.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
 	return bindTenantRuntime(unitOfWork, err, func(error) bool { return false })
 }
 
-func bindTenantRuntime(unitOfWork *database.PostgresUnitOfWork, err error, retryable func(error) bool) (tenant.UnitOfWork, error) {
+func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retryable func(error) bool) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
@@ -57,8 +58,7 @@ func ObserveLockWaits(db *bun.DB) {
 // OpenPool opens the superuser pool on the configured database DSN.
 func OpenPool() (*bun.DB, error) { return database.DBConn() }
 
-// OpenServePool opens the least-privilege phoenix_auth pool the HTTP server
-// runs on.
+// OpenServePool opens the HTTP server's least-privilege phoenix_auth pool.
 func OpenServePool() (*bun.DB, error) { return database.DBConnForServe() }
 
 // TenantCallback binds a context-only callback to the retained SQL type gate.

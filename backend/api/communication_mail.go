@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 // BindCommunicationMailRenderer binds native values to the same registered mail
