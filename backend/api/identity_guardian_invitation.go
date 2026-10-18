@@ -289,14 +289,11 @@ func (a parentGuardianAccess) InviteToStudent(ctx context.Context, request paren
 	}, nil
 }
 
-// RevokeAccess always runs as a parent removal: the parents portal never
-// holds the staff authority, and it never carries guardians:financial, so the
-// payer guard stays closed.
+// RevokeAccess runs as Identity & Access's parents-portal removal.
 func (a parentGuardianAccess) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {
-	return parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
-		StudentID: revocation.StudentID, GuardianProfileID: revocation.GuardianProfileID,
-		ActorAccountID: revocation.ActorAccountID, ByParent: true,
-	}))
+	return parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.ParentRevokeAccessRequest(
+		revocation.StudentID, revocation.GuardianProfileID, revocation.ActorAccountID,
+	)))
 }
 
 // parentGuardianAccessError maps the owner's refusals onto the portal's

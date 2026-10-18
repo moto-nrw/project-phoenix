@@ -2,6 +2,7 @@ package identityaccess
 
 import (
 	"context"
+	"slices"
 	"strings"
 )
 
@@ -92,6 +93,41 @@ func CompareAccountsBySchoolName(left, right ListedAccountKey) int {
 		return order
 	}
 	return strings.Compare(left.FirstName, right.FirstName)
+}
+
+// OrderSchoolAccountListing is the order of one school's operator account
+// listing: the account rows by CompareSchoolAccounts, then the pending
+// invitations in their read order. enrich completes the account rows (person
+// names and facts) before they are ordered; pending invitations take no part
+// in it. key maps a row onto the fields the order compares.
+func OrderSchoolAccountListing[T any](rows []T, pending func(T) bool, enrich func([]T) error, key func(T) ListedAccountKey) ([]T, error) {
+	return orderAccountListing(rows, pending, enrich, key, CompareSchoolAccounts)
+}
+
+// OrderAccountListingBySchoolID is OrderSchoolAccountListing across several
+// schools: the account rows by CompareAccountsBySchoolID, then the pending
+// invitations in their read order.
+func OrderAccountListingBySchoolID[T any](rows []T, pending func(T) bool, enrich func([]T) error, key func(T) ListedAccountKey) ([]T, error) {
+	return orderAccountListing(rows, pending, enrich, key, CompareAccountsBySchoolID)
+}
+
+func orderAccountListing[T any](rows []T, pending func(T) bool, enrich func([]T) error, key func(T) ListedAccountKey, compare func(left, right ListedAccountKey) int) ([]T, error) {
+	accounts := make([]T, 0, len(rows))
+	invitations := make([]T, 0)
+	for _, row := range rows {
+		if pending(row) {
+			invitations = append(invitations, row)
+			continue
+		}
+		accounts = append(accounts, row)
+	}
+	if err := enrich(accounts); err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(accounts, func(left, right T) int {
+		return compare(key(left), key(right))
+	})
+	return append(accounts, invitations...), nil
 }
 
 // PersonStaffRecord is the school of one staff record of a person.

@@ -65,6 +65,11 @@ func (c *AppClaims) IsPlatformScope() bool {
 	return c.Scope == "platform"
 }
 
+// IsParentScope returns true if this is a parent-portal token.
+func (c *AppClaims) IsParentScope() bool {
+	return c.Scope == claimScopeParent
+}
+
 // IsSchoolScope returns true if this is a school-portal token ("moto schule",
 // #2207). School tokens are tenant-bound like regular tenant tokens, so the
 // scope is the ONLY thing that distinguishes them once the tenant transaction

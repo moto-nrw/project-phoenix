@@ -153,16 +153,14 @@ func (p provisioningIdentity) role(id int64, name string, system bool, tenantID 
 	}
 }
 
-// InviteSchoolAdmin hands out the school admin role. The caller is
-// operator-authenticated (platform scope, no tenant permission set), so the
-// tenant-side role-grant check does not apply.
+// InviteSchoolAdmin hands out the school admin role as Identity & Access's
+// operator invitation; the caller is operator-authenticated (platform scope,
+// no tenant permission set).
 func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request organizationCompose.SchoolAdminInvitationRequest) (organizationCompose.SchoolAdminInvitation, error) {
-	invitation, err := p.invitations.CreateSchoolInvitation(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.SchoolInvitationRequest{
-		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID,
-		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position,
-		CaregiverEnabled: request.CaregiverEnabled,
-		OperatorGrant:    true,
-	})
+	invitation, err := p.invitations.CreateSchoolInvitation(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.OperatorSchoolInvitation(
+		request.Email, request.RoleID, request.TenantID,
+		request.FirstName, request.LastName, request.Position, request.CaregiverEnabled,
+	))
 	if err != nil {
 		// The operator routes classify on the provisioning capability's own
 		// contract; they may not name the owner's (#3364).

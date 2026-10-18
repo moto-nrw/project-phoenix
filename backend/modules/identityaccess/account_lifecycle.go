@@ -367,6 +367,16 @@ type RevokeAccessRequest struct {
 	MayClearPayer bool
 }
 
+// ParentRevokeAccessRequest is the parents-portal removal of a relative's
+// access: a parent never removes the primary guardian, and never holds
+// guardians:financial, so the payer guard stays closed.
+func ParentRevokeAccessRequest(studentID, guardianProfileID, actorAccountID int64) RevokeAccessRequest {
+	return RevokeAccessRequest{
+		StudentID: studentID, GuardianProfileID: guardianProfileID, ActorAccountID: actorAccountID,
+		ByParent: true,
+	}
+}
+
 // PendingApprovalView is the staff-facing, name-resolved projection of a
 // parent-initiated invitation awaiting approval.
 type PendingApprovalView struct {

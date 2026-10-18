@@ -349,32 +349,8 @@ func (a authAudit) RecordAuthEvent(ctx context.Context, event identityaccess.Aut
 	if event.ErrorMessage != "" {
 		row.ErrorMessage = event.ErrorMessage
 	}
-	if evidence := event.TenantAccess; evidence != nil {
-		row.SetMetadata("school_id", evidence.SchoolID)
-		row.SetMetadata("school_name", evidence.SchoolName)
-		row.SetMetadata("operator_id", evidence.OperatorID)
-		switch event.Type {
-		case auditModels.EventTypeTenantAccessGranted:
-			row.SetMetadata("role", evidence.Role)
-		case auditModels.EventTypeTenantRoleChanged:
-			row.SetMetadata("role", evidence.Role)
-			row.SetMetadata("removed_roles", evidence.RemovedRoles)
-		case auditModels.EventTypeTenantAccessRevoked:
-			row.SetMetadata("account_deactivated", evidence.AccountDeactivated)
-		}
-	}
-	if evidence := event.RevokedSessions; evidence != nil {
-		row.SetMetadata("portal_scope", evidence.PortalScope)
-		row.SetMetadata("family_fingerprint", evidence.FamilyFingerprint)
-		row.SetMetadata("reason", evidence.Reason)
-		row.SetMetadata("revoked_token_count", evidence.Count)
-	}
-	if evidence := event.PendingWipe; evidence != nil {
-		row.SetMetadata("reason", evidence.Reason)
-		row.SetMetadata("pending_account_wide_wipe", true)
-	}
-	if evidence := event.CompletedWipe; evidence != nil {
-		row.SetMetadata("pending_event_id", evidence.PendingEventID)
+	for _, entry := range event.Metadata() {
+		row.SetMetadata(entry.Key, entry.Value)
 	}
 	return a.command.Append(ctx, row)
 }

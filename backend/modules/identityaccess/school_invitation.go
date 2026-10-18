@@ -120,6 +120,18 @@ type SchoolInvitationRequest struct {
 	OperatorGrant bool
 }
 
+// OperatorSchoolInvitation is the school invitation the operator portal
+// issues: an operator grant, so the tenant-side role-grant check does not
+// apply to the operator-authenticated caller.
+func OperatorSchoolInvitation(email string, roleID, tenantID int64, firstName, lastName, position *string, caregiverEnabled bool) SchoolInvitationRequest {
+	return SchoolInvitationRequest{
+		Email: email, RoleID: roleID, TenantID: tenantID,
+		FirstName: firstName, LastName: lastName, Position: position,
+		CaregiverEnabled: caregiverEnabled,
+		OperatorGrant:    true,
+	}
+}
+
 // InvitationRegistration is what an invitee supplies when accepting.
 type InvitationRegistration struct {
 	// OwnerAccessToken proves that the caller holds the invited account's
