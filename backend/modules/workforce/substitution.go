@@ -182,9 +182,12 @@ type SubstitutionOperationError struct {
 // malformed or empty, with the German message the substitution page shows.
 func InvalidSubstitutionPeriod(cause error) *SubstitutionOperationError {
 	return &SubstitutionOperationError{
-		Target: ErrSubstitutionInvalidPeriod, Code: "substitutions.invalid_period", Message: "Der Zeitraum ist ungültig.", Cause: cause,
+		Target: ErrSubstitutionInvalidPeriod, Code: codeSubstitutionInvalidPeriod, Message: "Der Zeitraum ist ungültig.", Cause: cause,
 	}
 }
+
+// codeSubstitutionInvalidPeriod is the registered error code of the refusal.
+const codeSubstitutionInvalidPeriod = "substitutions.invalid_period"
 
 // SubstitutionRefusalValues are the values a refused schedule substitution
 // names: the failing day (YYYY-MM-DD) or a cap. Unset values stay off the wire.
