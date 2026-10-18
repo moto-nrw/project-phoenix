@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -87,6 +86,3 @@ func payrollStatus(settings settingsCompose.BatchSettingsService, staff peoplePo
 		return len(members), workforceModule.MissingPersonnelNumbers(numbers), nil
 	})
 }
-
-// errMissing names a required value a root composition lacks.
-func errMissing(what string) error { return fmt.Errorf("root composition: %s is required", what) }

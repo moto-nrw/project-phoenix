@@ -68,9 +68,15 @@ type Runtime struct {
 	worker          backgroundWorker
 	listen          func(network, address string) (net.Listener, error)
 	capacityLogger  *capacityLogger
-	tracker         analytics.Tracker
+	tracker         processResource
 	logger          *slog.Logger
 	resourcesUnsafe bool
+}
+
+// processResource is a process-scoped resource the Runtime releases on
+// shutdown.
+type processResource interface {
+	Close() error
 }
 
 // backgroundWorker is the lifecycle contract Runtime needs from its worker
@@ -138,79 +144,92 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	runtime, err := openRuntime(config)
+	db, tracker, err := openRuntimeResources(config)
 	if err != nil {
 		return nil, err
 	}
-	if err := runtime.compose(config, metricsToken); err != nil {
-		return nil, errors.Join(err, runtime.closeResources())
+	handler, worker, capacity, err := composeProcess(config, db, tracker, metricsToken)
+	if err != nil {
+		return nil, errors.Join(err, closeRuntimeResources(db, tracker))
 	}
-	return runtime, nil
+	if config.Process == ServeAPIOnly {
+		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
+	}
+	return &Runtime{
+		server: &http.Server{
+			Addr:    resolveListenAddr(config.Port),
+			Handler: processHandler(config.Process, handler, worker, metricsToken),
+			// ReadTimeout stays modest to protect against slowloris attacks,
+			// but WriteTimeout must be disabled to allow long-lived SSE streams.
+			ReadTimeout:  15 * time.Second,
+			WriteTimeout: 0,
+			IdleTimeout:  0,
+		},
+		handler: handler, db: db, worker: runtimeWorker(worker), capacityLogger: capacity, tracker: tracker, logger: config.Logger,
+	}, nil
 }
 
-// openRuntime opens the process-scoped resources every root runs over: the
-// least-privilege pool, after the schema check, and the product analytics.
-func openRuntime(config ServeConfig) (*Runtime, error) {
+// runtimeWorker keeps a missing Worker a nil interface, so an API-only
+// process starts and stops none.
+func runtimeWorker(worker schedulerPorts.Worker) backgroundWorker {
+	if worker == nil {
+		return nil
+	}
+	return worker
+}
+
+// openRuntimeResources opens the process-scoped resources every root runs
+// over: the least-privilege pool, after the schema check, and the product
+// analytics.
+func openRuntimeResources(config ServeConfig) (transactionruntime.Database, analytics.Tracker, error) {
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := transactionruntime.OpenServeDatabase()
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, err
 	}
-	runtime := &Runtime{db: db, logger: config.Logger}
 	// Fail fast on a partially migrated schema: the student repository selects
 	// and writes its departure columns unconditionally (no per-request
 	// information_schema probes, #2059), so the server must only start against
 	// a fully migrated database.
 	if err := peopleCompose.VerifyRetainedStudentSchema(context.Background(), db.Pool()); err != nil {
-		return nil, errors.Join(err, runtime.closeResources())
+		return transactionruntime.Database{}, nil, errors.Join(err, db.Close())
 	}
 	if viper.GetBool("db_debug") {
 		db.LogQueries(config.Logger.With("component", "database"))
 	}
-	if runtime.tracker, err = newProductAnalytics(config.Logger); err != nil {
-		return nil, errors.Join(err, runtime.closeResources())
+	tracker, err := newProductAnalytics(config.Logger)
+	if err != nil {
+		return transactionruntime.Database{}, nil, errors.Join(err, db.Close())
 	}
-	return runtime, nil
+	return db, tracker, nil
 }
 
-// compose builds the root the process runs: the server root with or without
-// its embedded Worker, or the standalone Worker root behind its probes. All
-// of them share one realtime hub.
-func (runtime *Runtime) compose(config ServeConfig, metricsToken string) error {
+// closeRuntimeResources releases the analytics and the pool.
+func closeRuntimeResources(db transactionruntime.Database, tracker processResource) error {
+	var err error
+	if tracker != nil {
+		err = tracker.Close()
+	}
+	return errors.Join(err, db.Close())
+}
+
+// composeProcess builds the root the process runs: the server root with or
+// without its embedded Worker, or the standalone Worker root behind its
+// probes. All of them share one realtime hub.
+func composeProcess(config ServeConfig, db transactionruntime.Database, tracker analytics.Tracker, metricsToken string) (http.Handler, schedulerPorts.Worker, *capacityLogger, error) {
 	env, err := newProductionEnvironment(config.Logger, config.PublicAPIURL)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 	hub := deliveryCompose.NewRealtimeHub(config.Logger.With("component", "sse-hub"))
 	metrics, tracer := newHTTPMetrics(), newRuntimeTracer(config.Logger)
-	var worker schedulerPorts.Worker
+	capacity := newRuntimeCapacityLogger(db, hub, metrics, config.Logger)
 	if config.Process == ServeWorkerOnly {
-		worker, err = composeWorkerRoot(runtime.db, env, hub, tracer, runtime.tracker)
-		if err != nil {
-			return err
-		}
-	} else {
-		runtime.handler, worker, err = composeServeRoot(runtime.db, env, hub, config, runtime.tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly)
-		if err != nil {
-			return err
-		}
-		runtime.capacityLogger = newRuntimeCapacityLogger(runtime.db, hub, metrics, config.Logger)
+		worker, err := composeWorkerRoot(db, env, hub, tracer, tracker)
+		return nil, worker, capacity, err
 	}
-	if config.Process == ServeAPIOnly {
-		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
-	} else {
-		runtime.worker = worker
-	}
-	runtime.server = &http.Server{
-		Addr:    resolveListenAddr(config.Port),
-		Handler: processHandler(config.Process, runtime.handler, worker, metricsToken),
-		// ReadTimeout stays modest to protect against slowloris attacks,
-		// but WriteTimeout must be disabled to allow long-lived SSE streams.
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0,
-		IdleTimeout:  0,
-	}
-	return nil
+	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly)
+	return handler, worker, capacity, err
 }
 
 func newRuntimeCapacityLogger(db transactionruntime.Database, hub *realtime.Hub, metrics *httpMetrics, logger *slog.Logger) *capacityLogger {
@@ -424,9 +443,5 @@ func (runtime *Runtime) closeResources() error {
 		// resources. Closing the pool here would race those goroutines.
 		return nil
 	}
-	var err error
-	if runtime.tracker != nil {
-		err = runtime.tracker.Close()
-	}
-	return errors.Join(err, runtime.db.Close())
+	return closeRuntimeResources(runtime.db, runtime.tracker)
 }

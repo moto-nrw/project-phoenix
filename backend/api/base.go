@@ -33,7 +33,6 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -167,23 +166,6 @@ func observeDataImport(observation dataImportRetained.ImportObservation) {
 	for _, command := range observation.Commands {
 		observability.ObserveDataImportCommand(observation.Entity, command.Owner, command.Operation, command.Duration, command.Failed)
 	}
-}
-
-func composeFacilities(db transactionruntime.Database, usage facilitiesCompose.RoomUsage) (*facilitiesModule.Module, error) {
-	recurrenceLock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
-		DB: db.Pool(), GradeTransitionLockKey: schoolStructureModule.TransitionsLockKey,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:           db.Pool(),
-		DeletionLock: recurrenceLock.LockRecurrenceWrites,
-		Usage:        usage,
-		Observe: func(observation facilitiesCompose.Observation) {
-			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
 }
 
 func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {

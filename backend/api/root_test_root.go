@@ -410,3 +410,33 @@ func NewTestTimetable(db transactionruntime.Database, logger *slog.Logger, clock
 	_, _, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, err
 }
+func currentTestServiceConfig() ServiceConfig {
+	cfg := CurrentServiceConfig()
+	cfg.PublicAPIURL = "http://api.test"
+	return cfg
+}
+
+// caregiverProfilesForTests binds the Lehrkraft guard to real People
+// Directory and School Membership compositions over db, as the service graph does.
+func caregiverProfilesForTests(db transactionruntime.Database) (CaregiverProfiles, error) {
+	persons, err := NewPeopleDirectory(db)
+	if err != nil {
+		return CaregiverProfiles{}, err
+	}
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return CaregiverProfiles{}, err
+	}
+	return CaregiverProfiles{Persons: persons, Membership: membership}, nil
+}
+
+// OptionalClock is the clock a test graph pins, or nil for the real one.
+func OptionalClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	if len(clocks) > 1 {
+		panic("a test graph accepts at most one clock")
+	}
+	return clocks[0]
+}

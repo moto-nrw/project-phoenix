@@ -145,10 +145,10 @@ type MembershipTestRepositories struct {
 // resolve through. members.People, Person, Student and the guardian fields
 // stay unset; the caller composes them.
 func NewMembershipRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
-	adapters := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	staff, teacher, guest, group, groupTeacher, classTeacher := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
 	return MembershipTestRepositories{
-		Person: persons, Staff: adapters.Staff, Teacher: adapters.Teacher, Guest: adapters.Guest,
-		Group: adapters.Group, GroupTeacher: adapters.GroupTeacher, ClassTeacher: adapters.ClassTeacher,
+		Person: persons, Staff: staff, Teacher: teacher, Guest: guest,
+		Group: group, GroupTeacher: groupTeacher, ClassTeacher: classTeacher,
 		Membership: membership,
 	}
 }

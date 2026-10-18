@@ -417,20 +417,3 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
-
-// TokenAdapterForTests binds the root's request reads to the session tokens of the
-// signer cfg names.
-func TokenAdapterForTests(cfg ServiceConfig) (TokenAdapter, error) {
-	return tokenAdapterFor(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-}
-
-// IdentityRootForTests is the root's Identity & Access composition a test
-// hands the service graph, signing with the secret cfg names (#4006).
-func IdentityRootForTests(db transactionruntime.Database, cfg ServiceConfig) (IdentityRoot, error) {
-	tokens, err := TokenAdapterForTests(cfg)
-	if err != nil {
-		return IdentityRoot{}, err
-	}
-	wiring, _ := newIdentityRoot(db, tokens)
-	return wiring, nil
-}

@@ -71,11 +71,11 @@ func buildPeopleRows(
 ) (PeopleRows, *identityaccess.Module) {
 	identity := NewPeopleIdentityAccess(db, observeIdentity)
 	personRepository := NewPersonRepository(db)
-	members := newMembershipAdapters(db, personRepository, identity, membership, rooms, workTime)
+	staff, teachers, _, _, _, _ := newMembershipAdapters(db, personRepository, identity, membership, rooms, workTime)
 	return PeopleRows{Repositories: peopleCompose.Repositories{
 		Persons: personRepository, Students: NewStudentRepository(db, membership, groups),
 		StudentGuardians: newStudentGuardianRepository(db, identity, observeIdentity),
-		GuardianProfiles: NewGuardianProfileRepository(db), Staff: members.Staff, Teachers: members.Teacher,
+		GuardianProfiles: NewGuardianProfileRepository(db), Staff: staff, Teachers: teachers,
 	}}, identity
 }
 
@@ -85,15 +85,15 @@ func buildStructureRows(
 	db transactionruntime.Database, persons peopledirectory.Capability, people PeopleRows, peopleIdentity *identityaccess.Module,
 	rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability,
 ) StructureRows {
-	members := newMembershipAdapters(db, people.Persons, peopleIdentity, membership, rooms, workTime)
+	staff, teachers, guests, groups, groupTeachers, classTeachers := newMembershipAdapters(db, people.Persons, peopleIdentity, membership, rooms, workTime)
 	return StructureRows{
-		Groups: members.Group, GroupTeachers: members.GroupTeacher, ClassTeachers: members.ClassTeacher,
+		Groups: groups, GroupTeachers: groupTeachers, ClassTeachers: classTeachers,
 		GroupRooms:            NewEducationRooms(rooms),
-		GroupTeacherDirectory: NewEducationTeachers(members.Teacher),
-		StaffChecks:           NewEducationStaff(members.Staff),
+		GroupTeacherDirectory: NewEducationTeachers(teachers),
+		StaffChecks:           NewEducationStaff(staff),
 		SubstitutionPersons:   NewEducationPersonQuery(persons),
-		Caregivers:            NewEducationCaregivers(members.Teacher),
-		ExternalCaregivers:    NewEducationExternalCaregivers(members.Staff, members.Guest),
+		Caregivers:            NewEducationCaregivers(teachers),
+		ExternalCaregivers:    NewEducationExternalCaregivers(staff, guests),
 	}
 }
 
