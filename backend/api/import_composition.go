@@ -19,37 +19,6 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ImportWiring is everything the Data Import needs (#2708): the owner
-// capabilities its ports are bound to and the platform collaborators. The production root and
-// the test composition build the same graph from it, so the two cannot drift.
-type ImportWiring struct {
-	Identity      importIdentity
-	Organizations organizationtenancy.Capability
-	Groups        schoolstructure.GroupListing
-	Rooms         facilities.Query
-	Persons       peopledirectory.Capability
-	Membership    schoolmembership.Capability
-	Workforce     workforceModule.Capability
-	CarePlan      careplan.Capability
-	Presence      studentpresence.Capability
-
-	// InvitationService issues the staff invitation through Identity & Access.
-	InvitationService identityaccess.SchoolInvitations
-
-	// Opening balances use Workforce's preview and booking capabilities.
-	OpeningBalance importService.OpeningBalanceImportDeps
-
-	ConsentHistory consents.ConsentTransitions
-	Audit          auditModels.Command
-	Observe        func(importService.ImportObservation)
-
-	// GuardianOverride replaces the guardian port of the student import.
-	// Only the test composition sets it, to observe an owner failure
-	// mid-batch; production leaves it nil and the People Directory serves
-	// all three student ports.
-	GuardianOverride importService.GuardianPort
-}
-
 type importIdentity interface {
 	identityaccess.RFIDQuery
 	identityaccess.SchoolAccountQuery
@@ -66,81 +35,108 @@ type imports struct {
 	OpeningBalance importService.OpeningBalanceImportFactory
 }
 
-// NewImports composes the Data Import over its owner ports. Student, staff
-// and class-list rows are committed through the public commands of People
-// Directory, School Membership, Workforce, Care Plan, Student Presence and
-// the Audit platform, including Workforce's opening-balance commands.
-func NewImports(wiring ImportWiring) imports {
-	transactions := dataImportCompose.NewTransactions()
-	wiring.OpeningBalance.Transactions = transactions
-	wiring.OpeningBalance.References = dataImportCompose.NewOpeningReferences(wiring.Membership, wiring.Persons, wiring.Workforce)
-	runtime := importService.ImportRuntime{Transactions: transactions, Audit: wiring.Audit, Observe: wiring.Observe, Fingerprint: securityruntime.Fingerprint}
-	references := dataImportCompose.NewReferences(wiring.Groups, wiring.Rooms)
-	resolver := importService.NewRelationshipResolver(references.Groups, references.Rooms)
-	guardians := importService.GuardianPort(wiring.Persons)
-	if wiring.GuardianOverride != nil {
-		guardians = wiring.GuardianOverride
-	}
+// The Data Import (#2708) commits student, staff and class-list rows through
+// the public commands of People Directory, School Membership, Workforce, Care
+// Plan, Student Presence and the Audit platform, including Workforce's
+// opening-balance commands. The production root and the test composition
+// build the same services from the constructors below, so the two cannot
+// drift.
 
-	student := importService.NewImportService(importService.NewStudentImportConfig(
+// newImportRuntime is the transaction runner, audit trail and observation
+// sink every import service of one root shares.
+func newImportRuntime(audit auditModels.Command, observe func(importService.ImportObservation)) importService.ImportRuntime {
+	return importService.ImportRuntime{
+		Transactions: dataImportCompose.NewTransactions(), Audit: audit, Observe: observe,
+		Fingerprint: securityruntime.Fingerprint,
+	}
+}
+
+// newStudentImport composes the student import. guardians is the People
+// Directory's guardian port; a suite may decorate it to observe an owner
+// failure mid-batch.
+func newStudentImport(
+	runtime importService.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
+	persons peopledirectory.Capability, guardians importService.GuardianPort, carePlan careplan.Capability,
+	presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
+) *importService.ImportService[importModels.StudentImportRow] {
+	references := dataImportCompose.NewReferences(groups, rooms)
+	resolver := importService.NewRelationshipResolver(references.Groups, references.Rooms)
+	return importService.NewImportService(importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			Transactions:    transactions,
-			Persons:         wiring.Persons,
-			Students:        wiring.Persons,
+			Transactions:    runtime.Transactions,
+			Persons:         persons,
+			Students:        persons,
 			Guardians:       guardians,
-			Schedules:       wiring.CarePlan,
-			PrivacyConsents: wiring.Presence,
-			FindRFIDCard:    wiring.Identity.FindRFIDCard,
+			Schedules:       carePlan,
+			PrivacyConsents: presence,
+			FindRFIDCard:    identity.FindRFIDCard,
 			Resolver:        resolver,
-			ConsentHistory:  wiring.ConsentHistory,
+			ConsentHistory:  consentHistory,
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: schoolmembership.CountsTowardChildQuota,
 		},
 	), runtime)
+}
 
-	// The staff import files the Stammdatensatz (person, staff, caregiver
-	// profile, master data, qualifications) immediately and issues an
-	// invitation for rows with an e-mail; accepting links the account to the
-	// imported person (#2600).
-	staff := importService.NewImportService(importService.NewStaffImportConfig(
+// newStaffImport composes the staff import. It files the Stammdatensatz
+// (person, staff, caregiver profile, master data, qualifications)
+// immediately and issues an invitation for rows with an e-mail; accepting
+// links the account to the imported person (#2600).
+func newStaffImport(
+	runtime importService.ImportRuntime, identity importIdentity, invitations identityaccess.SchoolInvitations,
+	organizations organizationtenancy.Capability, persons peopledirectory.Capability,
+	membership schoolmembership.Capability, workforce workforceModule.Capability,
+) *importService.ImportService[importModels.StaffImportRow] {
+	return importService.NewImportService(importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			Authorization:       dataImportCompose.NewAuthorization(),
-			Transactions:        transactions,
-			Invitations:         dataImportCompose.NewStaffInviter(wiring.InvitationService),
-			FindInvitedPeople:   wiring.Identity.FindInvitedPersonIDs,
-			FindSchoolAccount:   NewImportSchoolAccountLookup(wiring.Identity),
-			Roles:               wiring.Identity,
+			Transactions:        runtime.Transactions,
+			Invitations:         dataImportCompose.NewStaffInviter(invitations),
+			FindInvitedPeople:   identity.FindInvitedPersonIDs,
+			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
+			Roles:               identity,
 			RolePolicy:          dataImportCompose.NewSchoolRolePolicy(),
-			FindRolePermissions: wiring.Identity.FindRolePermissions,
-			SchoolName:          NewImportSchoolName(wiring.Organizations),
-			Persons:             wiring.Persons,
-			Membership:          wiring.Membership,
-			Records:             wiring.Workforce,
+			FindRolePermissions: identity.FindRolePermissions,
+			SchoolName:          NewImportSchoolName(organizations),
+			Persons:             persons,
+			Membership:          membership,
+			Records:             workforce,
 		},
 	), runtime)
+}
 
-	// Class-list entries (#2382) are created through the Membership owner, so
-	// the duplicate guards and the audit trail apply to imported rows too.
-	classList := importService.NewImportService(importService.NewClassListImportConfig(
+// newClassListImport composes the class-list import. The entries (#2382) are
+// created through the Membership owner, so the duplicate guards and the
+// audit trail apply to imported rows too.
+func newClassListImport(
+	runtime importService.ImportRuntime, membership schoolmembership.Capability, persons peopledirectory.Capability,
+) *importService.ImportService[importModels.ClassListEntryImportRow] {
+	return importService.NewImportService(importService.NewClassListImportConfig(
 		importService.ClassListImportDeps{
-			Transactions: transactions,
-			Membership:   wiring.Membership,
-			Persons:      wiring.Persons,
-			Students:     wiring.Persons,
-			Audit:        wiring.Audit,
+			Transactions: runtime.Transactions,
+			Membership:   membership,
+			Persons:      persons,
+			Students:     persons,
+			Audit:        runtime.Audit,
 		},
 	), runtime)
+}
 
-	// The opening-balance config is request-scoped (Stichtag, Begründung and
-	// acting staff member come from the upload form), so the service graph closes
-	// over the request-independent dependencies and builds one service per
-	// request.
-	openingBalance := importService.OpeningBalanceImportFactory(
+// newOpeningBalanceImport composes the opening-balance import over
+// Workforce's preview and booking capabilities in deps. Its config is
+// request-scoped (Stichtag, Begründung and acting staff member come from the
+// upload form), so the factory closes over the request-independent
+// dependencies and builds one service per request.
+func newOpeningBalanceImport(
+	runtime importService.ImportRuntime, deps importService.OpeningBalanceImportDeps,
+	membership schoolmembership.Capability, persons peopledirectory.Capability, workforce workforceModule.Capability,
+) importService.OpeningBalanceImportFactory {
+	deps.Transactions = runtime.Transactions
+	deps.References = dataImportCompose.NewOpeningReferences(membership, persons, workforce)
+	return importService.OpeningBalanceImportFactory(
 		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) importModels.RowImporter[importModels.OpeningBalanceImportRow] {
-			config := importService.NewOpeningBalanceImportConfig(wiring.OpeningBalance, effectiveDate, note, decidedByStaffID)
+			config := importService.NewOpeningBalanceImportConfig(deps, effectiveDate, note, decidedByStaffID)
 			return importService.NewImportService(config, runtime)
 		})
-
-	return imports{Student: student, Staff: staff, ClassList: classList, OpeningBalance: openingBalance}
 }

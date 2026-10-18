@@ -439,19 +439,19 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	reviewPolicy := NewParentRequestReviewPolicy(userContext.Caller().ParentRequestReviews)
 	// The Data Import (#2708) commits every accepted row through the owner
 	// commands; the root builds it where it mounts the import routes (#4013).
-	imports := NewImports(ImportWiring{
-		Identity: identityModule, Organizations: organizations, Groups: groups, Rooms: rooms,
-		Persons: persons, Membership: membership, Workforce: workTime,
-		CarePlan: carePlan, Presence: presence.Presence,
-		InvitationService: identityModule,
-		OpeningBalance: dataImportRetained.OpeningBalanceImportDeps{
+	importRuntime := newImportRuntime(factory.Audit, observeDataImport)
+	imports := imports{
+		Student: newStudentImport(
+			importRuntime, identityModule, groups, rooms, persons, persons, carePlan, presence.Presence,
+			auditCompose.NewConsentRecorder(factory.Audit),
+		),
+		Staff:     newStaffImport(importRuntime, identityModule, identityModule, organizations, persons, membership, workTime),
+		ClassList: newClassListImport(importRuntime, membership, persons),
+		OpeningBalance: newOpeningBalanceImport(importRuntime, dataImportRetained.OpeningBalanceImportDeps{
 			BalanceAdjustService: factory.WorkSession.OpeningBalances,
 			StaffAbsenceService:  factory.WorkSession.VacationTakeovers,
-		},
-		ConsentHistory: auditCompose.NewConsentRecorder(factory.Audit),
-		Audit:          factory.Audit,
-		Observe:        observeDataImport,
-	})
+		}, membership, persons, workTime),
+	}
 	databaseStats := newDatabaseStats(databaseStatsSources{
 		people: people, rooms: rooms, timetable: timetableRepositories, identity: identityModule,
 		devices: platform.DeviceFleet, logger: logger,
