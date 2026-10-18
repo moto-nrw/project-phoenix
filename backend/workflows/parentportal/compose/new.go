@@ -135,7 +135,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
-		RequestSharing: requestSharing{messaging: messagingFlows},
+		RequestSharing: messagingFlows.ChildFlowSharing(),
 	}
 	if deps.MealPlan != nil {
 		cfg.MealPlan = mealPlan{provider: deps.MealPlan}
