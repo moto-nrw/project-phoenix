@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"text/tabwriter"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
@@ -49,45 +51,41 @@ type settingOverrideRow struct {
 	Value      json.RawMessage `json:"value"`
 }
 
-type settingsCommandContext struct {
-	*cleanupContext
-	schools organizationtenancy.Query
-	values  storedOverrides
-}
-
 // storedOverrides reads the overrides a school stored, without defaults.
 type storedOverrides interface {
 	StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error)
 }
 
-func newSettingsCommandContext() (*settingsCommandContext, error) {
-	base, err := newCleanupContext()
+// openSettingsOverrides opens the database with the schools and the stored
+// overrides the command reads. The caller must close the database.
+func openSettingsOverrides() (transactionruntime.Database, organizationtenancy.Query, storedOverrides, error) {
+	db, err := defaultCleanupRoot.open()
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return &settingsCommandContext{
-		cleanupContext: base,
-		schools:        base.Schools,
-		values:         settingsCompose.NewStoredOverrideReader(base.DB.Pool()),
-	}, nil
+	schools, err := newCleanupSchools(db)
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	return db, schools, settingsCompose.NewStoredOverrideReader(db.Pool()), nil
 }
 
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {
-	commandContext, err := newSettingsCommandContext()
+	db, schools, values, err := openSettingsOverrides()
 	if err != nil {
 		return err
 	}
-	defer commandContext.Close()
-	return runSettingsOverridesWithContext(commandContext)
+	defer closeCleanupDatabase(db, log.Default())
+	return listSettingOverrides(db, schools, values)
 }
 
-func runSettingsOverridesWithContext(commandContext *settingsCommandContext) error {
-	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.DB.UnitOfWork())
-	schools, err := commandContext.schools.ListSchools(ctx)
+func listSettingOverrides(db transactionruntime.Database, schools organizationtenancy.Query, values storedOverrides) error {
+	ctx := tenant.WithUnitOfWork(context.Background(), db.UnitOfWork())
+	listed, err := schools.ListSchools(ctx)
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
-	rows, err := collectSettingOverrideRows(ctx, schools, selectedSettingOverrideKeys(), commandContext.values)
+	rows, err := collectSettingOverrideRows(ctx, listed, selectedSettingOverrideKeys(), values)
 	if err != nil {
 		return err
 	}

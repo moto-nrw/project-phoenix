@@ -14,13 +14,13 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
+	sessions, _, _ := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := repos.Sessions.FindByIDs(ctx, []int64{group.ID})
+		groups, err := sessions.FindByIDs(ctx, []int64{group.ID})
 		require.NoError(t, err)
 		require.NotNil(t, groups[group.ID].Room)
 		assert.Equal(t, room.Name, groups[group.ID].Room.Name)
