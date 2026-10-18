@@ -109,7 +109,6 @@ var moduleFacadeAllowlist = map[string]int{
 	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
 	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
 	"modules/workforce/timetracking.go:StaffAbsences":                            22,
-	"modules/workforce/timetracking.go:WorkSessions":                             15,
 	"modules/workforce/worksession.go:WorkSessionCommand":                        24,
 	"modules/workforce/worksession.go:WorkSessionQuery":                          18,
 }

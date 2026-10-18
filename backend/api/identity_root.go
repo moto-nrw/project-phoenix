@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -126,7 +125,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, StaffURL: m.FrontendURL, SchoolURL: m.SchoolURL,
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
-			Outbox:       func() platformModels.OutboxEnqueuer { return m.Outbox() },
+			Outbox:       func() MailOutbox { return m.Outbox() },
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the role management of the module
@@ -214,14 +213,14 @@ func emailChangeExpiry(passwordResetExpiry time.Duration, logger *slog.Logger) t
 // out is Identity's rule, the root only reports Delivery's state.
 func identityMailRenderers(module *identityaccess.Module, m IdentityMaterial, logger *slog.Logger) map[string]deliveryCompose.MailRenderer {
 	return map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
+		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: m.DefaultFrom,
 		})),
-		platformModels.EmailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
+		identityaccess.MailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom:          m.DefaultFrom,
 			PrecedingEmailStatus: identityaccessCompose.NewGuardianWelcomeOrder(precedingMails{status: m.EmailStatus}),
 		})),
-		platformModels.EmailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
+		identityaccess.MailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
 			DefaultFrom: m.DefaultFrom, MailIdentity: m.MailIdentity, Logger: logger,
 			InvitationDeliverySent: module.SchoolInvitationDeliverySent,
 		}),

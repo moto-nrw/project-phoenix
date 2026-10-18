@@ -5,7 +5,6 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
@@ -68,7 +67,7 @@ type authEventLedger interface {
 }
 
 type operatorAuditEntries interface {
-	Create(ctx context.Context, entry *platformModels.OperatorAuditLog) error
+	Create(ctx context.Context, entry *auditModels.OperatorAuditEntry) error
 }
 
 type pushSubscriptionRows interface {

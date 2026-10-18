@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
@@ -39,8 +40,8 @@ func (s *service) ReminderEffects() ReminderEffects {
 	if s.cfg.Outbox != nil {
 		result.Email = func(ctx context.Context, key string, appointmentID int64, payload map[string]any) (bool, error) {
 			row, err := s.cfg.Outbox.Enqueue(ctx, ports.EnqueueRequest{
-				Kind: ports.EmailKindAppointmentReminder, Payload: payload, IdempotencyKey: key,
-				RelatedEntityType: ports.EmailRelatedTypeAppointment, RelatedEntityID: appointmentID,
+				Kind: portal.EmailKindAppointmentReminder, Payload: payload, IdempotencyKey: key,
+				RelatedEntityType: portal.EmailRelatedTypeAppointment, RelatedEntityID: appointmentID,
 			})
 			if err != nil {
 				return false, err

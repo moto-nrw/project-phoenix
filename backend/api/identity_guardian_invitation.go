@@ -12,7 +12,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -40,7 +39,7 @@ type GuardianInvitationCapability interface {
 type GuardianInvitationWiring struct {
 	Settings    settingsCompose.SettingsService
 	Schools     organizationtenancy.Query
-	Outbox      func() platformModels.OutboxResultEnqueuer
+	Outbox      func() MailResultOutbox
 	Enrollments GuardianEnrollmentClaims
 	// ParentsURL is the origin of the accept and login links; a guardian
 	// signs in on the parents portal, never on the staff frontend.

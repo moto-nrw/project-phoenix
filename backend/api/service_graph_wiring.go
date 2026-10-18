@@ -39,7 +39,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -270,7 +269,7 @@ type EnrollmentWiring struct {
 	BindSettingsGuards func(settingsCompose.BatchSettingsService)
 	// MailRenderers render Enrollment's outbox kinds from the default sender.
 	MailRenderers       func(defaultFrom email.Email) map[string]deliveryCompose.MailRenderer
-	Notifications       func(EnrollmentSettings, platformModels.OutboxEnqueuer) enrollmentOwner.Notifications
+	Notifications       func(EnrollmentSettings, MailOutbox) enrollmentOwner.Notifications
 	Deletions           func(EnrollmentDeletionSources) enrollmentCompose.DeletionModule
 	Phases              func(EnrollmentPhaseSources) *enrollmentCompose.Phases
 	Decisions           func(EnrollmentDecisionSources) *enrollmentCompose.Decisions

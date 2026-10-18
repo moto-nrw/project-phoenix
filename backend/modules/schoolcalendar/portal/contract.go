@@ -14,6 +14,16 @@ type FeedHistory = schoolcalendar.FeedHistory
 
 type Date = appointmentcap.Date
 
+// Delivery outbox kinds of the appointment mails and the entity they relate
+// to. The composition root registers the renderers under the same kinds.
+const (
+	EmailKindAppointmentPublished = "appointment_published"
+	EmailKindAppointmentUpdated   = "appointment_updated"
+	EmailKindAppointmentCancelled = "appointment_cancelled"
+	EmailKindAppointmentReminder  = "appointment_reminder"
+	EmailRelatedTypeAppointment   = "calendar_appointment"
+)
+
 const (
 	EventSourceAppointment = "appointment"
 	EventSourceTimetable   = "timetable"

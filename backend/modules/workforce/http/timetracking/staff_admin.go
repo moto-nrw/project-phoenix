@@ -24,7 +24,7 @@ type StaffAdminResource struct {
 	PersonService        workforce.StaffDirectory
 	StaffDocumentService workforce.StaffDocuments
 	OffboardingCleanup   workforce.DocumentCleanupQueue
-	WorkSessionService   workforce.WorkSessions
+	WorkSessionService   workforce.AdminWorkSessions
 	StaffAbsenceService  workforce.StaffAbsences
 	WorkTimeMonthService workforce.WorkTimeMonths
 	BalanceAdjustService workforce.BalanceAdjustments
@@ -53,7 +53,7 @@ type StaffAdminDependencies struct {
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
 	OffboardingCleanup workforce.DocumentCleanupQueue
-	WorkSessions       workforce.WorkSessions
+	WorkSessions       workforce.AdminWorkSessions
 	StaffAbsences      workforce.StaffAbsences
 	WorkTimeMonth      workforce.WorkTimeMonths
 	BalanceAdjustments workforce.BalanceAdjustments

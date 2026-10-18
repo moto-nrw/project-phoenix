@@ -20,7 +20,7 @@ import (
 // the text asks for the existing credentials (#3320).
 func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 	t.Parallel()
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{
 		Outbox:      outbox,
 		FrontendURL: "https://eltern.example.test/",
@@ -55,7 +55,7 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 
 func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	t.Parallel()
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{Outbox: outbox})
 
 	_, queued := mailer.EnqueueExistingAccount(context.Background(), api.GuardianMailRecipient{Email: "  "}, "")
@@ -65,8 +65,7 @@ func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 
 func TestEnqueueExistingAccountEmail_ReportsEnqueueFailure(t *testing.T) {
 	t.Parallel()
-	outbox := testpkg.NewCapturingOutbox()
-	outbox.FailKind(emailKindGuardianInvitation, func(context.Context) error {
+	outbox := api.NewFailingCapturingOutbox(emailKindGuardianInvitation, func(context.Context) error {
 		return errors.New("outbox unavailable")
 	})
 	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{Outbox: outbox})

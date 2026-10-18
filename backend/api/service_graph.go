@@ -36,7 +36,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
@@ -370,7 +369,7 @@ type IdentityMaterial struct {
 	PasswordResetExpiry time.Duration
 	// Outbox and EmailStatus are read at call time: Delivery is composed
 	// after Identity & Access.
-	Outbox      func() platformModels.OutboxResultEnqueuer
+	Outbox      func() MailResultOutbox
 	EmailStatus func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error)
 	// The identity chain rows the account flows read and write.
 	PersonRows       personRows
@@ -459,24 +458,34 @@ func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int,
 	return 0, errors.New("student deletion: feedback counter is not configured")
 }
 
-// OutboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
-// enrollment producers over the Delivery enqueue facade.
+// MailOutbox is Delivery's mail outbox as the Identity & Access and
+// Enrollment mails the root enqueues use it.
+type MailOutbox interface {
+	EnqueueOutbox(context.Context, deliveryCompose.MailEnqueueRequest) error
+}
+
+// MailResultOutbox also reports the stored intent, for a mail that a later
+// mail must wait for.
+type MailResultOutbox interface {
+	MailOutbox
+	EnqueueOutboxWithResult(context.Context, deliveryCompose.MailEnqueueRequest) (deliveryCompose.MailEnqueued, error)
+}
+
+// OutboxEnqueuer serves MailOutbox and MailResultOutbox over the Delivery
+// enqueue facade.
 type OutboxEnqueuer struct{ Outbox *deliveryCompose.EmailOutbox }
 
-func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req deliveryCompose.MailEnqueueRequest) error {
 	_, err := o.EnqueueOutboxWithResult(ctx, req)
 	return err
 }
 
-func (o OutboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
-	stored, err := o.Outbox.Enqueue(ctx, deliveryCompose.MailEnqueueRequest{
-		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
-		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
-	})
+func (o OutboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req deliveryCompose.MailEnqueueRequest) (deliveryCompose.MailEnqueued, error) {
+	stored, err := o.Outbox.Enqueue(ctx, req)
 	if err != nil {
-		return platformModels.OutboxEnqueued{}, err
+		return deliveryCompose.MailEnqueued{}, err
 	}
-	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
+	return deliveryCompose.MailEnqueued{ID: stored.ID}, nil
 }
 
 // CareRequestStaff resolves the staff member deciding a care request. found
