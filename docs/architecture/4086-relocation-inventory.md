@@ -829,6 +829,8 @@ File moves below preserve bytes, declarations and assertions. Existing implement
 
 ## Verification and limits
 
+Round-1 dead-code repair: `database/repositories/base.AcquireXactLock` lost its last production caller when the Workforce lock binding moved to its own adapter. The unused helper is removed. Its existing contended-lock test moves to the Workforce composition and calls that live adapter, keeping every assertion and the same SQL lock/evidence contract. No dead-code exception or legacy key is added.
+
 Round-1 lint repair: the Device Scan wrappers use Go-promoted embedded methods instead of redundant explicit embedded-field selectors (Staticcheck QF1008). This leaves calls and behavior unchanged. The syntax-based pass-through count falls from 55 to 48 as a result; its existing budget and total are lowered by seven. This is a scanner-shape change, not seven removed forwarding methods.
 
 Each attempted owner cluster ran `scripts/backend-architecture.sh check`. Every retained package move also passed the unchanged module file-size, function-length, cognitive-complexity, facade-width, pass-through, legacy-budget, composition-alias and HTTP-ORM ratchets. Rejected attempts are absent from the final policy and source tree. Existing alias and legacy-file/tree budgets are only lowered or removed when their measured contents disappear.
