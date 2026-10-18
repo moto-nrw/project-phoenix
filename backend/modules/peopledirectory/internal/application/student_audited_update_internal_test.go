@@ -128,3 +128,9 @@ func TestWidenAccompaniedDays(t *testing.T) {
 		assert.Equal(t, []string{"update"}, journal.steps)
 	})
 }
+
+// NewAuditedStudentUpdates binds the command without the row lock the
+// production graph adds; the tests drive the write and history order.
+func NewAuditedStudentUpdates(students StudentRowUpdate, audit StudentChangeActorRecorder) AuditedStudentUpdates {
+	return AuditedStudentUpdates{students: students, audit: audit}
+}

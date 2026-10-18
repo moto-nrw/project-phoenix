@@ -39,11 +39,6 @@ type AuditedStudentUpdates struct {
 	audit    StudentChangeActorRecorder
 }
 
-// NewAuditedStudentUpdates binds the command. audit may be nil.
-func NewAuditedStudentUpdates(students StudentRowUpdate, audit StudentChangeActorRecorder) AuditedStudentUpdates {
-	return AuditedStudentUpdates{students: students, audit: audit}
-}
-
 // NewLockedStudentUpdates binds the command together with the row lock its
 // by-ID writes take. audit may be nil.
 func NewLockedStudentUpdates(students StudentRowLockUpdate, audit StudentChangeActorRecorder) AuditedStudentUpdates {
