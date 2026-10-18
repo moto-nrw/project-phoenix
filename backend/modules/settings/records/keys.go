@@ -326,6 +326,13 @@ const (
 	StudentAbsenceEditScopeAllStaff = "all_staff"
 )
 
+// StudentAbsenceEditOpenToAllStaff reports a scope that lets every staff
+// member report sick and excused days directly; any other value keeps it to
+// admins.
+func StudentAbsenceEditOpenToAllStaff(scope string) bool {
+	return scope == StudentAbsenceEditScopeAllStaff
+}
+
 // ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors
 // (#2962). The setting says who may set a class-wide arrival day exception;
 // everybody sees it regardless.

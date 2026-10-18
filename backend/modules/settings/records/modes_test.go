@@ -15,3 +15,10 @@ func TestModesReadUnknownValuesAsTheDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestStudentAbsenceEditOpensOnlyForAllStaff(t *testing.T) {
+	t.Parallel()
+	if !StudentAbsenceEditOpenToAllStaff(StudentAbsenceEditScopeAllStaff) || StudentAbsenceEditOpenToAllStaff(StudentAbsenceEditScopeAdmins) || StudentAbsenceEditOpenToAllStaff("") {
+		t.Error("only the all-staff scope opens direct absence reports")
+	}
+}
