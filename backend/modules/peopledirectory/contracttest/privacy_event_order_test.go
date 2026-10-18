@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	peopleRecords "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,7 +34,7 @@ func TestPrivacyEventsTimestampAfterTheSerializedWriteStarts(t *testing.T) {
 		if err := repos.FamilyProtection.Create(txCtx, protection); err != nil {
 			return err
 		}
-		return repos.ParentRequestShare.Create(txCtx, share)
+		return repos.ParentRequestShare.AppendParentRequestShare(txCtx, share)
 	})
 	require.NoError(t, err)
 	assert.True(t, protection.CreatedAt.After(transactionStarted))
@@ -52,7 +54,7 @@ func TestFamilyProtectionCurrentUsesAppendOrderNotTransactionTimestamp(t *testin
 	require.NoError(t, repos.FamilyProtection.Create(ctx, newer))
 	invertPrivacyEventTimestamps(t, db, ctx, "users.student_family_protection_events", older.ID, newer.ID)
 
-	current, err := repos.FamilyProtection.CurrentForStudents(ctx, []int64{chain.StudentID})
+	current, err := repos.FamilyProtection.GuardianFamilyProtectionRecords(ctx, []int64{chain.StudentID})
 	require.NoError(t, err)
 	assert.Equal(t, newer.ID, current[chain.StudentID].ID)
 	assert.True(t, current[chain.StudentID].Enabled)
@@ -69,28 +71,28 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	newerRecipient := testpkg.CreateTestAccount(t, db, "newer-share-recipient")
 	older := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{olderRecipient.ID})
 	newer := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{newerRecipient.ID})
-	require.NoError(t, repos.ParentRequestShare.Create(ctx, older))
-	require.NoError(t, repos.ParentRequestShare.Create(ctx, newer))
+	require.NoError(t, repos.ParentRequestShare.AppendParentRequestShare(ctx, older))
+	require.NoError(t, repos.ParentRequestShare.AppendParentRequestShare(ctx, newer))
 	invertPrivacyEventTimestamps(t, db, ctx, "users.parent_request_share_events", older.ID, newer.ID)
 
-	current, err := repos.ParentRequestShare.CurrentForStudent(ctx, chain.StudentID)
+	current, err := repos.ParentRequestShare.ParentRequestSharesForStudent(ctx, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, current, 1)
 	assert.Equal(t, []int64{newerRecipient.ID}, current[0].RecipientAccountIDs)
 }
 
-func familyProtectionEvent(studentID, actorID, tenantID int64, enabled bool) *userModels.FamilyProtectionEvent {
-	event := &userModels.FamilyProtectionEvent{StudentID: studentID, ActorAccountID: actorID, Enabled: enabled, Reason: "Test"}
-	event.SetTenantID(tenantID)
+func familyProtectionEvent(studentID, actorID, tenantID int64, enabled bool) *peopleRecords.GuardianFamilyProtectionRecord {
+	event := &peopleRecords.GuardianFamilyProtectionRecord{StudentID: studentID, ActorAccountID: actorID, Enabled: enabled, Reason: "Test"}
+	event.TenantID = tenantID
 	return event
 }
 
-func requestShareEvent(studentID, authorID, tenantID int64, recipients []int64) *userModels.ParentRequestShareEvent {
-	event := &userModels.ParentRequestShareEvent{
+func requestShareEvent(studentID, authorID, tenantID int64, recipients []int64) *peopleRecords.ParentRequestShareRecord {
+	event := &peopleRecords.ParentRequestShareRecord{
 		StudentID: studentID, AuthorAccountID: authorID, RequestType: "master_data", RequestID: 77,
 		RecipientAccountIDs: recipients,
 	}
-	event.SetTenantID(tenantID)
+	event.TenantID = tenantID
 	return event
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -71,7 +70,7 @@ type ActivityService interface {
 	EnrollStudent(ctx context.Context, groupID, studentID int64) error
 	UnenrollStudent(ctx context.Context, groupID, studentID int64) error
 	UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error
-	GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error)
+	GetEnrolledStudents(ctx context.Context, groupID int64) ([]*timetable.OperationStudent, error)
 	GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error)
 	GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*activities.Group, error)
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error)

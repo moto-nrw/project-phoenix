@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -38,40 +35,28 @@ func NewStudentDirectory(directory StudentDirectoryCapability) *StudentDirectory
 
 func (d *StudentDirectory) ListStudents(
 	ctx context.Context,
-	filter userModels.StudentDirectoryFilter,
-) ([]*userModels.Student, error) {
-	records, err := d.directory.ListStudentDirectory(ctx, toOwnerStudentDirectoryFilter(filter))
+	filter peopleModule.StudentDirectoryFilter,
+) ([]*peopleModule.StudentState, error) {
+	records, err := d.directory.ListStudentDirectory(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 	if len(records) == 0 {
 		return nil, nil
 	}
-	result := make([]*userModels.Student, 0, len(records))
+	result := make([]*peopleModule.StudentState, 0, len(records))
 	for _, record := range records {
-		result = append(result, usersRepo.RetainedStudentModel(record))
+		result = append(result, peopleModule.StudentStateFromRecord(record))
 	}
 	return result, nil
 }
 
-func (d *StudentDirectory) CountStudents(ctx context.Context, filter userModels.StudentDirectoryFilter) (int, error) {
-	return d.directory.CountStudentDirectory(ctx, toOwnerStudentDirectoryFilter(filter))
+func (d *StudentDirectory) CountStudents(ctx context.Context, filter peopleModule.StudentDirectoryFilter) (int, error) {
+	return d.directory.CountStudentDirectory(ctx, filter)
 }
 
 func (d *StudentDirectory) ListStudentIDs(ctx context.Context) ([]int64, error) {
 	return d.directory.ListStudentDirectoryIDs(ctx)
-}
-
-func toOwnerStudentDirectoryFilter(filter userModels.StudentDirectoryFilter) peopleModule.StudentDirectoryFilter {
-	owner := peopleModule.StudentDirectoryFilter{
-		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: filter.GradeLevels,
-		KeepAlumni: filter.KeepAlumni,
-		CareStatus: filter.CareStatus, Page: filter.Page, PageSize: filter.PageSize,
-	}
-	if filter.CareStatusOn != "" {
-		owner.CareStatusOn = filter.CareStatusOn.String()
-	}
-	return owner
 }
 
 // translateStudentDirectoryError restates a child the owner would not hand
@@ -84,29 +69,29 @@ func translateStudentDirectoryError(err error) error {
 		return nil
 	}
 	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
-		return userModels.ErrStudentRowMissing
+		return peopleModule.ErrStudentRowMissing
 	}
 	return err
 }
 
-func (d *StudentDirectory) GetStudentsByID(ctx context.Context, ids []int64) ([]*userModels.Student, error) {
+func (d *StudentDirectory) GetStudentsByID(ctx context.Context, ids []int64) ([]*peopleModule.StudentState, error) {
 	records, err := d.directory.ListStudentRecordsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*userModels.Student, 0, len(records))
+	result := make([]*peopleModule.StudentState, 0, len(records))
 	for _, record := range records {
-		result = append(result, usersRepo.RetainedStudentModel(record))
+		result = append(result, peopleModule.StudentStateFromRecord(record))
 	}
 	return result, nil
 }
 
-func (d *StudentDirectory) LockStudent(ctx context.Context, id int64) (*userModels.Student, error) {
+func (d *StudentDirectory) LockStudent(ctx context.Context, id int64) (*peopleModule.StudentState, error) {
 	record, err := d.directory.FindStudentRecordForMutation(ctx, id)
 	if err != nil {
 		return nil, translateStudentDirectoryError(err)
 	}
-	return usersRepo.RetainedStudentModel(record), nil
+	return peopleModule.StudentStateFromRecord(record), nil
 }
 
 func (d *StudentDirectory) LockPhotoFeature(ctx context.Context) error {

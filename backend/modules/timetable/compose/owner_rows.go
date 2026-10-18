@@ -74,27 +74,6 @@ func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) 
 	return instances, nil
 }
 
-// AttendanceLocks is the optional completion lock; nil without Locks.
-func (r OwnerRows) AttendanceLocks() ports.AttendanceLocks {
-	if r.Locks == nil {
-		return nil
-	}
-	return r.Locks
-}
-
-// RoomNames names the Facilities rooms.
-func (r OwnerRows) RoomNames() ports.RoomNames { return r.Rooms }
-
-// LifecycleRooms serves the instance lifecycle's Facilities rooms: the
-// reference check, the start's room lock and the auto-start's room names.
-func (r OwnerRows) LifecycleRooms() ports.LifecycleRooms { return r.Rooms }
-
-// EducationGroupNames names School Structure's education groups.
-func (r OwnerRows) EducationGroupNames() ports.EducationGroupNames { return r.EducationGroups }
-
-// DeviationEventReader reads the Audit Platform's Änderungsprotokoll.
-func (r OwnerRows) DeviationEventReader() ports.DeviationEventReader { return r.DeviationEvents }
-
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {

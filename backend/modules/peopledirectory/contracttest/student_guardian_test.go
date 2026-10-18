@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -204,14 +205,14 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "create-sg-guardian")
 
 	// ACT
-	sg := &userModels.StudentGuardian{
+	sg := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:          student.ID,
 		GuardianProfileID:  guardian.ID,
 		RelationshipType:   "parent",
 		IsPrimary:          true,
 		IsEmergencyContact: false,
 		CanPickup:          true,
-		Permissions:        map[string]interface{}{},
+		Permissions:        []byte(`{}`),
 	}
 	err := repo.Create(ctx, sg)
 
@@ -250,7 +251,7 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT - Create with invalid data
-	sg := &userModels.StudentGuardian{
+	sg := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:         0, // Invalid
 		GuardianProfileID: 0, // Invalid
 		RelationshipType:  "",
@@ -324,7 +325,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Link", "Student", "1a")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkfresh")
 
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -344,7 +345,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Dup", "Student", "1b")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkdup")
 
-		first := &userModels.StudentGuardian{
+		first := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -357,7 +358,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 
 		// Same (tenant, student, guardian) again — must NOT raise a unique
 		// violation and must report that nothing new was inserted.
-		dup := &userModels.StudentGuardian{
+		dup := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
@@ -385,7 +386,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkauto")
 
 		// TenantID deliberately left at zero — the repo must fill it from ctx.
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -403,7 +404,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "1d")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkpickup")
 
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "other",
@@ -466,7 +467,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 
 	t.Run("returns ErrStudentGuardianNotFound for an unlinked pair", func(t *testing.T) {
 		_, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, int64(999_999_999))
-		require.ErrorIs(t, err, userModels.ErrStudentGuardianNotFound)
+		require.ErrorIs(t, err, peopleValues.ErrStudentGuardianNotFound)
 	})
 
 	t.Run("FOR UPDATE blocks a concurrent staff write of the same row", func(t *testing.T) {

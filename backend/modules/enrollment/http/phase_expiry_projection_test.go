@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -47,7 +47,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 		studentRepo := newExpiryStudentFixture(t, db)
 		for _, student := range []*testpkg.Student{mondayStudent, fridayStudent} {
 			if err := studentRepo.SetEnrollmentWindowByID(
-				ctx, student.ID, calendar.Date(phase.ServiceStartDate), usersModels.StudentStatusActive,
+				ctx, student.ID, calendar.Date(phase.ServiceStartDate), peopledirectory.StudentStatusActive,
 			); err != nil {
 				return err
 			}
@@ -104,12 +104,12 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
-			ctx, mondayStudent.ID, calendar.Date(phase.ServiceEndDate), usersModels.StudentStatusPending,
+			ctx, mondayStudent.ID, calendar.Date(phase.ServiceEndDate), peopledirectory.StudentStatusPending,
 		); err != nil {
 			return err
 		}
 		return studentRepo.SetEnrollmentWindowByID(
-			ctx, fridayStudent.ID, futureStart, usersModels.StudentStatusPending,
+			ctx, fridayStudent.ID, futureStart, peopledirectory.StudentStatusPending,
 		)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -129,7 +129,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
-			ctx, fridayStudent.ID, calendar.Date(phase.ServiceEndDate), usersModels.StudentStatusPending,
+			ctx, fridayStudent.ID, calendar.Date(phase.ServiceEndDate), peopledirectory.StudentStatusPending,
 		); err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		studentRepo := newExpiryStudentFixture(t, db)
 		if err := studentRepo.SetEnrollmentWindowByID(
-			ctx, student.ID, calendar.Date(phase.ServiceStartDate), usersModels.StudentStatusActive,
+			ctx, student.ID, calendar.Date(phase.ServiceStartDate), peopledirectory.StudentStatusActive,
 		); err != nil {
 			return err
 		}
@@ -244,7 +244,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 
 	studentRepo := newExpiryStudentFixture(t, db)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return studentRepo.UpdateStatus(ctx, student.ID, usersModels.StudentStatusPending)
+		return studentRepo.UpdateStatus(ctx, student.ID, peopledirectory.StudentStatusPending)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -259,7 +259,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.Len(t, snapshots, 1,
 		"a pending child whose enrollment already covers the phase end still needs a successor booking")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return studentRepo.UpdateStatus(ctx, student.ID, usersModels.StudentStatusActive)
+		return studentRepo.UpdateStatus(ctx, student.ID, peopledirectory.StudentStatusActive)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -305,7 +305,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return newExpiryStudentFixture(t, db).UpdateStatus(ctx, student.ID, usersModels.StudentStatusInactive)
+		return newExpiryStudentFixture(t, db).UpdateStatus(ctx, student.ID, peopledirectory.StudentStatusInactive)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -401,7 +401,7 @@ func (f expiryStudentFixture) set(ctx context.Context, ids []int64, values map[s
 	return count, err
 }
 
-func (f expiryStudentFixture) SetEnrollmentWindowByID(ctx context.Context, id int64, from calendar.Date, status usersModels.StudentStatus) error {
+func (f expiryStudentFixture) SetEnrollmentWindowByID(ctx context.Context, id int64, from calendar.Date, status string) error {
 	count, err := f.set(ctx, []int64{id}, map[string]any{"enrolled_from": from, "enrolled_until": nil, "status": string(status)})
 	if err == nil && count != 1 {
 		return fmt.Errorf("student fixture: expected one row, got %d", count)
@@ -413,7 +413,7 @@ func (f expiryStudentFixture) SetEnrolledUntilByIDs(ctx context.Context, ids []i
 	return f.set(ctx, ids, map[string]any{"enrolled_until": until})
 }
 
-func (f expiryStudentFixture) UpdateStatus(ctx context.Context, id int64, status usersModels.StudentStatus) error {
+func (f expiryStudentFixture) UpdateStatus(ctx context.Context, id int64, status string) error {
 	count, err := f.set(ctx, []int64{id}, map[string]any{"status": string(status)})
 	if err == nil && count != 1 {
 		return fmt.Errorf("student fixture: expected one row, got %d", count)

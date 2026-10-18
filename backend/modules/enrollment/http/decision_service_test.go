@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -306,8 +306,8 @@ type failingStudentConsentAuditor struct {
 
 func (a failingStudentConsentAuditor) RecordTransitions(
 	context.Context,
-	*usersModels.Student,
-	*usersModels.Student,
+	*peopledirectory.StudentState,
+	*peopledirectory.StudentState,
 	string,
 	*int64,
 	time.Time,
@@ -1474,7 +1474,7 @@ func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkFo
 	require.NoError(t, err)
 	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
-	var weakLink *usersModels.StudentGuardian
+	var weakLink *peopledirectory.GuardianRelationshipSnapshot
 	for _, link := range links {
 		if link != nil && link.GuardianProfileID == profile.ID {
 			weakLink = link
@@ -1504,7 +1504,7 @@ func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkFo
 
 	links, err = env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
-	var upgraded *usersModels.StudentGuardian
+	var upgraded *peopledirectory.GuardianRelationshipSnapshot
 	for _, link := range links {
 		if link != nil && link.GuardianProfileID == profile.ID {
 			upgraded = link
@@ -1528,7 +1528,7 @@ func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(
 
 	reqID, childID := submitOneChild(t, env, "primary-coguardian-name@example.com", "Kjell", "CoGuardianName")
 	email := "coguardian-name-correction@example.com"
-	profile := &usersModels.GuardianProfile{
+	profile := &peopledirectory.GuardianProfileSnapshot{
 		FirstName:              "Old",
 		LastName:               "Name",
 		Email:                  &email,
@@ -1850,7 +1850,7 @@ func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermiss
 
 	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
-	var contactLink *usersModels.StudentGuardian
+	var contactLink *peopledirectory.GuardianRelationshipSnapshot
 	for _, link := range links {
 		if link != nil && link.GuardianProfileID == profile.ID {
 			contactLink = link
@@ -1999,10 +1999,10 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.DepartureBus, student.DepartureDays.ModeFor(usersModels.PickupDayMonday))
-	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays.ModeFor(usersModels.PickupDayWednesday))
-	assert.True(t, student.BusDays[usersModels.BusDayMonday], "derived bus_days mirror")
-	assert.True(t, student.PickupDays[usersModels.PickupDayWednesday], "derived pickup_days mirror")
+	assert.Equal(t, peopledirectory.DepartureBus, student.DepartureDays.ModeFor(peopledirectory.PickupDayMonday))
+	assert.Equal(t, peopledirectory.DeparturePickup, student.DepartureDays.ModeFor(peopledirectory.PickupDayWednesday))
+	assert.True(t, student.BusDays[peopledirectory.BusDayMonday], "derived bus_days mirror")
+	assert.True(t, student.PickupDays[peopledirectory.PickupDayWednesday], "derived pickup_days mirror")
 }
 
 // TestDecisionService_Decide_AppliesCoupledCompanionNote verifies the "mit wem"
@@ -2065,8 +2065,8 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.DepartureAccompanied,
-		student.AllowedDepartureModes.DepartureDays().ModeFor(usersModels.PickupDayMonday),
+	assert.Equal(t, peopledirectory.DepartureAccompanied,
+		student.AllowedDepartureModes.DepartureDays().ModeFor(peopledirectory.PickupDayMonday),
 		"accompanied mode must reach the student")
 	require.NotNil(t, student.DepartureCompanionNote, "coupled companion note must be applied")
 	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
@@ -2215,12 +2215,12 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.True(t, student.AllowedDepartureModes.HasMode(usersModels.DepartureAccompanied),
+	assert.True(t, student.AllowedDepartureModes.HasMode(peopledirectory.DepartureAccompanied),
 		"accompanied mode from the earlier field must survive the merge")
 	require.NotNil(t, student.DepartureCompanionNote, "companion note must survive the merge")
 	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
 	require.NotNil(t, student.PickupStatus)
-	assert.Equal(t, usersModels.PickupStatusAccompanied, *student.PickupStatus,
+	assert.Equal(t, peopledirectory.PickupStatusAccompanied, *student.PickupStatus,
 		"legacy pickup_status must reflect accompanied, not collapse to self-goer")
 }
 
@@ -2250,7 +2250,7 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+	assert.Equal(t, peopledirectory.StudentStatusPending, student.Status,
 		"scheduled mode must create the student as pending")
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t,
@@ -2293,7 +2293,7 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, student.Status,
+	assert.Equal(t, peopledirectory.StudentStatusActive, student.Status,
 		"immediate mode must activate the student on approval")
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t,
@@ -2331,7 +2331,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, student.Status,
+	assert.Equal(t, peopledirectory.StudentStatusActive, student.Status,
 		"scheduled mode must activate immediately when service_start_date is today or already past")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
@@ -2360,7 +2360,7 @@ func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToSchedule
 
 	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+	assert.Equal(t, peopledirectory.StudentStatusPending, student.Status,
 		"unknown setting values must not activate students")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
@@ -3027,9 +3027,9 @@ func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWit
 	studentID := existing.ID
 	actorID := env.creatorID
 	repo := env.repos.CareWithdrawal
-	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &usersModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &careplan.WithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: calendar.Date(env.sourcePhase.ServiceStartDate),
-		Trigger:               usersModels.CareWithdrawalTriggerDirectSchool,
+		Trigger:               careplan.WithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",
 		WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -3097,7 +3097,7 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 	// Consent recorded by the ORIGINAL enrollment.
 	stamped := time.Now().Add(-24 * time.Hour)
 	_, err := env.db.NewUpdate().
-		Model((*usersModels.Student)(nil)).
+		Model((*peopledirectory.StudentState)(nil)).
 		ModelTableExpr(`users.student_profiles AS "student"`).
 		Set("photo_consent_given_at = ?", stamped).
 		Set("photo_consent_given_by = ?", env.creatorID).
@@ -3265,7 +3265,7 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 
 	// The other parent, primary since the original enrollment.
 	otherParent := testpkg.CreateTestGuardianProfile(t, env.db, "other-parent")
-	otherLink := &usersModels.StudentGuardian{
+	otherLink := &peopledirectory.GuardianRelationshipSnapshot{
 		StudentID:          existing.ID,
 		GuardianProfileID:  otherParent.ID,
 		RelationshipType:   "guardian",
@@ -3295,7 +3295,7 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 	require.NoError(t, err)
 	require.Len(t, links, 2, "the pre-existing guardian must survive the renewal")
 
-	var kept, submitted *usersModels.StudentGuardian
+	var kept, submitted *peopledirectory.GuardianRelationshipSnapshot
 	for _, link := range links {
 		if link.GuardianProfileID == otherParent.ID {
 			kept = link
@@ -4741,7 +4741,7 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 
 type offeringStudentTestDirectory struct {
 	students interface {
-		FindByIDs(context.Context, []int64) (map[int64]*usersModels.Student, error)
+		FindByIDs(context.Context, []int64) (map[int64]*peopledirectory.StudentState, error)
 	}
 }
 

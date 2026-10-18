@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"reflect"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -16,7 +18,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -89,7 +91,7 @@ type ExcusedRequestReads interface {
 type CarePlanReviewPolicy interface {
 	Scope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 	AbsenceScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
-	Allows(ctx context.Context, permissions []string, student *userModels.Student) (bool, error)
+	Allows(ctx context.Context, permissions []string, student *peopleValues.StudentState) (bool, error)
 }
 
 // CareOfferingCatalogSources are the values of this graph the care-offering
@@ -143,7 +145,7 @@ type CareRequestSources struct {
 	Broadcaster realtime.Broadcaster
 	Reviews     CarePlanReviewPolicy
 	Permissions func(context.Context) []string
-	Events      ParentRequestEvents
+	Events      peopleValues.ParentRequestEvents
 	Audit       peoplePorts.StudentChangeRecorder
 	Shares      communicationCompose.ParentShareVisibilityResolver
 	Today       func() timezone.Date
@@ -169,7 +171,7 @@ type ExcusedRequestSources struct {
 	Permissions func(context.Context) []string
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
-	Events      ParentRequestEvents
+	Events      peopleValues.ParentRequestEvents
 	Notifier    deliveryCompose.AbsenceNotifier
 	Shares      careplanCompose.ShareVisibility
 	Logger      *slog.Logger

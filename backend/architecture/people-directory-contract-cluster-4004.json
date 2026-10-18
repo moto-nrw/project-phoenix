@@ -1,0 +1,118 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2580",
+    "#4004",
+    "#4076",
+    "#4085",
+    "#4086"
+  ],
+  "owner_and_capability": "People Directory: native directory values and read/command ports replace foreign users-model and composition-vocabulary imports. Care Plan owns withdrawal, companion and data-change request concepts. Native Timetable test bindings remove the final Care Plan and Student Presence activity/schedule imports.",
+  "affected_packages": [
+    "api",
+    "modules/peopledirectory",
+    "modules/peopledirectory/ports",
+    "modules/peopledirectory/internal/adapters/peoplepostgres",
+    "modules/peopledirectory/compose/vocabulary (deleted)",
+    "modules/careplan",
+    "modules/careplan/contracttest",
+    "modules/enrollment/http",
+    "modules/studentpresence/internal/application/presence",
+    "modules/timetable/compose",
+    "modules/timetable/compose/httpadapter",
+    "workflows/studentdeletion"
+  ],
+  "affected_tables": [
+    "None: this evidence-only correction changes no schema, SQL, data or table ownership."
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/contracttest|github.com/moto-nrw/project-phoenix/models/activities",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/contracttest|github.com/moto-nrw/project-phoenix/models/schedule",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/contracttest|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/enrollment/http|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose|github.com/moto-nrw/project-phoenix/models/users"
+  ],
+  "atomic_cutover": "Commit 63d041ef0e migrates the foreign consumers and deletes 88 People Directory vocabulary aliases. Seven exact import keys leave legacy.jsonl (49 to 42): five external-test keys tracked by #4076 and two production keys tracked by #4004. No key, rule, grant, alias, exception, checker allowance or root composition field is added. Three stale rules are removed; composition surface remains 1638; compose LOC falls 32764 to 32613 and legacy-file LOC 2898 to 2897. models/users retains its legacy-model role and location because the unchanged models/entity_interfaces_test.go is the sole foreign consumer and neither its native public dependency nor a base.Entity dependency from People Directory postgres has an existing predecessor grant. Both original models test keys remain. This correction adds evidence only and does not change the underlying code, policy, baseline or budgets.",
+  "tests": [
+    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref a52dccfc01e977e18c112d164949b819eda552f3",
+    "scripts/backend-architecture.sh check",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast: all 203 affected packages passed on 63d041ef0e.",
+    "Changed-package lint reported zero issues; full pre-commit/pre-push hooks, dead-code and vulnerability checks passed on 63d041ef0e.",
+    "Existing HTTP routes, router-golden source, IoT error texts and expected behavior assertions remain unchanged by this evidence-only correction."
+  ],
+  "runtime_evidence": {
+    "source": "PR #4327 CI on 63d041ef0e passed the implementation gates but rejected unclaimed debt removals in validate-ticket --all against a52dccfc01e977e18c112d164949b819eda552f3: debt retirements 7; covered 0. This record supplies complete evidence for exactly those seven keys, following the Timetable contract-cluster record from PR #4324.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/actions/runs/39129811514/job/117682509478",
+      "docs/architecture/people-contract-cluster.md",
+      "backend/modules/peopledirectory/student_state.go",
+      "backend/modules/careplan/withdrawals.go",
+      "backend/modules/careplan/careplantest/schedule_records.go",
+      "backend/modules/timetable/ports/mirror_records.go"
+    ],
+    "workload": "Local migration-evidence validation against origin/development and the architecture check, using the repository Go toolchain and GOCACHE=/tmp/gocache-pdcluster. No runtime benchmark, manual HTTP request or production/staging request is claimed for this evidence-only correction.",
+    "thresholds": "Retirement coverage must be 7/7 with no uncovered removed key. Architecture must retain 42 legacy keys, composition surface 1638, zero new grants/aliases/allowances, and the lowered budgets recorded in the inventory.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This evidence-only correction writes no application data."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query benchmark was run; this correction changes no SQL or repository operation."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this evidence-only correction."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this evidence-only correction."
+    },
+    "errors": {
+      "state": "not_applicable",
+      "reason": "This correction changes no runtime error handling."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "This correction changes no connection acquisition or pool configuration."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "This correction changes no lock acquisition or transaction scope."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "This correction changes no lock ordering."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "This correction changes no worker execution."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "This correction changes no retry policy."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "This correction changes no queue or scheduling behavior."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "No failure injection was run for this evidence-only correction."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data cutover occurs; reverting this correction removes only its evidence record."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No manual HTTP smoke was run for this evidence-only correction."
+    }
+  },
+  "rollback_and_cleanup": "Revert this evidence file if its claims are incorrect. Reverting the underlying consumer cutover requires restoring its native bindings, vocabulary, original policy entries and seven baseline keys together. No data migration or configuration rollback is required.",
+  "exit_criterion": "validate-ticket --all covers exactly all seven retired import keys against development; architecture checks pass without new debt, permission, exception, alias, checker change or budget increase. The documented models entity-interface blocker remains outside the package dissolution."
+}

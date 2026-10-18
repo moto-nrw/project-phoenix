@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -18,19 +17,19 @@ const lockedUpdateStudentID int64 = 4711
 
 // lockedRows serves one locked row and records the lock and the write.
 type lockedRows struct {
-	row      *users.Student
+	row      *peopledirectory.StudentState
 	lockErr  error
 	locked   []int64
-	written  []*users.Student
+	written  []*peopledirectory.StudentState
 	writeErr error
 }
 
-func (r *lockedRows) FindByIDForUpdate(_ context.Context, id int64) (*users.Student, error) {
+func (r *lockedRows) FindByIDForUpdate(_ context.Context, id int64) (*peopledirectory.StudentState, error) {
 	r.locked = append(r.locked, id)
 	return r.row, r.lockErr
 }
 
-func (r *lockedRows) Update(_ context.Context, student *users.Student) error {
+func (r *lockedRows) Update(_ context.Context, student *peopledirectory.StudentState) error {
 	r.written = append(r.written, student)
 	return r.writeErr
 }
@@ -41,14 +40,14 @@ func TestWidenAccompaniedDaysByIDLocksTheRowItWidens(t *testing.T) {
 
 	t.Run("the locked row is widened", func(t *testing.T) {
 		t.Parallel()
-		rows := &lockedRows{row: &users.Student{}}
-		found, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{users.PickupDayTuesday}, 0)
+		rows := &lockedRows{row: &peopledirectory.StudentState{}}
+		found, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{peopledirectory.PickupDayTuesday}, 0)
 		require.NoError(t, err)
 		assert.True(t, found)
 		assert.Equal(t, []int64{lockedUpdateStudentID}, rows.locked)
 		require.Len(t, rows.written, 1)
 		assert.Same(t, rows.row, rows.written[0])
-		assert.Equal(t, map[string]bool{users.PickupDayTuesday: true}, users.AccompaniedWeekdays(rows.row.AllowedDepartureModes, rows.row.DepartureDays))
+		assert.Equal(t, map[string]bool{peopledirectory.PickupDayTuesday: true}, peopledirectory.AccompaniedWeekdays(rows.row.AllowedDepartureModes, rows.row.DepartureDays))
 	})
 
 	t.Run("a missing row is not found", func(t *testing.T) {
@@ -57,7 +56,7 @@ func TestWidenAccompaniedDaysByIDLocksTheRowItWidens(t *testing.T) {
 			"no rows": {lockErr: peoplePorts.MissingStudentError("find by id for update")},
 			"nil row": {},
 		} {
-			found, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{users.PickupDayTuesday}, 0)
+			found, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{peopledirectory.PickupDayTuesday}, 0)
 			require.NoError(t, err, name)
 			assert.False(t, found, name)
 			assert.Empty(t, rows.written, name)
@@ -68,7 +67,7 @@ func TestWidenAccompaniedDaysByIDLocksTheRowItWidens(t *testing.T) {
 		t.Parallel()
 		lockErr := errors.New("lock failed")
 		rows := &lockedRows{lockErr: lockErr}
-		_, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{users.PickupDayTuesday}, 0)
+		_, err := NewLockedStudentUpdates(rows, nil).WidenAccompaniedDaysByID(ctx, lockedUpdateStudentID, []string{peopledirectory.PickupDayTuesday}, 0)
 		require.ErrorIs(t, err, lockErr)
 		assert.Empty(t, rows.written)
 	})
@@ -79,9 +78,9 @@ func TestSetLiveAbsenceFlags(t *testing.T) {
 	ctx := context.Background()
 	at := time.Date(2026, time.October, 18, 8, 30, 0, 0, time.UTC)
 	earlier := at.Add(-24 * time.Hour)
-	stored := func() *users.Student {
+	stored := func() *peopledirectory.StudentState {
 		sick, excused := false, true
-		return &users.Student{Sick: &sick, SickSince: &earlier, Excused: &excused, ExcusedSince: &earlier}
+		return &peopledirectory.StudentState{Sick: &sick, SickSince: &earlier, Excused: &excused, ExcusedSince: &earlier}
 	}
 
 	t.Run("a sick day raises sick at the approval time and clears excused", func(t *testing.T) {

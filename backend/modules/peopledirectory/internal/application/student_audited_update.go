@@ -4,29 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"time"
 
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentRowUpdate is the retained child row write an audited update runs.
 type StudentRowUpdate interface {
-	Update(ctx context.Context, student *users.Student) error
+	Update(ctx context.Context, student *peopledirectory.StudentState) error
 }
 
 // StudentRowLockUpdate is the retained child row a by-ID write re-reads under
 // its lock and then writes.
 type StudentRowLockUpdate interface {
 	StudentRowUpdate
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
 }
 
 // StudentChangeActorRecorder appends the tracked-field history of one child
 // write, attributed to the acting account.
 type StudentChangeActorRecorder interface {
-	RecordChangesForActor(ctx context.Context, before, after *users.Student, editedBy int64) error
+	RecordChangesForActor(ctx context.Context, before, after *peopledirectory.StudentState, editedBy int64) error
 }
 
 // AuditedStudentUpdates writes a child row and then appends the change history
@@ -49,8 +49,8 @@ func NewLockedStudentUpdates(students StudentRowLockUpdate, audit StudentChangeA
 // actorAccountID. The write and the history share one companion recording
 // scope, so the result reports whether the write trimmed a "läuft mit" link.
 // A failed history comes back as a *peopledirectory.StudentAuditError.
-func (u AuditedStudentUpdates) UpdateStudentAudited(ctx context.Context, before, after *users.Student, actorAccountID int64) (bool, error) {
-	writeCtx, companions := users.ContextWithCompanionChangeRecorder(ctx)
+func (u AuditedStudentUpdates) UpdateStudentAudited(ctx context.Context, before, after *peopledirectory.StudentState, actorAccountID int64) (bool, error) {
+	writeCtx, companions := peopledirectory.ContextWithCompanionChangeRecorder(ctx)
 	if err := u.write(writeCtx, before, after, actorAccountID); err != nil {
 		return false, err
 	}
@@ -64,7 +64,7 @@ func (u AuditedStudentUpdates) UpdateStudentAudited(ctx context.Context, before,
 // repository probes the stored edges for those. A plan that already allows
 // every day is not written. With a recorder bound, an unattributed widening is
 // refused rather than written without its history.
-func (u AuditedStudentUpdates) WidenAccompaniedDays(ctx context.Context, companion *users.Student, days []string, actorAccountID int64) error {
+func (u AuditedStudentUpdates) WidenAccompaniedDays(ctx context.Context, companion *peopledirectory.StudentState, days []string, actorAccountID int64) error {
 	missing := peopledirectory.MissingAccompaniedDays(companion.AllowedDepartureModes, companion.DepartureDays, days)
 	if len(missing) == 0 {
 		return nil
@@ -73,7 +73,7 @@ func (u AuditedStudentUpdates) WidenAccompaniedDays(ctx context.Context, compani
 		return errors.New("users: companion departure audit requires an actor account")
 	}
 	before := *companion
-	companion.AllowedDepartureModes = users.WithAccompaniedDays(companion.AllowedDepartureModes, missing)
+	companion.AllowedDepartureModes = peopledirectory.WithAccompaniedDays(companion.AllowedDepartureModes, missing)
 	companion.MarkDepartureCompanionDays(days...)
 	err := u.write(ctx, &before, companion, actorAccountID)
 	var auditErr *peopledirectory.StudentAuditError
@@ -124,7 +124,7 @@ func (u AuditedStudentUpdates) SetLiveAbsenceFlags(ctx context.Context, studentI
 	return u.students.Update(ctx, fresh)
 }
 
-func (u AuditedStudentUpdates) write(ctx context.Context, before, after *users.Student, actorAccountID int64) error {
+func (u AuditedStudentUpdates) write(ctx context.Context, before, after *peopledirectory.StudentState, actorAccountID int64) error {
 	if err := u.students.Update(ctx, after); err != nil {
 		return err
 	}

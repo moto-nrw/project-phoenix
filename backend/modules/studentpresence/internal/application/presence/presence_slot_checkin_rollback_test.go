@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,26 +17,8 @@ import (
 )
 
 type failingSlotCheckIn struct {
-	scheduleModels.InstanceStudentRepository
 	afterWrite error
 	writes     int
-}
-
-func (r *failingSlotCheckIn) UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, at time.Time) (bool, error) {
-	changed, err := r.InstanceStudentRepository.UpdateAttendanceFromCheckin(ctx, instanceID, studentID, at)
-	if err != nil {
-		return changed, err
-	}
-	r.writes++
-	return changed, r.afterWrite
-}
-
-func (r *failingSlotCheckIn) UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []scheduleModels.InstanceStudentKey, at time.Time) error {
-	if err := r.InstanceStudentRepository.UpdateAttendanceFromCheckinBatch(ctx, keys, at); err != nil {
-		return err
-	}
-	r.writes++
-	return r.afterWrite
 }
 
 func TestBatchCheckInRollsBackAfterSlotWriteAndRetries(t *testing.T) {
@@ -59,8 +40,8 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 	syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability)
 	instances, assignments := syncRows.Instances, syncRows.Participants
 	injected := errors.New("fail after slot check-in")
-	rows := &failingSlotCheckIn{InstanceStudentRepository: assignments, afterWrite: injected}
-	syncer := newAttendanceMirror(t, instances, rows, slog.Default())
+	rows := &failingSlotCheckIn{afterWrite: injected}
+	syncer := newAttendanceMirror(t, rows.bind(api.TimetableOwnerRows{Instances: instances, Participants: assignments}), slog.Default())
 	day := testpkg.TodayDate()
 	now := day.BerlinMidnight().Add(12 * time.Hour)
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer, func() time.Time { return now })
@@ -78,7 +59,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 	for range count {
 		student := testpkg.CreateTestStudent(t, db, "SlotCheckIn", "Rollback", "3a")
 		studentIDs = append(studentIDs, student.ID)
-		testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+		testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, studentpresence.SessionAttendanceExpected)
 	}
 	checkIn := func() error {
 		if !batch {
@@ -98,7 +79,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 		slot, err := assignments.FindByInstanceAndStudent(ctx, instance.ID, id)
 		require.NoError(t, err)
 		assert.Nil(t, slot.CheckedInAt)
-		assert.Equal(t, scheduleModels.AttendanceStatusExpected, slot.Status)
+		assert.Equal(t, studentpresence.SessionAttendanceExpected, slot.Status)
 	}
 	rows.afterWrite = nil
 	require.NoError(t, checkIn())
@@ -114,4 +95,14 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 		assert.True(t, slot.CheckedInAt.Equal(row.CheckInTime))
 	}
 	assert.Equal(t, 2, rows.writes, "idempotent repetition performs no slot write")
+}
+
+func (r *failingSlotCheckIn) bind(rows api.TimetableOwnerRows) api.TimetableOwnerRows {
+	return api.AfterAttendanceMirrorWrite(rows, func(_ string, _ bool, err error) error {
+		if err != nil {
+			return err
+		}
+		r.writes++
+		return r.afterWrite
+	})
 }

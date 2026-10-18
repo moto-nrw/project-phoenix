@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -29,7 +29,7 @@ type EnrollmentFlowTestRepositories struct {
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
-	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
+	CareWithdrawal               CareWithdrawalRecords
 }
 
 // NewEnrollmentFlowTestRepositoriesWithMembers composes the enrollment flow suites'

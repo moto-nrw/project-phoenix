@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -36,8 +35,8 @@ func studentPlans(db *bun.DB) studentPlanWriter {
 // a hand-written UPDATE would desynchronize the derived columns and make the
 // next real write look like it changed them.
 type studentPlanWriter interface {
-	FindByID(ctx context.Context, id any) (*userModels.Student, error)
-	Update(ctx context.Context, student *userModels.Student) error
+	FindByID(ctx context.Context, id any) (*peopledirectory.StudentState, error)
+	Update(ctx context.Context, student *peopledirectory.StudentState) error
 }
 
 // setAccompaniedDepartureDays gives the child an "Anderes Kind" departure plan
@@ -51,7 +50,7 @@ func setAccompaniedDepartureDays(tb testing.TB, ctx context.Context, students st
 	require.NotNil(tb, student)
 
 	note := "Nachbarskind"
-	student.AllowedDepartureModes = userModels.WithAccompaniedDays(student.AllowedDepartureModes, days)
+	student.AllowedDepartureModes = peopledirectory.WithAccompaniedDays(student.AllowedDepartureModes, days)
 	student.DepartureCompanionNote = &note
 	require.NoError(tb, students.Update(ctx, student))
 }
@@ -209,7 +208,7 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 	require.NoError(t, err)
 	assert.Equal(t, "4b", stored.SchoolClass, "extending the departure plan must not revert unrelated fields")
 
-	allowed := userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
+	allowed := peopledirectory.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
 	assert.True(t, allowed["mon"], "Monday must have been added")
 	assert.True(t, allowed["fri"], "Friday must survive — extension is additive")
 }
@@ -561,7 +560,7 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 
 	stored, err := studentRepo.FindByID(ctx, companion.ID)
 	require.NoError(t, err)
-	allowed := userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
+	allowed := peopledirectory.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
 	assert.False(t, allowed["mon"], "nothing may have been widened")
 	assert.False(t, allowed["tue"], "the unconfirmed day especially")
 
@@ -577,7 +576,7 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 
 	stored, err = studentRepo.FindByID(ctx, companion.ID)
 	require.NoError(t, err)
-	allowed = userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
+	allowed = peopledirectory.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
 	assert.True(t, allowed["mon"])
 	assert.True(t, allowed["tue"])
 	assert.True(t, allowed["fri"], "extension stays additive")
@@ -618,12 +617,12 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 	fresh.SchoolClass = "2c"
 
 	err = studentRepo.Update(ctx, fresh)
-	assert.ErrorIs(t, err, userModels.ErrDepartureCompanionNoteRequired,
+	assert.ErrorIs(t, err, peopledirectory.ErrDepartureCompanionNoteRequired,
 		"the uncovered accompanied Tuesday must still demand an answer")
 
 	// Dropping the uncovered day (or covering it) makes the same save work.
-	fresh.AllowedDepartureModes = userModels.AllowedDepartureModes{
-		"mon": []userModels.DepartureMode{userModels.DepartureAccompanied},
+	fresh.AllowedDepartureModes = peopledirectory.AllowedDepartureModes{
+		"mon": []peopledirectory.DepartureMode{peopledirectory.DepartureAccompanied},
 	}
 	fresh.DepartureDays = nil
 	require.NoError(t, studentRepo.Update(ctx, fresh))

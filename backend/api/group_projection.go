@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -19,12 +21,12 @@ type OverlappingRosterGroupNames struct {
 	Groups schoolstructure.Query
 }
 
-func (r OverlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
+func (r OverlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*peopleValues.StudentRosterEntry, error) {
 	rows, err := r.StudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
 	return rows, err
 }
 
-func (r OverlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error) {
+func (r OverlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*peopleValues.StudentRosterEntry, error) {
 	rows, err := r.StudentRepository.FindOverlappingWithGroups(ctx, from, to, today)
 	return EnrichStudentGroupNames(ctx, r.Groups, rows, err)
 }
@@ -34,50 +36,52 @@ type groupStudentRepository struct {
 	groups schoolstructure.Query
 }
 
-func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*userModels.StudentWithGroupInfo, error) {
+func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*peopleValues.StudentRosterEntry, error) {
 	rows, err := r.StudentRepository.FindByTeacherIDWithGroups(ctx, teacherID)
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
-func (r groupStudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
+func (r groupStudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*peopleValues.StudentRosterEntry, error) {
 	rows, err := r.StudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
-func (r groupStudentRepository) FindAllWithGroups(ctx context.Context) ([]*userModels.StudentWithGroupInfo, error) {
+func (r groupStudentRepository) FindAllWithGroups(ctx context.Context) ([]*peopleValues.StudentRosterEntry, error) {
 	rows, err := r.StudentRepository.FindAllWithGroups(ctx)
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
 // EnrichStudentGroupNames fills StudentWithGroupInfo.GroupName from the
 // School Structure owner.
-func EnrichStudentGroupNames(ctx context.Context, groups schoolstructure.Query, rows []*userModels.StudentWithGroupInfo, queryErr error) ([]*userModels.StudentWithGroupInfo, error) {
+func EnrichStudentGroupNames(ctx context.Context, groups schoolstructure.Query, rows []*peopleValues.StudentRosterEntry, queryErr error) ([]*peopleValues.StudentRosterEntry, error) {
 	if queryErr != nil {
 		return nil, queryErr
 	}
 	return schoolStructureCompose.EnrichGroupNames(ctx, groups, rows,
-		func(row *userModels.StudentWithGroupInfo) int64 {
-			if row.Student == nil {
+		func(row *peopleValues.StudentRosterEntry) int64 {
+			if row.Record == nil {
 				return 0
 			}
-			return schoolStructureCompose.OptionalGroupID(row.GroupID)
+			return schoolStructureCompose.OptionalGroupID(row.Record.GroupID)
 		},
-		func(row *userModels.StudentWithGroupInfo, name string) { row.GroupName = name },
+		func(row *peopleValues.StudentRosterEntry, name string) { row.GroupName = name },
 		"", "student roster")
 }
 
-func (r groupStudentRepository) FindBirthdaysOn(ctx context.Context, days []userModels.MonthDay) ([]userModels.BirthdayEntry, error) {
+func (r groupStudentRepository) FindBirthdaysOn(ctx context.Context, days []peopleBirthday.BirthdayMonthDay) ([]peopleBirthday.BirthdayEntry, error) {
 	rows, err := r.StudentRepository.FindBirthdaysOn(ctx, days)
 	if err != nil {
 		return nil, err
 	}
-	pointers := make([]*userModels.BirthdayEntry, len(rows))
+	pointers := make([]*peopleBirthday.BirthdayEntry, len(rows))
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
 	if _, err := schoolStructureCompose.EnrichGroupNames(ctx, r.groups, pointers,
-		func(row *userModels.BirthdayEntry) int64 { return schoolStructureCompose.OptionalGroupID(row.GroupID) },
-		func(row *userModels.BirthdayEntry, name string) { row.GroupName = name },
+		func(row *peopleBirthday.BirthdayEntry) int64 {
+			return schoolStructureCompose.OptionalGroupID(row.GroupID)
+		},
+		func(row *peopleBirthday.BirthdayEntry, name string) { row.GroupName = name },
 		"", "birthdays"); err != nil {
 		return nil, err
 	}

@@ -223,11 +223,8 @@ func composeParentRequests(b graphBuild) (graphBuild, error) {
 	if resolver, ok := any(b.graph.Parent).(communicationCompose.ParentShareVisibilityResolver); ok {
 		b.late.requestShareVisibility = resolver
 	}
-	coordinator, err := b.People.ParentRequestCoordinator(ParentRequestCoordinatorWiring{
-		MasterData: masterData, Excused: b.excusedRequests, Care: b.graph.CareRequests,
-		Offering: b.Enrollment.OfferingConflicts(b.offeringChanges), Events: peopleCompose.NewParentRequestEventRepository(b.DB.Pool()),
-		Permissions: b.Identity.Permissions,
-	})
+	coordinator, err := b.People.ParentRequestCoordinator(masterData, b.excusedRequests, b.graph.CareRequests,
+		b.Enrollment.OfferingConflicts(b.offeringChanges), peopleCompose.NewParentRequestEventRepository(b.DB.Pool()), b.Identity.Permissions)
 	if err != nil {
 		return b, fmt.Errorf("compose parent request coordinator: %w", err)
 	}

@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The phone numbers of a guardian profile.
 
 // AddPhoneNumber adds a new phone number to a guardian
-func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	// Lock the guardian profile so phone-list writers serialize with the
 	// parents-portal contact path, which locks the same row before its wholesale
 	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
@@ -57,7 +58,7 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 // newGuardianPhone builds the phone row AddPhoneNumber inserts: next
 // priority, a known phone type, and primary when it is the guardian's first
 // number or the request asks for it.
-func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	// Get next priority
 	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
 	if err != nil {
@@ -65,12 +66,12 @@ func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardian
 	}
 
 	// Determine phone type
-	phoneType := users.PhoneType(req.PhoneType)
-	if !users.ValidPhoneTypes[phoneType] {
-		phoneType = users.PhoneTypeMobile // Default to mobile
+	phoneType := string(req.PhoneType)
+	if !peopleValues.ValidPhoneType(phoneType) {
+		phoneType = peopleValues.PhoneTypeMobile // Default to mobile
 	}
 
-	phone := &users.GuardianPhoneNumber{
+	phone := &peopleValues.GuardianProfilePhoneSnapshot{
 		GuardianProfileID: guardianID,
 		PhoneNumber:       req.PhoneNumber,
 		PhoneType:         phoneType,
@@ -102,8 +103,8 @@ func (s *RetainedGuardianService) UpdatePhoneNumber(ctx context.Context, phoneID
 		phone.PhoneNumber = *req.PhoneNumber
 	}
 	if req.PhoneType != nil {
-		phoneType := users.PhoneType(*req.PhoneType)
-		if users.ValidPhoneTypes[phoneType] {
+		phoneType := string(*req.PhoneType)
+		if peopleValues.ValidPhoneType(phoneType) {
 			phone.PhoneType = phoneType
 		}
 	}
@@ -190,11 +191,11 @@ func (s *RetainedGuardianService) SetPrimaryPhone(ctx context.Context, phoneID i
 }
 
 // GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
-func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	return s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
 }
 
 // GetPhoneNumberByID retrieves a phone number by ID
-func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 }

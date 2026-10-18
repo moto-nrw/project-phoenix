@@ -8,6 +8,8 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -29,8 +31,8 @@ import (
 // the only runtime writer of these rows.
 
 type attendanceMirror struct {
-	instanceRepo        scheduleModel.ActivityInstanceRepository
-	instanceStudentRepo scheduleModel.InstanceStudentRepository
+	instanceRepo        *ports.MirrorInstances
+	instanceStudentRepo *ports.MirrorParticipants
 	logger              *slog.Logger
 	reportPanic         func(ctx context.Context, recovered any)
 }
@@ -130,7 +132,7 @@ func (s *attendanceMirror) MirrorCheckInForVisit(
 // child has no slot there.
 func (s *attendanceMirror) loadVisitSlot(
 	ctx context.Context, visit timetable.AttendanceVisit, logPrefix, errPrefix string,
-) (*scheduleModel.ActivityInstance, *scheduleModel.InstanceStudent, error) {
+) (*timetable.ScheduledInstance, *timetable.ScheduledParticipant, error) {
 	instance, err := s.instanceRepo.FindByActiveGroupID(ctx, visit.ActiveGroupID)
 	if err != nil {
 		s.getLogger().Warn(logPrefix+": find instance by active_group_id failed",
@@ -157,7 +159,7 @@ func (s *attendanceMirror) loadVisitSlot(
 // openVisitPresence flips an expected (or projected-absent, or checked-out)
 // slot to present from the visit's entry.
 func (s *attendanceMirror) openVisitPresence(
-	ctx context.Context, instanceID int64, visit timetable.AttendanceVisit, row *scheduleModel.InstanceStudent,
+	ctx context.Context, instanceID int64, visit timetable.AttendanceVisit, row *timetable.ScheduledParticipant,
 ) (*timetable.AttendanceSnapshot, error) {
 	// checked_in_at is stamped from visit.EntryTime — the same instant
 	// active.attendance.check_in_time gets (createAttendanceRecord). History
@@ -203,7 +205,7 @@ func (s *attendanceMirror) openVisitPresence(
 // markOpenedPresence mirrors the repository's check-in UPDATE on the row
 // already read: present, the plan provenance released, and a reopen of a
 // checked-out row re-stamps checked_in_at with the re-entry time.
-func markOpenedPresence(row *scheduleModel.InstanceStudent, at time.Time) {
+func markOpenedPresence(row *timetable.ScheduledParticipant, at time.Time) {
 	row.Status = scheduleModel.AttendanceStatusPresent
 	if row.StudentStatusDayID != nil || row.PickupExceptionID != nil {
 		row.Substatus = nil
@@ -243,7 +245,7 @@ func (s *attendanceMirror) finishVisitInterval(
 	ctx context.Context,
 	instanceID int64,
 	visit timetable.AttendanceVisit,
-	row *scheduleModel.InstanceStudent,
+	row *timetable.ScheduledParticipant,
 ) (*timetable.AttendanceSnapshot, error) {
 	if !closesPresentInterval(visit.ExitTime, row) {
 		return snapshotFromRow(row), nil
@@ -264,7 +266,7 @@ func (s *attendanceMirror) finishVisitInterval(
 
 // closesPresentInterval reports whether an exit closes the row's open
 // presence: the row is present with a check-in no later than the exit.
-func closesPresentInterval(exit *time.Time, row *scheduleModel.InstanceStudent) bool {
+func closesPresentInterval(exit *time.Time, row *timetable.ScheduledParticipant) bool {
 	return exit != nil && row != nil &&
 		row.Status == scheduleModel.AttendanceStatusPresent && row.CheckedInAt != nil &&
 		!exit.Before(*row.CheckedInAt)
@@ -280,7 +282,7 @@ func (s *attendanceMirror) MirrorCheckInAt(
 	defer s.recoverMirrorPanic(ctx, "roomless attendance mirror panic", "roomless check-in sync panic", &err)
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidates(
-		ctx, studentID, scheduleModel.DateFromTime(at), at,
+		ctx, studentID, calendar.DateFromTime(at), at,
 	)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance mirror: candidate lookup failed",
@@ -316,7 +318,7 @@ func (s *attendanceMirror) MirrorCheckInAt(
 	return snapshotFromRow(row), nil
 }
 
-func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool {
+func shouldPreserveAttendanceOnCheckin(row *timetable.ScheduledParticipant) bool {
 	// Expected rows, broad day-status absences, and partial-excusal absences
 	// are all plan projections: a real check-in may replace them. Manual
 	// absences (no provenance) and already-open presence stay put.
@@ -415,7 +417,7 @@ func (s *attendanceMirror) MirrorVisitRevision(
 // snapshotFromRow is the common projection. Substatus and Note already
 // pointer-typed in the model, so we reuse the same pointers — no need to
 // dereference + re-address.
-func snapshotFromRow(row *scheduleModel.InstanceStudent) *timetable.AttendanceSnapshot {
+func snapshotFromRow(row *timetable.ScheduledParticipant) *timetable.AttendanceSnapshot {
 	if row == nil {
 		return nil
 	}

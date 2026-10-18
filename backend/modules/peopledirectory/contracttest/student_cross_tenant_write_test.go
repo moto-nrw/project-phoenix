@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -39,16 +40,16 @@ func TestCrossTenantStudentWrite_RowsAffectedGuard(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Update(ctxB, stored)
 		require.Error(t, err, "cross-tenant student update must fail")
-		require.ErrorIs(t, err, userModels.ErrStudentRowMissing,
+		require.ErrorIs(t, err, peopleValues.ErrStudentRowMissing,
 			"another tenant's child must not exist for this writer")
 	})
 
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
 		// The lifecycle status is the owner's write (#3349).
 		repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
-		err := repo.UpdateStatus(ctxB, studentA.ID, userModels.StudentStatusInactive)
+		err := repo.UpdateStatus(ctxB, studentA.ID, peopleValues.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
-		require.ErrorIs(t, err, userModels.ErrStudentRowMissing,
+		require.ErrorIs(t, err, peopleValues.ErrStudentRowMissing,
 			"another tenant's child must not exist for this writer")
 	})
 }

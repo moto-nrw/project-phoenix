@@ -8,8 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,7 +53,7 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
+		for _, weekday := range []int{timetable.WeekdayMonday, timetable.WeekdayWednesday} {
 			sched := &careplan.PickupSchedule{
 				StudentID:  student.ID,
 				Weekday:    weekday,
@@ -88,18 +91,18 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayTuesday,
+			Weekday:    timetable.WeekdayTuesday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		result, err := service.GetStudentPickupScheduleForWeekday(ctx, student.ID, scheduleModels.WeekdayTuesday)
+		result, err := service.GetStudentPickupScheduleForWeekday(ctx, student.ID, timetable.WeekdayTuesday)
 
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, scheduleModels.WeekdayTuesday, result.Weekday)
+		assert.Equal(t, timetable.WeekdayTuesday, result.Weekday)
 	})
 
 	t.Run("returns error for invalid weekday", func(t *testing.T) {
@@ -124,7 +127,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayFriday,
+			Weekday:    timetable.WeekdayFriday,
 			PickupTime: time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -140,7 +143,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -153,7 +156,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 
 		require.NoError(t, err)
 
-		result, err := service.GetStudentPickupScheduleForWeekday(ctx, student.ID, scheduleModels.WeekdayMonday)
+		result, err := service.GetStudentPickupScheduleForWeekday(ctx, student.ID, timetable.WeekdayMonday)
 		require.NoError(t, err)
 		assert.Equal(t, 15, result.PickupTime.Hour())
 	})
@@ -161,7 +164,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 	t.Run("fails validation for invalid schedule", func(t *testing.T) {
 		sched := &careplan.PickupSchedule{
 			StudentID:  0,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -185,17 +188,17 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 
 		schedules := []*careplan.PickupSchedule{
 			{
-				Weekday:    scheduleModels.WeekdayMonday,
+				Weekday:    timetable.WeekdayMonday,
 				PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 			{
-				Weekday:    scheduleModels.WeekdayWednesday,
+				Weekday:    timetable.WeekdayWednesday,
 				PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 			{
-				Weekday:    scheduleModels.WeekdayFriday,
+				Weekday:    timetable.WeekdayFriday,
 				PickupTime: time.Date(2024, 1, 1, 13, 30, 0, 0, time.UTC),
 				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
@@ -215,7 +218,7 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 
 		schedules := []*careplan.PickupSchedule{
 			{
-				Weekday:    scheduleModels.WeekdayMonday,
+				Weekday:    timetable.WeekdayMonday,
 				PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
@@ -255,7 +258,7 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayThursday,
+			Weekday:    timetable.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -283,7 +286,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
+		for _, weekday := range []int{timetable.WeekdayMonday, timetable.WeekdayWednesday, timetable.WeekdayFriday} {
 			sched := &careplan.PickupSchedule{
 				StudentID:  student.ID,
 				Weekday:    weekday,
@@ -321,7 +324,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 		exception := &careplan.PickupException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -369,7 +372,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &careplan.PickupException{
 			StudentID:     0,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -396,14 +399,14 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	date := calendar.TodayDate().AddDays(4)
 	pickupTime := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	guardianID := guardian.ID
-	guardianPickup := &scheduleModels.StudentPickupException{
+	guardianPickup := &careplan.PickupException{
 		StudentID:         student.ID,
-		ExceptionDate:     scheduleModels.Date(date),
+		ExceptionDate:     careplan.Date(date),
 		PickupTime:        &pickupTime,
-		Source:            scheduleModels.ExceptionSourceGuardian,
+		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
-	require.NoError(t, repoFactory.StudentPickupException.Create(ctx, guardianPickup))
+	require.NoError(t, careplantest.NewScheduleRecords(repoFactory.CarePlan()).StudentPickupException.Create(ctx, guardianPickup))
 
 	partial, err := serviceFactory.PartialAbsence.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: student.ID,
@@ -427,12 +430,12 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	)
 	require.ErrorIs(t, err, careplan.ErrCareExceptionContainsPartialAbsence)
 
-	fresh, err := repoFactory.StudentPickupException.FindByID(ctx, guardianPickup.ID)
+	fresh, err := careplantest.NewScheduleRecords(repoFactory.CarePlan()).StudentPickupException.FindByID(ctx, guardianPickup.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.ExcusedFrom, "failed reclaim must preserve partial metadata")
 	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
-	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, fresh.Source)
+	assert.Equal(t, careplan.ExceptionSourceGuardian, fresh.Source)
 }
 
 func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
@@ -525,7 +528,7 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 
 		exception := &careplan.PickupException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -643,7 +646,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
 		ExcusedOwnsPickupTime: true,
-		Source:                scheduleModels.ExceptionSourceStaff,
+		Source:                careplan.ExceptionSourceStaff,
 		CreatedBy:             staffID,
 	}
 	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
@@ -655,7 +658,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 		StudentID:     student.ID,
 		ExceptionDate: careplan.Date(exceptionDate),
 		PickupTime:    &newPickup,
-		Source:        scheduleModels.ExceptionSourceStaff,
+		Source:        careplan.ExceptionSourceStaff,
 		CreatedBy:     staffID,
 	}
 	require.NoError(t, service.CreateStudentPickupException(ctx, override))
@@ -689,7 +692,7 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 		ExcusedFrom:           &pickupTime,
 		ExcusedCreatedBy:      &staffID,
 		ExcusedOwnsPickupTime: true,
-		Source:                scheduleModels.ExceptionSourceStaff,
+		Source:                careplan.ExceptionSourceStaff,
 		CreatedBy:             staffID,
 	}
 	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
@@ -728,7 +731,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 
 		exception := &careplan.PickupException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(scheduleModels.NewDate(2024, 5, 1)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2024, 5, 1)),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -856,7 +859,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -894,7 +897,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		recurringNote := "Pick up at the side entrance"
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
@@ -931,7 +934,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayTuesday,
+			Weekday:    timetable.WeekdayTuesday,
 			PickupTime: time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -984,7 +987,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		notes := "Pick up with grandma"
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayFriday,
+			Weekday:    timetable.WeekdayFriday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &notes,
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
@@ -1010,7 +1013,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		recurringNote := "Wait at the side entrance"
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
@@ -1071,7 +1074,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 		sched1 := &careplan.PickupSchedule{
 			StudentID:  student1.ID,
-			Weekday:    scheduleModels.WeekdayThursday,
+			Weekday:    timetable.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
@@ -1149,7 +1152,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		notes := "Picked up by aunt"
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			Notes:      &notes,
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
@@ -1174,7 +1177,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		recurringNote := "Ring the side entrance bell"
 		sched := &careplan.PickupSchedule{
 			StudentID:  student.ID,
-			Weekday:    scheduleModels.WeekdayMonday,
+			Weekday:    timetable.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
 			CreatedBy:  createPickupServiceTestStaffID(t, db),
@@ -1220,7 +1223,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 		note := &careplan.PickupNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "Please call before pickup",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1234,7 +1237,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 	t.Run("fails validation for invalid note", func(t *testing.T) {
 		note := &careplan.PickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1249,7 +1252,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 		note := &careplan.PickupNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 15)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 15)),
 			Content:   "",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1274,7 +1277,7 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 
 		note := &careplan.PickupNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 3, 16)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 3, 16)),
 			Content:   "Test note",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1383,7 +1386,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 
 		note := &careplan.PickupNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Content:   "Original content",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1405,7 +1408,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &careplan.PickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 4, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 4, 1)),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1429,7 +1432,7 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 
 		note := &careplan.PickupNote{
 			StudentID: student.ID,
-			NoteDate:  careplan.Date(scheduleModels.NewDate(2024, 5, 1)),
+			NoteDate:  careplan.Date(calendar.NewDate(2024, 5, 1)),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1492,14 +1495,14 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 	note := "Oma holt ab"
 	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  studentA.ID,
-		Weekday:    scheduleModels.WeekdayMonday,
+		Weekday:    timetable.WeekdayMonday,
 		PickupTime: time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
 		Notes:      &note,
 		CreatedBy:  createPickupServiceTestStaffID(t, db),
 	}))
 	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  studentA.ID,
-		Weekday:    scheduleModels.WeekdayTuesday,
+		Weekday:    timetable.WeekdayTuesday,
 		PickupTime: time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		CreatedBy:  createPickupServiceTestStaffID(t, db),
 	}))
@@ -1507,7 +1510,7 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 	result, err := service.BulkUpsertPickupSchedules(
 		ctx,
 		careplan.PickupBulkFilter{StudentIDs: []int64{studentA.ID, studentB.ID}},
-		[]careplan.PickupScheduleInput{{Weekday: scheduleModels.WeekdayMonday, PickupTime: "16:10"}},
+		[]careplan.PickupScheduleInput{{Weekday: timetable.WeekdayMonday, PickupTime: "16:10"}},
 		createPickupServiceTestStaffID(t, db),
 	)
 
@@ -1520,10 +1523,10 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 	for _, row := range rowsA {
 		byWeekday[row.Weekday] = row
 	}
-	assert.Equal(t, "16:10", byWeekday[scheduleModels.WeekdayMonday].PickupTime.Format("15:04"))
-	require.NotNil(t, byWeekday[scheduleModels.WeekdayMonday].Notes)
-	assert.Equal(t, note, *byWeekday[scheduleModels.WeekdayMonday].Notes, "bulk time patches must preserve notes")
-	assert.Equal(t, "15:00", byWeekday[scheduleModels.WeekdayTuesday].PickupTime.Format("15:04"))
+	assert.Equal(t, "16:10", byWeekday[timetable.WeekdayMonday].PickupTime.Format("15:04"))
+	require.NotNil(t, byWeekday[timetable.WeekdayMonday].Notes)
+	assert.Equal(t, note, *byWeekday[timetable.WeekdayMonday].Notes, "bulk time patches must preserve notes")
+	assert.Equal(t, "15:00", byWeekday[timetable.WeekdayTuesday].PickupTime.Format("15:04"))
 }
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
@@ -1596,7 +1599,7 @@ func TestPickupScheduleService_EffectiveTimeKeepsRegularTime(t *testing.T) {
 	testDate := calendar.NewDate(2024, 1, 8)
 	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  student.ID,
-		Weekday:    scheduleModels.WeekdayMonday,
+		Weekday:    timetable.WeekdayMonday,
 		PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		CreatedBy:  staffID,
 	}))

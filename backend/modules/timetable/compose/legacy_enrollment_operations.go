@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -165,11 +165,11 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 // silently make enrollments undeletable.
 func hiddenAlumnusEnrollments(
 	enrollments []*activities.StudentEnrollment,
-	locked map[int64]*users.Student,
+	locked map[int64]*timetable.OperationStudent,
 ) map[int64]bool {
 	hidden := make(map[int64]bool)
 	for _, enrollment := range enrollments {
-		if student, ok := locked[enrollment.StudentID]; ok && student.Status == users.StudentStatusAlumnus {
+		if student, ok := locked[enrollment.StudentID]; ok && student.IsAlumnus() {
 			hidden[enrollment.StudentID] = true
 		}
 	}
@@ -215,14 +215,14 @@ func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
 // rejectAlumniFrom applies the alumni refusal to statuses already read under
 // their row locks by lockStudentStatuses. IDs with no entry are left to the
 // foreign key, which is where a non-existent student has always been rejected.
-func rejectAlumniFrom(locked map[int64]*users.Student, studentIDs []int64) error {
+func rejectAlumniFrom(locked map[int64]*timetable.OperationStudent, studentIDs []int64) error {
 	today := calendar.TodayDate()
 	for _, studentID := range studentIDs {
 		student := locked[studentID]
 		if student == nil {
 			continue
 		}
-		if student.Status == users.StudentStatusAlumnus {
+		if student.IsAlumnus() {
 			return ErrStudentIsAlumnus
 		}
 		// A child whose care has ended cannot be booked into an AG or care
@@ -243,7 +243,7 @@ func (s *Service) lockEnrollmentStudents(
 	ctx context.Context,
 	enrollments []*activities.StudentEnrollment,
 	added []int64,
-) (map[int64]*users.Student, error) {
+) (map[int64]*timetable.OperationStudent, error) {
 	ids := make([]int64, 0, len(enrollments)+len(added))
 	for _, enrollment := range enrollments {
 		ids = append(ids, enrollment.StudentID)
@@ -276,7 +276,7 @@ func (s *Service) lockEnrollmentStudents(
 // With the lock the two transactions serialize: either graduation commits first
 // and we observe the alumnus status, or we hold the rows and graduation waits
 // until our write is committed and visible to its own pass (#405 review).
-func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (map[int64]*users.Student, error) {
+func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (map[int64]*timetable.OperationStudent, error) {
 	ordered := ascendingUniqueIDs(studentIDs)
 	if len(ordered) == 0 {
 		return nil, nil
@@ -288,7 +288,7 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 		return nil, errStudentRepoMissing
 	}
 
-	locked := make(map[int64]*users.Student, len(ordered))
+	locked := make(map[int64]*timetable.OperationStudent, len(ordered))
 	for _, studentID := range ordered {
 		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
@@ -330,7 +330,7 @@ func (s *Service) careEnded(ctx context.Context, studentID int64) (bool, error) 
 	return student.CareEndedOn(calendar.TodayDate()), nil
 }
 
-func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*users.Student, error) {
+func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*timetable.OperationStudent, error) {
 	if studentID <= 0 {
 		return nil, nil
 	}
@@ -403,7 +403,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 // GET /api/activities/{id}/students, the activity detail response and the
 // enrollment counts — a soft-deleted child must not be listed or counted there
 // (#405 review).
-func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
+func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*timetable.OperationStudent, error) {
 	// Get the enrollments for this group
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
@@ -418,13 +418,13 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 		return nil, &ActivityError{Op: "get enrolled students", Err: err}
 	}
 
-	students := make([]*users.Student, 0, len(enrollments))
+	students := make([]*timetable.OperationStudent, 0, len(enrollments))
 	for _, enrollment := range enrollments {
 		student := studentsByID[enrollment.StudentID]
 		if student == nil {
 			continue
 		}
-		if student.Status == users.StudentStatusAlumnus {
+		if student.IsAlumnus() {
 			continue
 		}
 		// A departed child leaves the AG roster (#2487). Their booking was
@@ -433,7 +433,7 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 		if student.CareEndedOn(calendar.TodayDate()) {
 			continue
 		}
-		student.Person = &users.Person{
+		student.Person = &timetable.Person{
 			FirstName: enrollment.StudentFirstName,
 			LastName:  enrollment.StudentLastName,
 		}

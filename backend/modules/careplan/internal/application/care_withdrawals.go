@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -125,18 +124,6 @@ func (s *CareLifecycle) validateWithdrawalCareEnd(ctx context.Context, completio
 	return nil
 }
 
-// withdrawalSourceOfferings decodes the offerings a task recorded. The JSON
-// is Care Plan's own and written from the same type.
-func withdrawalSourceOfferings(completion careplan.WithdrawalCompletion) []careplan.CareExitSourceOffering {
-	var offerings []careplan.CareExitSourceOffering
-	if len(completion.SourceOfferings) > 0 {
-		if err := json.Unmarshal(completion.SourceOfferings, &offerings); err != nil {
-			return nil
-		}
-	}
-	return offerings
-}
-
 // ReconcileAuthoritativeBookingChange keeps the withdrawal tasks in step with
 // one booking mutation. In weekly-plan mode only a rebooking can make a task
 // obsolete; in booking-led mode the child's bookings are evaluated again.
@@ -193,7 +180,7 @@ func (s *CareLifecycle) reconcileWeeklyPlanRebooking(ctx context.Context, change
 	if evaluation := domain.EvaluateCareBookingStates(facts, firstBookinglessDay)[0]; !evaluation.HasCareDays {
 		return nil
 	}
-	_, err = s.records.MarkWithdrawalObsoleteForRebooking(ctx, change.StudentID, completion.FirstBookinglessDay, time.Now())
+	_, err = s.records.MarkWithdrawalObsoleteForRebooking(ctx, change.StudentID, careplan.Date(completion.FirstBookinglessDay), time.Now())
 	return err
 }
 
@@ -267,20 +254,16 @@ func (s *CareLifecycle) upsertBookingCompletion(ctx context.Context, evaluation 
 	if sourceOfferings == nil {
 		sourceOfferings = []careplan.CareExitSourceOffering{}
 	}
-	encoded, err := json.Marshal(sourceOfferings)
-	if err != nil {
-		return fmt.Errorf("care lifecycle: encode care withdrawal source offerings: %w", err)
-	}
-	_, err = s.records.UpsertPendingWithdrawal(ctx, careplan.WithdrawalCompletion{
+	_, err := s.records.UpsertPendingWithdrawal(ctx, careplan.WithdrawalCompletion{
 		StudentID:               &studentID,
-		FirstBookinglessDay:     careplan.Date(*evaluation.FirstBookinglessDay),
+		FirstBookinglessDay:     *evaluation.FirstBookinglessDay,
 		Trigger:                 trigger,
 		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
 		SourceRequestChildID:    optionalPositiveID(sourceChildID),
 		WithdrawalConfirmedBy:   actorID,
 		WithdrawalConfirmedRole: role,
 		WithdrawalConfirmedAt:   time.Now(),
-		SourceOfferings:         encoded,
+		SourceOfferings:         sourceOfferings,
 		State:                   careplan.WithdrawalStatePending,
 	})
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -29,7 +29,7 @@ type ParentRequestEventFixtureReads struct {
 	source peopledirectory.ParentRequestEventFixtureSource
 }
 
-func NewParentRequestEventFixtureReads(source peopleVocabulary.ParentRequestEventRepository) ParentRequestEventFixtureReads {
+func NewParentRequestEventFixtureReads(source peopledirectory.ParentRequestEvents) ParentRequestEventFixtureReads {
 	return ParentRequestEventFixtureReads{source: source.(peopledirectory.ParentRequestEventFixtureSource)}
 }
 func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind string, id int64) ([]*ParentRequestEventFixture, error) {
@@ -78,7 +78,7 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 		FindActivePortalProfilesByIDs: func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },
 		LockByIDForUpdate:             func(context.Context, int64) error { return nil },
 		Normalize: func(value *parentportal.GuardianProfile) error {
-			row := &peopleVocabulary.GuardianProfile{FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, PreferredContactMethod: value.PreferredContactMethod}
+			row := &peopledirectory.GuardianProfileSnapshot{FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, PreferredContactMethod: value.PreferredContactMethod}
 			err := row.Validate()
 			value.FirstName, value.LastName, value.Email = row.FirstName, row.LastName, row.Email
 			return err

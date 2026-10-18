@@ -14,58 +14,59 @@ import (
 // bookkeeping a write needs. The routes read and write it through the owner's
 // capability; nothing here decides anything the owner decides.
 type StudentState struct {
-	ID        int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	TenantID  int64
+	Person    *DirectoryPersonSnapshot `json:"person,omitempty"`
+	ID        int64                    `json:"id"`
+	CreatedAt time.Time                `json:"created_at"`
+	UpdatedAt time.Time                `json:"updated_at"`
+	TenantID  int64                    `json:"tenant_id"`
 
-	PersonID          int64
-	SchoolClass       string
-	GroupID           *int64
-	AddressStreet     *string
-	AddressCity       *string
-	AddressPostalCode *string
-	ExtraInfo         *string
-	SupervisorNotes   *string
+	PersonID          int64   `json:"person_id"`
+	SchoolClass       string  `json:"school_class"`
+	GroupID           *int64  `json:"group_id,omitempty"`
+	AddressStreet     *string `json:"address_street,omitempty"`
+	AddressCity       *string `json:"address_city,omitempty"`
+	AddressPostalCode *string `json:"address_postal_code,omitempty"`
+	ExtraInfo         *string `json:"extra_info,omitempty"`
+	SupervisorNotes   *string `json:"supervisor_notes,omitempty"`
 	// SupervisorNotesSupplied is request-local. It prevents unrelated updates
 	// from treating a hydrated compatibility value as a new legacy write.
-	SupervisorNotesSupplied bool
-	HealthInfo              *string
-	PickupStatus            *string
+	SupervisorNotesSupplied bool    `json:"-"`
+	HealthInfo              *string `json:"health_info,omitempty"`
+	PickupStatus            *string `json:"pickup_status,omitempty"`
 
 	// DepartureDays, AllowedDepartureModes, PickupDays and BusDays are the
 	// departure plan in its effective form (departure.Plan.Effective): the
 	// unified per-weekday modes and the two legacy projections derived from
 	// them.
-	DepartureDays          departure.DepartureDays
-	AllowedDepartureModes  departure.AllowedDepartureModes
-	PickupDays             departure.PickupDays
-	BusDays                departure.BusDays
-	DepartureCompanionNote *string
+	DepartureDays          departure.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes  departure.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	PickupDays             departure.PickupDays            `json:"pickup_days,omitempty"`
+	BusDays                departure.BusDays               `json:"bus_days,omitempty"`
+	DepartureCompanionNote *string                         `json:"departure_companion_note,omitempty"`
 	// DepartureCompanionDays carries the weekdays on which the child has a
 	// companion link after this request's reconcile. It is not persisted.
-	DepartureCompanionDays map[string]bool
+	DepartureCompanionDays map[string]bool `json:"-"`
 	// DepartureBaseline is the plan the read that produced this value
 	// hydrated. A write hands it to the owner, so a plan field that merely rode
 	// along on the read cannot revert a companion edit that committed in
 	// between (#1694). Nil means "not hydrated".
-	DepartureBaseline *departure.Plan
+	DepartureBaseline *departure.Plan `json:"-"`
 
-	Sick          *bool
-	SickSince     *time.Time
-	Excused       *bool
-	ExcusedSince  *time.Time
-	Status        string
-	EnrolledFrom  *calendar.Date
-	EnrolledUntil *calendar.Date
+	Sick          *bool          `json:"sick,omitempty"`
+	SickSince     *time.Time     `json:"sick_since,omitempty"`
+	Excused       *bool          `json:"excused,omitempty"`
+	ExcusedSince  *time.Time     `json:"excused_since,omitempty"`
+	Status        string         `json:"status"`
+	EnrolledFrom  *calendar.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *calendar.Date `json:"enrolled_until,omitempty"`
 
-	PhotoPath           *string
-	PhotoConsentGivenAt *time.Time
-	PhotoConsentGivenBy *int64
+	PhotoPath           *string    `json:"-"`
+	PhotoConsentGivenAt *time.Time `json:"photo_consent_given_at,omitempty"`
+	PhotoConsentGivenBy *int64     `json:"photo_consent_given_by,omitempty"`
 
-	AGBAcceptedAt            *time.Time
-	DataProcessingAcceptedAt *time.Time
-	EmailContactAcceptedAt   *time.Time
+	AGBAcceptedAt            *time.Time `json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt *time.Time `json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   *time.Time `json:"email_contact_accepted_at,omitempty"`
 }
 
 // IsAuthorizationStudent reports whether this value represents an existing

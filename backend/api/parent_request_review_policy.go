@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -61,19 +63,19 @@ func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions
 // StudentFilter resolves one immutable request-scoped filter. Resolving once
 // keeps queue filtering O(1) per child and prevents list and decision checks
 // from drifting.
-func (p *ParentRequestReviewPolicy) StudentFilter(ctx context.Context, permissions []string) (func(*userModels.Student) bool, error) {
+func (p *ParentRequestReviewPolicy) StudentFilter(ctx context.Context, permissions []string) (func(*peopleValues.StudentState) bool, error) {
 	schoolWide, groupIDs, err := p.Scope(ctx, permissions)
 	if err != nil {
 		return nil, err
 	}
 	reaches := identityaccess.ReviewReachesGroup(schoolWide, groupIDs)
-	return func(student *userModels.Student) bool {
+	return func(student *peopleValues.StudentState) bool {
 		return student != nil && reaches(student.GroupID)
 	}, nil
 }
 
 // Allows applies the same scope to a single decision.
-func (p *ParentRequestReviewPolicy) Allows(ctx context.Context, permissions []string, student *userModels.Student) (bool, error) {
+func (p *ParentRequestReviewPolicy) Allows(ctx context.Context, permissions []string, student *peopleValues.StudentState) (bool, error) {
 	filter, err := p.StudentFilter(ctx, permissions)
 	if err != nil {
 		return false, err

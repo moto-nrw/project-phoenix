@@ -117,7 +117,8 @@ func HasActiveClass(ctx context.Context, students StudentClassRecords, class str
 // StudentRosterEntry is a child together with the identity it renders under.
 // Every roster surface needs both, and both are this owner's rows.
 type StudentRosterEntry struct {
-	Record    StudentRecord `json:"student"`
+	Record    *StudentState `json:"student"`
+	GroupName string        `json:"group_name"`
 	FirstName string        `json:"first_name"`
 	LastName  string        `json:"last_name"`
 	TagID     *string       `json:"tag_id,omitempty"`

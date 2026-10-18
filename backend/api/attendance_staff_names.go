@@ -3,16 +3,17 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceNameStaff interface {
-	FindByID(context.Context, any) (*users.Staff, error)
+	FindByID(context.Context, any) (*peopleValues.Staff, error)
 }
 
 type attendanceNamePeople interface {
-	Get(context.Context, interface{}) (*users.Person, error)
+	Get(context.Context, interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
 }
 
 type attendanceStaffNames struct {

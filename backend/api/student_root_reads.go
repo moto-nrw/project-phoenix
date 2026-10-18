@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -35,10 +36,10 @@ type StudentRootReads struct {
 // studentRootRows are the retained student reads the root's roster and
 // activation reads take.
 type studentRootRows interface {
-	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*userModels.StudentWithGroupInfo, error)
-	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*userModels.Student, error)
-	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*userModels.Student, error)
-	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
+	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*peopleValues.StudentRosterEntry, error)
+	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*peopleValues.StudentState, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*peopleValues.StudentState, error)
+	TransitionStatus(ctx context.Context, studentID int64, expected, next string) (bool, error)
 }
 
 // NewStudentRootReads binds the root's student reads to the retained student
@@ -52,11 +53,11 @@ func NewStudentRootReads(students studentRootRows) StudentRootReads {
 			}
 			result := make([]StudentRosterRow, 0, len(rows))
 			for _, row := range rows {
-				if row == nil || row.Student == nil || row.Person == nil {
+				if row == nil || row.Record == nil || row.Record.Person == nil {
 					continue
 				}
 				result = append(result, StudentRosterRow{
-					StudentID: row.ID, FirstName: row.Person.FirstName, LastName: row.Person.LastName, SchoolClass: row.SchoolClass,
+					StudentID: row.Record.ID, FirstName: row.Record.Person.FirstName, LastName: row.Record.Person.LastName, SchoolClass: row.Record.SchoolClass,
 				})
 			}
 			return result, nil
@@ -68,12 +69,12 @@ func NewStudentRootReads(students studentRootRows) StudentRootReads {
 			return studentIDsOf(students.FindActiveDueForDeactivation(ctx, asOf))
 		},
 		TransitionStatus: func(ctx context.Context, studentID int64, expected, next string) (bool, error) {
-			return students.TransitionStatus(ctx, studentID, userModels.StudentStatus(expected), userModels.StudentStatus(next))
+			return students.TransitionStatus(ctx, studentID, string(expected), string(next))
 		},
 	}
 }
 
-func studentIDsOf(rows []*userModels.Student, err error) ([]int64, error) {
+func studentIDsOf(rows []*peopleValues.StudentState, err error) ([]int64, error) {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {

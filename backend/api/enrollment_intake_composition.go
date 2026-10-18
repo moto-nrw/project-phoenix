@@ -9,7 +9,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -62,7 +62,7 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 		Catalog: src.Catalog, Offerings: src.CareOfferingRepo, Bookings: src.Bookings, Capacity: src.Capacity,
 		Notifications: src.Notifications, Students: src.StudentRepo, GuardianAuthorizer: src.GuardianAuthorizer,
 		Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
-		CompanionLockBusy: userModels.ErrCompanionLockBusy, People: people,
+		CompanionLockBusy: peopledirectory.TranslateStudentWriteError(peopledirectory.ErrCompanionLockBusy), People: people,
 		GuardianInvitations: src.GuardianInvitations,
 		Settings:            intakeSettings(src.Settings), Outbox: src.OutboxEnqueuer,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,

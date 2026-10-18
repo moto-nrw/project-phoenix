@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	owner1 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
@@ -50,7 +51,7 @@ func NewStudentWrites(directory StudentWriteCapability, membership StudentEnroll
 // Create inserts the child and reflects the stored row — the assigned id, the
 // timestamps and the plan as persisted — back onto the caller's struct, which
 // is the contract the retained callers rely on.
-func (w *StudentWrites) Create(ctx context.Context, student *userModels.Student) error {
+func (w *StudentWrites) Create(ctx context.Context, student *peopleModule.StudentState) error {
 	if student == nil {
 		return errors.New("student cannot be nil")
 	}
@@ -62,7 +63,7 @@ func (w *StudentWrites) Create(ctx context.Context, student *userModels.Student)
 	return nil
 }
 
-func (w *StudentWrites) Update(ctx context.Context, student *userModels.Student) error {
+func (w *StudentWrites) Update(ctx context.Context, student *peopleModule.StudentState) error {
 	if student == nil {
 		return errors.New("student cannot be nil")
 	}
@@ -83,7 +84,7 @@ func (w *StudentWrites) Delete(ctx context.Context, id int64) error {
 // and care window. They take the same class-writes gate every other student
 // write does, because either can move a child into or out of a class a grade
 // transition is mid-way through.
-func (w *StudentWrites) SetEnrollmentStatus(ctx context.Context, studentID int64, status userModels.StudentStatus) error {
+func (w *StudentWrites) SetEnrollmentStatus(ctx context.Context, studentID int64, status string) error {
 	changed, err := w.membership.SetStatus(ctx, studentID, string(status))
 	if err == nil && !changed {
 		err = peopleModule.ErrStudentNotFound
@@ -94,20 +95,20 @@ func (w *StudentWrites) SetEnrollmentStatus(ctx context.Context, studentID int64
 func (w *StudentWrites) TransitionStatus(
 	ctx context.Context,
 	studentID int64,
-	expected, next userModels.StudentStatus,
+	expected, next string,
 ) (bool, error) {
 	moved, err := w.membership.TransitionStatus(ctx, studentID, string(expected), string(next))
 	return moved, application.RetainedStudentWriteError(err)
 }
 
-func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
+func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]owner1.Date, error) {
 	values, err := w.directory.ListStudentCareEnds(ctx, ids)
 	if err != nil {
 		return nil, application.RetainedStudentWriteError(err)
 	}
-	bounds := make(map[int64]userModels.CalendarDate, len(values))
+	bounds := make(map[int64]owner1.Date, len(values))
 	for id, value := range values {
-		if parsed := userModels.OptionalCalendarDate(value); parsed != nil {
+		if parsed := peopleModule.OptionalCalendarDate(value); parsed != nil {
 			bounds[id] = *parsed
 		}
 	}
@@ -137,7 +138,7 @@ type studentRepositoryWithOwnerWrites struct {
 func (r studentRepositoryWithOwnerWrites) FindByTeacherIDWithGroups(
 	ctx context.Context,
 	teacherID int64,
-) ([]*userModels.StudentWithGroupInfo, error) {
+) ([]*peopleModule.StudentRosterEntry, error) {
 	if r.teacherGroupIDs == nil {
 		return nil, errors.New("student repository resolves teacher assignments through School Membership")
 	}
@@ -146,17 +147,17 @@ func (r studentRepositoryWithOwnerWrites) FindByTeacherIDWithGroups(
 		return nil, err
 	}
 	if len(groupIDs) == 0 {
-		return []*userModels.StudentWithGroupInfo{}, nil
+		return []*peopleModule.StudentRosterEntry{}, nil
 	}
-	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, userModels.TodayCalendarDate())
+	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, owner1.TodayDate())
 }
 
 func (r studentRepositoryWithOwnerWrites) FindByTeacherStaffIDsWithGroups(
 	ctx context.Context,
 	staffIDs []int64,
-) ([]*userModels.StudentWithGroupInfo, error) {
+) ([]*peopleModule.StudentRosterEntry, error) {
 	if len(staffIDs) == 0 {
-		return []*userModels.StudentWithGroupInfo{}, nil
+		return []*peopleModule.StudentRosterEntry{}, nil
 	}
 	if r.teacherStaffGroupIDs == nil {
 		return nil, errors.New("student repository resolves teacher assignments through School Membership")
@@ -166,19 +167,19 @@ func (r studentRepositoryWithOwnerWrites) FindByTeacherStaffIDsWithGroups(
 		return nil, err
 	}
 	if len(groupIDs) == 0 {
-		return []*userModels.StudentWithGroupInfo{}, nil
+		return []*peopleModule.StudentRosterEntry{}, nil
 	}
-	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, userModels.TodayCalendarDate())
+	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, owner1.TodayDate())
 }
 
-func (r studentRepositoryWithOwnerWrites) FindAllWithGroups(ctx context.Context) ([]*userModels.StudentWithGroupInfo, error) {
-	return r.reads.FindAllWithGroups(ctx, userModels.TodayCalendarDate())
+func (r studentRepositoryWithOwnerWrites) FindAllWithGroups(ctx context.Context) ([]*peopleModule.StudentRosterEntry, error) {
+	return r.reads.FindAllWithGroups(ctx, owner1.TodayDate())
 }
 
 func (r studentRepositoryWithOwnerWrites) FindOverlappingWithGroups(
 	ctx context.Context,
-	from, to, today userModels.CalendarDate,
-) ([]*userModels.StudentWithGroupInfo, error) {
+	from, to, today owner1.Date,
+) ([]*peopleModule.StudentRosterEntry, error) {
 	return r.reads.FindOverlappingWithGroups(ctx, from, to, today)
 }
 
@@ -189,49 +190,49 @@ func (r studentRepositoryWithOwnerWrites) FindOverlappingWithGroupsOnDate(
 	ctx context.Context,
 	value string,
 	now time.Time,
-) ([]*userModels.StudentWithGroupInfo, error) {
-	date := userModels.OptionalCalendarDate(value)
+) ([]*peopleModule.StudentRosterEntry, error) {
+	date := peopleModule.OptionalCalendarDate(value)
 	if date == nil {
 		return nil, fmt.Errorf("find students overlapping date: %q is not a calendar date", value)
 	}
-	return r.reads.FindOverlappingWithGroups(ctx, *date, *date, userModels.CalendarDateOf(now))
+	return r.reads.FindOverlappingWithGroups(ctx, *date, *date, owner1.DateFromTime(now))
 }
 
 // The reads the owner now serves. Everything not listed falls through to the
 // retained repository, which still holds the group-info joins.
-func (r studentRepositoryWithOwnerWrites) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByID(ctx context.Context, id any) (*peopleModule.StudentState, error) {
 	return r.reads.FindByID(ctx, id)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByPersonID(ctx context.Context, personID int64) (*peopleModule.StudentState, error) {
 	return r.reads.FindByPersonID(ctx, personID)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	return r.reads.FindByIDs(ctx, ids)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	return r.reads.FindReadScopeByIDs(ctx, ids)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByGroupID(ctx context.Context, groupID int64) ([]*peopleModule.StudentState, error) {
 	return r.reads.FindByGroupID(ctx, groupID)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {
 	return r.reads.FindByGroupIDs(ctx, groupIDs)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf owner1.Date) ([]*peopleModule.StudentState, error) {
 	return r.reads.FindPendingDueForActivation(ctx, asOf)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindActiveDueForDeactivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindActiveDueForDeactivation(ctx context.Context, asOf owner1.Date) ([]*peopleModule.StudentState, error) {
 	return r.reads.FindActiveDueForDeactivation(ctx, asOf)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	return r.reads.FindByIDsForUpdate(ctx, ids)
 }
 
@@ -240,13 +241,13 @@ func (r studentRepositoryWithOwnerWrites) CountByGroupIDs(ctx context.Context, g
 }
 
 func (r studentRepositoryWithOwnerWrites) ExistsEnrolledByNameAndBirthday(
-	ctx context.Context, tenantID int64, firstName, lastName string, birthday userModels.CalendarDate,
+	ctx context.Context, tenantID int64, firstName, lastName string, birthday owner1.Date,
 ) (bool, error) {
 	return r.reads.ExistsEnrolledByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
 }
 
 func (r studentRepositoryWithOwnerWrites) FindEnrolledStudentIDByNameAndBirthday(
-	ctx context.Context, tenantID int64, firstName, lastName string, birthday userModels.CalendarDate,
+	ctx context.Context, tenantID int64, firstName, lastName string, birthday owner1.Date,
 ) (*int64, error) {
 	return r.reads.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
 }
@@ -255,11 +256,11 @@ func (r studentRepositoryWithOwnerWrites) ListSchoolClasses(ctx context.Context)
 	return r.reads.ListSchoolClasses(ctx)
 }
 
-func (r studentRepositoryWithOwnerWrites) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {
 	return r.reads.ListByGroupIDsIncludingAlumni(ctx, groupIDs)
 }
 
-func (r studentRepositoryWithOwnerWrites) ListClassRoster(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) ListClassRoster(ctx context.Context, schoolClass string) ([]*peopleModule.StudentState, error) {
 	return r.reads.ListClassRoster(ctx, schoolClass)
 }
 
@@ -267,15 +268,15 @@ func (r studentRepositoryWithOwnerWrites) CountEnrolled(ctx context.Context) (in
 	return r.reads.CountEnrolled(ctx)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (r studentRepositoryWithOwnerWrites) FindByIDForUpdate(ctx context.Context, id int64) (*peopleModule.StudentState, error) {
 	return r.reads.FindByIDForUpdate(ctx, id)
 }
 
-func (r studentRepositoryWithOwnerWrites) Create(ctx context.Context, student *userModels.Student) error {
+func (r studentRepositoryWithOwnerWrites) Create(ctx context.Context, student *peopleModule.StudentState) error {
 	return r.writes.Create(ctx, student)
 }
 
-func (r studentRepositoryWithOwnerWrites) Update(ctx context.Context, student *userModels.Student) error {
+func (r studentRepositoryWithOwnerWrites) Update(ctx context.Context, student *peopleModule.StudentState) error {
 	return r.writes.Update(ctx, student)
 }
 
@@ -311,19 +312,19 @@ func (r studentRepositoryWithOwnerWrites) VerifyCompanionStrandingBatch(ctx cont
 	return r.writes.VerifyCompanionStrandingBatch(ctx)
 }
 
-func (r studentRepositoryWithOwnerWrites) UpdateStatus(ctx context.Context, studentID int64, status userModels.StudentStatus) error {
+func (r studentRepositoryWithOwnerWrites) UpdateStatus(ctx context.Context, studentID int64, status string) error {
 	return r.writes.SetEnrollmentStatus(ctx, studentID, status)
 }
 
 func (r studentRepositoryWithOwnerWrites) TransitionStatus(
 	ctx context.Context,
 	studentID int64,
-	expected, next userModels.StudentStatus,
+	expected, next string,
 ) (bool, error) {
 	return r.writes.TransitionStatus(ctx, studentID, expected, next)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
+func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]owner1.Date, error) {
 	return r.writes.FindCareBoundsByIDs(ctx, ids)
 }
 

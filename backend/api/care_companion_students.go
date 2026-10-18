@@ -8,23 +8,23 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentChangeAudit appends the tracked-field history of a child row,
 // attributed to the acting account.
 type StudentChangeAudit interface {
-	RecordChangesForActor(ctx context.Context, before, after *users.Student, editedBy int64) error
+	RecordChangesForActor(ctx context.Context, before, after *peopledirectory.StudentState, editedBy int64) error
 }
 
 // companionStudentRows are the People Directory child rows the companion
 // graph locks, reads and updates.
 type companionStudentRows interface {
-	FindByID(ctx context.Context, id any) (*users.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
-	Update(ctx context.Context, student *users.Student) error
+	FindByID(ctx context.Context, id any) (*peopledirectory.StudentState, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
+	Update(ctx context.Context, student *peopledirectory.StudentState) error
 }
 
 // CompanionStudents serves the People Directory half of the Care Plan
@@ -50,11 +50,11 @@ func NewCompanionStudents(students companionStudentRows, people CompanionStudent
 	return CompanionStudents{students: students, people: people, writes: peopleCompose.NewAuditedStudentUpdates(students, audit)}
 }
 
-func companionStudent(row *users.Student) carePlanCompose.CompanionStudent {
+func companionStudent(row *peopledirectory.StudentState) carePlanCompose.CompanionStudent {
 	return carePlanCompose.CompanionStudent{
 		ID:               row.ID,
 		HasCompanionNote: peopledirectory.HasCompanionNote(row.DepartureCompanionNote),
-		AccompaniedDays:  users.AccompaniedWeekdays(row.AllowedDepartureModes, row.DepartureDays),
+		AccompaniedDays:  peopledirectory.AccompaniedWeekdays(row.AllowedDepartureModes, row.DepartureDays),
 	}
 }
 

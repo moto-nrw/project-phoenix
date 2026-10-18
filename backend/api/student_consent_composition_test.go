@@ -10,7 +10,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // The cases below pin the consent seam of this package (#3349): the
@@ -62,7 +61,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 		{Key: peopleModule.StudentConsentEmailContact, State: peopleModule.StudentConsentStateNotRecorded},
 		{Key: peopleModule.StudentConsentPhoto, State: peopleModule.StudentConsentStateWithdrawn, ChangedAt: &withdrawnAt, CanGrant: true},
 	}}
-	student := &userModels.Student{
+	student := &peopleModule.StudentState{
 		AGBAcceptedAt:            &grantedAt,
 		DataProcessingAcceptedAt: &grantedAt,
 	}
@@ -92,7 +91,7 @@ func TestStudentConsentsRejectUnpersistedStudent(t *testing.T) {
 	t.Parallel()
 
 	seam := NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
-	_, err := seam.CurrentStates(context.Background(), &userModels.Student{}, false)
+	_, err := seam.CurrentStates(context.Background(), &peopleModule.StudentState{}, false)
 	require.ErrorContains(t, err, "persisted student is required")
 	_, err = seam.CurrentStates(context.Background(), nil, false)
 	require.ErrorContains(t, err, "persisted student is required")
@@ -106,13 +105,13 @@ func TestStudentConsentsRecordOnlyBooleanStateTransitions(t *testing.T) {
 	oldTime := time.Date(2025, time.September, 1, 8, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	actor := int64(42)
-	before := &userModels.Student{
+	before := &peopleModule.StudentState{
 		AGBAcceptedAt:          &oldTime,
 		PhotoConsentGivenAt:    &oldTime,
 		EmailContactAcceptedAt: nil,
 	}
 	before.ID = 77
-	after := &userModels.Student{
+	after := &peopleModule.StudentState{
 		AGBAcceptedAt:            &newTime, // changed timestamp, same granted state
 		DataProcessingAcceptedAt: &oldTime,
 		PhotoConsentGivenAt:      nil,
@@ -144,7 +143,7 @@ func TestStudentConsentsRecordGrantedFieldsOnCreate(t *testing.T) {
 	trail := &stubStudentConsentTrail{}
 	recorder := NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	grantedAt := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
-	after := &userModels.Student{EmailContactAcceptedAt: &grantedAt}
+	after := &peopleModule.StudentState{EmailContactAcceptedAt: &grantedAt}
 	after.ID = 88
 
 	err := recorder.RecordTransitions(

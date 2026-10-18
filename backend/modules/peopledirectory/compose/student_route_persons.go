@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
@@ -28,9 +27,9 @@ func NewStudentRoutePersons(persons peoplePorts.PersonDirectory) StudentRoutePer
 
 // CreatePerson validates and inserts the person through the retained directory.
 func (p StudentRoutePersons) CreatePerson(ctx context.Context, input peopleModule.CreatePerson) (peopleModule.Person, error) {
-	person := &userModels.Person{
+	person := &peopleModule.DirectoryPersonSnapshot{
 		FirstName: input.FirstName, LastName: input.LastName,
-		Birthday: userModels.OptionalCalendarDate(input.Birthday),
+		Birthday: peopleModule.OptionalCalendarDate(input.Birthday),
 		TagID:    input.TagID, AccountID: input.AccountID,
 	}
 	if err := p.persons.Create(ctx, person); err != nil {
@@ -41,9 +40,9 @@ func (p StudentRoutePersons) CreatePerson(ctx context.Context, input peopleModul
 
 // UpdatePerson rewrites the person through the retained directory.
 func (p StudentRoutePersons) UpdatePerson(ctx context.Context, input peopleModule.UpdatePerson) (peopleModule.Person, error) {
-	person := &userModels.Person{
+	person := &peopleModule.DirectoryPersonSnapshot{
 		FirstName: input.FirstName, LastName: input.LastName,
-		Birthday: userModels.OptionalCalendarDate(input.Birthday),
+		Birthday: peopleModule.OptionalCalendarDate(input.Birthday),
 		TagID:    input.TagID, AccountID: input.AccountID,
 	}
 	person.ID = input.ID
@@ -105,26 +104,26 @@ func (p StudentRoutePersons) StaffIDForPerson(ctx context.Context, personID int6
 	return staff.ID, true, nil
 }
 
-func studentRoutePerson(person *userModels.Person) peopleModule.Person {
+func studentRoutePerson(person *peopleModule.DirectoryPersonSnapshot) peopleModule.Person {
 	return peopleModule.Person{
 		ID: person.ID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt, TenantID: person.TenantID,
 		FirstName: person.FirstName, LastName: person.LastName,
-		Birthday: userModels.RenderCalendarDate(person.Birthday),
+		Birthday: peopleModule.RenderCalendarDate(person.Birthday),
 		TagID:    person.TagID, AccountID: person.AccountID, DeletedAt: person.DeletedAt,
 	}
 }
 
 // studentRouteRecord projects a retained child row onto the owner's record,
 // the departure plan included.
-func studentRouteRecord(student *userModels.Student) peopleModule.StudentRecord {
+func studentRouteRecord(student *peopleModule.StudentState) peopleModule.StudentRecord {
 	return peopleModule.StudentRecord{
 		ID: student.ID, CreatedAt: student.CreatedAt, UpdatedAt: student.UpdatedAt, TenantID: student.TenantID,
 
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass,
 		GroupID: student.GroupID, Status: string(student.Status),
 
-		EnrolledFrom:  userModels.RenderCalendarDate(student.EnrolledFrom),
-		EnrolledUntil: userModels.RenderCalendarDate(student.EnrolledUntil),
+		EnrolledFrom:  peopleModule.RenderCalendarDate(student.EnrolledFrom),
+		EnrolledUntil: peopleModule.RenderCalendarDate(student.EnrolledUntil),
 
 		AddressStreet:     student.AddressStreet,
 		AddressCity:       student.AddressCity,

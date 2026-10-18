@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -14,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -68,7 +70,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, sourceOutcome.Child.CreatedStudentID)
 	studentID := *sourceOutcome.Child.CreatedStudentID
-	require.NoError(t, env.repos.Student.UpdateStatus(ctx, studentID, usersModels.StudentStatusInactive))
+	require.NoError(t, env.repos.Student.UpdateStatus(ctx, studentID, peopleValues.StudentStatusInactive))
 
 	rolloverRequest := validRolloverRequest(
 		env.rolloverTestEnv,
@@ -105,7 +107,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	student, err := env.repos.Student.FindByID(ctx, *targetOutcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	require.NotNil(t, student.EnrolledFrom)
-	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+	assert.Equal(t, peopleValues.StudentStatusPending, student.Status,
 		"scheduled approval after phase-driven inactivation must leave the future child pending")
 	assert.Equal(t, calendar.Date(rollover.Phase.ServiceStartDate), *student.EnrolledFrom,
 		"the real approval must replace the student's source enrollment window")
@@ -127,7 +129,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 
 type expiryDecisionStudents struct {
 	students interface {
-		List(context.Context, map[string]any) ([]*usersModels.Student, error)
+		List(context.Context, map[string]any) ([]*peopleValues.StudentState, error)
 	}
 }
 
@@ -146,7 +148,7 @@ func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enr
 	return result, nil
 }
 
-func toExpiryDecisionStudent(student *usersModels.Student) enrollmentOwner.PhaseExpiryStudent {
+func toExpiryDecisionStudent(student *peopleValues.StudentState) enrollmentOwner.PhaseExpiryStudent {
 	row := enrollmentOwner.PhaseExpiryStudent{
 		ID: student.ID, Status: string(student.Status),
 	}

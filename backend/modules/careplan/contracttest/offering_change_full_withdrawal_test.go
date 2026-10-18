@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -94,7 +94,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
-	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
-	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int
 	t.Helper()
 	pending, _, err := env.repos.CareWithdrawal.ListPending(
 		testpkg.Ctx(t),
-		userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1},
+		careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1},
 	)
 	require.NoError(t, err)
 	assert.Empty(t, pending)
@@ -181,7 +181,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	require.NoError(t, err)
 	require.NotNil(t, view.LastDecision)
 	assert.False(t, view.LastDecision.CompleteWithdrawal)
-	_, total, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
+	_, total, err := env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 1,
 	})
 	require.NoError(t, err)

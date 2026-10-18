@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,40 +42,18 @@ import (
 
 type fakeInstanceRepo struct {
 	findErr   error
-	instance  *scheduleModel.ActivityInstance
+	instance  *timetable.ScheduledInstance
 	findPanic any
 }
 
-func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*timetable.ScheduledInstance, error) {
 	if f.findPanic != nil {
 		panic(f.findPanic)
 	}
 	return f.instance, f.findErr
 }
 
-// Unused interface methods — panic keeps them from accidentally hiding a
-// regression that adds a new dependency to the service.
-func (f *fakeInstanceRepo) Create(context.Context, *scheduleModel.ActivityInstance) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Context, *scheduleModel.ActivityInstance) (bool, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) FindByID(context.Context, interface{}) (*scheduleModel.ActivityInstance, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) Update(context.Context, *scheduleModel.ActivityInstance) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) Delete(context.Context, interface{}) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) List(_ context.Context, options *ActivityInstanceQueryOptions) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActiveGroups(_ context.Context, groupIDs []int64) ([]*timetable.ScheduledInstance, error) {
 	if f.findPanic != nil {
 		panic(f.findPanic)
 	}
@@ -81,37 +61,10 @@ func (f *fakeInstanceRepo) List(_ context.Context, options *ActivityInstanceQuer
 		return nil, f.findErr
 	}
 	instance := *f.instance
-	if instance.ActiveGroupID == nil && options != nil && options.Filter != nil {
-		for _, condition := range options.Filter.Conditions() {
-			values, ok := condition.Value.([]interface{})
-			if condition.Field == "active_group_id" && ok && len(values) > 0 {
-				if activeGroupID, ok := values[0].(int64); ok {
-					instance.ActiveGroupID = &activeGroupID
-				}
-			}
-		}
+	if instance.ActiveGroupID == nil && len(groupIDs) > 0 {
+		instance.ActiveGroupID = &groupIDs[0]
 	}
-	return []*scheduleModel.ActivityInstance{&instance}, nil
-}
-
-func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
-	panic("unused")
+	return []*timetable.ScheduledInstance{&instance}, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -120,18 +73,18 @@ func (f *fakeInstanceRepo) MarkCompleted(context.Context, int64, time.Time) erro
 // -----------------------------------------------------------------------------
 
 type fakeInstanceStudentRepo struct {
-	findRow        *scheduleModel.InstanceStudent
+	findRow        *timetable.ScheduledParticipant
 	findErr        error
 	updateResult   bool
 	updateErr      error
 	updateCalls    int
-	unplannedRow   *scheduleModel.InstanceStudent
+	unplannedRow   *timetable.ScheduledParticipant
 	unplannedErr   error
 	unplannedCalls int
-	candidates     []*scheduleModel.InstanceStudent
+	candidates     []*timetable.ScheduledParticipant
 	candidateErr   error
 	candidatePanic any
-	dateRows       []*scheduleModel.InstanceStudent
+	dateRows       []*timetable.ScheduledParticipant
 	dateErr        error
 	datePanic      any
 	checkoutErr    error
@@ -145,36 +98,36 @@ type fakeInstanceStudentRepo struct {
 	updatedOut     *time.Time
 
 	checkinBatchCalls  int
-	checkinBatchKeys   []scheduleModel.InstanceStudentKey
+	checkinBatchKeys   []timetable.InstanceStudentKey
 	checkoutBatchCalls int
-	checkoutBatchKeys  []scheduleModel.InstanceStudentKey
+	checkoutBatchKeys  []timetable.InstanceStudentKey
 }
 
-func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _, _ int64) (*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _, _ int64) (*timetable.ScheduledParticipant, error) {
 	return f.findRow, f.findErr
 }
 
-func (f *fakeInstanceStudentRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, scheduleModel.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, calendar.Date, time.Time) ([]*timetable.ScheduledParticipant, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)
 	}
 	return f.candidates, f.candidateErr
 }
 
-func (f *fakeInstanceStudentRepo) FindByStudentIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentIDsAndDate(context.Context, []int64, calendar.Date) ([]*timetable.ScheduledParticipant, error) {
 	if f.datePanic != nil {
 		panic(f.datePanic)
 	}
 	return f.dateRows, f.dateErr
 }
 
-func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckinBatch(_ context.Context, keys []scheduleModel.InstanceStudentKey, _ time.Time) error {
+func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckinBatch(_ context.Context, keys []timetable.InstanceStudentKey, _ time.Time) error {
 	f.checkinBatchCalls++
 	f.checkinBatchKeys = append(f.checkinBatchKeys, keys...)
 	return f.updateErr
 }
 
-func (f *fakeInstanceStudentRepo) UpdateAttendanceCheckoutBatch(_ context.Context, keys []scheduleModel.InstanceStudentKey, _ time.Time) error {
+func (f *fakeInstanceStudentRepo) UpdateAttendanceCheckoutBatch(_ context.Context, keys []timetable.InstanceStudentKey, _ time.Time) error {
 	f.checkoutBatchCalls++
 	f.checkoutBatchKeys = append(f.checkoutBatchKeys, keys...)
 	return f.checkoutErr
@@ -185,7 +138,7 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckin(_ context.Context,
 	return f.updateResult, f.updateErr
 }
 
-func (f *fakeInstanceStudentRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*timetable.ScheduledParticipant, error) {
 	f.unplannedCalls++
 	return f.unplannedRow, f.unplannedErr
 }
@@ -212,122 +165,18 @@ func (f *fakeInstanceStudentRepo) ReconcileAttendanceInterval(
 	return f.reconcileErr == nil, f.reconcileErr
 }
 
-func (f *fakeInstanceStudentRepo) FindPresentInOtherActiveInstances(context.Context, int64, scheduleModel.Date, []int64) ([]scheduleModel.ParallelPresence, error) {
-	return nil, nil
-}
-
-func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, scheduleModel.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, calendar.Date, time.Time) ([]*timetable.ScheduledParticipant, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)
 	}
 	return f.candidates, f.candidateErr
 }
 
-func (f *fakeInstanceStudentRepo) ApplyStatusDay(context.Context, int64, scheduleModel.Date, int64, string) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, scheduleModel.Date) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, scheduleModel.Date) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) Create(context.Context, *scheduleModel.InstanceStudent) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindByID(context.Context, interface{}) (*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) Update(context.Context, *scheduleModel.InstanceStudent) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) Delete(context.Context, interface{}) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) List(context.Context, *ActivityInstanceQueryOptions) ([]*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindByInstanceID(context.Context, int64) ([]*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*timetable.ScheduledParticipant, error) {
 	if f.datePanic != nil {
 		panic(f.datePanic)
 	}
 	return f.dateRows, f.dateErr
-}
-
-func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, scheduleModel.Date) ([]int64, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, scheduleModel.Date, time.Time) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, scheduleModel.Date) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64, scheduleModel.AttendanceFieldPatch) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) MarkNotScheduled(context.Context, []scheduleModel.StudentInstanceRef) error {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
-	panic("unused")
-}
-
-func (f *fakeInstanceStudentRepo) HasPlannedSlotsInRange(context.Context, scheduleModel.Date, scheduleModel.Date) (bool, error) {
-	panic("unused")
 }
 
 // -----------------------------------------------------------------------------
@@ -343,7 +192,7 @@ func newSilentLogger() (*slog.Logger, *bytes.Buffer) {
 // newUnitSyncer builds the Timetable owner's attendance mirror over the fakes.
 func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) timetable.AttendanceMirror {
 	logger, _ := newSilentLogger()
-	syncer, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{Instances: instRepo, Participants: isRepo, Logger: logger, ReportPanic: ignoreMirrorPanic})
+	syncer, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{Instances: mirrorInstanceCallbacks(instRepo), Participants: mirrorParticipantCallbacks(isRepo), Logger: logger, ReportPanic: ignoreMirrorPanic})
 	if err != nil {
 		panic(err)
 	}
@@ -358,14 +207,14 @@ func validVisit() timetable.AttendanceVisit {
 	}
 }
 
-func instanceWithID(id int64) *scheduleModel.ActivityInstance {
-	inst := &scheduleModel.ActivityInstance{}
+func instanceWithID(id int64) *timetable.ScheduledInstance {
+	inst := &timetable.ScheduledInstance{}
 	inst.ID = id
 	return inst
 }
 
-func expectedRow(id int64) *scheduleModel.InstanceStudent {
-	row := &scheduleModel.InstanceStudent{
+func expectedRow(id int64) *timetable.ScheduledParticipant {
+	row := &timetable.ScheduledParticipant{
 		InstanceID: 42,
 		StudentID:  100,
 		Status:     scheduleModel.AttendanceStatusExpected,
@@ -439,7 +288,7 @@ func TestMirrorCheckIn_B5_NoInstanceStudentRow(t *testing.T) {
 	t.Parallel()
 
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
-	isRepo := &fakeInstanceStudentRepo{findRow: nil, unplannedRow: &scheduleModel.InstanceStudent{
+	isRepo := &fakeInstanceStudentRepo{findRow: nil, unplannedRow: &timetable.ScheduledParticipant{
 		InstanceID: 7, StudentID: validVisit().StudentID,
 		Status: scheduleModel.AttendanceStatusPresent, IsUnplanned: true,
 	}}
@@ -521,7 +370,7 @@ func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
 
 	row := expectedRow(11)
 	row.InstanceID = 77
-	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+	isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{row}, updateResult: true}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
 	snapshot, err := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
@@ -543,7 +392,7 @@ func TestMirrorCheckInAt_ReopensCheckedOutPresentRow(t *testing.T) {
 	row.Status = scheduleModel.AttendanceStatusPresent
 	row.CheckedInAt = &checkedIn
 	row.CheckedOutAt = &checkedOut
-	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+	isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{row}, updateResult: true}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
 	reentry := time.Now()
@@ -562,7 +411,7 @@ func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
 
 	first := expectedRow(12)
 	second := expectedRow(13)
-	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{first, second}}
+	isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{first, second}}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
 	snapshot, err := syncer.MirrorCheckInAt(context.Background(), first.StudentID, time.Now())
@@ -584,7 +433,7 @@ func TestMirrorCheckInAt_HandlesLookupAndUpdateFailures(t *testing.T) {
 	t.Run("update error", func(t *testing.T) {
 		row := expectedRow(14)
 		syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{
-			candidates: []*scheduleModel.InstanceStudent{row},
+			candidates: []*timetable.ScheduledParticipant{row},
 			updateErr:  errors.New("update failed"),
 		})
 		snapshot, err := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
@@ -608,7 +457,7 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 	t.Run("manual status", func(t *testing.T) {
 		row := expectedRow(15)
 		row.Status = scheduleModel.AttendanceStatusAbsent
-		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}}
+		isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{row}}
 		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
 		require.NoError(t, err)
 
@@ -624,7 +473,7 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		row.Status = scheduleModel.AttendanceStatusAbsent
 		row.Substatus = &sick
 		row.StudentStatusDayID = &statusDayID
-		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+		isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{row}, updateResult: true}
 		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
 		require.NoError(t, err)
 
@@ -640,7 +489,7 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		row.Status = scheduleModel.AttendanceStatusAbsent
 		row.Substatus = &excused
 		row.PickupExceptionID = &exceptionID
-		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+		isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{row}, updateResult: true}
 		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
 		require.NoError(t, err)
 
@@ -874,14 +723,14 @@ func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
 	visit := validVisit()
 	visit.ExitTime = &exit
 
-	tests := map[string]*scheduleModel.InstanceStudent{
+	tests := map[string]*timetable.ScheduledParticipant{
 		"expected": expectedRow(7),
-		"present without checkin": func() *scheduleModel.InstanceStudent {
+		"present without checkin": func() *timetable.ScheduledParticipant {
 			row := expectedRow(8)
 			row.Status = scheduleModel.AttendanceStatusPresent
 			return row
 		}(),
-		"checkout before checkin": func() *scheduleModel.InstanceStudent {
+		"checkout before checkin": func() *timetable.ScheduledParticipant {
 			row := expectedRow(9)
 			checkedIn := exit.Add(time.Minute)
 			row.Status = scheduleModel.AttendanceStatusPresent
@@ -946,7 +795,7 @@ func TestMirrorCheckOutAt_ClosesLatestOpenSlot(t *testing.T) {
 	open.InstanceID = 88
 	open.Status = scheduleModel.AttendanceStatusPresent
 	open.CheckedInAt = &checkedIn
-	isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{closed, open}}
+	isRepo := &fakeInstanceStudentRepo{dateRows: []*timetable.ScheduledParticipant{closed, open}}
 
 	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), open.StudentID, time.Now()))
 
@@ -1044,7 +893,7 @@ func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {
 		row := expectedRow(22)
 		row.Status = scheduleModel.AttendanceStatusPresent
 		row.CheckedInAt = &checkedIn
-		isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{row}, checkoutErr: errors.New("update failed")}
+		isRepo := &fakeInstanceStudentRepo{dateRows: []*timetable.ScheduledParticipant{row}, checkoutErr: errors.New("update failed")}
 		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), row.StudentID, time.Now()))
 		assert.Equal(t, 1, isRepo.checkoutCalls)
 	})
@@ -1067,8 +916,8 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 	// When a nil logger is passed, the service must fall back to slog.Default()
 	// and still execute end-to-end without panicking.
 	svc, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{
-		Instances:    &fakeInstanceRepo{instance: nil},
-		Participants: &fakeInstanceStudentRepo{},
+		Instances:    mirrorInstanceCallbacks(&fakeInstanceRepo{instance: nil}),
+		Participants: mirrorParticipantCallbacks(&fakeInstanceStudentRepo{}),
 		ReportPanic:  ignoreMirrorPanic,
 	})
 	require.NoError(t, err)
@@ -1080,60 +929,6 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, snapshot)
 	})
-}
-
-// Stubs for the issue #585 cleanup refactor interface additions — unused by
-// the attendance-sync tests.
-func (f *fakeInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceRepo) CountWithOptions(context.Context, *ActivityInstanceQueryOptions) (int, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *scheduleModel.Date) (*scheduleModel.Date, error) {
-	return nil, nil
-}
-
-func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, scheduleModel.Date) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []scheduleModel.StudentInstanceRef) error {
-	return nil
-}
-
-func (f *fakeInstanceStudentRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, scheduleModel.Date) ([]scheduleModel.StudentInstanceRef, error) {
-	return nil, nil
-}
-
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, scheduleModel.Date, *scheduleModel.Date, *int64, bool) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
-	return nil, nil
-}
-
-func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
-	return nil, nil
-}
-
-func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
-	return 0, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -1167,14 +962,14 @@ func TestMirrorCheckInAtBatch_AssignsOnlyUniqueUnpreservedSlots(t *testing.T) {
 	preserved.CheckedInAt = &checkedIn
 
 	isRepo := &fakeInstanceStudentRepo{
-		candidates: []*scheduleModel.InstanceStudent{unique, ambiguousA, ambiguousB, preserved},
+		candidates: []*timetable.ScheduledParticipant{unique, ambiguousA, ambiguousB, preserved},
 	}
 
 	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100, 200, 300}, at))
 
 	require.Equal(t, 1, isRepo.checkinBatchCalls)
 	require.Len(t, isRepo.checkinBatchKeys, 1)
-	assert.Equal(t, scheduleModel.InstanceStudentKey{InstanceID: 71, StudentID: 100}, isRepo.checkinBatchKeys[0])
+	assert.Equal(t, timetable.InstanceStudentKey{InstanceID: 71, StudentID: 100}, isRepo.checkinBatchKeys[0])
 }
 
 func TestMirrorCheckInAtBatch_PropagatesLookupFailureAndPanic(t *testing.T) {
@@ -1222,13 +1017,13 @@ func TestMirrorCheckOutAtBatch_ClosesLatestOpenSlotPerStudent(t *testing.T) {
 	otherOpen.CheckedInAt = &checkedIn
 
 	isRepo := &fakeInstanceStudentRepo{
-		dateRows: []*scheduleModel.InstanceStudent{closed, earlyOpen, lateOpen, otherOpen},
+		dateRows: []*timetable.ScheduledParticipant{closed, earlyOpen, lateOpen, otherOpen},
 	}
 
 	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100, 200}, time.Now()))
 
 	require.Equal(t, 1, isRepo.checkoutBatchCalls)
-	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
+	assert.ElementsMatch(t, []timetable.InstanceStudentKey{
 		{InstanceID: 89, StudentID: 100},
 		{InstanceID: 90, StudentID: 200},
 	}, isRepo.checkoutBatchKeys)
@@ -1251,7 +1046,7 @@ func TestMirrorCheckOutForVisits_ResolvesInstancePerGroupAndSkipsWalkIns(t *test
 	require.NoError(t, syncer.MirrorCheckOutForVisits(context.Background(), []timetable.AttendanceVisit{visitA, visitB, walkIn}, at))
 
 	require.Equal(t, 1, isRepo.checkoutBatchCalls)
-	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
+	assert.ElementsMatch(t, []timetable.InstanceStudentKey{
 		{InstanceID: 7, StudentID: 100},
 		{InstanceID: 7, StudentID: 200},
 	}, isRepo.checkoutBatchKeys)
@@ -1287,7 +1082,7 @@ func TestMirrorCheckInAtBatch_AllPreservedSkipsUpdate(t *testing.T) {
 	preserved.Status = scheduleModel.AttendanceStatusPresent
 	preserved.CheckedInAt = &checkedIn
 
-	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{preserved}}
+	isRepo := &fakeInstanceStudentRepo{candidates: []*timetable.ScheduledParticipant{preserved}}
 	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, at))
 
 	assert.Zero(t, isRepo.checkinBatchCalls)
@@ -1300,7 +1095,7 @@ func TestMirrorCheckInAtBatch_UpdateErrorReturned(t *testing.T) {
 	row := expectedRow(51)
 	row.InstanceID = 75
 	isRepo := &fakeInstanceStudentRepo{
-		candidates: []*scheduleModel.InstanceStudent{row},
+		candidates: []*timetable.ScheduledParticipant{row},
 		updateErr:  errors.New("update failed"),
 	}
 	require.NotPanics(t, func() {
@@ -1329,7 +1124,7 @@ func TestMirrorCheckOutAtBatch_NoOpenRowsSkipsUpdate(t *testing.T) {
 	closed.CheckedOutAt = &checkedIn
 	neverIn := expectedRow(53)
 
-	isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{closed, neverIn}}
+	isRepo := &fakeInstanceStudentRepo{dateRows: []*timetable.ScheduledParticipant{closed, neverIn}}
 	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now()))
 
 	assert.Zero(t, isRepo.checkoutBatchCalls)
@@ -1350,7 +1145,7 @@ func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
 		row.Status = scheduleModel.AttendanceStatusPresent
 		row.CheckedInAt = &checkedIn
 		isRepo := &fakeInstanceStudentRepo{
-			dateRows:    []*scheduleModel.InstanceStudent{row},
+			dateRows:    []*timetable.ScheduledParticipant{row},
 			checkoutErr: errors.New("update failed"),
 		}
 		require.NotPanics(t, func() {
@@ -1411,3 +1206,11 @@ func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
 
 // ignoreMirrorPanic stands in for the Sentry report the composition binds.
 func ignoreMirrorPanic(context.Context, any) {}
+
+func mirrorInstanceCallbacks(rows *fakeInstanceRepo) *ports.MirrorInstances {
+	return &ports.MirrorInstances{FindByActiveGroupID: rows.FindByActiveGroupID, FindByActiveGroups: rows.FindByActiveGroups}
+}
+func mirrorParticipantCallbacks(rows *fakeInstanceStudentRepo) *ports.MirrorParticipants {
+	return &ports.MirrorParticipants{
+		FindByInstanceAndStudent: rows.FindByInstanceAndStudent, FindCurrentCandidates: rows.FindCurrentCandidates, FindCurrentCandidatesByStudentIDs: rows.FindCurrentCandidatesByStudentIDs, FindByStudentAndDateRange: rows.FindByStudentAndDateRange, FindByStudentIDsAndDate: rows.FindByStudentIDsAndDate, CreateUnplannedPresentIfAbsent: rows.CreateUnplannedPresentIfAbsent, UpdateAttendanceFromCheckin: rows.UpdateAttendanceFromCheckin, UpdateAttendanceFromCheckinBatch: rows.UpdateAttendanceFromCheckinBatch, UpdateAttendanceCheckout: rows.UpdateAttendanceCheckout, UpdateAttendanceCheckoutBatch: rows.UpdateAttendanceCheckoutBatch, ReconcileAttendanceInterval: rows.ReconcileAttendanceInterval}
+}

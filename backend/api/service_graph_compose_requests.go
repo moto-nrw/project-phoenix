@@ -114,7 +114,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 		CaregiverBindingLock: people.CaregiverBindingLock, TeacherRepo: people.Teachers, GroupTeacherRepo: people.GroupTeachers,
 		GroupSubstitutionRepo:  b.groupSubstitutions,
 		GroupSupervisorRepo:    people.SupervisionBlockers(b.groupSupervisions),
-		ActivitySupervisorRepo: arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: repos.ActivitySupervisor},
+		ActivitySupervisorRepo: CaregiverPlannedSupervisionBlockers{Supervisors: b.Timetable},
 		RoleAssignments:        b.identityAccess,
 	})
 	// Terminvertretungen move Betreuungsplan staffing across the Workforce

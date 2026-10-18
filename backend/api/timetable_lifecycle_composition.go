@@ -34,7 +34,7 @@ func NewTimetableLifecycle(in TimetableLifecycleInputs) (timetablePorts.Instance
 	deps.InstanceRepo, deps.InstanceStaffRepo, deps.InstanceStudents = in.Rows.Instances, in.Rows.InstanceStaff, in.Rows.Participants
 	deps.RecoveryRepo, deps.ActivityGroupRepo, deps.StudentRepo = in.Rows.Locks, in.Rows.Templates, NewTimetableLifecycleStudents(in.Rows.Students)
 	deps.StaffRepo, deps.ActiveGroupRepo, deps.SupervisorRepo = in.Staff, in.Sessions, in.Supervisions
-	deps.Presence, deps.ActiveService, deps.Rooms = in.Presence, in.SessionEnder, in.Rows.LifecycleRooms()
+	deps.Presence, deps.ActiveService, deps.Rooms = in.Presence, in.SessionEnder, in.Rows.Rooms
 	deps.CareDays, deps.CareDayLocks = newTimetableCareDays(in.CareDays), in.CareDayLocks
 	deps.Protocol = in.Rows.Deviations
 	deps.GuardianNotices = newTimetableGuardianNotices(in.GuardianNotices)

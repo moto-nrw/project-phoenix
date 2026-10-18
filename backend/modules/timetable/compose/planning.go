@@ -28,7 +28,7 @@ func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycl
 		InstanceRepo:      rows.Instances,
 		InstanceStaffRepo: rows.InstanceStaff,
 		Lifecycle:         lifecycle,
-		Rooms:             rows.LifecycleRooms(),
+		Rooms:             rows.Rooms,
 		Conflicts:         conflicts,
 		Logger:            logger,
 	})

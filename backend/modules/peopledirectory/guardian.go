@@ -292,6 +292,10 @@ type GuardianPaymentActor struct {
 // GuardianPayment is the bank section of one guardian: masked after the
 // default read, unmasked after the audited reveal.
 type GuardianPayment struct {
+	ID                int64
+	TenantID          int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 	GuardianProfileID int64
 	IBAN              *string
 	AccountHolder     *string

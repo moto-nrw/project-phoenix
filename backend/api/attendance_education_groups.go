@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -15,8 +15,8 @@ type attendanceEducationGroups struct {
 }
 
 type attendanceGroupStudents interface {
-	FindByID(context.Context, any) (*users.Student, error)
-	FindByIDs(context.Context, []int64) (map[int64]*users.Student, error)
+	FindByID(context.Context, any) (*peopleValues.StudentState, error)
+	FindByIDs(context.Context, []int64) (map[int64]*peopleValues.StudentState, error)
 }
 
 func (r attendanceEducationGroups) StudentGroupID(ctx context.Context, id int64) (*int64, error) {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -54,7 +56,7 @@ type GuardianRelationshipRepository struct {
 	// defaultRole gives a new relationship that names neither a role nor
 	// permissions the preset its type and flags imply. The authorization
 	// policy owns the presets, so the composition binds it.
-	defaultRole func(*users.StudentGuardian)
+	defaultRole func(*directory.GuardianRelationshipSnapshot)
 }
 
 // GuardianRelationshipOption configures a GuardianRelationshipRepository at
@@ -78,13 +80,13 @@ func WithGuardianRelationshipOwners(pickup GuardianPickupPermissionCommand, acce
 
 // WithGuardianDefaultRole installs the authorization policy's default role
 // preset a link without a role or permissions is written with.
-func WithGuardianDefaultRole(apply func(*users.StudentGuardian)) GuardianRelationshipOption {
+func WithGuardianDefaultRole(apply func(*directory.GuardianRelationshipSnapshot)) GuardianRelationshipOption {
 	return func(r *GuardianRelationshipRepository) { r.defaultRole = apply }
 }
 
-// NewGuardianRelationshipRepository creates the relationship store. Reads work
+// newRawGuardianRelationshipRepository creates the relationship store. Reads work
 // without the owner commands; a write fails closed until they are bound.
-func NewGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) ports.StudentGuardianRepository {
+func newRawGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) rawStudentGuardianRepository {
 	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students), links: requireGuardianLinkRows(links)}
 	for _, option := range options {
 		option(repository)
@@ -318,7 +320,13 @@ func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, re
 		if r.defaultRole == nil {
 			return false, errGuardianDefaultRoleUnbound
 		}
-		r.defaultRole(rel)
+		native := NativeGuardianRelationshipValue(rel)
+		r.defaultRole(native)
+		mapped, err := GuardianRelationshipRow(native)
+		if err != nil {
+			return false, err
+		}
+		*rel = *mapped
 	}
 	if err := rel.Validate(); err != nil {
 		return false, err

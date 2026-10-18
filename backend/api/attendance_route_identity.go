@@ -3,15 +3,15 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 type attendanceRoutePeopleSource interface {
-	FindByAccountID(context.Context, int64) (*users.Person, error)
-	GetStaffByPersonID(context.Context, int64) (*users.Staff, error)
-	GetStudentByPersonID(context.Context, int64) (*users.Student, error)
-	GetTeacherByStaffID(context.Context, int64) (*users.Teacher, error)
-	GetStudentByID(context.Context, int64) (*users.Student, error)
+	FindByAccountID(context.Context, int64) (*peopleValues.DirectoryPersonSnapshot, error)
+	GetStaffByPersonID(context.Context, int64) (*peopleValues.Staff, error)
+	GetStudentByPersonID(context.Context, int64) (*peopleValues.StudentState, error)
+	GetTeacherByStaffID(context.Context, int64) (*peopleValues.Teacher, error)
+	GetStudentByID(context.Context, int64) (*peopleValues.StudentState, error)
 }
 
 type AttendanceRoutePeople struct{ source attendanceRoutePeopleSource }

@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,10 +23,10 @@ type failingCareWithdrawalReconciler struct{}
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo userModels.CareWithdrawalCompletionRepository,
+	repo api.CareWithdrawalRecords,
 	studentID int64,
-) (*userModels.CareWithdrawalCompletion, error) {
-	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+) (*careplan.WithdrawalCompletion, error) {
+	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (f *completeWithdrawalFixture) assertTaskFailureRollsBack() {
 	assert.Equal(f.t, f.careID, links[0].CareOfferingID)
 }
 
-func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdrawalCompletion {
+func (f *completeWithdrawalFixture) completeWithdrawal() *careplan.WithdrawalCompletion {
 	input := f.withoutCareInput()
 	input.CompleteWithdrawalConfirmed = true
 	require.NoError(f.t, f.apply(f.env.decision, input))
@@ -158,9 +158,9 @@ func (f *completeWithdrawalFixture) assertCompletionAudit() {
 	assert.True(f.t, rows[0].CompleteWithdrawalConfirmed)
 }
 
-func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userModels.CareWithdrawalCompletion) {
+func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *careplan.WithdrawalCompletion) {
 	lifecycle := newWithdrawalLifecycle(f.env)
-	input := careplan.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
+	input := careplan.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: careplan.CareExitReasonNoCareNeed}
 	preview, err := lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, input)
 	require.NoError(f.t, err)
 	require.Len(f.t, preview.Students, 1)
@@ -327,7 +327,7 @@ func (f *withdrawalRaceFixture) applyInTenantTx() error {
 }
 
 func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
-	*userModels.CareWithdrawalCompletion, *careplan.CareExitPreview, careplan.CareExitInput,
+	*careplan.WithdrawalCompletion, *careplan.CareExitPreview, careplan.CareExitInput,
 ) {
 	require.NoError(f.t, f.applyInTenantTx())
 	f.input.Offerings = nil
@@ -337,7 +337,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
 	exitInput := careplan.CareExitInput{
-		LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
+		LastCareDay: decisionTestToday.AddDays(-1), Reason: careplan.CareExitReasonNoCareNeed,
 	}
 	preview, err := f.lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, exitInput)
 	require.NoError(f.t, err)
@@ -345,7 +345,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 }
 
 func (f *withdrawalRaceFixture) runRebookingRace(
-	pending *userModels.CareWithdrawalCompletion, preview *careplan.CareExitPreview, input careplan.CareExitInput,
+	pending *careplan.WithdrawalCompletion, preview *careplan.CareExitPreview, input careplan.CareExitInput,
 ) {
 	confirmErr := make(chan error, 1)
 	err := testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {

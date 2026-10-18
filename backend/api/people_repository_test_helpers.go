@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -50,7 +50,7 @@ type PeopleRepositorySuiteFactory struct {
 	timetableCompose.SchoolCalendarRepositories
 	ParentPortalRepositories
 	GuardianPhoneNumber   peoplePorts.GuardianPhoneNumberRepository
-	GuardianFinancialData usersModels.GuardianFinancialDataRepository
+	GuardianFinancialData peoplePorts.GuardianFinancialDataRepository
 	FamilyProtection      peoplePorts.FamilyProtectionRecords
 	ParentRequestShare    peoplePorts.ParentRequestShareRecords
 	ParentRequestEvent    peoplePorts.ParentRequestEventRecords
@@ -61,8 +61,8 @@ type PeopleRepositorySuiteFactory struct {
 	RFIDCard identityaccess.RFIDCards
 	Profile  identityaccess.AccountProfiles
 
-	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
-	StudentDataChangeRequest peoplePorts.StudentDataChangeRequestRepository
+	CareWithdrawal           CareWithdrawalRecords
+	StudentDataChangeRequest studentDataRequestRepository
 	StudentStatusDay         *StudentStatusDayRepository
 	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
@@ -208,17 +208,17 @@ func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Databa
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
-func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) peoplePorts.StudentCompanionRepository {
+func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) CompanionRepository {
 	return NewStudentCompanionRepository(capability)
 }
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.
-func NewPeopleRepositorySuiteCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
+func NewPeopleRepositorySuiteCompanionEdge(studentID, companionID int64, weekday int) (*careplan.CompanionEdge, error) {
 	return NewStudentCompanionEdge(studentID, companionID, weekday)
 }
 
 // ReplacePeopleRepositorySuiteCompanions replaces a child's companion edges.
-func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links peoplePorts.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
+func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links CompanionRepository, studentID int64, edges []*careplan.CompanionEdge) error {
 	return ReplaceStudentCompanions(ctx, links, studentID, edges)
 }
 
@@ -264,7 +264,7 @@ func PeopleRepositorySuiteWithOwners(pickup peopleCompose.RetainedGuardianPickup
 
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
 func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelationshipOption {
-	return peopleCompose.RetainedWithGuardianDefaultRole(func(link *usersModels.StudentGuardian) {
+	return peopleCompose.RetainedWithGuardianDefaultRole(func(link *peopledirectory.GuardianRelationshipSnapshot) {
 		peopleCompose.ApplyDefaultGuardianRole(guardianRolePresets, link)
 	})
 }

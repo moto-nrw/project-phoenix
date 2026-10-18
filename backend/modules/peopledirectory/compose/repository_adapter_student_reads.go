@@ -3,10 +3,9 @@ package compose
 import (
 	"context"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
+	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -40,7 +39,7 @@ func NewStudentReads(directory StudentReadCapability) *StudentReads {
 	return &StudentReads{directory: directory}
 }
 
-func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
+func (r *StudentReads) FindByID(ctx context.Context, id any) (*peopleModule.StudentState, error) {
 	studentID, ok := studentIDOf(id)
 	if !ok {
 		return nil, peoplePorts.MissingStudentError("find by id")
@@ -49,10 +48,10 @@ func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Studen
 	if err != nil {
 		return nil, application.RetainedStudentReadError("find by id", err)
 	}
-	return usersRepo.RetainedStudentModel(record), nil
+	return peopleModule.StudentStateFromRecord(record), nil
 }
 
-func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*peopleModule.StudentState, error) {
 	records, err := r.directory.ListStudentRecordsByPerson(ctx, []int64{personID})
 	if err != nil {
 		return nil, application.RetainedStudentReadError("find by person id", err)
@@ -60,10 +59,10 @@ func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*use
 	if len(records) == 0 {
 		return nil, peoplePorts.MissingStudentError("find by person id")
 	}
-	return usersRepo.RetainedStudentModel(records[0]), nil
+	return peopleModule.StudentStateFromRecord(records[0]), nil
 }
 
-func (r *StudentReads) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r *StudentReads) FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	records, err := r.directory.ListStudentRecordsByID(ctx, ids)
 	if err != nil {
 		return nil, application.RetainedStudentReadError("find by ids", err)
@@ -74,11 +73,11 @@ func (r *StudentReads) FindByIDs(ctx context.Context, ids []int64) (map[int64]*u
 // FindReadScopeByIDs answers only what an access decision needs: the child's
 // group, identity and class. It reads the same rows as FindByIDs; the narrower
 // name is the contract with its callers, not a different query.
-func (r *StudentReads) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r *StudentReads) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	return r.FindByIDs(ctx, ids)
 }
 
-func (r *StudentReads) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+func (r *StudentReads) FindByGroupID(ctx context.Context, groupID int64) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "find by group id", func() ([]peopleModule.StudentRecord, error) {
 		return r.directory.ListStudentRecordsByGroup(ctx, []int64{groupID}, peopleModule.StudentScopeEnrolled)
 	})
@@ -87,7 +86,7 @@ func (r *StudentReads) FindByGroupID(ctx context.Context, groupID int64) ([]*use
 // ListByGroupIDsIncludingAlumni backs the care-participation candidate set,
 // which decides per child whether a graduate still counts and therefore must
 // see them.
-func (r *StudentReads) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (r *StudentReads) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "list by group ids including alumni", func() ([]peopleModule.StudentRecord, error) {
 		return r.directory.ListStudentRecordsByGroup(ctx, groupIDs, peopleModule.StudentScopeAll)
 	})
@@ -96,7 +95,7 @@ func (r *StudentReads) ListByGroupIDsIncludingAlumni(ctx context.Context, groupI
 // ListClassRoster is the class-roster report's candidate set: one class, or
 // every child when the report spans all of them. Graduates are included
 // because the shared participation rule filters the set afterwards.
-func (r *StudentReads) ListClassRoster(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
+func (r *StudentReads) ListClassRoster(ctx context.Context, schoolClass string) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "list class roster", func() ([]peopleModule.StudentRecord, error) {
 		if schoolClass == "" {
 			return r.directory.ListStudentRecords(ctx, peopleModule.StudentScopeAll)
@@ -115,7 +114,7 @@ func (r *StudentReads) CountEnrolled(ctx context.Context) (int, error) {
 	return len(ids), nil
 }
 
-func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "find by group ids", func() ([]peopleModule.StudentRecord, error) {
 		return r.directory.ListStudentRecordsByGroup(ctx, groupIDs, peopleModule.StudentScopeEnrolled)
 	})
@@ -123,25 +122,25 @@ func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]
 
 func (r *StudentReads) FindPendingDueForActivation(
 	ctx context.Context,
-	asOf userModels.CalendarDate,
-) ([]*userModels.Student, error) {
+	asOf owner0.Date,
+) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "find pending due for activation", func() ([]peopleModule.StudentRecord, error) {
 		return r.directory.ListStudentRecordsDueForStatus(
-			ctx, string(userModels.StudentStatusPending), peopleModule.StudentBoundCareStart, asOf.String())
+			ctx, string(peopleModule.StudentStatusPending), peopleModule.StudentBoundCareStart, asOf.String())
 	})
 }
 
 func (r *StudentReads) FindActiveDueForDeactivation(
 	ctx context.Context,
-	asOf userModels.CalendarDate,
-) ([]*userModels.Student, error) {
+	asOf owner0.Date,
+) ([]*peopleModule.StudentState, error) {
 	return r.listRecords(ctx, "find active due for deactivation", func() ([]peopleModule.StudentRecord, error) {
 		return r.directory.ListStudentRecordsDueForStatus(
-			ctx, string(userModels.StudentStatusActive), peopleModule.StudentBoundCareEnd, asOf.String())
+			ctx, string(peopleModule.StudentStatusActive), peopleModule.StudentBoundCareEnd, asOf.String())
 	})
 }
 
-func (r *StudentReads) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+func (r *StudentReads) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	records, err := r.directory.LockStudentRecordsByID(ctx, ids)
 	if err != nil {
 		return nil, application.RetainedStudentReadError("find by ids for update", err)
@@ -161,7 +160,7 @@ func (r *StudentReads) ExistsEnrolledByNameAndBirthday(
 	ctx context.Context,
 	tenantID int64,
 	firstName, lastName string,
-	birthday userModels.CalendarDate,
+	birthday owner0.Date,
 ) (bool, error) {
 	ids, err := r.directory.ListEnrolledStudentIDsByNameAndBirthday(
 		ctx, tenantID, firstName, lastName, birthday.String())
@@ -179,7 +178,7 @@ func (r *StudentReads) FindEnrolledStudentIDByNameAndBirthday(
 	ctx context.Context,
 	tenantID int64,
 	firstName, lastName string,
-	birthday userModels.CalendarDate,
+	birthday owner0.Date,
 ) (*int64, error) {
 	ids, err := r.directory.ListEnrolledStudentIDsByNameAndBirthday(
 		ctx, tenantID, firstName, lastName, birthday.String())
@@ -203,12 +202,12 @@ func (r *StudentReads) ListSchoolClasses(ctx context.Context) ([]string, error) 
 // FindByIDForUpdate takes the row lock the caller will write under. The owner
 // takes the shared class-writes gate first, which is what keeps the
 // acquisition order gate-then-rows for every writer.
-func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*peopleModule.StudentState, error) {
 	record, err := r.directory.FindStudentRecordForMutation(ctx, id)
 	if err != nil {
 		return nil, application.RetainedStudentReadError("find by id for update", err)
 	}
-	return usersRepo.RetainedStudentModel(record), nil
+	return peopleModule.StudentStateFromRecord(record), nil
 }
 
 // The roster reads. The teacher-scoped ones resolve their groups through
@@ -217,8 +216,8 @@ func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userMo
 func (r *StudentReads) FindByTeacherIDWithGroups(
 	ctx context.Context,
 	groupIDs []int64,
-	today userModels.CalendarDate,
-) ([]*userModels.StudentWithGroupInfo, error) {
+	today owner0.Date,
+) ([]*peopleModule.StudentRosterEntry, error) {
 	return r.roster(ctx, "find by teacher id with groups", func() ([]peopleModule.StudentRosterEntry, error) {
 		return r.directory.ListStudentRosterByGroup(ctx, groupIDs, today.String())
 	})
@@ -226,8 +225,8 @@ func (r *StudentReads) FindByTeacherIDWithGroups(
 
 func (r *StudentReads) FindAllWithGroups(
 	ctx context.Context,
-	today userModels.CalendarDate,
-) ([]*userModels.StudentWithGroupInfo, error) {
+	today owner0.Date,
+) ([]*peopleModule.StudentRosterEntry, error) {
 	return r.roster(ctx, "find all with groups", func() ([]peopleModule.StudentRosterEntry, error) {
 		return r.directory.ListStudentRoster(ctx, today.String())
 	})
@@ -235,8 +234,8 @@ func (r *StudentReads) FindAllWithGroups(
 
 func (r *StudentReads) FindOverlappingWithGroups(
 	ctx context.Context,
-	from, to, today userModels.CalendarDate,
-) ([]*userModels.StudentWithGroupInfo, error) {
+	from, to, today owner0.Date,
+) ([]*peopleModule.StudentRosterEntry, error) {
 	return r.roster(ctx, "find overlapping with groups", func() ([]peopleModule.StudentRosterEntry, error) {
 		return r.directory.ListStudentRosterOverlapping(ctx, from.String(), to.String(), today.String())
 	})
@@ -246,22 +245,22 @@ func (r *StudentReads) roster(
 	ctx context.Context,
 	operation string,
 	read func() ([]peopleModule.StudentRosterEntry, error),
-) ([]*userModels.StudentWithGroupInfo, error) {
+) ([]*peopleModule.StudentRosterEntry, error) {
 	entries, err := read()
 	if err != nil {
 		return nil, application.RetainedStudentReadError(operation, err)
 	}
-	result := make([]*userModels.StudentWithGroupInfo, 0, len(entries))
+	result := make([]*peopleModule.StudentRosterEntry, 0, len(entries))
 	for _, entry := range entries {
-		student := usersRepo.RetainedStudentModel(entry.Record)
-		person := &userModels.Person{
+		student := entry.Record
+		person := &peopleModule.DirectoryPersonSnapshot{
 			FirstName: entry.FirstName, LastName: entry.LastName,
 			TagID: entry.TagID, AccountID: entry.AccountID,
 		}
 		person.ID = entry.Record.PersonID
 		person.SetTenantID(entry.Record.TenantID)
 		student.Person = person
-		result = append(result, &userModels.StudentWithGroupInfo{Student: student})
+		result = append(result, &peopleModule.StudentRosterEntry{Record: student})
 	}
 	return result, nil
 }
@@ -270,7 +269,7 @@ func (r *StudentReads) listRecords(
 	ctx context.Context,
 	operation string,
 	read func() ([]peopleModule.StudentRecord, error),
-) ([]*userModels.Student, error) {
+) ([]*peopleModule.StudentState, error) {
 	records, err := read()
 	if err != nil {
 		return nil, application.RetainedStudentReadError(operation, err)
@@ -280,17 +279,17 @@ func (r *StudentReads) listRecords(
 	if len(records) == 0 {
 		return nil, nil
 	}
-	result := make([]*userModels.Student, 0, len(records))
+	result := make([]*peopleModule.StudentState, 0, len(records))
 	for _, record := range records {
-		result = append(result, usersRepo.RetainedStudentModel(record))
+		result = append(result, peopleModule.StudentStateFromRecord(record))
 	}
 	return result, nil
 }
 
-func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*userModels.Student {
-	result := make(map[int64]*userModels.Student, len(records))
+func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*peopleModule.StudentState {
+	result := make(map[int64]*peopleModule.StudentState, len(records))
 	for _, record := range records {
-		result[record.ID] = usersRepo.RetainedStudentModel(record)
+		result[record.ID] = peopleModule.StudentStateFromRecord(record)
 	}
 	return result
 }

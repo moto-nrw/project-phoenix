@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 )
 
 // staffWithPersonReader is the slice of the retained staff repository the
 // plan export's staff names read.
 type staffWithPersonReader interface {
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 // planExportStaffNames serves the plan export's staff-name port from the

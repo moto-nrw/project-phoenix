@@ -58,7 +58,7 @@ func NativeStudentSnapshot(row *models.Student) *directory.StudentSnapshot {
 		value.BusDays, _ = json.Marshal(row.BusDays)
 	}
 	value.DepartureBaseline = studentDepartureSnapshot(row)
-	value.Person = directoryPersonSnapshot(row.Person)
+	value.Person = NativeDirectoryPerson(row.Person)
 	return value
 }
 

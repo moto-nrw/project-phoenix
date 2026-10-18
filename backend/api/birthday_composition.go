@@ -8,7 +8,7 @@ import (
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
@@ -23,16 +23,16 @@ type BirthdayRepositories struct {
 // The retained People Directory reads of the birthday display.
 type (
 	birthdayStudents interface {
-		FindBirthdaysOn(ctx context.Context, days []userModels.MonthDay) ([]userModels.BirthdayEntry, error)
+		FindBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error)
 	}
 	birthdayStaff interface {
-		FindBirthdaysOn(ctx context.Context, days []userModels.MonthDay) ([]userModels.BirthdayEntry, error)
-		ListBirthdaysForExport(ctx context.Context) ([]userModels.BirthdayEntry, error)
-		FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+		FindBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error)
+		ListBirthdaysForExport(ctx context.Context) ([]peopleCompose.BirthdayEntry, error)
+		FindByPersonID(ctx context.Context, personID int64) (*peopleModule.Staff, error)
 		SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 	}
 	birthdayPersons interface {
-		FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
+		FindByAccountID(ctx context.Context, accountID int64) (*peopleModule.DirectoryPersonSnapshot, error)
 	}
 )
 
@@ -50,18 +50,18 @@ func NewBirthdays(repos BirthdayRepositories, settings BirthdaySettingsSource, l
 type birthdayStore struct{ repos BirthdayRepositories }
 
 func (s birthdayStore) StudentBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error) {
-	rows, err := s.repos.Students.FindBirthdaysOn(ctx, monthDays(days))
-	return birthdayEntries(rows, peopleCompose.BirthdayKindStudent), err
+	rows, err := s.repos.Students.FindBirthdaysOn(ctx, days)
+	return rows, err
 }
 
 func (s birthdayStore) StaffBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error) {
-	rows, err := s.repos.Staff.FindBirthdaysOn(ctx, monthDays(days))
-	return birthdayEntries(rows, peopleCompose.BirthdayKindStaff), err
+	rows, err := s.repos.Staff.FindBirthdaysOn(ctx, days)
+	return rows, err
 }
 
 func (s birthdayStore) StaffBirthdaysForExport(ctx context.Context) ([]peopleCompose.BirthdayEntry, error) {
 	rows, err := s.repos.Staff.ListBirthdaysForExport(ctx)
-	return birthdayEntries(rows, peopleCompose.BirthdayKindStaff), err
+	return rows, err
 }
 
 func (s birthdayStore) FindPersonByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
@@ -94,25 +94,6 @@ func (s birthdayStore) FindStaffByPerson(ctx context.Context, personID int64) (p
 
 func (s birthdayStore) SetStaffBirthdayOptOut(ctx context.Context, staffID int64, optOut bool) error {
 	return s.repos.Staff.SetBirthdayDisplayOptOut(ctx, staffID, optOut)
-}
-
-func monthDays(days []peopleCompose.BirthdayMonthDay) []userModels.MonthDay {
-	result := make([]userModels.MonthDay, 0, len(days))
-	for _, day := range days {
-		result = append(result, userModels.MonthDay{Month: day.Month, Day: day.Day})
-	}
-	return result
-}
-
-func birthdayEntries(rows []userModels.BirthdayEntry, kind peopleCompose.BirthdayKind) []peopleCompose.BirthdayEntry {
-	entries := make([]peopleCompose.BirthdayEntry, 0, len(rows))
-	for _, row := range rows {
-		entries = append(entries, peopleCompose.BirthdayEntry{
-			Kind: kind, ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Birthday: row.Birthday,
-			GroupName: row.GroupName, SchoolClass: row.SchoolClass,
-		})
-	}
-	return entries
 }
 
 // BirthdaySettingsSource is the slice of the tenant settings service the

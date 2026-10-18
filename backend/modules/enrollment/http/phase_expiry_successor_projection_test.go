@@ -3,6 +3,8 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -13,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -45,7 +47,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	student := testpkg.CreateTestStudent(t, db, "Expiry", "Successor", "2a")
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		return newExpiryStudentFixture(t, db).SetEnrollmentWindowByID(
-			ctx, student.ID, calendar.Date(source.ServiceStartDate), usersModels.StudentStatusActive,
+			ctx, student.ID, calendar.Date(source.ServiceStartDate), peopleValues.StudentStatusActive,
 		)
 	}))
 	sourceChild := makeChild(sourceRequest.ID, "Expiry", "Successor")

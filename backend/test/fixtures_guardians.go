@@ -281,7 +281,23 @@ func ApplyStudentGuardianRole(link *StudentGuardian, role string) {
 // GuardianPermissionsGrant reports whether a relationship's stored
 // parent-portal permissions grant permission under the Security Runtime's
 // stored-value rule.
-func GuardianPermissionsGrant(permissions map[string]any, permission string) bool {
-	value, exists := permissions[permission]
+func GuardianPermissionsGrant(permissions any, permission string) bool {
+	if raw, ok := permissions.(json.RawMessage); ok {
+		return securityruntime.GuardianPermissionGrantedJSON(raw, permission)
+	}
+	values, ok := permissions.(map[string]any)
+	if !ok {
+		return false
+	}
+	value, exists := values[permission]
 	return exists && securityruntime.GuardianPermissionGranted(value)
+}
+
+// GuardianPermissionValueJSON reads the stored value without interpreting its grant.
+func GuardianPermissionValueJSON(raw json.RawMessage, permission string) any {
+	var values map[string]any
+	if json.Unmarshal(raw, &values) != nil {
+		return nil
+	}
+	return values[permission]
 }

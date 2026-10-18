@@ -24,6 +24,7 @@ import (
 
 type timetableData struct {
 	timetable.ConflictAckCapability
+	ports.DeviationEventReader
 	deps ports.TimetableDataDependencies
 }
 
@@ -34,7 +35,7 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
-	return &timetableData{ConflictAckCapability: deps.ConflictAcks, deps: deps}, nil
+	return &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}, nil
 }
 
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
@@ -217,10 +218,6 @@ func (d *timetableData) LockBlockAttendance(ctx context.Context, instanceID int6
 
 func (d *timetableData) PatchSlotAttendance(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error {
 	return d.deps.Participants.UpdateAttendanceFields(ctx, participantID, attendanceFieldPatch(patch))
-}
-
-func (d *timetableData) ListDeviationEvents(ctx context.Context, from, to calendar.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {
-	return d.deps.DeviationEvents.ListDeviationEvents(ctx, from, to, activityGroupID, startTime)
 }
 
 func scheduledInstancesOf(rows []*scheduleModels.ActivityInstance) []timetable.ScheduledInstance {

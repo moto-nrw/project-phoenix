@@ -13,7 +13,7 @@ var _ directory.GuardianProfileReads = (*guardianProfileRepository)(nil)
 
 func (r *guardianProfileRepository) GuardianProfileByID(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindByID(ctx, id)
-	return guardianProfileSnapshot(value), err
+	return NativeGuardianProfile(value), err
 }
 func (r *guardianProfileRepository) GuardianProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindByIDs(ctx, ids)
@@ -22,17 +22,17 @@ func (r *guardianProfileRepository) GuardianProfilesByIDs(ctx context.Context, i
 	}
 	result := make(map[int64]*directory.GuardianProfileSnapshot, len(value))
 	for id, row := range value {
-		result[id] = guardianProfileSnapshot(row)
+		result[id] = NativeGuardianProfile(row)
 	}
 	return result, err
 }
 func (r *guardianProfileRepository) GuardianProfileByEmail(ctx context.Context, email string) (*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindByEmail(ctx, email)
-	return guardianProfileSnapshot(value), err
+	return NativeGuardianProfile(value), err
 }
 func (r *guardianProfileRepository) GuardianProfileByAccount(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindByAccountID(ctx, id)
-	return guardianProfileSnapshot(value), err
+	return NativeGuardianProfile(value), err
 }
 func (r *guardianProfileRepository) ActiveGuardianPortalProfiles(ctx context.Context, ids []int64) (map[int64]*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindActivePortalProfilesByIDs(ctx, ids)
@@ -41,7 +41,7 @@ func (r *guardianProfileRepository) ActiveGuardianPortalProfiles(ctx context.Con
 	}
 	result := make(map[int64]*directory.GuardianProfileSnapshot, len(value))
 	for id, row := range value {
-		result[id] = guardianProfileSnapshot(row)
+		result[id] = NativeGuardianProfile(row)
 	}
 	return result, err
 }
@@ -49,12 +49,12 @@ func (r *guardianProfileRepository) LockGuardianProfile(ctx context.Context, id 
 	return r.LockByIDForUpdate(ctx, id)
 }
 func (*guardianProfileRepository) NormalizeGuardianProfile(value *directory.GuardianProfileSnapshot) error {
-	row := guardianProfileRow(value)
+	row := GuardianProfileRow(value)
 	err := row.Validate()
-	*value = *guardianProfileSnapshot(row)
+	*value = *NativeGuardianProfile(row)
 	return err
 }
-func guardianProfileSnapshot(row *users.GuardianProfile) *directory.GuardianProfileSnapshot {
+func NativeGuardianProfile(row *users.GuardianProfile) *directory.GuardianProfileSnapshot {
 	if row == nil {
 		return nil
 	}
@@ -69,7 +69,7 @@ func guardianProfileSnapshot(row *users.GuardianProfile) *directory.GuardianProf
 	}
 	return out
 }
-func guardianProfileRow(value *directory.GuardianProfileSnapshot) *users.GuardianProfile {
+func GuardianProfileRow(value *directory.GuardianProfileSnapshot) *users.GuardianProfile {
 	row := &users.GuardianProfile{}
 	row.ID = value.ID
 	row.TenantID = value.TenantID

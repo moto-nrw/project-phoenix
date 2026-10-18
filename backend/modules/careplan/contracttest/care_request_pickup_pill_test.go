@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -176,7 +176,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	decided, err := nativeCareReviews(t, f).GetForReview(ctx, decidedReq.ID)
 	require.NoError(t, err)
 	assert.Equal(t, decidedReq.ID, decided.Request.ID)
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
+	assert.Equal(t, carerequests.StatusRejected, decided.Request.Status)
 	assert.Equal(t, "Felix", decided.FirstName)
 	assert.Equal(t, "Schneider", decided.LastName)
 	assert.Equal(t, "Clara Confirm", decided.ReviewerName)
@@ -194,7 +194,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	pending, err := nativeCareReviews(t, f).GetForReview(ctx, pendingReq.ID)
 	require.NoError(t, err)
 	assert.Equal(t, pendingReq.ID, pending.Request.ID)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, pending.Request.Status)
+	assert.Equal(t, carerequests.StatusPending, pending.Request.Status)
 	assert.Empty(t, pending.ReviewerName)
 	require.NotNil(t, pending.RequestReason)
 	assert.Equal(t, "Oma holt ab", *pending.RequestReason)

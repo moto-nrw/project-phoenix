@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -83,14 +84,14 @@ func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Conte
 
 // ListActiveSubstitutionBlockers translates the Workforce handover blockers
 // into the People Directory's caregiver-capability blocker rows.
-func (r groupSubstitutions) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error) {
+func (r groupSubstitutions) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]peopleValues.BlockerSubstitution, error) {
 	blockers, err := r.ActiveSubstitutionBlockers(ctx, staffID, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]userModels.BlockerSubstitution, 0, len(blockers))
+	result := make([]peopleValues.BlockerSubstitution, 0, len(blockers))
 	for _, blocker := range blockers {
-		result = append(result, userModels.BlockerSubstitution{
+		result = append(result, peopleValues.BlockerSubstitution{
 			ID: blocker.ID, GroupName: blocker.GroupName, StartDate: blocker.StartDate, EndDate: blocker.EndDate,
 		})
 	}
@@ -207,7 +208,7 @@ type GroupSubstitutionRepository interface {
 	ListWithRelations(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error)
 	// ListActiveSubstitutionBlockers returns current/upcoming typed group
 	// handovers as caregiver-capability blocker rows.
-	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
+	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]peopleValues.BlockerSubstitution, error)
 }
 
 // GroupSubstitutionRows are the Workforce rows of the contract, served over
