@@ -2,7 +2,9 @@ package compose
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -152,7 +154,7 @@ func TestTransferDeliversTheFileAndRecordsIt(t *testing.T) {
 	assert.Equal(t, "A. Beispiel", row.ActorName)
 }
 
-func TestTransactionRollbackRestoresThePreviousRemoteFile(t *testing.T) {
+func TestCommandTransactionRollbackNeverReplacesThePreviousRemoteFile(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -164,25 +166,21 @@ func TestTransactionRollbackRestoresThePreviousRemoteFile(t *testing.T) {
 	finalPath := filepath.Join(dir, request.Filename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("bisherige fassung"), 0o600))
 
-	rollbackErr := errors.New("force transaction rollback")
-	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		outcome, transferErr := module.Transfer(txCtx, request)
-		require.NoError(t, transferErr)
-		require.True(t, outcome.Transferred)
-		return rollbackErr
-	})
+	rollbackErr := errors.New("force command transaction rollback")
+	outcome, err := module.Transfer(rollbackCommandContext(t, ctx, db, rollbackErr), request)
 	require.ErrorIs(t, err, rollbackErr)
+	assert.False(t, outcome.Transferred)
 
 	written, err := os.ReadFile(finalPath)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("bisherige fassung"), written)
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	assert.Len(t, entries, 1, "the rollback copy must be consumed when the previous file is restored")
+	assert.Len(t, entries, 1, "the command rollback must leave no remote artifacts")
 	assert.Empty(t, readTransferRows(t, ctx, db), "a rolled-back attempt must leave no audit row")
 }
 
-func TestTransactionRollbackRemovesANewRemoteFile(t *testing.T) {
+func TestCommandTransactionRollbackNeverCreatesANewRemoteFile(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -192,20 +190,16 @@ func TestTransactionRollbackRemovesANewRemoteFile(t *testing.T) {
 	module := buildModule(t, db, server, dir)
 	request := transferRequest()
 
-	rollbackErr := errors.New("force transaction rollback")
-	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		outcome, transferErr := module.Transfer(txCtx, request)
-		require.NoError(t, transferErr)
-		require.True(t, outcome.Transferred)
-		return rollbackErr
-	})
+	rollbackErr := errors.New("force command transaction rollback")
+	outcome, err := module.Transfer(rollbackCommandContext(t, ctx, db, rollbackErr), request)
 	require.ErrorIs(t, err, rollbackErr)
+	assert.False(t, outcome.Transferred)
 
 	_, err = os.Stat(filepath.Join(dir, request.Filename))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	assert.Empty(t, entries, "rolling back a first transfer must remove all remote artifacts")
+	assert.Empty(t, entries, "rolling back an intent must never create remote artifacts")
 	assert.Empty(t, readTransferRows(t, ctx, db), "a rolled-back attempt must leave no audit row")
 }
 
@@ -299,9 +293,8 @@ func TestProductionWiringRefusesALoopbackCounterpart(t *testing.T) {
 }
 
 // transferInTenantTx runs the transfer inside a tenant transaction, the way
-// TenantTxMiddleware wraps the HTTP request in production. The journal entry
-// is written on that same transaction on purpose, so a request that rolls back
-// cannot leave behind a record of something that never happened.
+// TenantTxMiddleware wraps the HTTP request in production. Transfer owns its
+// independent command transaction so transport acceptance is known on return.
 func transferInTenantTx(
 	t *testing.T,
 	ctx context.Context,
@@ -313,10 +306,37 @@ func transferInTenantTx(
 	var transferErr error
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		outcome, transferErr = module.Transfer(txCtx, request)
-		// The transfer's own failure must not roll the transaction back — the
-		// journal entry describing it is the point.
+		// The command has already committed its own intent and outcome.
 		return nil
 	})
 	require.NoError(t, err)
 	return outcome, transferErr
+}
+
+// Inject a failure at the command's real PostgreSQL commit boundary, after the
+// intent INSERT succeeded. No callback or mock database simulates rollback.
+func rollbackCommandContext(t *testing.T, ctx context.Context, db *bun.DB, rollbackErr error) context.Context {
+	t.Helper()
+	runtime, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, id int64, fn func(context.Context, any) error) error {
+			return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+				if _, err := tx.NewRaw(`SET LOCAL ROLE phoenix_tenant`).Exec(ctx); err != nil {
+					return err
+				}
+				if _, err := tx.NewRaw(`SELECT set_config('app.current_tenant_id',?,true)`, fmt.Sprint(id)).Exec(ctx); err != nil {
+					return err
+				}
+				if err := fn(ctx, tx); err != nil {
+					return err
+				}
+				return rollbackErr
+			})
+		}, func(context.Context, func(context.Context, any) error) error {
+			return errors.New("unexpected admin transaction")
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil }, func(error) bool { return false })
+	require.NoError(t, err)
+	ctx = tenant.WithUnitOfWork(ctx, runtime)
+	ctx, _ = tenant.WithAfterCommitHooksForTest(ctx)
+	return ctx
 }
