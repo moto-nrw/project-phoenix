@@ -3,27 +3,61 @@
 package api
 
 import (
+	"context"
+	"errors"
+	"fmt"
+
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
+// federalStateResolver is the slice of the settings service the tenant
+// holiday reads need.
+type federalStateResolver interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // NewSchoolCalendarWithAdministration composes the unobserved calendar owner
-// over the given administration resolver, which the services test graphs
-// answer with the recurrence gate, the care-offering guard and the
-// federal-state setting once those services exist. Production roots compose
-// the module themselves (api/base.go).
-func NewSchoolCalendarWithAdministration(db transactionruntime.Database, administration func() schoolCalendarCompose.AdministrationRuntime) (*schoolcalendar.Module, error) {
-	return schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
-		DB:             db.Pool(),
-		Observe:        func(schoolCalendarCompose.Observation) {},
-		Administration: administration,
+// with the federal-state setting (#1418 3a), the recurrence gate and the
+// Care Plan catalog's care-offering guard, whose refusal is mapped onto the
+// calendar's own sentinel; a nil catalog guards nothing. Production roots
+// compose the module themselves.
+func NewSchoolCalendarWithAdministration(db transactionruntime.Database, settings federalStateResolver, lockRecurrence func(context.Context) error, careOfferings careplan.CareOfferingGuards) (*schoolcalendar.Module, error) {
+	observe := func(schoolCalendarCompose.Observation) {}
+	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
+		DB: db.Pool(), Observe: observe,
+		FederalState: func(ctx context.Context) (string, error) {
+			region, err := settings.ResolveString(ctx, configModel.KeyFederalState)
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve federal state setting: %w", err)
+			}
+			return region, nil
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	guard := func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil }
+	if careOfferings != nil {
+		guard = func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error {
+			err := careOfferings.ValidateCalendarPeriodChange(ctx, periodID, calendarPeriodReplacement(replacement))
+			if errors.Is(err, careplan.ErrCalendarPeriodCareOfferingConflict) {
+				return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRequiredByCareOffering, err)
+			}
+			return err
+		}
+	}
+	return schoolCalendarCompose.NewAdministration(records, schoolCalendarCompose.AdministrationDependencies{
+		DB: db.Pool(), Observe: observe, RecurrenceGate: lockRecurrence, CareOfferingGuard: guard,
 	})
 }
 

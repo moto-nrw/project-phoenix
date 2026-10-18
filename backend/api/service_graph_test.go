@@ -30,7 +30,7 @@ func TestServiceGraphComposesItsServices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	env, transport, identity, caller, settings, _, services, _, requests, active, reports, _, planning, _, _, activities, structureViews, facilitiesRooms, deviceFleet, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
+	env, transport, identity, caller, settings, _, services, _, _, active, reports, _, planning, _, _, activities, structureViews, facilitiesRooms, deviceFleet, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 
@@ -44,7 +44,7 @@ func TestServiceGraphComposesItsServices(t *testing.T) {
 		assert.NotNil(t, facilitiesRooms.RoomService)
 		assert.NotNil(t, deviceFleet)
 		assert.NotNil(t, settings.Service)
-		assert.NotNil(t, GuardedCalendarAdministration(settings.Service, planning.Planning.RecurrenceLock, requests.CareOfferings).RecurrenceGate)
+		assert.NotNil(t, planning.Planning.RecurrenceLock)
 		assert.NotNil(t, services.Users)
 		assert.NotNil(t, services.Guardian)
 		assert.NotNil(t, caller)

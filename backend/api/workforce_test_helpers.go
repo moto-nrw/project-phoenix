@@ -71,8 +71,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	calendarAdministration := SchoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
-	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	calendar, err := NewSchoolCalendarWithAdministration(db, settingsService, func(context.Context) error { return nil }, nil)
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}

@@ -13,7 +13,6 @@ import (
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -122,10 +121,9 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	calendarAdministration := SchoolCalendarAdministration(settings.Settings,
+	calendar, err := NewSchoolCalendarWithAdministration(db, settings.Settings,
 		recurrenceLock.LockRecurrenceWrites,
 		offerings)
-	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return TimetableTestModule{}, err
 	}

@@ -38,14 +38,10 @@ func recurrenceGate(db *bun.DB) func(context.Context) error {
 
 func buildAdministration(t *testing.T, db *bun.DB, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error) *schoolcalendar.Module {
 	t.Helper()
-	runtime := AdministrationRuntime{RecurrenceGate: recurrenceGate(db), CareOfferingGuard: guard}
-	module, err := New(Dependencies{
-		DB: db, Observe: func(Observation) {},
-		Administration: func() AdministrationRuntime { return runtime },
-		Today:          func() string { return fixedToday },
-	})
-	require.NoError(t, err)
-	return module
+	if guard == nil {
+		guard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil }
+	}
+	return buildCalendar(t, db, func(Observation) {}, unboundFederalState, recurrenceGate(db), guard)
 }
 
 func schoolYear(name, start, end string, active bool) schoolcalendar.CalendarPeriodFields {
@@ -508,16 +504,12 @@ func TestModuleResolvesTenantHolidaysThroughTheFederalState(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
-	var runtime AdministrationRuntime
-	module, err := New(Dependencies{
-		DB: db, Observe: func(Observation) {},
-		Administration: func() AdministrationRuntime { return runtime },
-		Today:          func() string { return fixedToday },
-	})
-	require.NoError(t, err)
-	_, err = module.TenantHolidays(ctx, "2026-05-01", "2026-05-31")
+	federalState := unboundFederalState
+	module := buildCalendar(t, db, func(Observation) {}, func(ctx context.Context) (string, error) { return federalState(ctx) },
+		func(context.Context) error { return nil }, func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil })
+	_, err := module.TenantHolidays(ctx, "2026-05-01", "2026-05-31")
 	require.ErrorIs(t, err, schoolcalendar.ErrFederalStateUnavailable, "an unbound runtime reports a configuration error")
-	runtime = AdministrationRuntime{FederalState: func(context.Context) (string, error) { return "DE-NW", nil }}
+	federalState = func(context.Context) (string, error) { return "DE-NW", nil }
 	createClosingDay(t, ctx, module, "2026-05-04", "2026-05-05", "Pädagogische Tage")
 
 	holidays, err := module.TenantHolidays(ctx, "2026-05-01", "2026-05-31")
