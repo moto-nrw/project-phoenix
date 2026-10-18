@@ -39,23 +39,15 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	staff, err := newStaffRetention(db, owners.Audit, owners.Settings, nil)
 	require.NoError(t, err)
-	retention, err := newWorkerRetention(retentionOwners{
-		deletionLog:          owners.Audit,
-		settings:             owners.Settings,
-		unregisteredTagScans: owners.UnregisteredTagScans,
-		statusDays:           owners.StatusDays,
-		parentMessages:       owners.ParentMessages,
-		settledEnrollments:   owners.SettledEnrollments,
-		staffSickNotes:       owners.StaffSickNotes,
-		auditLedgers:         owners.Audit,
-		deliveries:           owners.Deliveries,
-		fileCleanups:         owners.FileCleanups,
-		staffCleanups:        owners.StaffCleanups,
-		carePlanCleanups:     owners.CarePlanCleanups,
-		submissionLimits:     owners.SubmissionLimits,
-		settingAudit:         owners.SettingAudit,
-		exportTransfers:      owners.ExportTransfers,
-	}, students, staff)
+	steps := dataRetentionSteps(
+		owners.Settings, owners.UnregisteredTagScans, owners.StatusDays, owners.ParentMessages,
+		owners.SettledEnrollments, owners.StaffSickNotes, owners.Audit, owners.Deliveries,
+	)
+	steps = append(steps, protocolRetentionSteps(owners.Audit, owners.SettingAudit, owners.ExportTransfers)...)
+	steps = append(steps, cleanupJobRetentionSteps(
+		owners.FileCleanups, owners.StaffCleanups, owners.CarePlanCleanups, owners.SubmissionLimits,
+	)...)
+	retention, err := newWorkerRetention(owners.Audit, owners.Settings, students, staff, steps)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }

@@ -238,23 +238,21 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 	if err != nil {
 		return nil, fmt.Errorf("compose worker staff retention: %w", err)
 	}
-	retention, err := newWorkerRetention(retentionOwners{
-		deletionLog:          graph.services.Audit,
-		settings:             graph.services.Settings,
-		unregisteredTagScans: graph.services.IoT.Fleet(),
-		statusDays:           reads.statusDayRetention,
-		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), settingsValues.NewParentMessageRetentionValues(graph.services.Settings)),
-		settledEnrollments:   graph.services.EnrollmentRejectedCleanup,
-		staffSickNotes:       workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: graph.services.Settings}),
-		auditLedgers:         graph.services.Audit,
-		deliveries:           deliveryCompose.NewRetention(),
-		fileCleanups:         filestorageCompose.NewCleanupRetention(),
-		staffCleanups:        workforceCompose.NewCleanupRetention(),
-		carePlanCleanups:     carePlanCompose.NewCleanupRetention(),
-		submissionLimits:     enrollmentCompose.New(),
-		settingAudit:         settingsCompose.NewAuditRetention(),
-		exportTransfers:      exportTransferCompose.NewJournalRetention(),
-	}, students, staff)
+	retentionSteps := dataRetentionSteps(
+		graph.services.Settings, graph.services.IoT.Fleet(), reads.statusDayRetention,
+		communicationCompose.NewParentMessageRetention(graph.db.Pool(), settingsValues.NewParentMessageRetentionValues(graph.services.Settings)),
+		graph.services.EnrollmentRejectedCleanup,
+		workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: graph.services.Settings}),
+		graph.services.Audit, deliveryCompose.NewRetention(),
+	)
+	retentionSteps = append(retentionSteps, protocolRetentionSteps(
+		graph.services.Audit, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention(),
+	)...)
+	retentionSteps = append(retentionSteps, cleanupJobRetentionSteps(
+		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
+		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
+	)...)
+	retention, err := newWorkerRetention(graph.services.Audit, graph.services.Settings, students, staff, retentionSteps)
 	if err != nil {
 		return nil, err
 	}
