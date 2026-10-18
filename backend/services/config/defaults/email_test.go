@@ -3,10 +3,9 @@ package defaults
 import (
 	"testing"
 
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // The reply address is optional by design: "not configured" is a valid state

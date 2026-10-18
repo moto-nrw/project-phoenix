@@ -8,7 +8,7 @@ import (
 	"time"
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"

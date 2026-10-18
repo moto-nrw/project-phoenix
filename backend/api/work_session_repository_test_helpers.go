@@ -6,11 +6,10 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 )
 
 type WorkSessionTestRepositories struct {
@@ -45,6 +44,6 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
 		Workforce:         workTime,
 		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
-		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
-		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)}, nil
+		StaffWorkSchedule: NewStaffWorkScheduleRepository(workTime),
+		WorkTimeModel:     NewWorkTimeModelRepository(workTime)}, nil
 }

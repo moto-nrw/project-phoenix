@@ -196,7 +196,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3083
+const modulePassthroughOwnerBudgetTotal = 3059
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -244,7 +244,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// retained enrollment report.
 	//
 	// ADR 0061: application 6 + modules/classday/compose 14.
-	"modules/classday": 20,
+	"modules/classday": 18,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	//
@@ -266,7 +266,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// facade's device read.
 	//
 	// ADR 0061: application 8 + modules/devicescan/compose 48.
-	"modules/devicescan": 56,
+	"modules/devicescan": 55,
 	// First measured with #3562, when phases, form schemas, captcha and the
 	// parent mails moved out of services/enrollment. form_schemas.go carries
 	// 11: the transactional wrapper runs each schema write in one tenant
@@ -336,7 +336,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// service hands it to the store (#2832).
 	//
 	// ADR 0061: application 1 + modules/schoolsetup/compose 3.
-	"modules/schoolsetup": 4,
+	"modules/schoolsetup": 2,
 	// School-year transition (9) plus the transition history and service reads.
 	//
 	// ADR 0061: application 13 + modules/schoolstructure/compose 72.
@@ -394,7 +394,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// ADR 0064: +78, the 46 time-tracking row delegations an injected error
 	// field had hidden (#4239) and internal/planning's 32 (18 Dienstplan rows
 	// moved there in #4240, 14 planning methods never scanned before).
-	"modules/workforce": 412,
+	"modules/workforce": 393,
 	// ADR 0061: application 0 + workflows/openroommove/compose 1.
 	"workflows/openroommove": 1,
 	// ADR 0061 adopted 22; the Root event binding leaves 21 compose delegations.

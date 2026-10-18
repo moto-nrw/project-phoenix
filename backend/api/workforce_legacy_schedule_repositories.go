@@ -1,18 +1,18 @@
-// Package repositoryadapter keeps the legacy work-time repository consumers on
+// The legacy schedule repositories keep the work-time repository consumers on
 // the Workforce capability while they migrate to its Query and Command
-// façades. It performs no persistence of its own: it only maps the legacy
-// models onto the public capability types and preserves the error values those
-// callers still classify on.
-package repositoryadapter
+// façades. They perform no persistence of their own: they only map the
+// Settings Platform's legacy records onto the public capability types and
+// preserve the error values those callers still classify on.
+package api
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // WorkTimeModelRepository serves configModels.WorkTimeModelRepository from the
@@ -30,7 +30,7 @@ func NewWorkTimeModelRepository(capability workforce.Capability) configModels.Wo
 func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
 	model, err := r.workforce.FindWorkTimeModel(ctx, id)
 	if err != nil {
-		return nil, missingAsNoRows(err)
+		return nil, workforceCompose.LegacyWorkTimeModelNotFound(err)
 	}
 	return modelToLegacy(model), nil
 }
@@ -69,7 +69,7 @@ func (r *WorkTimeModelRepository) Create(ctx context.Context, model *configModel
 }
 
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
-	return missingAsNoRows(r.workforce.DeleteWorkTimeModel(ctx, id))
+	return workforceCompose.LegacyWorkTimeModelNotFound(r.workforce.DeleteWorkTimeModel(ctx, id))
 }
 
 // StaffWorkScheduleRepository serves configModels.StaffWorkScheduleRepository
@@ -154,15 +154,6 @@ func (r *StaffWorkScheduleRepository) ReplaceScheduleWithValidFrom(ctx context.C
 }
 
 // --- mapping ---
-
-// missingAsNoRows restores the sql.ErrNoRows the legacy repositories returned
-// for a template that is not visible to the caller's tenant.
-func missingAsNoRows(err error) error {
-	if errors.Is(err, workforce.ErrWorkTimeModelNotFound) {
-		return sql.ErrNoRows
-	}
-	return err
-}
 
 func fieldsFromLegacy(model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) workforce.WorkTimeModelFields {
 	fields := workforce.WorkTimeModelFields{

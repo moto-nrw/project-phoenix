@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 type settingsSnapshotContextKey struct{}

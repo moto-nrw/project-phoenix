@@ -9,7 +9,7 @@ import (
 	"time"
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -9,7 +9,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // BirthdayRepositories are the retained rows the birthday display reads and

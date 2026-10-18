@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // HomeBlockPolicyWritePermission is what an account needs to prescribe the

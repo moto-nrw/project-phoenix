@@ -13,7 +13,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // This file binds the five surfaces the People Directory photo lifecycle needs

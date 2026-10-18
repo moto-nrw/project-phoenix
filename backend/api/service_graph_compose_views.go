@@ -7,7 +7,6 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -57,7 +56,7 @@ func composeViews(b graphBuild) (graphBuild, error) {
 		Timetable: b.TimetableWiring.ClassDayTimetable, Presence: b.Presence.Presence, CarePlan: b.CarePlan,
 		Students: b.Persons, Persons: b.Persons, Groups: b.Groups, Rooms: b.Rooms, CareDays: b.graph.CareDay,
 		PickupTimes: b.graph.PickupSchedule, ArrivalTimes: b.graph.ArrivalSchedule, PickupBaselines: b.pickupBaselines,
-		Settings: b.settingsService, Access: ClassDaySlotListAccess{Staff: b.userContext},
+		Settings: ClassDaySlotListSettings{Settings: b.settingsService}, Access: ClassDaySlotListAccess{Staff: b.userContext},
 		ListExport: ClassDaySlotListRenderer{Renderer: b.Platform.ListExport},
 	})
 	return composeDeviceServices(composePlanExport(b)), nil
@@ -240,7 +239,7 @@ func composeParentRequests(b graphBuild) (graphBuild, error) {
 // on a value change and the tenant settings operations.
 func composeSettingsWrites(b graphBuild) (graphBuild, error) {
 	registry := settingsCompose.NewSideEffectRegistry()
-	facilitiesLegacy.RegisterSettingsSideEffects(registry, b.graph.Schulhof, b.graph.WC)
+	registerCheckoutSettingsSideEffects(registry, b.graph.Schulhof, b.graph.WC)
 	b.CarePlanWiring.SettingsSideEffects(registry, b.graph.CareLifecycle)
 	if b.graph.StudentPhotos != nil {
 		RegisterStudentPhotoSettingsSideEffects(registry, b.graph.StudentPhotos)

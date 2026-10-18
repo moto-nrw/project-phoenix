@@ -4,9 +4,8 @@ import (
 	"testing"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,12 +40,12 @@ func adapterWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 
 func adapterScheduleRepository(t *testing.T, db *bun.DB) configModels.StaffWorkScheduleRepository {
 	t.Helper()
-	return repositoryadapter.NewStaffWorkScheduleRepository(adapterWorkforce(t, db))
+	return NewStaffWorkScheduleRepository(adapterWorkforce(t, db))
 }
 
 func adapterModelRepository(t *testing.T, db *bun.DB) configModels.WorkTimeModelRepository {
 	t.Helper()
-	return repositoryadapter.NewWorkTimeModelRepository(adapterWorkforce(t, db))
+	return NewWorkTimeModelRepository(adapterWorkforce(t, db))
 }
 
 func adapterCalendarDate(year int, month time.Month, day int) configModels.CalendarDate {
