@@ -41,7 +41,7 @@ type Operations interface {
 	SetValue(context.Context, int64, int64, []string, string, any) error
 	ResetValue(context.Context, int64, int64, []string, string) error
 	PayrollStatus(context.Context) (any, error)
-	LoginImageURL(context.Context, int64) (string, error)
+	GetLoginImageURL(context.Context, int64) (string, error)
 	SetLoginImageURL(context.Context, int64, string) (string, error)
 	ClearLoginImageURL(context.Context, int64) (string, error)
 	SetLegalDocument(context.Context, int64, int64, []string, string, func(context.Context, int64, string, string) (func(), error)) error
@@ -205,7 +205,7 @@ func (rs *SettingsResource) getLoginImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	url, err := rs.operations.LoginImageURL(r.Context(), tenantID)
+	url, err := rs.operations.GetLoginImageURL(r.Context(), tenantID)
 	if err != nil {
 		rs.runtime.RenderError(w, r, http.StatusInternalServerError, err)
 		return

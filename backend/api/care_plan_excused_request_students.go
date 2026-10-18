@@ -39,7 +39,7 @@ func NewExcusedAbsenceRequests(wiring ExcusedRequestWiring) (*carePlanCompose.Ex
 	}
 	today := wiring.Today
 	if today == nil {
-		today = carePlanCompose.Today
+		today = careplan.Today
 	}
 	return carePlanCompose.NewExcusedAbsenceRequests(carePlanCompose.ExcusedRequestDependencies{
 		CarePlan: wiring.CarePlan,

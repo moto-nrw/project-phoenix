@@ -14,7 +14,6 @@ import (
 
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -303,7 +302,7 @@ func resolveListenAddr(port string) string {
 // booking audit, reminder tick, document sweeps) are built here.
 func newWorker(
 	db transactionruntime.Database, logger *slog.Logger, tracer *observability.Tracer, hub *realtime.Hub,
-	settings settingsCompose.BatchSettingsService, audit *auditCompose.Command, fleet devicefleet.Capability,
+	settings settingsCompose.BatchSettingsService, audit auditCommand, fleet devicefleet.Capability,
 	carePlan *carePlanModule.Module, persons peopledirectory.Capability, people PeopleRows,
 	organizations organizationtenancy.Query, identity *identityaccess.Module, rooms facilitiesModule.Capability,
 	timetableRepos timetableCompose.Repositories, workTime workforceModule.Capability, staffAdmin *workforceModule.StaffAdmin,

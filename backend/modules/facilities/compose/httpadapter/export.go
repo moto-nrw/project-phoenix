@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 type roomSnapshotLocation struct {

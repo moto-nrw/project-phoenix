@@ -27,3 +27,8 @@ func NewCommand(db *bun.DB, deps ports.DeliveryDependencies) reminder.Command {
 	}
 	return application.NewCommand(runtime, application.NewPreparation(deps, runtime))
 }
+
+// NewQuery constructs the single reminder query provider.
+func NewQuery(deps ports.QueryDependencies) reminder.Query {
+	return application.NewQuery(deps)
+}

@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	configRepo "github.com/moto-nrw/project-phoenix/modules/settings/internal/adapters/configpostgres"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/uptrace/bun"
 )

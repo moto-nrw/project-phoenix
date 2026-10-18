@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 31946
+const moduleComposeBudgetTotal = 31913
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -164,12 +164,12 @@ const moduleComposeBudgetTotal = 31946
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                    528,
 	"modules/auditlog/compose":                        251,
-	"modules/careplan/compose":                        2540,
+	"modules/careplan/compose":                        2539,
 	"modules/careplan/requestfeed/compose":            68,
 	"modules/classday/compose":                        461,
 	"modules/communication/composition":               1453,
 	"modules/dataimport/compose":                      253,
-	"modules/dataimport/compose/retained":             34,
+	"modules/dataimport/compose/imports":              29,
 	"modules/delivery/compose":                        797,
 	"modules/delivery/compose/email":                  36,
 	"modules/devicefleet/compose":                     369,
@@ -198,7 +198,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolmembership/compose":                343,
 	"modules/schoolsetup/compose":                     92,
 	"modules/schoolstructure/compose":                 901,
-	"modules/settings/compose":                        578,
+	"modules/settings/compose":                        558,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
@@ -213,7 +213,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/gradetransition/compose":               145,
 	"workflows/openroommove/compose":                  81,
 	"workflows/parentportal/compose":                  450,
-	"workflows/reminderdelivery/compose":              41,
+	"workflows/reminderdelivery/compose":              34,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 166,
 	"workflows/staffclock/compose":                    36,

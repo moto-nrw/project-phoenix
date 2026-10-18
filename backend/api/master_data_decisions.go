@@ -39,7 +39,7 @@ func NewMasterDataDecisions(
 			students: students, persons: persons, details: fields,
 			writes: peopleCompose.NewAuditedStudentUpdates(students, audit),
 		},
-		Today: carePlanCompose.Today, Logger: logger,
+		Today: careplan.Today, Logger: logger,
 	}
 	if today != nil {
 		deps.Today = func() careplan.Date { return careplan.Date(today()) }

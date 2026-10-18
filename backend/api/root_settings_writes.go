@@ -16,8 +16,8 @@ import (
 // SettingsWrites are the settings side effects the API dispatches on a
 // value change and the tenant settings operations.
 type SettingsWrites struct {
-	SideEffects *settingsCompose.SideEffectRegistry
-	Tenant      *settingsCompose.TenantOperations
+	SideEffects configModels.SideEffectDispatcher
+	Tenant      configModels.TenantOperationsService
 }
 
 // buildSettingsWrites binds the side effects of Facilities (the Schulhof and

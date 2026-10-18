@@ -94,11 +94,10 @@ func (f *fakeStudentLifecycleRepo) TransitionStatus(
 func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.done = make(chan struct{})
-		unit.logger = slog.Default()
-		unit.tasks = make(map[string]*ScheduledTask)
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask)})
 
 	s.scheduleActivateStudentsTask()
 	assert.Empty(t, s.tasks, "nil repo → no task registered")
@@ -107,12 +106,11 @@ func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.done = make(chan struct{})
-		unit.logger = slog.Default()
-		unit.tasks = make(map[string]*ScheduledTask)
-		unit.studentLifecycleRepo = &fakeStudentLifecycleRepo{}
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		done:                 make(chan struct{}),
+		logger:               slog.Default(),
+		tasks:                make(map[string]*ScheduledTask),
+		studentLifecycleRepo: &fakeStudentLifecycleRepo{}})
 
 	// Pre-close done so the spawned goroutine exits during the startup sleep.
 	close(s.done)
@@ -137,10 +135,9 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 	pending := []int64{101, 102}
 
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -158,10 +155,9 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 	due := []int64{201}
 
 	repo := &fakeStudentLifecycleRepo{activeDue: due}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -182,10 +178,9 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 		pendingDue: pending,
 		activeDue:  due,
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -206,10 +201,9 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 	// pending rows. Simulate by clearing pendingDue between calls.
 	pending := []int64{401}
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -236,10 +230,9 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 		pendingErr: errors.New("pending query failed"),
 		activeDue:  due,
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -255,10 +248,9 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 	repo := &fakeStudentLifecycleRepo{
 		activeErr: errors.New("active query failed"),
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -278,10 +270,9 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 		updateErr:      errors.New("update blew up"),
 		updateErrForID: 601,
 	}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -295,10 +286,9 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeStudentLifecycleRepo{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.logger = slog.Default()
-		unit.studentLifecycleRepo = repo
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger:               slog.Default(),
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 

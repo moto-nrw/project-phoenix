@@ -9,75 +9,80 @@
     "#4085",
     "#4086"
   ],
-  "owner_and_capability": "Final legacy cluster: root-bind School Setup stores, Reminder HTTP runtime and Staff Offboarding collaborators; publish the existing native Presence room value; dissolve People Directory/Care Plan private row and Audit service carriers without additional grants.",
+  "owner_and_capability": "Owner-native Settings snapshots/errors and immutable construction, Data Import ports and retry/checkpoint execution, Scheduler instance state and injected clocks, Document Rendering values, Staff Clock errors, and the bounded legacy composition retirements.",
   "affected_packages": [
     "api",
-    "models (test-only documentation; compile assertions rehosted)",
+    "models (documentation-only test package)",
     "models/users (deleted)",
     "models/parent (deleted)",
     "models/calendar (deleted)",
-    "database/repositories/config (retained: internal-test consumer blocker)",
-    "database/repositories/parent (relocated)",
+    "database/repositories/parent (deleted)",
+    "database/repositories/config (deleted)",
     "services/audit (deleted)",
-    "modules/auditlog/internal/application",
-    "modules/auditlog/internal/adapters/auditpostgres",
-    "modules/peopledirectory/internal/rows",
-    "modules/careplan/internal/rows",
-    "modules/studentpresence",
-    "modules/facilities/compose/legacy",
-    "modules/schoolsetup/compose",
-    "modules/settings/compose",
-    "workflows/reminderdelivery/compose",
-    "workflows/staffoffboarding/compose",
     "services/database (deleted)",
-    "modules/transactionruntime/stats",
-    "modules/transactionruntime/internal/application/stats"
+    "services/config (deleted, including defaults, sideeffects and settingstest)",
+    "services/import (deleted, including ports and integration)",
+    "services/scheduler (retained: immutable composition checker path)",
+    "services/listexport (deleted)",
+    "services/iot/staffclock (deleted)",
+    "modules/settings/internal/application",
+    "modules/settings/records",
+    "modules/settings/settingstest",
+    "modules/dataimport/ports",
+    "modules/dataimport/importtest",
+    "modules/dataimport/internal/application/importservice",
+    "services/scheduler",
+    "modules/documentrendering/records",
+    "modules/documentrendering/internal/application/listrenderer",
+    "workflows/staffclock/internal/application"
   ],
   "affected_tables": [
     "None: SQL statements, schema and write ownership are unchanged."
   ],
   "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter|github.com/moto-nrw/project-phoenix/services/listexport",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy|github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose|github.com/moto-nrw/project-phoenix/database/repositories/config",
-    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose|github.com/moto-nrw/project-phoenix/api/common",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose|github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose|github.com/moto-nrw/project-phoenix/modules/workforce/compose"
   ],
-  "atomic_cutover": "Retire exactly 5 keys for carrier 4004 in this local candidate. The two models test keys disappear when its assertions move beside the private rows; the original classified path retains only test-package documentation for the immutable checker scenario; all eight compile assertions retain the exact original conventional-entity method set beside the private People Directory rows. Five composition keys disappear through native room vocabulary and root bindings from existing values. No key, grant, checker allowance, alias or budget increase is introduced. One accepted same-owner public-to-port successor replaces direct statistics application aliases. Thirty-five keys remain; the final cluster exits are not claimed.",
+  "atomic_cutover": "Retire 5 keys for carrier 4004 against development a4b10d5cdf06c707909c14f386807d6a56295f3c. The merged base has 40 keys and this candidate has 33. There are no new keys, aliases, exceptions, grants, hook allowances, checker edits or budget increases. Native contract/port rules preserve existing reaches. The Data Import authorization consumer is retained after its native-policy probe was rejected. Composition is zero. The broader final-cluster exits remain pending.",
   "tests": [
-    "scripts/backend-architecture.sh check against immutable base a51ece49deb11a42951491853e85a7968a2d39ff",
-    "scripts/backend-architecture.sh validate-ticket --all --base-ref a51ece49deb11a42951491853e85a7968a2d39ff",
-    "Focused Audit command, consent and scan-adapter tests; unchanged expected values and error assertions.",
-    "Focused module alias, LOC, pass-through, file-size, function-length and model-ceremony ratchets.",
-    "Full scripts/test-changed.sh origin/development without --fast is required before publication; record actual outcome in the handoff."
+    "scripts/backend-architecture.sh check --base-ref a4b10d5cdf06c707909c14f386807d6a56295f3c",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref a4b10d5cdf06c707909c14f386807d6a56295f3c",
+    "Owner behavior suites for Data Import and its database-backed importtest package, Settings application/defaults/HTTP, Scheduler, Document Rendering and Staff Clock; original assertions retained.",
+    "Source ratchets for function length, complexity, pass-throughs, facade width, file size, composition LOC and aliases.",
+    "Full scripts/test-changed.sh origin/development without --fast, lint and hooks are required before push; actual final outcomes are recorded in docs/architecture/final-legacy-cluster.md."
   ],
   "runtime_evidence": {
-    "source": "Local implementation and fixed-build architecture checks; the remaining exact-key and foreign-symbol inventories are recorded in docs/architecture/final-legacy-cluster.md. No manual HTTP request or benchmark is claimed.",
+    "source": "Local source contraction against the merged development SHA. The owner behavior suites exercise request/snapshot precedence, tenant isolation, validation and failure paths, import checkpoint/retry receipts, job state and renderer outputs. No manual production request or benchmark is claimed.",
     "sources": [
       "docs/architecture/final-legacy-cluster.md",
       "backend/api/school_setup_composition.go",
-      "backend/api/reminder_http_runtime.go",
       "backend/api/staff_offboarding_workforce.go",
-      "backend/modules/studentpresence/session_room.go",
       "backend/modules/peopledirectory/internal/rows/entity_interfaces_test.go",
-      "backend/modules/auditlog/internal/application/command_test.go",
-      "backend/modules/auditlog/internal/adapters/auditpostgres/unregistered_tag_scan_service_test.go",
-      "backend/modules/transactionruntime/stats/contracts.go",
-      "backend/modules/transactionruntime/internal/application/stats/database_service_test.go"
+      "backend/modules/settings/records/settings_snapshot.go",
+      "backend/modules/settings/internal/application/settings_request_cache_db_test.go",
+      "backend/modules/settings/internal/application/sideeffects/registry.go",
+      "backend/modules/dataimport/internal/application/importservice/batches.go",
+      "backend/modules/dataimport/importtest/batches_test.go",
+      "backend/services/scheduler/overdue_test.go",
+      "backend/modules/documentrendering/records/types.go",
+      "backend/workflows/staffclock/contracts.go"
     ],
-    "workload": "Code-only contraction against development a51ece49deb11a42951491853e85a7968a2d39ff. Existing tenant, authorization, row, query and error paths are preserved; the fixed-build architecture check and owner tests are the acceptance workload.",
-    "thresholds": "Exactly seven keys retire in total: five for 4004 and two for 2751. No new key, grant, alias, exception, hook allowance or budget increase. Root composition falls from 1638 to 1633; foreign composition aliases fall from 128 to 102.",
+    "workload": "Code-only migration against a4b10d5cdf06c707909c14f386807d6a56295f3c. Focused owner suites passed using the main checkout test DB configuration and /tmp/gocache-final. Full affected tests, lint and hooks must pass before publication.",
+    "thresholds": "40 to 33 legacy keys: five 4004 keys and two 2751 keys. Composition surface remains 0. Foreign composition aliases decrease from 124 to 37. No new exact debt, grant, alias, exception, checker edit or higher budget.",
     "errors": {
       "state": "measured",
-      "result": "Focused Audit command/consent/scan-adapter tests passed with their existing failure-path assertions."
+      "result": "Owner behavior suites passed with the original error strings and assertions; Staff Clock StampError.Error still returns Cause.Error without wrapping or fallback."
     },
     "failure": {
       "state": "measured",
-      "result": "Existing Audit tests preserve append/consent repository failures, missing dependencies, missing tenant, blank scan tag, and retention repository errors."
+      "result": "Existing Data Import savepoint/checkpoint/rollback tests and Settings request cache/tenant tests pass; Scheduler and rendering suites preserve their existing failure-path assertions."
     },
     "smoke": {
       "state": "measured",
-      "result": "Focused owner behavior and source-ratchet test run passed; no manual runtime startup is claimed."
+      "result": "Focused owner suites and source ratchets passed. The fixed-build architecture check reports composition 0 and 33 legacy violations. Full final outcomes are recorded in the linked report."
     },
     "affected_rows": {
       "state": "not_applicable",
@@ -109,15 +114,15 @@
     },
     "job_duration": {
       "state": "not_applicable",
-      "reason": "No scheduler implementation is migrated in this candidate."
+      "reason": "Scheduler state and dependency construction move without changing cron schedules, retry policy or queue handling; no runtime benchmark is claimed."
     },
     "job_retries": {
       "state": "not_applicable",
-      "reason": "No retry behavior changes."
+      "reason": "Scheduler state and dependency construction move without changing cron schedules, retry policy or queue handling; no runtime benchmark is claimed."
     },
     "job_backlog": {
       "state": "not_applicable",
-      "reason": "No queue/backlog behavior changes."
+      "reason": "Scheduler state and dependency construction move without changing cron schedules, retry policy or queue handling; no runtime benchmark is claimed."
     },
     "rollback": {
       "state": "not_applicable",
@@ -125,5 +130,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the local contract, caller, policy, baseline, relocation and budget changes together. No data rollback or credential change is required.",
-  "exit_criterion": "All 5 listed carrier keys are absent; no new violation is introduced. Old providers have no remaining production callers; moved compile assertions still require GetID, GetCreatedAt and GetUpdatedAt. Architecture, complete retirement coverage, relevant behavior tests and full hooks pass before publication. The full final-cluster exits remain pending while 35 exact keys and the documented package prerequisites remain."
+  "exit_criterion": "All 5 listed keys are absent and no new violation is introduced. The models package has no imports, factory, setter or broad composition; its unchanged structural assertions live beside People Directory private rows. Required architecture, evidence, full affected tests, lint and hooks pass before publication. Other carrier exits remain pending at 33 keys."
 }

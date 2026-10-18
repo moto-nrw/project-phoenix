@@ -5,7 +5,7 @@
   "prerequisites": [
     "#3943"
   ],
-  "owner_and_capability": "Legacy composition — shared test composition (test-support: test), slice B of #3944 under #2748, policy epoch 35 per ADR 0047: the fixtures reach the Security Runtime and Settings Platform contracts (security-runtime/public, settings-platform/public), and the tests that drove settings and audit implementations from the fixture package move to the owner suites (settings-platform: services/config; audit-platform: database/repositories/audit/integration).",
+  "owner_and_capability": "Legacy composition \u2014 shared test composition (test-support: test), slice B of #3944 under #2748, policy epoch 35 per ADR 0047: the fixtures reach the Security Runtime and Settings Platform contracts (security-runtime/public, settings-platform/public), and the tests that drove settings and audit implementations from the fixture package move to the owner suites (settings-platform: services/config; audit-platform: database/repositories/audit/integration).",
   "affected_packages": [
     "test",
     "modules/securityruntime",
@@ -40,7 +40,7 @@
       "backend/test/fixtures_guardians.go",
       "backend/test/request_review_policy.go",
       "backend/test/operational_overview_scope_test.go",
-      "backend/services/config/operational_overview_scope_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/config/operational_overview_scope_test.go",
       "backend/api/booking_consistency_audit_test.go",
       "backend/test/booking_consistency_audit_fixture.go"
     ],

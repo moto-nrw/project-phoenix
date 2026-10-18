@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
+	"github.com/moto-nrw/project-phoenix/modules/settings/settingstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )

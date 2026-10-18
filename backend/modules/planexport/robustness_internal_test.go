@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 )
 
 // The plan exports read half a dozen optional sources. The rule this file

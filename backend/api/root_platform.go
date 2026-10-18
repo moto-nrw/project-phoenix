@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	auditRecords "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -23,9 +25,16 @@ import (
 // query adapter bound to the caller's transaction, tenant and read-only root
 // DB fallback, and the append store routed through the fail-closed command
 // (ADR 0049, #4013).
+type auditCommand interface {
+	auditRecords.Command
+	retentionAuditLedgers
+	retentionDeletionLog
+	DeleteExpiredOperatorAuditLog(context.Context) (int, error)
+}
+
 type AuditOwner struct {
 	Persistence *auditCompose.Persistence
-	Command     *auditCompose.Command
+	Command     auditCommand
 }
 
 // buildAuditOwner builds the Audit Platform. The composition reads the

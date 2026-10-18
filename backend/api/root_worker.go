@@ -7,7 +7,6 @@ import (
 	"time"
 
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -59,7 +58,7 @@ import (
 // workerRetentionOf builds the nightly cleanup's retention: the student and
 // staff deletions and every owner's retention step.
 func workerRetentionOf(
-	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit *auditCompose.Command,
+	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
 	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
 	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow,
 ) (workerRetention, error) {

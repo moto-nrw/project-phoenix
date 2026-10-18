@@ -22,7 +22,7 @@ import (
 // with the side effects of a settings change registered.
 type SettingsCallbacksTestModule struct {
 	Settings       settingsCompose.SettingsService
-	TenantSettings *settingsCompose.TenantOperations
+	TenantSettings configModel.TenantOperationsService
 }
 
 // NewSettingsCallbacksTestModule composes the tenant settings over db and
