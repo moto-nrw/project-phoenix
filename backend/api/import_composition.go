@@ -1,11 +1,13 @@
 package api
 
 import (
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
+	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -139,4 +141,26 @@ func newOpeningBalanceImport(
 			config := importService.NewOpeningBalanceImportConfig(deps, effectiveDate, note, decidedByStaffID)
 			return importService.NewImportService(config, runtime)
 		})
+}
+
+// newServeImports builds the import services the server root mounts over
+// the owners it composed (#2708, #4013).
+func newServeImports(
+	audit AuditOwner, identity *identityaccess.Module, groups schoolstructure.GroupListing, rooms facilities.Query,
+	persons peopledirectory.Capability, carePlan careplan.Capability, presence PresenceOwner, organizations organizationtenancy.Capability,
+	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce WorkforcePlanning,
+) imports {
+	runtime := newImportRuntime(audit.Command, observeDataImport)
+	return imports{
+		Student: newStudentImport(
+			runtime, identity, groups, rooms, persons, persons, carePlan, presence.Presence,
+			auditCompose.NewConsentRecorder(audit.Command),
+		),
+		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
+		ClassList: newClassListImport(runtime, membership, persons),
+		OpeningBalance: newOpeningBalanceImport(runtime, dataImportRetained.OpeningBalanceImportDeps{
+			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
+			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
+		}, membership, persons, workTime),
+	}
 }

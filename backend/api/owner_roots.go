@@ -56,19 +56,64 @@ func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 
 // NewParentPortalRepositories builds the retained guardian-portal and
 // messaging repositories over the owners they read through, every one bound
-// at construction (#2743): people answers the student, guardian and person
-// reads that used to join users.students, users.guardian_profiles and
-// users.persons; groups names the groups of the inbox threads; membership
-// resolves the live staff accounts behind the read cursors; identity owns the
-// accounts, their school memberships and role classes; enrollment owns the
-// phases, applications and announcement applicants; now is the announcement
-// clock, nil keeps the store default. The school names are bound by
-// WithSchools.
+// at construction (#2743). The school names are bound by WithSchools.
 func NewParentPortalRepositories(
 	db transactionruntime.Database, people peopledirectory.Capability, groups schoolstructure.Query,
 	membership schoolmembership.Capability, identity *identityaccess.Module, enrollment *enrollmentCapability.Module,
 	now func() time.Time,
 ) ParentPortalRepositories {
+	return ParentPortalRepositories{
+		ParentPortalRepositories: newParentPortalReads(db, people, identity, enrollment),
+		MessagingRepositories:    newParentMessagingRepositories(db, groups, membership, identity, enrollment, now),
+	}
+}
+
+// NewParentPortalReads builds Care Plan's guardian-portal repositories over
+// the owners they read through: people answers the student, guardian and
+// person reads; identity owns the accounts, their school memberships and
+// role classes; enrollment owns the phases and applications; schools names
+// the schools.
+func NewParentPortalReads(
+	db transactionruntime.Database, people peopledirectory.Capability, identity *identityaccess.Module,
+	enrollment *enrollmentCapability.Module, schools organizationtenancy.Query,
+) carePlanCompose.ParentPortalRepositories {
+	if schools == nil {
+		panic("parent portal repositories: organization tenancy query is required")
+	}
+	return newParentPortalReads(db, people, identity, enrollment).WithSchools(ParentPortalSchools{Schools: schools})
+}
+
+// NewParentMessagingRepositories builds Communication's parent-portal and
+// staff messaging repositories: groups names the groups of the inbox
+// threads; membership resolves the live staff accounts behind the read
+// cursors; identity owns the accounts; enrollment owns the announcement
+// applicants; now is the announcement clock, nil keeps the store default;
+// schools names the schools.
+func NewParentMessagingRepositories(
+	db transactionruntime.Database, groups schoolstructure.Query, membership schoolmembership.Capability,
+	identity *identityaccess.Module, enrollment *enrollmentCapability.Module, now func() time.Time,
+	schools organizationtenancy.Query,
+) parentStore.MessagingRepositories {
+	if schools == nil {
+		panic("parent portal repositories: organization tenancy query is required")
+	}
+	return newParentMessagingRepositories(db, groups, membership, identity, enrollment, now).WithSchoolNames(ParentPortalSchools{Schools: schools})
+}
+
+func newParentPortalReads(db transactionruntime.Database, people peopledirectory.Capability, identity *identityaccess.Module, enrollment *enrollmentCapability.Module) carePlanCompose.ParentPortalRepositories {
+	return carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
+		DB: db.Pool(), Directory: ParentPortalDirectory{People: people},
+		AccountSchools: identity.ListActiveAccountSchoolIDs,
+		Phases:         ParentPortalEnrollments{enrollment: enrollment},
+		Applications:   ParentPortalEnrollments{enrollment: enrollment},
+		Accounts:       IdentityAccountDirectory{Accounts: identity},
+	})
+}
+
+func newParentMessagingRepositories(
+	db transactionruntime.Database, groups schoolstructure.Query, membership schoolmembership.Capability,
+	identity *identityaccess.Module, enrollment *enrollmentCapability.Module, now func() time.Time,
+) parentStore.MessagingRepositories {
 	pool := db.Pool()
 	members := ParentStaffMembers{Membership: membership}.List
 	// The staff accounts are loaded from the person rows.
@@ -89,22 +134,13 @@ func NewParentPortalRepositories(
 		return out, err
 	}
 	groupNames := parentGroupNames{groups: groups}.list
-	return ParentPortalRepositories{
-		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-			DB: pool, Directory: ParentPortalDirectory{People: people},
-			AccountSchools: identity.ListActiveAccountSchoolIDs,
-			Phases:         ParentPortalEnrollments{enrollment: enrollment},
-			Applications:   ParentPortalEnrollments{enrollment: enrollment},
-			Accounts:       IdentityAccountDirectory{Accounts: identity},
-		}),
-		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
-			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
-				parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
-		},
+	return parentStore.MessagingRepositories{
+		ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
+		ParentMessageRead: parentStore.WithInboxGroupNames(
+			parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
+		StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
+			parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
 	}
 }
 

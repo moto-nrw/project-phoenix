@@ -137,7 +137,7 @@ func (c planningCalendarCapability) ClosingDaysInRange(ctx context.Context, from
 
 // planExportClosingDays and planExportHolidays serve the plan export's
 // non-working-day labels from the School Calendar.
-type planExportClosingDays struct{ calendar schoolcalendar.Calendar }
+type planExportClosingDays struct{ calendar schoolcalendar.Days }
 
 func (a planExportClosingDays) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
 	if _, _, err := parseCapabilityRange(string(from), string(to)); err != nil {
@@ -156,7 +156,7 @@ func (a planExportClosingDays) ClosingDaysInRange(ctx context.Context, from, to 
 	return out, nil
 }
 
-type planExportHolidays struct{ calendar schoolcalendar.Calendar }
+type planExportHolidays struct{ calendar schoolcalendar.Days }
 
 func (a planExportHolidays) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {
 	if _, _, err := parseCapabilityRange(string(from), string(to)); err != nil {

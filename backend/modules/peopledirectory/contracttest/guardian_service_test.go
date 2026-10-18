@@ -37,10 +37,9 @@ func isProfileLockTimeout(err error) bool {
 
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) peoplePorts.GuardianService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactoryServices, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.Guardian
+	return serviceFactoryServices.Guardian
 }
 
 // =============================================================================

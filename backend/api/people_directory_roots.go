@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
@@ -86,12 +87,15 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
-	return ComposePeopleDirectory(peopleCompose.Dependencies{
+	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	module, err := ComposePeopleDirectory(peopleCompose.Dependencies{
 		StudentClassWriteGateQuery: membershipCompose.StudentClassWriteGate(db.Pool()),
 		DB:                         db.Pool(),
 		Observe:                    observe,
+		StudentPhotoRuntime:        func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 	}, membership, careProfiles, companions, peopleDirectoryAudit(db), newGuardianLinkOwners(db),
 		NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships)
+	return module, photoRuntime, err
 }
 
 // NewPeopleIdentityAccess composes the Identity & Access module the People
@@ -197,10 +201,10 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 // service graph and the root's Identity & Access module, with the
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
-func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func NewStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())), logger)
 	if err != nil {
 		panic(err)
 	}
-	return bindStaffMembershipRuntime(f, offboarding, identity, logger, hooks)
+	return bindStaffMembershipRuntime(users, education, staffDay, hub, offboarding, identity, logger, hooks)
 }

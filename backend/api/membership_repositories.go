@@ -17,38 +17,26 @@ import (
 // and permission half from Identity & Access, the employment-only writes from
 // Workforce.
 
-// membershipAdapters are the retained staff, teacher, guest, group and
-// teaching-assignment adapters over School Membership and School Structure.
-type membershipAdapters struct {
-	Staff        StaffMembershipRepository
-	Teacher      TeacherMembershipRepository
-	Guest        guestMembershipRepository
-	Group        *EducationGroupStore
-	GroupTeacher *groupTeacherRepository
-	ClassTeacher *classTeacherRepository
-}
-
 // bindMembershipAdapters binds the staff, teacher and guest adapters over
 // membership, with the group store and the teaching assignments they resolve
 // through.
-func bindMembershipAdapters(persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, group *EducationGroupStore, employment workforce.StaffEmployments) membershipAdapters {
+func bindMembershipAdapters(persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, group *EducationGroupStore, employment workforce.StaffEmployments) (
+	StaffMembershipRepository, TeacherMembershipRepository, guestMembershipRepository, *groupTeacherRepository, *classTeacherRepository,
+) {
 	groupTeachers := newGroupTeacherRepository(membership, group)
 	deps := NewStaffMembershipDeps(persons, identity, employment)
 	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
-	return membershipAdapters{
-		Staff:        StaffMembershipRepository{Membership: membership, Deps: deps},
-		Teacher:      TeacherMembershipRepository{Membership: membership, Deps: deps},
-		Guest:        guestMembershipRepository{membership: membership},
-		Group:        group,
-		GroupTeacher: groupTeachers,
-		ClassTeacher: &classTeacherRepository{membership: membership},
-	}
+	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps},
+		guestMembershipRepository{membership: membership}, groupTeachers, &classTeacherRepository{membership: membership}
 }
 
-// newMembershipAdapters composes the adapters over membership, with the group
-// store over db and an unobserved Workforce employment owner.
-func newMembershipAdapters(db transactionruntime.Database, persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) membershipAdapters {
-	return bindMembershipAdapters(persons, identity, membership,
-		NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), rooms, membership, workTime),
-		workforceCompose.MustNewStaffEmployment(db.Pool()))
+// newMembershipAdapters composes the staff, teacher, guest, group,
+// teaching-assignment and class-teacher adapters over membership, with the
+// group store over db and an unobserved Workforce employment owner.
+func newMembershipAdapters(db transactionruntime.Database, persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) (
+	StaffMembershipRepository, TeacherMembershipRepository, guestMembershipRepository, *EducationGroupStore, *groupTeacherRepository, *classTeacherRepository,
+) {
+	group := NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), rooms, membership, workTime)
+	staff, teacher, guest, groupTeachers, classTeachers := bindMembershipAdapters(persons, identity, membership, group, workforceCompose.MustNewStaffEmployment(db.Pool()))
+	return staff, teacher, guest, group, groupTeachers, classTeachers
 }

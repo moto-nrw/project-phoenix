@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,15 +28,21 @@ const organizationTenancyPackage = "github.com/moto-nrw/project-phoenix/modules/
 
 var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 
-// buildOperatorProvisioning returns the graph whose OperatorProvisioning
-// field is the production composition over db.
-func buildOperatorProvisioning(t *testing.T, db *bun.DB) *TestServiceGraph {
+// buildOperatorProvisioning returns the production composition of the
+// operator provisioning over db.
+func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Provisioning {
 	t.Helper()
-	repoFactory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	graph, err := NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	provisioning, _ := buildOperatorProvisioningWithIdentity(t, db)
+	return provisioning
+}
+
+// buildOperatorProvisioningWithIdentity returns the operator provisioning
+// with the Identity & Access module of the same composition.
+func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.Provisioning, *identityaccess.Module) {
+	t.Helper()
+	_, _, identity, _, _, _, _, _, _, _, _, _, _, _, provisioning, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err, "Failed to create service graph")
-	require.NoError(t, graph.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return graph
+	return provisioning, identity
 }
 
 // provisioningContext mirrors the runtime middleware of the operator routes.
@@ -101,7 +109,7 @@ func countOperatorAudit(t *testing.T, db *bun.DB, action, resourceType string, r
 func TestOperatorProvisioningIntegration_ListSchoolPersons_Success(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person1 := testpkg.CreateTestPerson(t, db, "Alice", "Schmidt")
@@ -131,7 +139,7 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_Success(t *testing.T)
 func TestOperatorProvisioningIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person := testpkg.CreateTestPerson(t, db, "ToDelete", "Person")
@@ -149,7 +157,7 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_ExcludesSoftDeleted(t
 func TestOperatorProvisioningIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
@@ -178,7 +186,7 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_WithStaffAndStudent(t
 func TestOperatorProvisioningIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "With", "Account")
@@ -200,7 +208,7 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_WithAccount(t *testin
 func TestOperatorProvisioningIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	emptySchoolID := testpkg.UniqueTestTenantID(t)
@@ -217,7 +225,7 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_EmptySchool(t *testin
 func TestOperatorProvisioningIntegration_SoftDeletePerson_Success(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person := testpkg.CreateTestPerson(t, db, "Delete", "Me")
@@ -244,7 +252,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_Success(t *testing.T) 
 func TestOperatorProvisioningIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Delete")
@@ -278,7 +286,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithAccount(t *testing
 func TestOperatorProvisioningIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 	dbCtx := testpkg.Ctx(t)
 
@@ -313,7 +321,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithRFID(t *testing.T)
 func TestOperatorProvisioningIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
@@ -324,7 +332,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_NotFound(t *testing.T)
 func TestOperatorProvisioningIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person := testpkg.CreateTestPerson(t, db, "AlreadyDeleted", "Person")
@@ -340,7 +348,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_AlreadyDeleted(t *test
 func TestOperatorProvisioningIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	staff := testpkg.CreateTestStaff(t, db, "Blocked", "Supervisor")
@@ -359,7 +367,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithActiveSupervisions
 func TestOperatorProvisioningIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	staff := testpkg.CreateTestStaff(t, db, "FreeStaff", "NoSupervision")
@@ -380,7 +388,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_StaffWithoutSupervisio
 func TestOperatorProvisioningIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	person := testpkg.CreateTestPerson(t, db, "Audit", "LogTest")
@@ -395,7 +403,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_AuditLogCreated(t *tes
 func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Student", "ToDelete", "2b")
@@ -429,7 +437,7 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentSuccess(t *test
 func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 	dbCtx := testpkg.Ctx(t)
 
@@ -498,7 +506,7 @@ func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedSchoolDevice
 func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -529,7 +537,7 @@ func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedOrgDevices(t
 func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := buildOperatorProvisioning(t, db).OperatorProvisioning
+	service := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -557,9 +565,9 @@ func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedO
 
 // provisionTestSchool creates an organisation and a school through the
 // capability and removes both afterwards.
-func provisionTestSchool(t *testing.T, db *bun.DB, graph *TestServiceGraph, operatorID int64, label string) (organizationID, schoolID int64) {
+func provisionTestSchool(t *testing.T, db *bun.DB, graph organizationtenancy.Provisioning, operatorID int64, label string) (organizationID, schoolID int64) {
 	t.Helper()
-	service := graph.OperatorProvisioning
+	service := graph
 	ctx := provisioningContext(t, db)
 	suffix := testpkg.UniqueTestTenantID(t)
 
@@ -638,7 +646,7 @@ func TestOperatorProvisioningIntegration_CreateSchool_SeedsCategoriesAndWebManua
 	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "school", schoolID))
 
 	// The web-manual device is protected from transfer.
-	service := graph.OperatorProvisioning
+	service := graph
 	devices, err := service.ListSchoolDevices(provisioningContext(t, db), schoolID)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
@@ -652,7 +660,7 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_CreatesInvitation(t *
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 
@@ -687,14 +695,14 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_CreatesInvitation(t *
 func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	graph, graphIdentity := buildOperatorProvisioningWithIdentity(t, db)
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 	dbCtx := testpkg.Ctx(t)
 
 	t.Run("role projection uses public identity capability", func(t *testing.T) {
-		identity := NewProvisioningIdentityForTest(graph.Auth)
+		identity := NewProvisioningIdentityForTest(graphIdentity)
 		custom := testpkg.CreateTestRole(t, db, "operator-custom")
 		system := testpkg.CreateTestSystemRole(t, db, "operator-system")
 		roles, err := identity.ListSystemRoles(ctx)
@@ -801,7 +809,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_CaregiverUpgradeAss
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 
@@ -841,7 +849,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_FailedIdentityLeave
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 
@@ -877,7 +885,7 @@ func TestOperatorProvisioningIntegration_SoftDeleteAndRestoreSchool(t *testing.T
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 
@@ -914,7 +922,7 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	graph := buildOperatorProvisioning(t, db)
-	service := graph.OperatorProvisioning
+	service := graph
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 	dbCtx := testpkg.Ctx(t)

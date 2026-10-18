@@ -59,12 +59,12 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFa
 
 func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, reposPeople *api.PeopleRepositorySuiteFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *parentportal.ChildFlows {
 	t.Helper()
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	sfRequests, schedules, _, _, _, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 	if len(requestService) > 0 {
-		*requestService[0] = sf.CareRequests
+		*requestService[0] = sfRequests.CareRequests
 	}
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		GuardianPolicy: api.NewParentGuardianPolicy(),
@@ -79,9 +79,9 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 				parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDisabled,
 			},
 		},
-		ArrivalSchedules: api.NewParentArrivalSchedules(sf.ArrivalSchedule),
-		PickupSchedules:  api.NewParentPickupSchedules(sf.PickupSchedule),
-		CareRequests:     sf.CareRequests,
+		ArrivalSchedules: api.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:  api.NewParentPickupSchedules(schedules.Pickups),
+		CareRequests:     sfRequests.CareRequests,
 		StatusDayRepo:    repos.StudentStatusDay,
 		Logger:           slog.Default(),
 		Now: func() time.Time {

@@ -84,10 +84,10 @@ func NewCaregiverBindingLocker(membership schoolmembership.Capability, workTime 
 // caregiverBindingOwners adapts the four binding owners to the People
 // Directory port that serializes the caregiver capability re-check.
 type caregiverBindingOwners struct {
-	membership schoolmembership.Capability
-	workforce  workforce.Capability
-	presence   studentpresence.Capability
-	timetable  timetable.Capability
+	membership interface{ LockGroupAssignments(context.Context) error }
+	workforce  interface{ LockGroupSubstitutions(context.Context) error }
+	presence   interface{ LockGroupSupervisions(context.Context) error }
+	timetable  interface{ LockPlannedSupervisors(context.Context) error }
 }
 
 func (o caregiverBindingOwners) LockGroupAssignments(ctx context.Context) error {

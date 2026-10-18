@@ -183,7 +183,7 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 	assert.NotNil(t, result.Instance.StartedAt)
 
 	// active.group row exists and is in the same room.
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, result.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, result.ActiveGroupID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	assert.Equal(t, s.roomID, group.RoomID)
@@ -487,7 +487,7 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	require.NotNil(t, completed.CompletedAt)
 
 	// Bridge active.group must be closed.
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
 }
@@ -691,7 +691,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	assert.Equal(t, completedSupervisors, supervisors, "supervisor restoration must roll back")
 	assert.Equal(t, completedFirst, fetchAttendance(t, s, ai.ID, s.student1), "first assignment restoration must roll back")
 	assert.Equal(t, completedSecond, fetchAttendance(t, s, ai.ID, s.student2), "second assignment restoration must roll back")
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.NotNil(t, group.EndTime)
 	presence := newInstancePresence(t, s.db)
@@ -757,7 +757,7 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
 	assert.Equal(t, started.ActiveGroupID, reopened.ActiveGroupID)
 
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.Nil(t, group.EndTime)
 }
@@ -1049,7 +1049,7 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	require.NotNil(t, group.EndTime, "cancel-from-active must end active.group")
 }
@@ -1189,7 +1189,7 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 		ActivityGroupID: &s.tmplID, RoomID: s.roomID,
 	}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -1209,11 +1209,11 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: calendar.DateFromTime(now).String()}
 	sup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	require.NoError(t, s.active.CreateGroupSupervisor(s.ctx, sup))
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -1268,11 +1268,11 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: calendar.DateFromTime(now).String()}
 	sup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	require.NoError(t, s.active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &s.roomID, true)
 
@@ -1300,11 +1300,11 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: calendar.DateFromTime(now).String()}
 	sup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	require.NoError(t, s.active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &otherRoom.ID, true)
 
@@ -1334,11 +1334,11 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: calendar.DateFromTime(now).String()}
 	sup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	require.NoError(t, s.active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, nil, false)
 
@@ -1368,11 +1368,11 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: calendar.DateFromTime(now).String()}
 	sup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
+	require.NoError(t, s.active.CreateGroupSupervisor(s.ctx, sup))
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -1398,7 +1398,7 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 	now := time.Now()
 	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.TenantID = testpkg.Tenant(t)
-	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
+	require.NoError(t, s.active.CreateActiveGroup(s.ctx, preGroup))
 
 	// The conflict check needs a visit, without a school attendance transition.
 	testpkg.CreateTestVisit(t, s.db, s.student1, preGroup.ID, now, nil)

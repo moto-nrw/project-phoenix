@@ -31,44 +31,30 @@ type GuardianInvitationCapability interface {
 	identityaccess.GuardianRelativeAccess
 }
 
-// GuardianInvitationWiring is the retained material the guardian invitation
-// seams are bound to.
-type GuardianInvitationWiring struct {
-	Settings    settingsCompose.SettingsService
-	Schools     organizationtenancy.Query
-	Outbox      MailResultOutbox
-	Enrollments GuardianEnrollmentClaims
-	// ParentsURL is the origin of the accept and login links; a guardian
-	// signs in on the parents portal, never on the staff frontend.
-	ParentsURL     string
-	FallbackExpiry time.Duration
-	Logger         *slog.Logger
-}
-
 // GuardianEnrollmentClaims is the narrow contract the acceptance needs from
 // the parent enrollment storage.
 type GuardianEnrollmentClaims interface {
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-func (w *GuardianInvitationWiring) complete() bool {
-	return w != nil && w.Schools != nil && w.Outbox != nil && w.Enrollments != nil
-}
-
 // guardianInvitationDependencies binds the delivery and the enrollment claim
-// the lifecycle flows consume; a nil wiring composes the module without
-// them, which is what the read-only and fixture roots want.
-func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
-	if wiring == nil {
-		return unsentGuardianMail{}, nil, nil
-	}
-	if !wiring.complete() {
+// the lifecycle flows consume: the settings that hold the tenant's token
+// lifetime, the school read for the mail subject, the outbox, the parents
+// portal origin of the accept and login links (a guardian signs in on the
+// parents portal, never on the staff frontend) and the deployment's
+// fallback expiry. A root composed without the guardian mail passes
+// unsentGuardianMail{} to the lifecycle instead.
+func guardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.Query, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
+	if schools == nil || outbox == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
+	if logger == nil {
+		return nil, nil, errors.New("identity access composition: the guardian invitation seams need a logger")
+	}
 	return guardianInvitationDelivery{
-		settings: wiring.Settings, schools: wiring.Schools, outbox: wiring.Outbox,
-		parentsURL: wiring.ParentsURL, fallbackExpiry: wiring.FallbackExpiry, wiringLogger: wiring.Logger,
-	}, identityaccessCompose.NewSavepointGuardianEnrollments(wiring.Enrollments), nil
+		settings: settings, schools: schools, outbox: outbox,
+		parentsURL: parentsURL, fallbackExpiry: fallbackExpiry, logger: logger,
+	}, identityaccessCompose.NewSavepointGuardianEnrollments(enrollments), nil
 }
 
 // unsentGuardianMail serves a root composed without the guardian mail — a
@@ -90,28 +76,21 @@ func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.Gua
 
 // --- delivery ---------------------------------------------------------------
 
-// guardianInvitationDelivery holds the wiring's settings, school read,
-// outbox, parents portal origin, fallback expiry and logger.
+// guardianInvitationDelivery holds the settings, school read, outbox,
+// parents portal origin, fallback expiry and logger of the guardian mails.
 type guardianInvitationDelivery struct {
 	settings       settingsCompose.SettingsService
 	schools        schoolFinder
 	outbox         MailResultOutbox
 	parentsURL     string
 	fallbackExpiry time.Duration
-	wiringLogger   *slog.Logger
-}
-
-func (d guardianInvitationDelivery) logger() *slog.Logger {
-	if d.wiringLogger != nil {
-		return d.wiringLogger
-	}
-	return slog.Default()
+	logger         *slog.Logger
 }
 
 // InvitationExpiry reads the school's token lifetime (tenant override, then
 // registry default) and lets the owner fall back to the deployment's.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := settingsCompose.ResolveIntOrDefault(ctx, d.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
+	hours := settingsCompose.ResolveIntOrDefault(ctx, d.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger)
 	return identityaccess.GuardianInvitationExpiry(hours, d.fallbackExpiry)
 }
 
@@ -130,7 +109,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	return NewGuardianInvitationMailer(GuardianInvitationMailerConfig{
-		Outbox: d.outbox, FrontendURL: d.parentsURL, Logger: d.logger(),
+		Outbox: d.outbox, FrontendURL: d.parentsURL, Logger: d.logger,
 	})
 }
 
@@ -151,7 +130,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 	var helpURL string
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
-		helpURL, err = welcomeHelpURL(savepointCtx, d.parentsURL, welcomeHelpRoleParent, tenantID, d.settings, d.logger())
+		helpURL, err = welcomeHelpURL(savepointCtx, d.parentsURL, welcomeHelpRoleParent, tenantID, d.settings, d.logger)
 		return err
 	})
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
@@ -164,7 +143,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 // Without a transaction there is nothing to protect.
 func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(context.Context) error) {
 	if err := identityaccessCompose.RunMailStep(ctx, step); err != nil {
-		d.logger().Error("guardian welcome email: savepoint failed",
+		d.logger.Error("guardian welcome email: savepoint failed",
 			slog.String("error", err.Error()))
 	}
 }

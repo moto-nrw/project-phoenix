@@ -26,7 +26,7 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 	require.Len(t, listInstancesForDate(t, c.db, c.middleID, c.earlier), 1)
 	require.Len(t, listInstancesForDate(t, c.db, c.middleID, c.anchor), 1)
 
-	result, err := c.factory.TimetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
+	result, err := c.timetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
 		TemplateID:    c.livingID,
 		EffectiveDate: c.anchor,
 	})
@@ -76,7 +76,7 @@ func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) 
 		[]int64{c.livingID}, []calendar.Date{livingDay})
 	require.Len(t, listInstancesForDate(t, c.db, c.livingID, livingDay), 1)
 
-	result, err := c.factory.TimetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
+	result, err := c.timetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
 		TemplateID:    c.middleID,
 		EffectiveDate: c.anchor,
 	})
@@ -109,7 +109,7 @@ func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
 
 	// A second, independent template of the same tenant, running on the same
 	// weekday and materialized over the same window.
-	other, err := c.factory.TimetableData.Templates.CreateTemplate(c.ctx, timetable.CreateTemplateCommand{
+	other, err := c.timetableData.Templates.CreateTemplate(c.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Unrelated-%d", time.Now().UnixNano()),
 		Type:            activitiesModels.GroupTypeActivity,
 		Weekdays:        []int{activitiesModels.WeekdayMonday},
@@ -133,7 +133,7 @@ func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
 		[]int64{other.TemplateID}, []calendar.Date{c.earlier, c.anchor})
 	require.Len(t, listInstancesForDate(t, c.db, other.TemplateID, c.anchor), 1)
 
-	_, err = c.factory.TimetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
+	_, err = c.timetableData.Templates.EndTemplateFromDate(c.ctx, timetable.EndTemplateCommand{
 		TemplateID:    c.livingID,
 		EffectiveDate: c.anchor,
 	})

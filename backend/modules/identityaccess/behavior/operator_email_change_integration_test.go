@@ -23,19 +23,17 @@ import (
 const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
 
 // buildServiceFactory composes the service root the way the server does.
-func buildServiceFactory(t *testing.T, db *bun.DB) *api.TestServiceGraph {
+func buildServiceFactory(t *testing.T, db *bun.DB) *identityaccess.Module {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	identityModule, err := api.NewTestIdentityAccess(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return serviceFactory
+	return identityModule
 }
 
 // buildAuthService wires the operator flows the way the service root does.
 func buildAuthService(t *testing.T, db *bun.DB) operatorServiceShim {
 	t.Helper()
-	return operatorServiceShim{module: buildServiceFactory(t, db).OperatorAuth}
+	return operatorServiceShim{module: buildServiceFactory(t, db)}
 }
 
 // buildOperatorPasswordChange returns the operator password change the root
@@ -45,7 +43,7 @@ func buildOperatorPasswordChange(t *testing.T, db *bun.DB) interface {
 	ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 } {
 	t.Helper()
-	return buildServiceFactory(t, db).AccountAuthentication()
+	return buildServiceFactory(t, db)
 }
 
 // createEmailChangeTestOperator creates an operator with a real Argon2id password hash.

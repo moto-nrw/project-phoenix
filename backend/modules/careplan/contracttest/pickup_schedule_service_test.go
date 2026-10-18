@@ -21,10 +21,9 @@ import (
 
 // setupPickupScheduleService creates a PickupScheduleService with real database connection
 func setupPickupScheduleService(t *testing.T, db *bun.DB) careplan.PickupScheduleService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactorySchedules, err := api.NewTestCarePlanSchedules(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.PickupSchedule
+	return serviceFactorySchedules.Pickups
 }
 
 func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
@@ -385,9 +384,8 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactorySchedules, err := api.NewTestCarePlanSchedules(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Guardian", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "1a")
@@ -406,7 +404,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	}
 	require.NoError(t, repoFactorySchedules.StudentPickupException.Create(ctx, guardianPickup))
 
-	partial, err := serviceFactory.PartialAbsence.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
+	partial, err := serviceFactorySchedules.PartialAbsences.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: student.ID,
 		Date:      date,
 		FromTime:  calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
@@ -417,7 +415,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	require.Equal(t, guardianPickup.ID, partial.ID, "the partial must reuse the guardian pickup row")
 
 	staffPickup := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
-	_, err = serviceFactory.PickupSchedule.CreateOrReclaimException(
+	_, err = serviceFactorySchedules.Pickups.CreateOrReclaimException(
 		ctx,
 		student.ID,
 		date,

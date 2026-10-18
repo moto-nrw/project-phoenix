@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func checkSchoolScopeMatrix(t *testing.T, apiInstance *serveGraph) {
+func checkSchoolScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 
 	tokenAuth, err := newSessionTokenAuth()

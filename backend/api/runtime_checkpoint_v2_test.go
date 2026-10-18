@@ -606,7 +606,7 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	t.Helper()
 	operations := contentionOperations()
 	require.GreaterOrEqual(t, concurrency, len(operations), "every contention operation needs at least one slot per round")
-	api := production.graph
+	api := newGoldenRuntime(t, production)
 	slots := make([]*checkpointConcurrentOperation, concurrency)
 	for i := range slots {
 		index := i

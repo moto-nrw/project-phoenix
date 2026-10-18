@@ -43,9 +43,8 @@ func NewStaffTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 	if err != nil {
 		return StaffTestModule{}, WorkforceTestModule{}, err
 	}
-	carrier := &serviceGraph{Users: users, Education: groups.Education, WorkSession: work.TimeTracking}
 	membershipRuntime := func(db transactionruntime.Database, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
-		return NewStaffMembershipRuntime(carrier, db, auth.Auth, logger, hooks)
+		return NewStaffMembershipRuntime(users, groups.Education, work.TimeTracking.StaffDay, nil, db, auth.Auth, logger, hooks)
 	}
 	return StaffTestModule{Users: users, PeopleDirectory: people, membershipRuntime: membershipRuntime}, work, nil
 }

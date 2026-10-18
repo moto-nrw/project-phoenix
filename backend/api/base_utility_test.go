@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -271,7 +272,7 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 	}
 }
 
-func checkCaregiverWiring(t *testing.T, graph *serveGraph) {
+func checkCaregiverWiring(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 
 	composition := setupCaregiverCompositionModule(t, graph)
@@ -289,18 +290,20 @@ type caregiverComposition struct {
 
 // setupCaregiverCompositionModule composes the account and operator routes
 // over the golden graph with the builders the Serve root mounts them with.
-func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiverComposition {
+func setupCaregiverCompositionModule(t *testing.T, graph *goldenRuntime) *caregiverComposition {
 	t.Helper()
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	in := routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}
-	auth := newAccountResource(in)
-	operator, err := newOperatorRouter(in, authRateLimiters{})
+	_, transport, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	auth := newAccountResource(graph.db, nil, nil, services.CaregiverCapability, settings.Service)
+	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, authRateLimiters{}, devicefleetCompose.NewIoTService(deviceFleet), nil,
+		settings.Service, transport.Hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	return &caregiverComposition{
 		authWired:        auth != nil,
 		operatorWired:    operator != nil,
-		sharedCapability: auth.CaregiverCapabilityService == any(caregiverCapabilityViews(in)),
+		sharedCapability: auth.CaregiverCapabilityService == any(caregiverCapabilityViews(graph.db, services.CaregiverCapability)),
 	}
 }
 
@@ -321,13 +324,17 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: hub}
 }
 
-func setupOperatorInvitationRoute(t *testing.T, graph *serveGraph) chi.Router {
+func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router {
 	t.Helper()
 	// Mount the operator routes of the golden graph again, with rate limiting
 	// enabled. The golden graph's router remains unchanged.
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	operator, err := newOperatorRouter(routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()))
+	_, transport, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()),
+		devicefleetCompose.NewIoTService(deviceFleet), nil, settings.Service, transport.Hub, active, settingsWrites, nil, provisioning,
+		services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Mount("/operator", operator)
@@ -355,7 +362,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-func checkOperatorInvitationMount(t *testing.T, graph *serveGraph) {
+func checkOperatorInvitationMount(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 	router := setupOperatorInvitationRoute(t, graph)
 
@@ -794,13 +801,16 @@ type settingsCallbackRoute struct {
 // Timetable owner's conflict detection and staffing capability (#3550): the
 // conflict probes, the staff pool and the shift-coverage probe answer 500
 // when it is unwired, and the calendar list silently drops its warnings.
-func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
+func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 
-	timetable := newTimetableResource(moduleServices{services: graph.services}, nil, slog.Default())
+	_, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	timetable := newTimetableResource(nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
+		requests.CareOfferings, ClassDayViews{}, nil, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
-	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,
+	assert.Same(t, planning.Planning.ConflictDetection, timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
 
 	// The mounted routes reach it too: an unwired conflict probe answers 500.

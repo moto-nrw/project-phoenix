@@ -35,23 +35,17 @@ func ComposePeopleDirectory(
 	directory peopleCompose.Dependencies, membership schoolmembership.Capability, careProfiles careplan.StudentProfileCommands,
 	companions careplanCompose.CompanionRecords, audit peopleDirectoryAuditTrails, guardianLinks guardianLinkOwners,
 	guardianMemberships peopleCompose.GuardianMembershipQuery,
-) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
-	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+) (*peopledirectory.Module, error) {
 	directory.StudentOwners = NewStudentOwners(membership, careProfiles)
 	directory.StudentFieldAudit = studentFieldAuditLog{repo: audit.StudentFieldEdit}
 	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: audit.DataDeletion}
 	directory.StudentConsentHistory = studentConsentHistory{repo: audit.StudentConsentChange}
-	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
 	directory.StudentCompanions = NewStudentCompanionSeam(companions)
 	directory.GuardianLinkOwners = guardianLinks
 	directory.GuardianRolePresets = guardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	directory.StudentDirectory = studentDirectoryView.NewReader()
-	capability, err := peopleCompose.NewWithGuardianMemberships(directory, guardianMemberships)
-	if err != nil {
-		return nil, nil, err
-	}
-	return capability, photoRuntime, nil
+	return peopleCompose.NewWithGuardianMemberships(directory, guardianMemberships)
 }
 
 func identityAccessObservation(observe IdentityAccessObserver) func(identityCompose.Observation) {

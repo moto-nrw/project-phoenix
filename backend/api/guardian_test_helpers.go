@@ -56,10 +56,7 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: NewGuardianDataAccessLog(audits.DataAccessLog),
 		RolePresets: guardianRolePresets}, db.Pool())
 	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
-	// The compatibility carrier only maps the existing four capabilities to
-	// the production runtime closures. It constructs no additional services.
-	carrier := &serviceGraph{Guardian: guardian}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(carrier, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored

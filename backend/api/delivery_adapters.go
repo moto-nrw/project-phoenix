@@ -6,6 +6,7 @@ import (
 
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -95,4 +96,29 @@ func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, rela
 		return 0, err
 	}
 	return a.module.Cancel(ctx, tenantID.Int64(), delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
+}
+
+// GuardianDisplayRows names the guardians of the Delivery recipients from
+// the People Directory's guardian rows, the way the guardian service reads
+// them. Delivery is composed before the guardian service, which needs
+// Identity & Access, which needs Delivery's outbox (ADR 0059).
+type GuardianDisplayRows struct {
+	Profiles peoplePorts.GuardianProfileRepository
+}
+
+func (r GuardianDisplayRows) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
+	if len(ids) == 0 {
+		return []delivery.GuardianDisplay{}, nil
+	}
+	profiles, err := r.Profiles.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("delivery: resolve guardian display data: %w", fmt.Errorf("resolve guardian displays: %w", err))
+	}
+	result := make([]delivery.GuardianDisplay, 0, len(profiles))
+	for _, profile := range profiles {
+		result = append(result, delivery.GuardianDisplay{
+			GuardianProfileID: profile.ID, FirstName: profile.FirstName, LastName: profile.LastName,
+		})
+	}
+	return result, nil
 }

@@ -103,11 +103,10 @@ import (
 
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) activeSvc.Service {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...) // Pass db as second parameter
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default(), clocks...) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
-	activeSvc.ConfigureForTest(composedEngine(t, serviceFactory.Active), activeSvc.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return composedEngine(t, serviceFactory.Active)
+	activeSvc.ConfigureForTest(composedEngine(t, serviceFactoryActive), activeSvc.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
+	return composedEngine(t, serviceFactoryActive)
 }
 
 // TestActivitySessionConflictDetection tests the core conflict detection functionality

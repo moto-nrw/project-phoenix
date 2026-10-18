@@ -40,24 +40,6 @@ type careOfferingCatalogInputs struct {
 	Logger           *slog.Logger
 }
 
-// lateCareOfferingResync resolves the booking materialization composed after
-// the catalog: both halves read it at call time and return nil until then.
-func lateCareOfferingResync(resync func() careplan.BookingMaterializationCapability) (func() careplanCompose.SourcedTemplateResyncer, func() careplanCompose.PickupResyncer) {
-	sourced := func() careplanCompose.SourcedTemplateResyncer {
-		if bookings := resync(); bookings != nil {
-			return bookings
-		}
-		return nil
-	}
-	pickup := func() careplanCompose.PickupResyncer {
-		if bookings := resync(); bookings != nil {
-			return bookings
-		}
-		return nil
-	}
-	return sourced, pickup
-}
-
 func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
 	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
 		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")

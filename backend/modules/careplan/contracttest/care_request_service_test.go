@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -44,7 +45,10 @@ import (
 type careFixture struct {
 	db            *bun.DB
 	svc           carerequests.Service
-	sf            *api.TestServiceGraph
+	persons       peopledirectory.Capability
+	schedules     api.CarePlanSchedules
+	services      api.PeopleServices
+	caller        *api.CallerRows
 	repos         *api.CareScheduleSuiteRepositories
 	reposMessages *api.ParentMessagingSuiteRepositories
 	reposCare     *api.RepositoryTestFactory
@@ -61,16 +65,17 @@ func newCareScheduleRequestService(
 	people api.RequestPeople,
 	arrival careplan.ArrivalScheduleService,
 	pickup careplan.PickupScheduleService,
-	factory *api.TestServiceGraph,
+	caller *api.CallerRows,
+	services api.PeopleServices,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) carerequests.Service {
 	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		requestRepo, people, arrival, pickup, nil, nil, nil,
-		factory.UserContext, emitter, broadcaster,
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: factory.UserContext}, testpkg.PermissionsFromContext, nil, logger,
-		factory.StudentAudit,
+		caller, emitter, broadcaster,
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: caller}, testpkg.PermissionsFromContext, nil, logger,
+		services.StudentAudit,
 	)
 }
 
@@ -106,26 +111,25 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
+	_, schedules, sfServices, sfCaller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	autoExcusal := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), timetableOwner, false)
 	svc := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
-		sf.PeopleDirectory,
-		sf.ArrivalSchedule,
-		sf.PickupSchedule,
+		persons,
+		schedules.Arrivals,
+		schedules.Pickups,
 		newPickupChangePresence(t, db),
 		autoExcusal,
 		repos.CarePlan(),
-		sf.UserContext,
+		sfCaller,
 		emitter, // pill emission is best-effort and after-commit; nil no-ops
 		nil,     // broadcaster — cache-invalidation fan-out; nil no-ops
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: sf.UserContext}, testpkg.PermissionsFromContext,
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: sfCaller}, testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
-		sf.StudentAudit,
+		sfServices.StudentAudit,
 		options...,
 	)
 
@@ -135,7 +139,10 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	return &careFixture{
 		db:            db,
 		svc:           svc,
-		sf:            sf,
+		persons:       persons,
+		schedules:     schedules,
+		services:      sfServices,
+		caller:        sfCaller,
 		repos:         reposSchedules,
 		reposMessages: reposMessages,
 		reposCare:     repos,
@@ -294,18 +301,18 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusApproved, item.Request.Status)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, arrivals, 1)
 	assert.Equal(t, 1, arrivals[0].Weekday)
 	assert.Equal(t, "08:00", arrivals[0].ExpectedArrival.Format("15:04"))
 
-	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	pickups, err := f.schedules.Pickups.GetStudentPickupSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, pickups, 1)
 	assert.Equal(t, "16:00", pickups[0].PickupTime.Format("15:04"))
 
-	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays["mon"])
 
@@ -334,7 +341,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 
 	// Seed a multi-mode Tuesday directly on the student (a request can only carry
 	// one mode per day, so this can't be produced through CreateRequest).
-	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	student.AllowedDepartureModes = usersModels.AllowedDepartureModes{
 		"tue": []usersModels.DepartureMode{usersModels.DepartureBus, usersModels.DeparturePickup},
@@ -345,7 +352,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	require.NoError(t, f.reposPeople.Student.Update(ctx, student))
 
 	// Seed a direct Wednesday arrival (not via a request).
-	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
+	require.NoError(t, f.schedules.Arrivals.UpsertStudentArrivalSchedule(ctx,
 		&careplan.ArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         3,
@@ -361,7 +368,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wednesday arrival survives untouched.
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	byDay := map[int]string{}
 	for _, a := range arrivals {
@@ -371,7 +378,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	assert.Equal(t, "08:15", byDay[1], "the requested Monday arrival is applied")
 
 	// The multi-mode Tuesday survives the Monday-only confirm.
-	reloaded, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	reloaded, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t,
 		[]usersModels.DepartureMode{usersModels.DepartureBus, usersModels.DeparturePickup},
@@ -395,13 +402,13 @@ func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, arrivals)
-	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	pickups, err := f.schedules.Pickups.GetStudentPickupSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, pickups)
-	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.NotContains(t, student.AllowedDepartureModes, "tue")
 }
@@ -416,10 +423,11 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	wantErr := errors.New("pickup delete failed")
 	failingService := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		failingPickupDeleteService{PickupScheduleService: f.schedules.Pickups, err: wantErr},
+		f.caller,
+		f.services,
 		nil,
 		nil,
 		slog.Default(),
@@ -433,13 +441,13 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	})
 	require.ErrorIs(t, err, wantErr)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, arrivals, 1)
-	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	pickups, err := f.schedules.Pickups.GetStudentPickupSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, pickups, 1)
-	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, student.AllowedDepartureModes["tue"])
 	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
@@ -457,14 +465,15 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 	service := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
+		f.persons,
+		f.schedules.Arrivals,
 		offeringProjectedPickupService{
-			PickupScheduleService: f.sf.PickupSchedule,
+			PickupScheduleService: f.schedules.Pickups,
 			studentID:             f.chain.StudentID,
 			weekday:               2,
 		},
-		f.sf,
+		f.caller,
+		f.services,
 		nil,
 		nil,
 		slog.Default(),
@@ -478,7 +487,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 	})
 	require.ErrorIs(t, err, carerequests.ErrCareDayManagedByBooking)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, arrivals, 1, "the rejected decision must not partially delete the manual plan")
 	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
@@ -489,7 +498,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 
 func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int) {
 	t.Helper()
-	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	student.AllowedDepartureModes = usersModels.AllowedDepartureModes{
 		usersModels.PickupDayOrder[weekday-1]: {usersModels.DeparturePickup},
@@ -498,14 +507,14 @@ func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int)
 	student.BusDays = nil
 	student.PickupDays = nil
 	require.NoError(t, f.reposPeople.Student.Update(ctx, student))
-	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
+	require.NoError(t, f.schedules.Arrivals.UpsertStudentArrivalSchedule(ctx,
 		&careplan.ArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         weekday,
 			ExpectedArrival: calendar.NormalizeWallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
 			CreatedBy:       f.staffID,
 		}))
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx,
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx,
 		&careplan.PickupSchedule{
 			StudentID:  f.chain.StudentID,
 			Weekday:    weekday,
@@ -545,10 +554,11 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	// path self-no-ops with the remaining deps nil.
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, nil, nil, nil, slog.Default()),
 		nil,
 		slog.Default(),
@@ -617,10 +627,11 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	settings := &toggleSettings{enabled: true}
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		f.emitter(t, settings, nil),
 		nil,
 		slog.Default(),
@@ -669,10 +680,11 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		f.emitter(t, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
@@ -723,10 +735,11 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 	f := newCareFixture(t)
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		f.emitter(t, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -758,10 +771,11 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	// are dropped, but the request workflow remains available.
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		f.emitter(t, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -781,7 +795,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusApproved, stored.Status)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, arrivals, "approval applies the requested plan without messaging")
 }
@@ -828,7 +842,7 @@ func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
 	require.NotNil(t, item.Request.DecisionReason)
 	assert.Equal(t, "Bitte mit Datum erneut", *item.Request.DecisionReason)
 
-	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	arrivals, err := f.schedules.Arrivals.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, arrivals, "rejecting must not apply the requested plan")
 }
@@ -972,8 +986,9 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
-		f.reposCare.CarePlan(), f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
+		f.reposCare.CarePlan(), f.persons,
+		f.schedules.Arrivals, f.schedules.Pickups, f.caller,
+		f.services,
 		nil, bc, slog.Default(),
 	)
 
@@ -999,8 +1014,9 @@ func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
-		f.reposCare.CarePlan(), f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
+		f.reposCare.CarePlan(), f.persons,
+		f.schedules.Arrivals, f.schedules.Pickups, f.caller,
+		f.services,
 		nil, bc, slog.Default(),
 	)
 
@@ -1118,10 +1134,11 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		f.sf.PickupSchedule,
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		f.schedules.Pickups,
+		f.caller,
+		f.services,
 		f.emitter(t, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),

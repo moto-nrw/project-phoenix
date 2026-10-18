@@ -34,7 +34,7 @@ type TimetableRepositories = timetableCompose.Repositories
 // owner.
 func NewTimetableRepositories(
 	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
-	rooms facilities.Capability, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
+	rooms facilities.Query, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
 ) TimetableRepositories {
 	return NewTimetableRepositoriesWithPresence(db, capability, students, groups, rooms, calendar, membership, workTime, NewUnloggedStudentPresence(db))
 }
@@ -43,7 +43,7 @@ func NewTimetableRepositories(
 // instance and participant adapters over the given Student Presence owner.
 func NewTimetableRepositoriesWithPresence(
 	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
-	rooms facilities.Capability, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
+	rooms facilities.Query, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
 	presence *studentpresence.Module,
 ) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
@@ -67,7 +67,7 @@ func NewUnobservedTimetable(db transactionruntime.Database, students peopledirec
 // owners' public capabilities. An absent capability leaves its port unset,
 // so the adapter reports it instead of reading a foreign table.
 func timetableDirectories(
-	students peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Capability,
+	students peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query,
 	membership schoolmembership.Capability, workTime workforce.Capability,
 ) timetablePorts.RepositoryDirectories {
 	var directories timetablePorts.RepositoryDirectories

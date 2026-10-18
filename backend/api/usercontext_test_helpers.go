@@ -44,14 +44,11 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 	if err != nil {
 		return nil, err
 	}
-	return NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts: r.Profile, Persons: callerPersons{rows: members.Person, people: people}, Membership: membership, StaffGroups: staffGroups,
-		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
-		Presence:             NewLoggedStudentPresence(db, slog.Default()),
-		Settings:             settings,
-		Tokens:               requestTokenReads,
-	}, CallerRowSources{
-		Groups: NewSchoolStructureSuiteRepositories(db).Group, Staff: members.Staff, Teachers: members.Teacher, Students: members.Student,
-		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: presence.ActiveGroup,
-	})
+	activities := timetableCompose.NewCallerActivityGroups(tt.ActivityGroup)
+	caller, err := newCallerContext(requestTokenReads, r.Profile, callerPersons{rows: members.Person, people: people}, membership, staffGroups,
+		activities, NewLoggedStudentPresence(db, slog.Default()), settings, slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return NewCallerRows(caller, NewSchoolStructureSuiteRepositories(db).Group, members.Staff, members.Teacher, members.Student, activities, presence.ActiveGroup, slog.Default())
 }

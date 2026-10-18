@@ -15,7 +15,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
@@ -28,16 +31,23 @@ import (
 // moveSetup bundles the per-test fixtures: one tenant, one room, two staff,
 // two same-day blocks (source 14:00–15:00, target 14:30–15:30, overlapping).
 type moveSetup struct {
-	db       *bun.DB
-	ctx      context.Context
-	tenantID int64
-	factory  *api.TestServiceGraph
-	roomID   int64
-	staffID  int64 // assigned to source in makeMoveSetup
-	otherID  int64 // free second staff member
-	source   *testpkg.ActivityInstance
-	target   *testpkg.ActivityInstance
-	rowIDs   []int64
+	db              *bun.DB
+	ctx             context.Context
+	tenantID        int64
+	instance        timetable.InstanceLifecycleCapability
+	timetableData   compose.Planning
+	active          studentpresence.Presence
+	materialization timetable.MaterializationCapability
+	careDay         careplan.CareDayQuery
+	autoStart       timetable.InstanceAutoStart
+	careOffering    careplan.CareOfferingCapability
+	statusDays      studentpresence.StatusDays
+	roomID          int64
+	staffID         int64 // assigned to source in makeMoveSetup
+	otherID         int64 // free second staff member
+	source          *testpkg.ActivityInstance
+	target          *testpkg.ActivityInstance
+	rowIDs          []int64
 }
 
 // createMoveInstance inserts one activity instance for the setup's tenant.
@@ -93,8 +103,7 @@ func parseMoveClock(t *testing.T, hhmm string) time.Time {
 func makeMoveSetup(t *testing.T) *moveSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -102,10 +111,17 @@ func makeMoveSetup(t *testing.T) *moveSetup {
 	suffix := time.Now().UnixNano()
 
 	s := &moveSetup{
-		db:       db,
-		ctx:      testpkg.TenantContext(tenantID),
-		tenantID: tenantID,
-		factory:  serviceFactory,
+		db:              db,
+		ctx:             testpkg.TenantContext(tenantID),
+		tenantID:        tenantID,
+		instance:        ttLifecycle.Instances,
+		timetableData:   ttPlanning.Planning,
+		active:          ttActive,
+		materialization: ttMaterialization,
+		careDay:         ttSchedules.CareDay,
+		autoStart:       ttLifecycle.AutoStart,
+		careOffering:    ttCareOfferings,
+		statusDays:      ttStatusDays,
 	}
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Move-Room-%d", suffix))
 	s.roomID = room.ID
@@ -150,7 +166,7 @@ func TestMoveStaffBetweenBlocks_RelocatesRowAndLogsEvent(t *testing.T) {
 		row.RoomID = &roomOverride
 	})
 
-	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	result, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID:          s.staffID,
 		SourceInstanceID: &s.source.ID,
 	})
@@ -193,7 +209,7 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 
 	s := makeMoveSetup(t)
 
-	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	result, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID: s.otherID,
 	})
 	require.NoError(t, err)
@@ -220,7 +236,7 @@ func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
 	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	_, err = s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID: external.StaffID,
 	})
 	de := requireDeviationErr(t, err)
@@ -236,7 +252,7 @@ func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
 	// Already-moved state: on target, gone from source.
 	createMoveStaffRow(t, s, s.target.ID, s.staffID, nil)
 
-	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	result, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID:          s.staffID,
 		SourceInstanceID: &s.source.ID,
 	})
@@ -266,7 +282,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 
 	t.Run("not assigned to source", func(t *testing.T) {
 		s := setup(t)
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.otherID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -277,7 +293,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	t.Run("on both blocks", func(t *testing.T) {
 		s := setup(t)
 		createMoveStaffRow(t, s, s.target.ID, s.staffID, nil)
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -294,7 +310,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		createMoveStaffRow(t, s, s.target.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -308,7 +324,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		createMoveStaffRow(t, s, s.source.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true
 		})
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.otherID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -323,7 +339,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 			row.IsAbsent = true
 		})
 
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID: s.otherID,
 		})
 		de := requireDeviationErr(t, err)
@@ -339,7 +355,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 			row.IsAbsent = true
 		})
 
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -362,7 +378,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		otherDay.TenantID = s.tenantID
 		testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, otherDay)
 
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -372,7 +388,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 
 	t.Run("source equals target", func(t *testing.T) {
 		s := setup(t)
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.target.ID,
 		})
@@ -382,7 +398,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 
 	t.Run("unknown staff", func(t *testing.T) {
 		s := setup(t)
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 			StaffID:          999_999_999,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -393,7 +409,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	t.Run("cancelled target", func(t *testing.T) {
 		s := setup(t)
 		cancelled := createMoveInstance(t, s, "Abgesagt", "14:00", "15:00", scheduleModels.InstanceStatusCancelled)
-		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, cancelled.ID, timetable.MoveStaffInput{
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, cancelled.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -416,7 +432,7 @@ func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	_, err = s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID:          s.staffID,
 		SourceInstanceID: &s.source.ID,
 	})
@@ -457,7 +473,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 			Scan(context.Background(), &supIDs)
 	})
 
-	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	result, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID:          s.staffID,
 		SourceInstanceID: &s.source.ID,
 	})
@@ -485,7 +501,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	// Moving back ends the target supervision and creates a new active source
 	// row. The partial unique index applies only to end_date IS NULL, so the
 	// historical source row must not cause a uniqueness failure.
-	reverse, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.source.ID, timetable.MoveStaffInput{
+	reverse, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.source.ID, timetable.MoveStaffInput{
 		StaffID:          s.staffID,
 		SourceInstanceID: &s.target.ID,
 	})
@@ -545,7 +561,7 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 			Scan(context.Background(), &supIDs)
 	})
 
-	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+	result, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
 		StaffID: s.otherID,
 	})
 	require.NoError(t, err)
@@ -579,7 +595,7 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 	past.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, past)
 
-	_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetable.MoveStaffInput{StaffID: s.staffID})
+	_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetable.MoveStaffInput{StaffID: s.staffID})
 	var de *timetable.DeviationError
 	require.True(t, errors.As(err, &de))
 	assert.Equal(t, http.StatusBadRequest, de.Status)

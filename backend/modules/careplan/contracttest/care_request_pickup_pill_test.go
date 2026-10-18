@@ -70,14 +70,14 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 // day's weekday, so the request records a previous_pickup_time.
 func seedWeekdayPickup(t *testing.T, f *careFixture, ctx context.Context, date calendar.Date, hour, minute int) {
 	t.Helper()
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
-		require.NoError(t, f.sf.PickupSchedule.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
+		require.NoError(t, f.schedules.Pickups.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
 	})
 }
 
@@ -166,7 +166,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	require.NoError(t, err)
 
 	// The live plan moves on AFTER the decision; the detail must not follow it.
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 17, 0, 0, 0, time.UTC)),
@@ -232,11 +232,11 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReviewQuery {
 	t.Helper()
 	query, err := requestreviewcompose.NewScheduleReviews(f.db, testpkg.StudentDirectory{}, requestreviewcompose.ScheduleReviewDependencies{
-		People: f.sf.PeopleDirectory,
+		People: f.persons,
 		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
 			wide, _ := securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
-				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.sf.UserContext)
+				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.caller)
 			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },

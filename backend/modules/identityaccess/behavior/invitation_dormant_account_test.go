@@ -21,9 +21,9 @@ func TestInvitationRestoresOffboardedAccount(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	factory := setupAuthFactory(t, db)
-	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory.Invitation, t: t, db: db}
-	service := newFixtureAuthService(t, db, factory.Auth)
-	access := factory.AccountAuthentication()
+	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory, t: t, db: db}
+	service := newFixtureAuthService(t, db, factory)
+	access := factory
 
 	email, username := uniqueTestCredentials("offboarded-headmaster")
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
@@ -72,7 +72,7 @@ func TestInvitationRestoresOffboardedAccount(t *testing.T) {
 	_, _, err = service.LoginWithAudit(context.Background(), email, testPassword, "", "", "")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "the old credential must not survive the restore")
 
-	active, err := factory.Auth.VerifyAccountTenantMembership(ctx, account.ID, tenantID)
+	active, err := factory.VerifyAccountTenantMembership(ctx, account.ID, tenantID)
 	require.NoError(t, err)
 	require.True(t, active)
 	roles, err := access.GetAccountRoles(ctx, account.ID)
@@ -90,8 +90,8 @@ func TestInvitationLeavesDisabledAccountWithSchoolAccessAlone(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	factory := setupAuthFactory(t, db)
-	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory.Invitation, t: t, db: db}
-	service := newFixtureAuthService(t, db, factory.Auth)
+	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory, t: t, db: db}
+	service := newFixtureAuthService(t, db, factory)
 
 	email, username := uniqueTestCredentials("disabled-member")
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)

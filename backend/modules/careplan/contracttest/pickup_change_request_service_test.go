@@ -44,14 +44,14 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
-		require.NoError(t, f.sf.PickupSchedule.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
+		require.NoError(t, f.schedules.Pickups.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
 	})
 
 	req, err := f.svc.CreatePickupChangeRequest(
@@ -350,7 +350,7 @@ func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, calendar.
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),

@@ -33,7 +33,7 @@ func (s failingPickupReadService) GetStudentPickupSchedules(context.Context, int
 // the "data changed after the decision" step of the freeze scenario.
 func upsertMondayPickup(t *testing.T, f *careFixture, hour, minute int) {
 	t.Helper()
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(
 		f.staffCtx(f.staffAccount),
 		&careplan.PickupSchedule{
 			StudentID:  f.chain.StudentID,
@@ -127,10 +127,11 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 	readErr := errors.New("pickup plan unavailable")
 	rejectingService := newCareScheduleRequestService(
 		f.reposCare.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
-		f.sf,
+		f.persons,
+		f.schedules.Arrivals,
+		failingPickupReadService{PickupScheduleService: f.schedules.Pickups, err: readErr},
+		f.caller,
+		f.services,
 		nil,
 		nil,
 		slog.Default(),

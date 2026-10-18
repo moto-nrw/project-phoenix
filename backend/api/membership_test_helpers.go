@@ -142,8 +142,8 @@ type MembershipTestRepositories struct {
 // resolve through. members.People, Student and the guardian fields stay
 // unset; the caller composes them.
 func NewMembershipRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
-	adapters := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
-	return MembershipTestRepositories{Person: persons, Staff: adapters.Staff, Teacher: adapters.Teacher, Guest: adapters.Guest}
+	staff, teacher, guest, _, _, _ := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return MembershipTestRepositories{Person: persons, Staff: staff, Teacher: teacher, Guest: guest}
 }
 
 // SchoolStructureSuiteRepositories are the School Structure group store and
@@ -159,8 +159,8 @@ type SchoolStructureSuiteRepositories struct {
 // assignments over membership, as NewMembershipRepositories composes the
 // staff adapters beside them.
 func NewSchoolStructureRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) *SchoolStructureSuiteRepositories {
-	adapters := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
-	return &SchoolStructureSuiteRepositories{Group: adapters.Group, GroupTeacher: adapters.GroupTeacher, ClassTeacher: adapters.ClassTeacher}
+	_, _, _, group, groupTeacher, classTeacher := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return &SchoolStructureSuiteRepositories{Group: group, GroupTeacher: groupTeacher, ClassTeacher: classTeacher}
 }
 
 // NewSchoolStructureSuiteRepositories composes the group store and the
