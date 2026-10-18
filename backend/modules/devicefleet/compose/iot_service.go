@@ -2,7 +2,7 @@ package compose
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/services/iot"
+	iot "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application/deviceservice"
 )
 
 // IoTService is the retained device administration service the IoT and

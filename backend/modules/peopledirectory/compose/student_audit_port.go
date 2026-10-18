@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"

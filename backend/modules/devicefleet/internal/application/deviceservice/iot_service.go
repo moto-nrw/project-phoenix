@@ -11,37 +11,35 @@ import (
 // service keeps the legacy row-shaped API while Device Fleet owns the
 // administration behavior and its stable error contract.
 type service struct {
-	devices        devicefleet.Capability
-	administration devicefleet.Administration
+	devicefleet.Administration
 }
 
 func NewService(devices devicefleet.Capability) Service {
-	return &service{devices: devices, administration: devicefleet.NewAdministration(devices)}
+	return &service{Administration: devicefleet.NewAdministration(devices)}
 }
-func (s *service) Fleet() devicefleet.Capability { return s.devices }
 
 func (s *service) CreateDevice(ctx context.Context, row *iot.Device) error {
 	if row == nil {
-		return s.administration.CreateDevice(ctx, nil)
+		return s.Administration.CreateDevice(ctx, nil)
 	}
 	value := toAdministrationDevice(row)
-	err := s.administration.CreateDevice(ctx, &value)
+	err := s.Administration.CreateDevice(ctx, &value)
 	*row = *toModel(value)
 	return err
 }
 
 func (s *service) UpdateDevice(ctx context.Context, row *iot.Device) error {
 	if row == nil {
-		return s.administration.UpdateDevice(ctx, nil)
+		return s.Administration.UpdateDevice(ctx, nil)
 	}
 	value := toAdministrationDevice(row)
-	err := s.administration.UpdateDevice(ctx, &value)
+	err := s.Administration.UpdateDevice(ctx, &value)
 	*row = *toModel(value)
 	return err
 }
 
 func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, error) {
-	row, err := s.administration.GetDeviceByID(ctx, id)
+	row, err := s.Administration.GetDeviceByID(ctx, id)
 	if err != nil || row == nil {
 		return nil, err
 	}
@@ -49,7 +47,7 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 }
 
 func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
-	row, err := s.administration.GetDeviceByDeviceID(ctx, deviceID)
+	row, err := s.Administration.GetDeviceByDeviceID(ctx, deviceID)
 	if err != nil || row == nil {
 		return nil, err
 	}
@@ -57,7 +55,7 @@ func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*io
 }
 
 func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*iot.Device, error) {
-	rows, err := s.administration.GetDevicesByType(ctx, deviceType)
+	rows, err := s.Administration.GetDevicesByType(ctx, deviceType)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +63,7 @@ func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*i
 }
 
 func (s *service) GetDevicesByStatus(ctx context.Context, status iot.DeviceStatus) ([]*iot.Device, error) {
-	rows, err := s.administration.GetDevicesByStatus(ctx, devicefleet.DeviceStatus(status))
+	rows, err := s.Administration.GetDevicesByStatus(ctx, devicefleet.DeviceStatus(status))
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +71,7 @@ func (s *service) GetDevicesByStatus(ctx context.Context, status iot.DeviceStatu
 }
 
 func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*iot.Device, error) {
-	rows, err := s.administration.GetDevicesByRegisteredBy(ctx, personID)
+	rows, err := s.Administration.GetDevicesByRegisteredBy(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +79,7 @@ func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) 
 }
 
 func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration) ([]*iot.Device, error) {
-	rows, err := s.administration.GetOfflineDevices(ctx, duration)
+	rows, err := s.Administration.GetOfflineDevices(ctx, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +87,7 @@ func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration)
 }
 
 func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
-	rows, err := s.administration.GetActiveDevices(ctx)
+	rows, err := s.Administration.GetActiveDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +95,7 @@ func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 }
 
 func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
-	rows, err := s.administration.GetDevicesRequiringMaintenance(ctx)
+	rows, err := s.Administration.GetDevicesRequiringMaintenance(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +103,7 @@ func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.De
 }
 
 func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
-	rows, err := s.administration.DetectNewDevices(ctx)
+	rows, err := s.Administration.DetectNewDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +115,7 @@ func (s *service) ListDevices(ctx context.Context, filters map[string]interface{
 	if err != nil {
 		return nil, &IoTError{Op: "ListDevices", Err: err}
 	}
-	rows, err := s.administration.ListDevices(ctx, filter)
+	rows, err := s.Administration.ListDevices(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -130,27 +128,11 @@ func administrationToModels(rows []*devicefleet.Device) []*iot.Device {
 	}
 	return result
 }
-func (s *service) DeleteDevice(ctx context.Context, id int64) error {
-	return s.administration.DeleteDevice(ctx, id)
-}
-func (s *service) PingDevice(ctx context.Context, id string) error {
-	return s.administration.PingDevice(ctx, id)
-}
+
 func (s *service) UpdateDeviceStatus(ctx context.Context, id string, status iot.DeviceStatus) error {
-	return s.administration.UpdateDeviceStatus(ctx, id, devicefleet.DeviceStatus(status))
+	return s.Administration.UpdateDeviceStatus(ctx, id, devicefleet.DeviceStatus(status))
 }
-func (s *service) GetDeviceTypeStatistics(ctx context.Context) (map[string]int, error) {
-	return s.administration.GetDeviceTypeStatistics(ctx)
-}
-func (s *service) ScanNetwork(ctx context.Context) (map[string]string, error) {
-	return s.administration.ScanNetwork(ctx)
-}
-func (s *service) DeviceOnlineWindow(ctx context.Context) time.Duration {
-	return s.administration.DeviceOnlineWindow(ctx)
-}
-func (s *service) IsLastSeenOnline(ctx context.Context, lastSeen *time.Time) bool {
-	return s.administration.IsLastSeenOnline(ctx, lastSeen)
-}
+
 func (s *service) IsDeviceOnline(ctx context.Context, row *iot.Device) bool {
 	return s.IsDeviceOnlineAt(ctx, row, time.Now())
 }
@@ -159,5 +141,5 @@ func (s *service) IsDeviceOnlineAt(ctx context.Context, row *iot.Device, now tim
 		return false
 	}
 	value := toAdministrationDevice(row)
-	return s.administration.IsDeviceOnlineAt(ctx, &value, now)
+	return s.Administration.IsDeviceOnlineAt(ctx, &value, now)
 }

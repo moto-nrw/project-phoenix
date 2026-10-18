@@ -7,9 +7,9 @@ import (
 	"time"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
 func OccupancyProjection(

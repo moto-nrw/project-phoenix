@@ -210,38 +210,6 @@ func (s *Service) FindByID(ctx context.Context, id int64) (result domain.Room, e
 	return result, err
 }
 
-func (s *Service) FindByIDForUpdate(ctx context.Context, id int64) (result domain.Room, err error) {
-	err = s.run("find_room_for_update", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByID(ctx, id, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) FindByName(ctx context.Context, name string) (result domain.Room, err error) {
-	err = s.run("find_room_by_name", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByName(ctx, name)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
 func (s *Service) FindToilet(ctx context.Context, excludeRoomID int64) (result domain.Room, err error) {
 	err = s.run("find_toilet_room", func(stats *domain.OperationStats) error {
 		room, found, queryStats, findErr := s.store.FindToilet(ctx, excludeRoomID)
@@ -254,46 +222,6 @@ func (s *Service) FindToilet(ctx context.Context, excludeRoomID int64) (result d
 		}
 		result = room
 		return nil
-	})
-	return result, err
-}
-
-func (s *Service) List(ctx context.Context, filter domain.RoomFilter) (result []domain.Room, err error) {
-	err = s.run("list_rooms", func(stats *domain.OperationStats) error {
-		rooms, queryStats, listErr := s.store.List(ctx, filter)
-		stats.Add(queryStats)
-		result = rooms
-		return listErr
-	})
-	return result, err
-}
-
-func (s *Service) ListPage(ctx context.Context, filter domain.RoomFilter, offset, limit int) (result []domain.Room, total int, err error) {
-	err = s.run("list_rooms_page", func(stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, total, queryStats, err = s.store.ListPage(ctx, filter, offset, limit)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, total, err
-}
-
-func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {
-	err = s.run("list_rooms_by_id", func(stats *domain.OperationStats) error {
-		rooms, queryStats, listErr := s.store.ListByIDs(ctx, ids)
-		stats.Add(queryStats)
-		result = rooms
-		return listErr
-	})
-	return result, err
-}
-
-func (s *Service) LockByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {
-	err = s.run("lock_rooms_by_id", func(stats *domain.OperationStats) error {
-		rooms, queryStats, lockErr := s.store.LockByIDs(ctx, ids)
-		stats.Add(queryStats)
-		result = rooms
-		return lockErr
 	})
 	return result, err
 }

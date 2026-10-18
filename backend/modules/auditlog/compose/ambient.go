@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
 	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"

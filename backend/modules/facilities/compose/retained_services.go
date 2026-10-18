@@ -1,6 +1,6 @@
 package compose
 
-import facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
+import facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 
 // The retained room, Schulhof and WC services the root composes over the
 // Facilities capability (#2747). The legacy composition names them through

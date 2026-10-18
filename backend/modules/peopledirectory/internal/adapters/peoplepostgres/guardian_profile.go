@@ -509,11 +509,8 @@ func (r *guardianProfileRepository) linkAccount(ctx context.Context, profileID, 
 		return err
 	}
 	db := r.runtime.DB(ctx)
-	// Serialize invitations for the same account, including when it has no
-	// profile yet. Row locks also stop concurrent child FK inserts until commit.
-	lockKey := fmt.Sprintf("guardian-account:%d:%d", tenantID, accountID)
-	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
-		return fmt.Errorf("lock guardian account link: %w", err)
+	if err := lockGuardianAccount(ctx, db, tenantID, accountID); err != nil {
+		return err
 	}
 	var profiles []*users.GuardianProfile
 	if err := db.NewSelect().Model(&profiles).
@@ -537,23 +534,8 @@ func (r *guardianProfileRepository) linkAccount(ctx context.Context, profileID, 
 	if target.AccountID != nil && *target.AccountID != accountID {
 		return users.ErrGuardianAccountConflict
 	}
-	if previous != nil {
-		linked, err := db.NewSelect().TableExpr("users.student_guardian_relationships").
-			Where("tenant_id = ?", tenantID).
-			Where("guardian_profile_id = ?", previous.ID).Exists(ctx)
-		if err != nil {
-			return fmt.Errorf("check previous guardian children: %w", err)
-		}
-		if linked {
-			return users.ErrGuardianAccountConflict
-		}
-		if _, err := db.NewUpdate().Model((*users.GuardianProfile)(nil)).
-			ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-			Set("account_id = NULL").Set("has_account = ?", false).
-			Where(`"guardian_profile".tenant_id = ?`, tenantID).
-			Where(`"guardian_profile".id = ?`, previous.ID).Exec(ctx); err != nil {
-			return fmt.Errorf("unlink childless guardian profile: %w", err)
-		}
+	if err := unlinkChildlessGuardianProfile(ctx, db, tenantID, previous); err != nil {
+		return err
 	}
 	result, err := db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
@@ -603,21 +585,73 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 
 	result := &users.GuardianProfileWithChildren{Profile: profile}
 
+	result.PrimaryPhone, err = r.primaryPhone(ctx, profile.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Children, err = r.guardianChildren(ctx, profile.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func unlinkChildlessGuardianProfile(ctx context.Context, db bun.IDB, tenantID int64, previous *users.GuardianProfile) error {
+	if previous == nil {
+		return nil
+	}
+	linked, err := db.NewSelect().TableExpr("users.student_guardian_relationships").
+		Where("tenant_id = ?", tenantID).
+		Where("guardian_profile_id = ?", previous.ID).Exists(ctx)
+	if err != nil {
+		return fmt.Errorf("check previous guardian children: %w", err)
+	}
+	if linked {
+		return users.ErrGuardianAccountConflict
+	}
+	if _, err := db.NewUpdate().Model((*users.GuardianProfile)(nil)).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Set("account_id = NULL").Set("has_account = ?", false).
+		Where(`"guardian_profile".tenant_id = ?`, tenantID).
+		Where(`"guardian_profile".id = ?`, previous.ID).Exec(ctx); err != nil {
+		return fmt.Errorf("unlink childless guardian profile: %w", err)
+	}
+	return nil
+}
+
+func (r *guardianProfileRepository) primaryPhone(ctx context.Context, profileID int64) (string, error) {
 	var primaryPhone users.GuardianPhoneNumber
 	phoneErr := r.runtime.DB(ctx).NewSelect().
 		Model(&primaryPhone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Where(`"guardian_phone_number".guardian_profile_id = ?`, profile.ID).
+		Where(`"guardian_phone_number".guardian_profile_id = ?`, profileID).
 		OrderExpr(`"guardian_phone_number".is_primary DESC, "guardian_phone_number".id ASC`).
 		Limit(1).
 		Scan(ctx)
 	if phoneErr != nil && !errors.Is(phoneErr, sql.ErrNoRows) {
-		return nil, fmt.Errorf("failed to load primary phone: %w", phoneErr)
+		return "", fmt.Errorf("failed to load primary phone: %w", phoneErr)
 	}
 	if phoneErr == nil && primaryPhone.PhoneNumber != "" {
-		result.PrimaryPhone = primaryPhone.PhoneNumber
+		return primaryPhone.PhoneNumber, nil
 	}
 
+	return "", nil
+}
+
+func lockGuardianAccount(ctx context.Context, db bun.IDB, tenantID, accountID int64) error {
+	// Serialize invitations for the same account, including when it has no
+	// profile yet. Row locks also stop concurrent child FK inserts until commit.
+	lockKey := fmt.Sprintf("guardian-account:%d:%d", tenantID, accountID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
+		return fmt.Errorf("lock guardian account link: %w", err)
+	}
+	return nil
+}
+
+func (r *guardianProfileRepository) guardianChildren(ctx context.Context, profileID int64) ([]users.GuardianChildSummary, error) {
+	var children []users.GuardianChildSummary
 	type childRow struct {
 		StudentID        int64  `bun:"student_id"`
 		FirstName        string `bun:"first_name"`
@@ -640,7 +674,7 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		ColumnExpr(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) AS enrollment_submit`, guardianPermissionEnrollmentSubmit).
 		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
-		Where(`"student_guardian".guardian_profile_id = ?`, profile.ID).
+		Where(`"student_guardian".guardian_profile_id = ?`, profileID).
 		Where(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) = TRUE`, guardianPermissionPortalAccess).
 		Where(`"s".status <> ?`, "alumnus").
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
@@ -649,7 +683,7 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		return nil, fmt.Errorf("failed to load children: %w", childErr)
 	}
 	for _, row := range rows {
-		result.Children = append(result.Children, users.GuardianChildSummary{
+		children = append(children, users.GuardianChildSummary{
 			StudentID:        row.StudentID,
 			FirstName:        row.FirstName,
 			LastName:         row.LastName,
@@ -659,5 +693,5 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		})
 	}
 
-	return result, nil
+	return children, nil
 }

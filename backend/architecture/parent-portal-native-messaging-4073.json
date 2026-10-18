@@ -44,7 +44,7 @@
       "backend/modules/communication/internal/application/parent_conversation_binding.go",
       "backend/modules/communication/internal/parentmessages/native_conversation_binding.go",
       "backend/modules/communication/parentstore/portal_declaration_policy.go",
-      "backend/database/repositories/users/guardian_sharing_records.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/guardian_sharing_records.go",
       "backend/api/parent_messaging_native_test.go",
       "backend/modules/communication/internal/application/parent_native_contract_internal_test.go",
       "backend/modules/communication/internal/staffannouncements/parent_native_declaration_policy_internal_test.go"

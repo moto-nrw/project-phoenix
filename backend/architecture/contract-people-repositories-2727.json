@@ -71,7 +71,7 @@
   "runtime_evidence": {
     "source": "Local runs on the #2727 branch on 2026-09-27 against the local postgres-test server.",
     "sources": [
-      "backend/database/repositories/users/runtime.go",
+      "backend/modules/peopledirectory/internal/adapters/peoplepostgres/runtime.go",
       "backend/modules/peopledirectory/compose/legacy_repository_runtime.go",
       "backend/modules/peopledirectory/compose/retained_repository_suites_test_helpers.go",
       "backend/api/people_repository_test_helpers.go",

@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 )
 
 // OperatorPersonStudentMembership marks which of the persons are students,

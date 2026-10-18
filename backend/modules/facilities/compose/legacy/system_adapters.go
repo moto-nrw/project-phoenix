@@ -4,8 +4,8 @@ import (
 	"context"
 
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
-	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
 type activityCatalogAdapter struct {

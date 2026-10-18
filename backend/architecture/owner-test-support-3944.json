@@ -40,8 +40,8 @@
       "backend/realtime/realtimetest/broadcaster.go",
       "backend/auth/userpass/userpasstest/argon2.go",
       "backend/auth/device/devicetest/principal.go",
-      "backend/database/repositories/audit/appender_boundary_test.go",
-      "backend/database/repositories/audit/data_deletion_repository_test.go"
+      "backend/modules/auditlog/internal/adapters/auditpostgres/appender_boundary_test.go",
+      "backend/modules/auditlog/internal/adapters/auditpostgres/data_deletion_repository_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, and the architecture check reports no new violation and no stale baseline entry.",
