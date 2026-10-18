@@ -54,7 +54,7 @@ func (c ComposedAccountMFA) HasMFAEnrollment(ctx context.Context, accountID int6
 }
 
 func (c ComposedAccountMFA) AccountBelongsToSchool(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	belongs, err := c.Flows.AccountBelongsToTenant(c.ctx(ctx), accountID, tenantID)
+	belongs, err := c.Flows.records.AccountBelongsToTenant(c.ctx(ctx), accountID, tenantID)
 	return belongs, MFAError(err)
 }
 
@@ -118,7 +118,7 @@ func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID, 
 }
 
 func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
-	devices, err := c.Flows.ListTrustedDevices(c.ctx(ctx), accountID, tenantID)
+	devices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID)
 	if err != nil {
 		return nil, MFAError(err)
 	}

@@ -533,7 +533,7 @@ func TestOperatorMFARevokeTrustedDeviceChecksOwnership(t *testing.T) {
 	ctx := context.Background()
 	_, _, err := fixture.flows.IssueTrustedDevice(ctx, operator.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.22"))
 	require.NoError(t, err)
-	devices, err := fixture.flows.ListTrustedDevices(ctx, operator.ID)
+	devices, err := fixture.flows.records.ListActiveTrustedDevices(ctx, operator.ID)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
 

@@ -91,7 +91,7 @@ func (e engine) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (b
 	if e.lifecycle == nil {
 		return false, errAccountLifecycleUnavailable
 	}
-	hasProfile, err := e.lifecycle.HasLiveCaregiverProfile(e.attach(ctx), accountID)
+	hasProfile, err := e.lifecycle.profiles.HasLiveCaregiverProfile(e.attach(ctx), accountID)
 	return hasProfile, lifecycleError(err)
 }
 
