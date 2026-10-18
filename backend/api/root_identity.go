@@ -56,91 +56,77 @@ func buildIdentityAccess(
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
 		People: persons, Membership: membership,
 	}
-	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(identityChain, operatorAuditLog),
-		Organizations: organizations, Persons: persons, Membership: membership, Logger: platformLogger,
-	})
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(identityChain, operatorAuditLog), organizations, persons, membership, platformLogger)
 	if err != nil {
 		return nil, nil, err
 	}
-	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
-		Repos:    SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, pushSubscriptions),
-		Codec:    tokens.SessionTokens,
-		Settings: settings,
-		Audit:    audit.Command,
-		Logger:   authLogger,
-		observe:  env.Observe.IdentityAccess,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: operatorAuditLog, Settings: settings,
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, FrontendURL: links.FrontendURL,
-			JwtSecret: cfg.JWTSecret, Logger: authLogger,
-			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
-				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
-			},
-		},
-		Operators:          operators,
-		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
-		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),
-		operatorLinks: &operatorLinkWiring{
-			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
-			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
-			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
-			logger: platformLogger,
-		},
-		Resets: &PasswordResetWiring{
+	mfa, err := newMFADependencies(tokens.SessionTokens, settings, mfaMailer{
+		dispatcher: transport.Dispatcher, from: transport.DefaultFrom, frontendURL: links.FrontendURL, logger: authLogger,
+	}, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
+		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+	}, authLogger)
+	if err != nil {
+		return nil, nil, err
+	}
+	sessionRepos := SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	// The accept and login links go to the parents portal, never to the
+	// staff frontend.
+	guardianMail, enrollmentClaims, err := guardianInvitationDependencies(settings, organizations, outbox, guardianEnrollments,
+		links.ParentsURL, links.InvitationTokenExpiry, authLogger.With("flow", "guardian_invitation"))
+	if err != nil {
+		return nil, nil, err
+	}
+	// The lifecycle flows (#3225) read the role management of the module
+	// they are composed into.
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, audit.Command, CaregiverProfiles{Persons: persons, Membership: membership},
+		guardianMail, enrollmentClaims, authLogger)
+	if err != nil {
+		return nil, nil, err
+	}
+	demo, err := demoDependencies(
+		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
+		organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")), organizations)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The deliveries record their outcome through the recorder the
+	// composition hands them at construction.
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: requiredIdentityAccessObservation(env.Observe.IdentityAccess), TenantRuntime: unit,
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom,
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-		Invitations: &InvitationWiring{
+		}, authLogger),
+		Invitations: invitationDependencies(&InvitationWiring{
 			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
 			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
 			Settings:     settings,
 			Outbox:       outbox,
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-		// The lifecycle flows (#3225) read the role management of the module
-		// they are composed into.
-		Lifecycle: &LifecycleWiring{
-			Settings: settings, Audit: audit.Command,
-			Caregivers: CaregiverProfiles{Persons: persons, Membership: membership},
-			GuardianMail: &GuardianInvitationWiring{
-				Settings: settings, Schools: organizations,
-				Outbox:      outbox,
-				Enrollments: guardianEnrollments,
-				// The accept and login links go to the parents portal, never
-				// to the staff frontend.
-				ParentsURL: links.ParentsURL, FallbackExpiry: links.InvitationTokenExpiry,
-				Logger: authLogger.With("flow", "guardian_invitation"),
-			},
-		},
-	})
+		}, tokens.SessionTokens, authLogger),
+		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
+			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
+			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
+			logger: platformLogger,
+		}, authLogger),
+	}, sessionRepos, tokens.SessionTokens, settings, audit.Command, authLogger)
 	if err != nil {
-		return nil, nil, err
-	}
-	if err := module.SetTenantRuntime(unit); err != nil {
 		return nil, nil, err
 	}
 	// The caller context (#3501) resolves the caller's chain through the
 	// owners of each link; the rows serve the consumers that still speak the
 	// retained records.
 	usercontextLogger := env.Logger.With("service", "usercontext")
-	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts:             module,
-		Persons:              callerPersons{rows: people.Persons, people: persons},
-		Membership:           membership,
-		StaffGroups:          staffGroups,
-		SupervisedActivities: activityGroups.SupervisedActivityGroupIDs,
-		Presence:             presence,
-		Settings:             settings,
-		Logger:               usercontextLogger,
-		Tokens:               tokens,
-	}, CallerRowSources{
-		Groups: groups, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
-		Activities: activityGroups, Sessions: sessions, Logger: usercontextLogger,
-	})
+	caller, err := newCallerContext(tokens, module, callerPersons{rows: people.Persons, people: persons}, membership, staffGroups,
+		activityGroups, presence, settings, usercontextLogger)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, err := NewCallerRows(caller, groups, people.Staff, people.Teachers, people.Students, activityGroups, sessions, usercontextLogger)
 	if err != nil {
 		return nil, nil, err
 	}

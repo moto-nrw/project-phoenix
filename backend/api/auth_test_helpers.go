@@ -252,57 +252,53 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(r, operatorAuditLog),
-		Organizations: owners.Organizations,
-		Persons:       owners.Persons,
-		Membership:    owners.Membership,
-		Logger:        logger,
-	})
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(r, operatorAuditLog), owners.Organizations, owners.Persons, owners.Membership, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
-		Repos: sessionRepos, Codec: codec, Settings: settings.Settings, Audit: command, Logger: logger,
-		Operators: operators,
-		DemoAccess: &DemoAccessWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
-			Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
-			OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
-			NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
-		},
-		DemoStandingSchool: settingsOverrides.standingDemo,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: operatorAuditLog, Settings: settings.Settings,
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
-			JwtSecret: mfaTestSecret(), Logger: logger, Backoff: settingsOverrides.mfaBackoff,
-			Decorate: settingsOverrides.mfaRecords, Capability: settingsOverrides.mfaCapability,
-			Passkeys: &authTestRelyingParty,
-		},
-		Lifecycle: &LifecycleWiring{
-			Settings: settings.Settings, Audit: command,
-			Caregivers: CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
-			GuardianMail: &GuardianInvitationWiring{
-				Settings: settings.Settings, Schools: organizations,
-				Outbox:      OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
-				Enrollments: parentPortal.ParentEnrollmentRequest, ParentsURL: parentsURL,
-				FallbackExpiry: time.Duration(inviteHours) * time.Hour, Logger: logger,
-			},
-		},
-		Resets: &PasswordResetWiring{
+	mfa, err := newMFADependencies(codec, settings.Settings, mfaMailer{
+		dispatcher: dispatcher, from: defaultFrom, frontendURL: frontendURL, logger: logger, backoff: settingsOverrides.mfaBackoff,
+	}, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	mfa.DecorateRecords, mfa.Capability = settingsOverrides.mfaRecords, settingsOverrides.mfaCapability
+	guardianMail, enrollmentClaims, err := guardianInvitationDependencies(settings.Settings, organizations, OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
+		parentPortal.ParentEnrollmentRequest, parentsURL, time.Duration(inviteHours)*time.Hour, logger)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, command, CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
+		guardianMail, enrollmentClaims, logger)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	demo, err := demoDependencies(&DemoAccessWiring{
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
+		Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
+		OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
+		NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
+	}, settingsOverrides.standingDemo, organizations)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
-		},
-		Invitations: &InvitationWiring{
+		}, logger),
+		Invitations: invitationDependencies(&InvitationWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
 			Outbox:       OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-	})
+		}, codec, logger),
+	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -352,21 +348,25 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
-		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Settings: cfg.Settings,
-		Audit: cfg.Audit, Logger: logger,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), Settings: cfg.Settings,
-			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom, FrontendURL: cfg.FrontendURL,
-			JwtSecret: mfaTestSecret(), Logger: logger,
-		},
-		Lifecycle: &LifecycleWiring{Settings: cfg.Settings, Audit: cfg.Audit, Caregivers: caregivers},
-		Resets: &PasswordResetWiring{
+	mfa, err := newMFADependencies(codec, cfg.Settings, mfaMailer{
+		dispatcher: cfg.Dispatcher, from: cfg.DefaultFrom, frontendURL: cfg.FrontendURL, logger: logger,
+	}, NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
+	if err != nil {
+		return nil, err
+	}
+	sessionRepos := SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, cfg.Audit, caregivers, unsentGuardianMail{}, nil, logger)
+	if err != nil {
+		return nil, err
+	}
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle,
+		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-	})
+		}, logger),
+	}, sessionRepos, codec, cfg.Settings, cfg.Audit, logger)
 	if err != nil {
 		return nil, err
 	}
