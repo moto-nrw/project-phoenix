@@ -33,11 +33,7 @@ func renderError(t *testing.T, renderer render.Renderer) renderedError {
 	t.Helper()
 	require.NotNil(t, renderer)
 	w := httptest.NewRecorder()
-	if recorded, ok := renderer.(recordedRenderer); ok {
-		w = recorded.w
-	} else {
-		require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPost, "/", nil), renderer))
-	}
+	require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPost, "/", nil), renderer))
 	var body renderedError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	body.Status = w.Code
@@ -81,10 +77,6 @@ func assertCodeCases(t *testing.T, cases []codeCase) {
 		})
 	}
 }
-
-type recordedRenderer struct{ w *httptest.ResponseRecorder }
-
-func (recordedRenderer) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 // TestSlotListRefusalCodes pins the codes of the daily lists (#2516).
 func TestSlotListRefusalCodes(t *testing.T) {

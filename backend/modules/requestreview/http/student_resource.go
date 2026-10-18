@@ -19,12 +19,7 @@ type ResourceConfig struct {
 type Resource struct{ ResourceConfig }
 
 func NewResource(cfg ResourceConfig) *Resource { return &Resource{ResourceConfig: cfg} }
-func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protected(r, rs.Register)
-	return r
-}
+
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
 	r.With(withTx).Get("/change-requests/access", rs.changeRequestAccess)

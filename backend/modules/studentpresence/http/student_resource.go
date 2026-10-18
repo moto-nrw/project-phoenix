@@ -5,7 +5,6 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	render "github.com/go-chi/render"
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -37,12 +36,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 	return &Resource{ResourceConfig: cfg}
 }
-func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protected(r, rs.Register)
-	return r
-}
+
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
