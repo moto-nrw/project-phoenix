@@ -17,6 +17,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -146,9 +147,8 @@ type groupLiveAccess struct {
 }
 
 func (a groupLiveAccess) Caller(ctx context.Context) (grouplive.Caller, error) {
-	principal, principalErr := permissions.PrincipalFromContext(ctx)
-	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
-	admin := principalErr == nil && principal.HasAdminScope()
+	assignmentBound := common.IsAssignmentBoundPortal(ctx)
+	admin := common.HasEffectiveAdminScope(ctx)
 	overview, err := securityruntime.CanViewOperationalOverview(ctx, a.settings, a.userContext, assignmentBound, admin)
 	if err != nil {
 		return grouplive.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)

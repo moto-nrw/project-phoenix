@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -82,9 +83,8 @@ func (a supervisionAccess) FullStudentAccess(ctx context.Context) (bool, error) 
 // group mode is deliberately not consulted here: it describes how the school
 // organises children, not who may open a running module.
 func (a supervisionAccess) Caller(ctx context.Context) (supervisiondashboard.Caller, error) {
-	principal, principalErr := permissions.PrincipalFromContext(ctx)
-	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
-	admin := principalErr == nil && principal.HasAdminScope()
+	assignmentBound := common.IsAssignmentBoundPortal(ctx)
+	admin := common.HasEffectiveAdminScope(ctx)
 	overview, err := securityruntime.CanViewOperationalOverview(ctx, a.settings, a.caller, assignmentBound, admin)
 	if err != nil {
 		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
