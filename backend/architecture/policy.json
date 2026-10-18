@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "policy_epoch": 72,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
@@ -27,7 +27,7 @@
     },
     {
       "id": "architecture-check",
-      "kind": "inbound"
+      "kind": "tool"
     },
     {
       "id": "audit-platform",
@@ -95,7 +95,7 @@
     },
     {
       "id": "dev-tools",
-      "kind": "inbound"
+      "kind": "tool"
     },
     {
       "id": "device-fleet",
@@ -13652,13 +13652,13 @@
       "same_owner": true
     },
     {
-      "id": "own-test.inbound.contract",
-      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own contract role.",
+      "id": "own-test.tool.contract",
+      "description": "ADR 0053 point 7.1: the tests of a tool owner import its own contract role.",
       "scopes": [
         "internal_test",
         "external_test"
       ],
-      "source_owner_kind": "inbound",
+      "source_owner_kind": "tool",
       "target_role": "contract",
       "same_owner": true
     },
