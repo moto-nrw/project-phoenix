@@ -34,12 +34,16 @@ func NewScheduleTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return ScheduleTestModule{}, err
 	}
 	lock := recurrenceLock.LockRecurrenceWrites
-	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
+	offerings, err := newTestCareOfferingCatalog(db, r, settings.Settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: lock, Today: timezone.TodayDate,
 	})
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}
 	guard := TimeframeChangeGuard(lock, offerings.ValidateTimeframeChange)
-	return ScheduleTestModule{Calendar: r.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return ScheduleTestModule{}, err
+	}
+	return ScheduleTestModule{Calendar: calendar.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
 }

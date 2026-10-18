@@ -103,10 +103,18 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (ShiftTypeTestModule
 	if err != nil {
 		return ShiftTypeTestModule{}, err
 	}
+	rooms, err := NewTimetableRoomRows(db)
+	if err != nil {
+		return ShiftTypeTestModule{}, err
+	}
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return ShiftTypeTestModule{}, err
+	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: NewAbsenceTypeTestCapability(db), Staff: NewPlanStaffDirectory(timetable.Staff), CalendarPeriods: timetable.SchoolCalendar(),
+		Workforce: NewAbsenceTypeTestCapability(db), Staff: NewPlanStaffDirectory(MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
-		Rooms: facilitiesCompose.NewRoomNameDirectory(timetable.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {

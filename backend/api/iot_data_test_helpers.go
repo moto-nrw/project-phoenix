@@ -54,7 +54,7 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{})
+	offerings, err := newTestCareOfferingCatalog(db, r, settings.Settings, CareOfferingCatalogTestOptions{})
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}

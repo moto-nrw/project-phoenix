@@ -21,6 +21,13 @@ import (
 // (NewEnrollmentFlowTestRepositories).
 type EnrollmentFlowTestRepositories struct {
 	TimetableTestRepositories
+	// The other owners' rows beside the Timetable rows (#4080).
+	MembershipTestRepositories
+	TimetablePresenceRows
+	TimetableCarePlanRows
+	TimetableRoomRows
+	TimetableDeviationAudit
+	TimetableSchoolCalendar
 	School                       organizationtenancy.Capability
 	StudentGuardian              peoplePorts.StudentGuardianRepository
 	GuardianProfile              peoplePorts.GuardianProfileRepository
@@ -39,23 +46,27 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 	if err != nil {
 		return nil, err
 	}
+	presence, carePlan, rooms, calendar, err := newTimetableTestCompanions(db, tt, members)
+	if err != nil {
+		return nil, err
+	}
 	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
-	care := tt.CarePlan
+	care := carePlan.CarePlan
 	return &EnrollmentFlowTestRepositories{
-		TimetableTestRepositories: tt,
-		School:                    organizations,
-		StudentGuardian:           members.StudentGuardian,
-		GuardianProfile:           members.GuardianProfile,
-		GuardianPhoneNumber:       peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: carePlan, TimetableRoomRows: rooms, TimetableSchoolCalendar: calendar,
+		School:              organizations,
+		StudentGuardian:     members.StudentGuardian,
+		GuardianProfile:     members.GuardianProfile,
+		GuardianPhoneNumber: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
+		CareWithdrawal:      NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil
 }
 
 // CarePlan returns the Care Plan capability the schedule adapters delegate
 // to, as the repository factory hands it out.
 func (r *EnrollmentFlowTestRepositories) CarePlan() careplan.Capability {
-	return r.TimetableTestRepositories.CarePlan
+	return r.TimetableCarePlanRows.CarePlan
 }

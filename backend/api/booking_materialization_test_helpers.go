@@ -71,7 +71,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	catalog, err := bookingTestCatalog(repos.TimetableTestRepositories, settings, options)
+	catalog, err := bookingTestCatalog(db, repos.TimetableTestRepositories, settings, options)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -154,11 +154,11 @@ func (s bookingTestOverlaySettings) ResolveInt(ctx context.Context, key string) 
 	return s.ints.ResolveInt(ctx, key)
 }
 
-func bookingTestCatalog(r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func bookingTestCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	if options.Catalog != nil {
 		return options.Catalog, nil
 	}
-	return newTestCareOfferingCatalog(r, settings, CareOfferingCatalogTestOptions{
+	return newTestCareOfferingCatalog(db, r, settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: options.LockRecurrence, Today: options.Today,
 	})
 }

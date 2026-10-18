@@ -22,12 +22,16 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
-	identity, _, err := newStaffIdentityForTests(db)
+	identity, members, err := newStaffIdentityForTests(db)
+	if err != nil {
+		return ActivitiesTestModule{}, err
+	}
+	presence, err := NewTimetablePresenceRows(db, r, members)
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
 	activityService, err := timetableCompose.NewService(r.Timetable, r.ActivityGroup, r.ActivitySchedule,
-		r.ActivitySupervisor, r.StudentEnrollment, r.ActiveGroup, NewTimetableStaff(r.Staff), r.Student)
+		r.ActivitySupervisor, r.StudentEnrollment, presence.ActiveGroup, NewTimetableStaff(members.Staff), members.Student)
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
@@ -37,8 +41,8 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 		Users: peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
-			StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher, MayManageStaff: StaffAdministrationPermitted}),
+			PersonRepo:       members.Person, TeacherRepo: members.Teacher,
+			StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 		}),
 	}, nil
 }
