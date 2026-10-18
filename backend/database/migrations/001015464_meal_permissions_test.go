@@ -34,6 +34,17 @@ func TestMealPermissionsKeepEveryRoleWhereItWas(t *testing.T) {
 	`, tenantID, account.ID).Exec(ctx)
 	require.NoError(t, err)
 
+	// The two old permissions from different sources: config:read from a
+	// role, users:read granted directly.
+	mixed := testpkg.CreateTestAccount(t, db, "meal-permission-mixed")
+	_, err = db.NewRaw(`INSERT INTO auth.account_roles (tenant_id, account_id, role_id) VALUES (?, ?, ?)`, tenantID, mixed.ID, reader).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`
+		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
+		SELECT ?, ?, id, TRUE FROM auth.permissions WHERE name = 'users:read'
+	`, tenantID, mixed.ID).Exec(ctx)
+	require.NoError(t, err)
+
 	require.NoError(t, mealPermissionsUp(ctx, db))
 	require.NoError(t, mealPermissionsUp(ctx, db), "the migration can run twice")
 
@@ -50,6 +61,15 @@ func TestMealPermissionsKeepEveryRoleWhereItWas(t *testing.T) {
 		ORDER BY p.name
 	`, account.ID, tenantID).Scan(ctx, &direct))
 	assert.Equal(t, []string{"meals:read"}, direct, "a direct grant keeps its school")
+
+	var mixedDirect []string
+	require.NoError(t, db.NewRaw(`
+		SELECT p.name FROM auth.account_permissions AS ap
+		JOIN auth.permissions AS p ON p.id = ap.permission_id
+		WHERE ap.account_id = ? AND ap.tenant_id = ? AND p.resource = 'meals' AND ap.granted
+		ORDER BY p.name
+	`, mixed.ID, tenantID).Scan(ctx, &mixedDirect))
+	assert.Equal(t, []string{"meals:orders"}, mixedDirect, "role and direct grant together opened the kitchen list")
 
 	require.NoError(t, mealPermissionsDown(ctx, db))
 	assert.Empty(t, mealPermissionsOfRole(t, db, kitchen))

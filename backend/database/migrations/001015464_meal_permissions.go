@@ -29,8 +29,11 @@ func init() {
 //
 // Every role and every directly granted account keeps exactly what it had:
 // meals:read where config:read was, meals:manage where config:update was,
-// and meals:orders where both config:read and users:read were. Admins hold
-// all of them through admin:* anyway.
+// and meals:orders where both config:read and users:read were. The old
+// check of the kitchen list took both from everything an account held at a
+// school, so an account whose two permissions come from different roles or
+// direct grants gets meals:orders as a direct grant of that school. Admins
+// hold all of them through admin:* anyway.
 func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
@@ -71,6 +74,26 @@ func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 			JOIN auth.permissions AS held ON held.id = account_permission.permission_id
 			GROUP BY account_permission.tenant_id, account_permission.account_id, meal_permission.id, grants.required
 			HAVING array_agg(held.name::text) @> grants.required::text[]
+			ON CONFLICT DO NOTHING;
+
+			WITH held (account_id, tenant_id, name) AS (
+				SELECT account_role.account_id, account_role.tenant_id, permission.name::text
+				FROM auth.account_roles AS account_role
+				JOIN auth.role_permissions AS role_permission ON role_permission.role_id = account_role.role_id
+				JOIN auth.permissions AS permission ON permission.id = role_permission.permission_id
+				UNION
+				SELECT account_permission.account_id, account_permission.tenant_id, permission.name::text
+				FROM auth.account_permissions AS account_permission
+				JOIN auth.permissions AS permission ON permission.id = account_permission.permission_id
+				WHERE account_permission.granted
+			)
+			INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
+			SELECT held.tenant_id, held.account_id, meal_permission.id, TRUE
+			FROM held
+			JOIN auth.permissions AS meal_permission ON meal_permission.name = 'meals:orders'
+			GROUP BY held.tenant_id, held.account_id, meal_permission.id
+			HAVING array_agg(held.name) @> ARRAY['config:read', 'users:read']
+				AND NOT bool_or(held.name = 'meals:orders')
 			ON CONFLICT DO NOTHING;
 		`); err != nil {
 			return fmt.Errorf("grant meal permissions where the old ones were: %w", err)
