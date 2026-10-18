@@ -89,20 +89,20 @@ func TestClassKeyIgnoresCaseAndSpacing(t *testing.T) {
 
 func TestParseOfferingStaffValue(t *testing.T) {
 	t.Parallel()
-	from, selections, err := ParseOfferingStaffValue(map[string]any{"value": map[string]any{
+	from, selections, err := ParseOfferingStaffValue(map[string]any{
 		"effective_from": "2026-10-01",
 		"selections":     []any{map[string]any{"offering_id": float64(12), "selected_days": []any{"mon", "wed"}}},
-	}})
+	})
 	require.NoError(t, err)
 	assert.Equal(t, calendar.Date("2026-10-01"), from)
 	assert.Equal(t, []OfferingChangeSelection{{OfferingID: 12, SelectedDays: []string{"mon", "wed"}}}, selections)
-	for name, value := range map[string]map[string]any{
-		"missing value":   {},
-		"missing date":    {"value": map[string]any{"selections": []any{}}},
-		"bad date":        {"value": map[string]any{"effective_from": "01.10.2026", "selections": []any{}}},
-		"no selections":   {"value": map[string]any{"effective_from": "2026-10-01"}},
-		"fractional id":   {"value": map[string]any{"effective_from": "2026-10-01", "selections": []any{map[string]any{"offering_id": 1.5}}}},
-		"non-string days": {"value": map[string]any{"effective_from": "2026-10-01", "selections": []any{map[string]any{"offering_id": float64(12), "selected_days": []any{3}}}}},
+	for name, value := range map[string]any{
+		"missing value":   nil,
+		"missing date":    map[string]any{"selections": []any{}},
+		"bad date":        map[string]any{"effective_from": "01.10.2026", "selections": []any{}},
+		"no selections":   map[string]any{"effective_from": "2026-10-01"},
+		"fractional id":   map[string]any{"effective_from": "2026-10-01", "selections": []any{map[string]any{"offering_id": 1.5}}},
+		"non-string days": map[string]any{"effective_from": "2026-10-01", "selections": []any{map[string]any{"offering_id": float64(12), "selected_days": []any{3}}}},
 	} {
 		_, _, err := ParseOfferingStaffValue(value)
 		require.ErrorIs(t, err, ErrOfferingChangeInvalid, name)

@@ -32,9 +32,10 @@ type Conflicts interface {
 }
 
 // StaffPickupValue reads the pickup time a staff member entered for a
-// conflict group, {"value": "HH:MM"}. Anything else is an invalid payload.
-func StaffPickupValue(value map[string]any) (string, error) {
-	pickup, ok := value["value"].(string)
+// conflict group, the "value" of {"value": "HH:MM"}. Anything but a string
+// is an invalid payload.
+func StaffPickupValue(value any) (string, error) {
+	pickup, ok := value.(string)
 	if !ok {
 		return "", ErrInvalidPayload
 	}

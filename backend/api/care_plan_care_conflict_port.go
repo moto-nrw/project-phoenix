@@ -36,7 +36,7 @@ func (s *careScheduleRequestService) DecideConflictRequest(ctx context.Context, 
 }
 
 func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
-	pickup, err := carerequests.StaffPickupValue(write.Value)
+	pickup, err := carerequests.StaffPickupValue(write.Value["value"])
 	if err != nil {
 		return err
 	}

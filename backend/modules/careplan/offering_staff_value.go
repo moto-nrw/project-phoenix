@@ -7,10 +7,11 @@ import (
 )
 
 // ParseOfferingStaffValue reads the offerings a staff member chose from the
-// conflict coordinator payload {"value": {"effective_from": "YYYY-MM-DD",
-// "selections": [{"offering_id": 12, "selected_days": ["mon"]}]}}.
-func ParseOfferingStaffValue(value map[string]any) (calendar.Date, []OfferingChangeSelection, error) {
-	inner, ok := value["value"].(map[string]any)
+// "value" of the conflict coordinator payload {"value": {"effective_from":
+// "YYYY-MM-DD", "selections": [{"offering_id": 12, "selected_days":
+// ["mon"]}]}}.
+func ParseOfferingStaffValue(value any) (calendar.Date, []OfferingChangeSelection, error) {
+	inner, ok := value.(map[string]any)
 	if !ok {
 		return calendar.Date(""), nil, fmt.Errorf("%w: staff value is missing", ErrOfferingChangeInvalid)
 	}
