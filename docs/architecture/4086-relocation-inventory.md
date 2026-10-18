@@ -13,6 +13,17 @@ Method: the pinned Go toolchain produced `go list -e -tags=testhooks -json ./...
 A moved package keeps its owner, production role and both test roles. Its existing exact debt follows its path through an ADR 0020 declaration. No filename-only move is presented as dissolving an implementation package that still sits outside `internal/`.
 
 
+## Timetable contract follow-up
+
+The [Timetable contract-cluster inventory](timetable-contract-cluster.md)
+records every foreign importer and selected symbol at development
+`caee1cbd5b`, the three production-owner cutovers, seven deleted #4004 keys,
+and the two unchanged #4076 test-consumer blockers. The alias-only
+`services/activities` package is deleted. Both model packages remain because
+ADR 0057 and ADR 0020 do not permit a role-preserving internal relocation;
+the native-fixture migration is also still needed. No model package or
+repository is claimed as newly relocated by that follow-up.
+
 ## Round 3
 
 This round moves **5 production packages, 9,124 source LOC**, plus the Audit test-only integration package. The 56 exact debt keys remain 56, with no rule, alias, role, grant, exception or hook allowance added. The untouched foreign-consumer and legacy-model decisions remain Wave E work; only their importer lists are refreshed. Care Plan remains deferred while its active prerequisite is open.

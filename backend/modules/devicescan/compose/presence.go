@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -114,14 +116,14 @@ type roomSessionQuery interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 }
 
-func sessionFromGroup(group *studentpresence.SessionDetail) ports.Session {
-	session := ports.Session{
+func sessionFromGroup(group *studentpresence.SessionDetail) devicescan.Session {
+	session := devicescan.Session{
 		ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime,
 		DeviceID: group.DeviceID, TemplateID: group.ActivityGroupID,
 	}
 	if group.Activity != nil {
 		activity := group.Activity
-		session.Activity = &ports.Activity{
+		session.Activity = &devicescan.Activity{
 			ID: activity.ID, Name: activity.Name, MaxParticipants: activity.MaxParticipants,
 			PlannedRoomID: activity.PlannedRoomID, IsSystem: activity.IsSystem, IsOpen: activity.IsOpen,
 		}
@@ -133,14 +135,14 @@ func sessionFromGroup(group *studentpresence.SessionDetail) ports.Session {
 	return session
 }
 
-func (s sessions) ListOpenInRoom(ctx context.Context, roomID int64) ([]ports.Session, error) {
+func (s sessions) ListOpenInRoom(ctx context.Context, roomID int64) ([]devicescan.Session, error) {
 	groups, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 	}
-	result := make([]ports.Session, 0, len(groups))
+	result := make([]devicescan.Session, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, ports.Session{
+		result = append(result, devicescan.Session{
 			ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime,
 			DeviceID: group.DeviceID, TemplateID: group.ActivityGroupID,
 		})
@@ -148,7 +150,7 @@ func (s sessions) ListOpenInRoom(ctx context.Context, roomID int64) ([]ports.Ses
 	return result, nil
 }
 
-func (s sessions) FindDeviceSessionInRoom(ctx context.Context, roomID, deviceID int64) (*ports.Session, error) {
+func (s sessions) FindDeviceSessionInRoom(ctx context.Context, roomID, deviceID int64) (*devicescan.Session, error) {
 	group, err := s.active.FindDeviceActiveGroupInRoom(ctx, roomID, deviceID)
 	if err != nil {
 		return nil, err
@@ -160,7 +162,7 @@ func (s sessions) FindDeviceSessionInRoom(ctx context.Context, roomID, deviceID 
 	return &session, nil
 }
 
-func (s sessions) Current(ctx context.Context, deviceID int64) (*ports.Session, error) {
+func (s sessions) Current(ctx context.Context, deviceID int64) (*devicescan.Session, error) {
 	group, err := s.active.GetDeviceCurrentSession(ctx, deviceID)
 	if err != nil {
 		if errors.Is(err, studentpresence.ErrNoActiveSession) {
@@ -175,23 +177,23 @@ func (s sessions) Current(ctx context.Context, deviceID int64) (*ports.Session, 
 	return &session, nil
 }
 
-func (s sessions) Start(ctx context.Context, input ports.NewSession) (ports.Session, error) {
+func (s sessions) Start(ctx context.Context, input devicescan.NewSession) (devicescan.Session, error) {
 	now := s.clock.Now()
 	activityID := input.ActivityID
 	group := &studentpresence.LiveGroup{ActivityGroupID: &activityID, RoomID: input.RoomID, StartTime: now, LastActivity: now}
 	if err := s.active.CreateActiveGroup(ctx, group); err != nil {
-		return ports.Session{}, err
+		return devicescan.Session{}, err
 	}
-	return ports.Session{
+	return devicescan.Session{
 		ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime,
 		DeviceID: group.DeviceID, TemplateID: group.ActivityGroupID,
 	}, nil
 }
 
-func (s sessions) EnsureRoomSession(ctx context.Context, input ports.NewSession) (ports.Session, error) {
+func (s sessions) EnsureRoomSession(ctx context.Context, input devicescan.NewSession) (devicescan.Session, error) {
 	group, err := s.active.EnsureOpenRoomSession(ctx, input.RoomID, input.ActivityID)
 	if err != nil {
-		return ports.Session{}, err
+		return devicescan.Session{}, err
 	}
 	return sessionFromGroup(group), nil
 }
@@ -212,7 +214,7 @@ func (s sessions) Touch(ctx context.Context, sessionID int64) error {
 	return s.active.UpdateSessionActivity(ctx, sessionID)
 }
 
-func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]ports.Supervisor, error) {
+func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]devicescan.Supervisor, error) {
 	const operation = "GetActiveGroupWithSupervisors"
 	groups, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{IDs: []int64{sessionID}})
 	if err != nil || len(groups) == 0 {
@@ -224,9 +226,9 @@ func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]ports.Sup
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
-	result := make([]ports.Supervisor, 0, len(supervisors))
+	result := make([]devicescan.Supervisor, 0, len(supervisors))
 	for _, supervisor := range supervisors {
-		result = append(result, ports.Supervisor{StaffID: supervisor.StaffID, Ended: supervisionEnded(supervisor.EndDate, today.String())})
+		result = append(result, devicescan.Supervisor{StaffID: supervisor.StaffID, Ended: supervisionEnded(supervisor.EndDate, today.String())})
 	}
 	return result, nil
 }

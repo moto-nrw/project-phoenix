@@ -3,79 +3,8 @@ package legacy
 import (
 	"context"
 
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
-	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 )
-
-type activityCatalogAdapter struct {
-	service activityService.ActivityService
-}
-
-func ActivityCatalog(service activityService.ActivityService) facilitiesService.ActivityCatalog {
-	return activityCatalogAdapter{service: service}
-}
-
-func (a activityCatalogAdapter) ListActivities(ctx context.Context, name string) ([]facilitiesService.SystemActivity, error) {
-	groups, err := a.service.ListGroups(ctx, &activityModels.GroupListQuery{Name: name})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]facilitiesService.SystemActivity, 0, len(groups))
-	for _, group := range groups {
-		result = append(result, systemActivity(group))
-	}
-	return result, nil
-}
-
-func (a activityCatalogAdapter) CreateActivity(ctx context.Context, input facilitiesService.SystemActivity) (facilitiesService.SystemActivity, error) {
-	created, err := a.service.CreateGroup(ctx, &activityModels.Group{
-		Name: input.Name, MaxParticipants: input.MaxParticipants, IsOpen: input.IsOpen,
-		CategoryID: input.CategoryID, PlannedRoomID: input.PlannedRoomID,
-		IsSystem: input.IsSystem, CreatedBy: input.CreatedBy,
-	}, []int64{}, []*activityModels.Schedule{})
-	return systemActivity(created), err
-}
-
-func (a activityCatalogAdapter) ListCategories(ctx context.Context) ([]facilitiesService.SystemCategory, error) {
-	categories, err := a.service.ListCategories(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]facilitiesService.SystemCategory, 0, len(categories))
-	for _, category := range categories {
-		result = append(result, systemCategory(category))
-	}
-	return result, nil
-}
-
-func (a activityCatalogAdapter) CreateCategory(ctx context.Context, input facilitiesService.SystemCategory) (facilitiesService.SystemCategory, error) {
-	created, err := a.service.CreateCategory(ctx, &activityModels.Category{
-		Name: input.Name, Description: input.Description, Color: input.Color, IsSystem: input.IsSystem,
-	})
-	return systemCategory(created), err
-}
-
-func systemActivity(group *activityModels.Group) facilitiesService.SystemActivity {
-	if group == nil {
-		return facilitiesService.SystemActivity{}
-	}
-	return facilitiesService.SystemActivity{
-		ID: group.ID, Name: group.Name, MaxParticipants: group.MaxParticipants, IsOpen: group.IsOpen,
-		CategoryID: group.CategoryID, PlannedRoomID: group.PlannedRoomID,
-		IsSystem: group.IsSystem, CreatedBy: group.CreatedBy,
-	}
-}
-
-func systemCategory(category *activityModels.Category) facilitiesService.SystemCategory {
-	if category == nil {
-		return facilitiesService.SystemCategory{}
-	}
-	return facilitiesService.SystemCategory{
-		ID: category.ID, Name: category.Name, Description: category.Description,
-		Color: category.Color, IsSystem: category.IsSystem,
-	}
-}
 
 type openGroupCatalogAdapter struct {
 	supervisors func(context.Context, []int64) ([]facilitiesService.OpenGroupSupervisor, error)

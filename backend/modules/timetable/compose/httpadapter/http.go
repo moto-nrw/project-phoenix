@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	users "github.com/moto-nrw/project-phoenix/models/users"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
