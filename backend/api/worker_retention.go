@@ -183,14 +183,14 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: retentionStatusDays,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				key := settingsModule.KeyGDPRStatusDayRetentionDays
-				days, err := owners.settings.ResolveInt(ctx, key)
+				window := settingsModule.NewStatusDayRetention(owners.settings)
+				days, err := window.Days(ctx)
 				if err != nil {
-					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
+					return schedulerPorts.RetentionOutcome{}, err
 				}
 				deleted, err := statusDays.DeleteExpiredStudentStatusDays(ctx, days)
 				if errors.Is(err, carePlanModule.ErrStatusDayRetentionWindow) {
-					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
+					return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
 				}
 				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 			},

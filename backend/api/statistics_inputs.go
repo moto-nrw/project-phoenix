@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -70,19 +69,6 @@ func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 		result = append(result, presenceCompose.HolidayPeriod{StartDate: timezone.Date(value.StartDate), EndDate: timezone.Date(value.EndDate)})
 	}
 	return result, nil
-}
-
-type StatisticsRetention struct {
-	Settings interface {
-		ResolveInt(context.Context, string) (int, error)
-	}
-}
-
-func (r StatisticsRetention) RoomRetentionDays(ctx context.Context) (int, error) {
-	return r.Settings.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
-}
-func (r StatisticsRetention) CourseRetentionDays(ctx context.Context) (int, error) {
-	return r.Settings.ResolveInt(ctx, configModels.KeyGDPRTimetableRetentionDays)
 }
 
 // statisticsStudentRows are the student rows the report's roster reads.
