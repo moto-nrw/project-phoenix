@@ -1,0 +1,137 @@
+package careplanhttp
+
+import (
+	errors "errors"
+
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	masterdatarequests "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+)
+
+// parentRequestSharedRules are the rules every parent-request route shares.
+// Per-route tables prepend their own domain sentinels and then append these,
+// so one sentinel can never render two different codes on two routes.
+var parentRequestSharedRules = []common.ErrorRule{
+	{Target: parentrequests.ErrStale, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale)
+	}},
+	// The Care Plan excused-absence workflow (#3093) answers with its own
+	// lifecycle sentinels; they render the same wire codes as the shared ones.
+	{Target: excusedrequests.ErrParentRequestStale, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale)
+	}},
+	{Target: excusedrequests.ErrParentRequestReasonRequired, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Bitte tragen Sie eine Begründung ein.",
+			common.CodeStudentsReasonRequired,
+		)
+	}},
+	{Target: excusedrequests.ErrParentRequestPast, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
+			common.CodeStudentsRequestPast,
+		)
+	}},
+	{Target: excusedrequests.ErrParentRequestNotPast, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
+			common.CodeStudentsRequestNotPast,
+		)
+	}},
+	{Target: excusedrequests.ErrParentRequestNotDecided, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
+			common.CodeStudentsRequestNotDecided,
+		)
+	}},
+	{Target: excusedrequests.ErrParentRequestCorrectionUnsupported, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCorrectionUnsupported)
+	}},
+	{Target: securityruntime.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
+	{Target: reviewidentity.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
+	// The Care Plan Stammdaten decision and the cross-kind commands (#3354)
+	// raise the parent-request contract's reason sentinel.
+	{Target: parentrequests.ErrReasonRequired, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Bitte tragen Sie eine Begründung ein.",
+			common.CodeStudentsReasonRequired,
+		)
+	}},
+	{Target: parentrequests.ErrPast, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
+			common.CodeStudentsRequestPast,
+		)
+	}},
+	{Target: parentrequests.ErrNotPast, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
+			common.CodeStudentsRequestNotPast,
+		)
+	}},
+	{Target: parentrequests.ErrNotDecided, Render: func(error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
+			common.CodeStudentsRequestNotDecided,
+		)
+	}},
+	{Target: parentrequests.ErrCorrectionUnsupported, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCorrectionUnsupported)
+	}},
+}
+
+// parentRequestRules builds one route's table: its own sentinels first (more
+// specific wins), then the shared ones.
+func parentRequestRules(own ...common.ErrorRule) []common.ErrorRule {
+	rules := make([]common.ErrorRule, 0, len(own)+len(parentRequestSharedRules))
+	rules = append(rules, own...)
+	return append(rules, parentRequestSharedRules...)
+}
+
+func absenceReadRequiredResponse(error) render.Renderer {
+	return common.ErrorForbiddenMessageWithCode(
+		"Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
+		common.CodeStudentsAbsenceReadRequired,
+	)
+}
+
+func isParentRequestMissing(err error) bool {
+	return errors.Is(err, excusedrequests.ErrExcusedRequestNotFound) ||
+		errors.Is(err, carerequests.ErrNotFound) ||
+		errors.Is(err, careplan.ErrOfferingChangeNotFound) ||
+		errors.Is(err, masterdatarequests.ErrReviewNotFound)
+}
+
+func isParentRequestNotPending(err error) bool {
+	return errors.Is(err, excusedrequests.ErrExcusedRequestNotPending) ||
+		errors.Is(err, carerequests.ErrNotPending) ||
+		errors.Is(err, careplan.ErrOfferingChangeNotPending) ||
+		errors.Is(err, masterdatarequests.ErrReviewNotPending)
+}
+
+func isParentRequestForbidden(err error) bool {
+	return errors.Is(err, excusedrequests.ErrExcusedRequestForbidden) ||
+		errors.Is(err, carerequests.ErrCareRequestForbidden) ||
+		errors.Is(err, careplan.ErrOfferingChangeForbidden) ||
+		errors.Is(err, masterdatarequests.ErrReviewForbidden)
+}
+
+// isParentRequestNotDecided matches the union of the domains' "there is no
+// decision here to correct" sentinels.
+func isParentRequestNotDecided(err error) bool {
+	return errors.Is(err, excusedrequests.ErrExcusedRequestNotDecided) || errors.Is(err, excusedrequests.ErrParentRequestNotDecided) ||
+		errors.Is(err, parentrequests.ErrNotDecided)
+}
+
+// ParentRequestQueueErrorRenderer is what the read surfaces (aggregated list,
+// pending-count badge) render. It carries no domain sentinels: what a queue
+// can fail on beyond a DB error is the review policy refusing the caller.
+var ParentRequestQueueErrorRenderer = common.RulesRenderer(
+	parentRequestRules(), common.ErrorInternalServer,
+)

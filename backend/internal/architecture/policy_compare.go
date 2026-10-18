@@ -447,7 +447,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
 			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
-				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners)) {
+				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -838,7 +838,8 @@ func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPer
 				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCompositionReach(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedInternalReach(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedProjectionPublicRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedProjectionPublicRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedOwnerHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

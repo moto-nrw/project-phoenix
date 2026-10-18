@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -420,19 +419,6 @@ func TestWindowAndRangeCodes(t *testing.T) {
 		{"export other", planExportInvalidRenderer(fmt.Errorf("%w: unknown variant", planexport.ErrInvalidParams)), http.StatusBadRequest, "general.input", "", nil},
 	})
 	require.ErrorIs(t, bulkTooLong, timetable.ErrInvalidBulkCancelRange)
-}
-
-// TestSlotListRefusalCodes pins the codes of the daily lists (#2516).
-func TestSlotListRefusalCodes(t *testing.T) {
-	t.Parallel()
-
-	assertCodeCases(t, []codeCase{
-		{"pickup list in the past", slotListRefusal(classday.ErrPickupCohortPastDate), http.StatusBadRequest, "timetable.slot_list_pickup_past_date", "", nil},
-		{"reconciliation in the future", slotListRefusal(classday.ErrReconciliationFutureDate), http.StatusBadRequest, "timetable.slot_list_reconciliation_future_date", "", nil},
-		{"drifted", slotListRefusal(fmt.Errorf("render: %w", classday.ErrListDrifted)), http.StatusConflict, "timetable.slot_list_drifted", "", nil},
-		{"disabled", slotListRefusal(classday.ErrTimetableDisabled), http.StatusForbidden, "timetable.slot_lists_disabled", "", nil},
-	})
-	assert.Nil(t, slotListRefusal(errors.New("db down")))
 }
 
 // TestAttendanceCorrectionCodes pins the correction refusals.

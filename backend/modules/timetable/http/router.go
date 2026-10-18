@@ -237,18 +237,6 @@ func (rs *Resource) mountPlanningCoordinationRoutes(r chi.Router, withTx common.
 // mountExportRoutes registers the slot lists and the printable
 // Betreuungsplan.
 func (rs *Resource) mountExportRoutes(r chi.Router, withTx common.Middleware) {
-	// Issue #1565: lists from planned care slots (Plan / Ist / Abgleich).
-	// Read-only, but they expose named children + presence, so they require
-	// student-data read on top of schedule read (GDPR) — same bar as the
-	// emergency snapshot export (UsersRead).
-	r.Route("/lists", func(r chi.Router) {
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/options", rs.listSlotListOptions)
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/preview", rs.previewSlotList)
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/export", rs.exportSlotList)
-	})
 
 	// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
 	// so it needs users:read on top of the schedules:read the plan itself

@@ -1,14 +1,13 @@
 package students
 
 import (
-	"errors"
-	"log/slog"
-	"net/http"
+	errors "errors"
+	slog "log/slog"
+	http "net/http"
 
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
 // checkDeviceAuth verifies device authentication and returns the kiosk's

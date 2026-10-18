@@ -1,9 +1,9 @@
 package students
 
 import (
-	"log/slog"
+	slog "log/slog"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 )
 
 // photoUnlinker adapts api/common file deletion to the service's
