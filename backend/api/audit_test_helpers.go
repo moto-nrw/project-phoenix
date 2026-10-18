@@ -93,18 +93,9 @@ func NewEnrollmentFlowTestRepositories(db transactionruntime.Database) (*Enrollm
 	return NewEnrollmentFlowTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 }
 
-// NewCareLifecycleTestRepositories composes the care-lifecycle test graph with
-// its field-edit trail.
-func NewCareLifecycleTestRepositories(db transactionruntime.Database, command auditModels.Command) (CareLifecycleTestRepositories, error) {
-	result, err := NewCareLifecycleTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
-	if err != nil {
-		return CareLifecycleTestRepositories{}, err
-	}
-	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
-	result.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
-	audits := NewTestAuditPersistence(db, command)
-	result.StudentFieldEdit = audits.StudentFieldEdit
-	return result, nil
+// NewCareLifecycleTestRepositories composes the care-lifecycle test graph.
+func NewCareLifecycleTestRepositories(db transactionruntime.Database, _ auditModels.Command) (CareLifecycleTestRepositories, error) {
+	return NewCareLifecycleTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 }
 
 // NewStudentTestRepositories composes the student suites' Care Plan rows

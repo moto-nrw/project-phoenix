@@ -53,7 +53,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 		ActiveTestModule:    active,
 		CareLifecycle:       care.CareLifecycle,
 		SettingsSideEffects: registry,
-		CareWithdrawals:     careRepos.CareWithdrawal,
+		CareWithdrawals:     careRepos.CareWithdrawal(),
 		Schools:             schools,
 		db:                  db,
 	}, nil

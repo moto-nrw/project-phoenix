@@ -77,13 +77,14 @@ func (m ActiveTestModule) PresenceOperations() presenceservice.PresenceOperation
 }
 
 func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
-	r, err := NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+	members := MustNewMembershipTestRepositories(db)
+	r, err := NewActiveTestRepositories(db, members, clocks...)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	r.TimetableTestRepositories = withTimetableTestAudit(db, r.TimetableTestRepositories)
-	r.TimetableDeviationAudit = NewTimetableDeviationAudit(db)
-	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
+	rt := withTimetableTestAudit(db, NewActiveTestTimetableRows(db, members, clocks...))
+	rCare, rRooms := NewActiveTestCarePlanRows(db, members, clocks...), MustNewTimetableRoomRows(db)
+	approvedOfferings, err := NewApprovedOfferingTestProjection(db, rt.Enrollment())
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -121,7 +122,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, students, rt.InstanceStudent)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -148,11 +149,11 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
+	bridge, err := NewTimetableEndedSessionCompletion(rt.OwnerRows(), careDay)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	attendanceMirror, err := NewTimetableAttendanceMirror(rt.OwnerRows(), logger)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -171,10 +172,10 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
-		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
-		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room),
-		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.AutoCheckIn},
+		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
+		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(rRooms.Room),
+		ActivityGroupRepo: NewSessionActivities(rt.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(rt.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
+		StaffNames: NewAttendanceStaffNames(members.Staff, data.Users), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
@@ -183,7 +184,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	groups.Users = data.Users
 	yard := facilitiesCompose.NewSchulhofService(data.Facilities, FacilitiesActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(rt.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -212,13 +213,13 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	operationRows := r.OwnerRows()
-	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
+	operationRows := rt.OwnerRows()
+	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), rt.InstanceStudent)
 	operations, err := NewTimetableOperations(timetablePorts.OperationDependencies{
 		Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
 		Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
 		People:         TimetableOperationPeople{OperationPeople: newTimetableOperationPeople(data.Users), Membership: membership},
-		PlanningTracks: r.Timetable, Logger: logger, Now: OptionalClock(clocks),
+		PlanningTracks: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
 	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub)
 	if err != nil {
 		return ActiveTestModule{}, err

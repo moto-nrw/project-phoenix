@@ -78,7 +78,7 @@ func NewStudentPeopleRows(db transactionruntime.Database, members MembershipTest
 		ParentRequestShare: peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
 		ParentRequestEvent: peopleCompose.NewParentRequestEventRepository(db.Pool()),
 		FamilyProtection:   peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
-		CareWithdrawal:     lifecycle.CareWithdrawal,
+		CareWithdrawal:     lifecycle.CareWithdrawal(),
 	}, nil
 }
 

@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/uptrace/bun"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -19,25 +20,22 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// CareLifecycleTestRepositories is the repository graph the care-lifecycle
+// CareLifecycleTestRepositories are the Care Plan rows the care-lifecycle
 // suites run on, with the lifecycle's owners bound the way the production
-// graph binds them. StudentFieldEdit is filled by the composition that owns
-// Audit persistence (NewCareLifecycleTestRepositories).
+// graph binds them.
 type CareLifecycleTestRepositories struct {
-	TimetableTestRepositories
-	// The other owners' rows beside the Timetable rows (#4080).
-	MembershipTestRepositories
-	TimetablePresenceRows
-	TimetableCarePlanRows
-	TimetableRoomRows
-	TimetableDeviationAudit
-	TimetableSchoolCalendar
-	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
-	StudentFieldEdit auditModels.StudentFieldEditRepository
-	db               transactionruntime.Database
+	carePlan careplan.Capability
+	pool     *bun.DB
 	// sources are the lifecycle's owners, bound without the change trail,
 	// which each suite supplies through its audit (NewCareLifecycle).
 	sources carePlanCompose.CareLifecycleOwners
+}
+
+// CareWithdrawal is the People Directory's withdrawal completion port over
+// the Care Plan rows.
+func (r CareLifecycleTestRepositories) CareWithdrawal() usersModels.CareWithdrawalCompletionRepository {
+	care := r.carePlan
+	return NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care })
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
@@ -45,7 +43,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	presence, carePlan, rooms, schoolCalendar, err := newTimetableTestCompanions(db, tt, members)
+	carePlan, err := NewTimetableCarePlanRows(db, tt, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
@@ -58,11 +56,9 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	care := carePlan.CarePlan
 	return CareLifecycleTestRepositories{
-		TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: carePlan, TimetableRoomRows: rooms, TimetableSchoolCalendar: schoolCalendar,
-		CareWithdrawal: NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
-		db:             db,
+		carePlan: carePlan.CarePlan,
+		pool:     db.Pool(),
 		sources: NewCareLifecycleOwners(
 			members.Student, members.Person, membership, people, tt.Timetable, calendar,
 			NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
@@ -92,7 +88,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	owners.ChangeTrail = NewCareEndRecorder(config.Audit)
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
 		StudentDirectory: studentDirectoryView.NewReader(),
-		DB:               r.db.Pool(), Records: r.CarePlan,
+		DB:               r.pool, Records: r.carePlan,
 		Owners:                owners,
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: config.BookingsAuthoritative,
