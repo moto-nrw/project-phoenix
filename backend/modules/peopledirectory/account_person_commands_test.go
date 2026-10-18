@@ -14,6 +14,11 @@ func (e *recordingEngine) RenamePerson(context.Context, int64, *string, *string)
 	return nil
 }
 
+func (e *recordingEngine) AnonymizeAndSoftDeletePerson(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) SetPersonDetails(_ context.Context, _ int64, details peopledirectory.PersonDetails) error {
 	e.calls++
 	e.details = details

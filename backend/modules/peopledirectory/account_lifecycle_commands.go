@@ -173,6 +173,23 @@ func (m *Module) SetPersonDetails(ctx context.Context, personID int64, details P
 	return m.engine.SetPersonDetails(ctx, personID, details)
 }
 
+// PersonRemovalCommand removes a person of any school on an operator's
+// request.
+type PersonRemovalCommand interface {
+	// AnonymizeAndSoftDeletePerson replaces the person's names with the
+	// deletion placeholders, clears the birthday and marks the row deleted.
+	// The caller unlinks the card and the account first; a missing person
+	// is no error.
+	AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error
+}
+
+func (m *Module) AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error {
+	if personID <= 0 {
+		return invalid("person ID is required")
+	}
+	return m.engine.AnonymizeAndSoftDeletePerson(ctx, personID)
+}
+
 // GuardianLifecycleCommand are the guardian profile and relationship writes
 // of the guardian invitation, approval and revocation flows. A relationship
 // write covers its Care Plan pickup and Identity & Access portal halves in

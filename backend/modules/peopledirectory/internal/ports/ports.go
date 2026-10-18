@@ -22,6 +22,10 @@ type Store interface {
 	Search(context.Context, domain.Filter) ([]domain.Person, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
+	// AnonymizeAndSoftDelete puts the deletion placeholders in place of the
+	// names, clears the birthday and marks the row deleted; a missing row is
+	// no error.
+	AnonymizeAndSoftDelete(context.Context, int64) (domain.OperationStats, error)
 	// AnonymizeIfUnchanged replaces the direct identifiers of a deleted
 	// child's person with placeholders and tombstones the row, only while its
 	// updated_at still equals the previewed value. False means the row moved.

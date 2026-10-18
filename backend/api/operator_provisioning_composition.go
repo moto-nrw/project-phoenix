@@ -11,7 +11,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -26,7 +25,7 @@ import (
 type operatorProvisioningOwners struct {
 	DB            transactionruntime.Database
 	Organizations organizationtenancy.Capability
-	Persons       peopledirectory.Query
+	Persons       ProvisioningPersonDirectory
 	Membership    schoolmembership.Query
 	PersonRows    provisioningPersonRows
 	StaffRows     provisioningStaffRows

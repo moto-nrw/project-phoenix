@@ -128,7 +128,7 @@ func (d authSchoolDirectory) ListActiveSchoolsByAccountID(ctx context.Context, a
 	}
 	active := make([]organizationModule.School, 0, len(schools))
 	for _, school := range schools {
-		if school.Active && !school.IsDeleted() {
+		if school.Operational() {
 			active = append(active, school)
 		}
 	}

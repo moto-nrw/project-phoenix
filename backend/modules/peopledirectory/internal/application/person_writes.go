@@ -9,10 +9,11 @@ import (
 )
 
 // PersonWrites serves the person writes of the profile rename
-// (peopledirectory.AccountLifecycleCommand) and of the staff record and
-// Stammdaten decision (peopledirectory.PersonDetailsCommand). Each locks the
-// person, deleted or not, and writes only the columns it names, trimmed but
-// not capped, as those flows always stored them.
+// (peopledirectory.AccountLifecycleCommand), of the staff record and
+// Stammdaten decision (peopledirectory.PersonDetailsCommand) and of an
+// operator's person deletion (peopledirectory.PersonRemovalCommand). The
+// renames lock the person, deleted or not, and write only the columns they
+// name, trimmed but not capped, as those flows always stored them.
 type PersonWrites struct{ persons *Service }
 
 func (p PersonWrites) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
@@ -42,6 +43,15 @@ func (p PersonWrites) SetPersonDetails(ctx context.Context, personID int64, deta
 			return err
 		}
 		writeStats, err := s.store.SetDetails(txCtx, personID, details.FirstName, details.LastName, details.Birthday)
+		stats.Add(writeStats)
+		return err
+	}))
+}
+
+func (p PersonWrites) AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error {
+	s := p.persons
+	return MapError(s.runWrite(ctx, "anonymize_and_soft_delete_person", func(txCtx context.Context, stats *domain.OperationStats) error {
+		writeStats, err := s.store.AnonymizeAndSoftDelete(txCtx, personID)
 		stats.Add(writeStats)
 		return err
 	}))

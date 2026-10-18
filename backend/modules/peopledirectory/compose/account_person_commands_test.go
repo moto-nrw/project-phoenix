@@ -92,3 +92,31 @@ func TestSetPersonDetailsStaysInTheSchool(t *testing.T) {
 	err := module.SetPersonDetails(ctx, foreign.ID, peopledirectory.PersonDetails{FirstName: "X", LastName: "Y"})
 	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound)
 }
+
+// An operator's deletion leaves the deletion placeholders and a tombstone;
+// a person that is gone is no error.
+func TestAnonymizeAndSoftDeletePersonLeavesTheTombstone(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	person := testpkg.CreateTestPerson(t, db, "Lea", "Kraft")
+	require.NoError(t, module.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: "Lea", LastName: "Kraft", Birthday: "2015-04-01"}))
+
+	require.NoError(t, module.AnonymizeAndSoftDeletePerson(ctx, person.ID))
+	var row struct {
+		FirstName string  `bun:"first_name"`
+		LastName  string  `bun:"last_name"`
+		Birthday  *string `bun:"birthday"`
+		Deleted   bool    `bun:"deleted"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT first_name, last_name, birthday::text AS birthday, deleted_at IS NOT NULL AS deleted FROM users.persons WHERE id = ?`, person.ID).Scan(ctx, &row))
+	assert.Equal(t, "Gelöscht", row.FirstName)
+	assert.Equal(t, "Benutzer", row.LastName)
+	assert.Nil(t, row.Birthday)
+	assert.True(t, row.Deleted)
+	_, err := module.FindPerson(ctx, person.ID)
+	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound)
+
+	require.NoError(t, module.AnonymizeAndSoftDeletePerson(ctx, person.ID), "a repeated deletion is no error")
+}
