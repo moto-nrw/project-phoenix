@@ -23,29 +23,22 @@ type CallerSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// CallerContextWiring names the owners the caller context reads the
-// caller's chain from. SupervisedActivities reads the planned supervisions
-// of a staff member, which no owner contract serves yet. Settings may be
-// nil: the school-wide live-update scope is then never granted and the
-// parent request review policy reports itself unconfigured.
-type CallerContextWiring struct {
-	Accounts             identityaccess.AccountProfiles
-	Persons              callerPersons
-	Membership           schoolmembership.Capability
-	StaffGroups          schoolstructure.StaffGroupQuery
-	SupervisedActivities func(context.Context, int64) ([]int64, error)
-	Presence             *studentpresence.Module
-	Settings             CallerSettings
-	Logger               *slog.Logger
-	// Tokens reads the verified principal and the request identity memo
-	// (#2099) the request middleware attached.
-	Tokens TokenAdapter
-}
-
 // newCallerContext composes the Identity & Access caller context (#3501)
 // over People Directory, School Membership, School Structure, Timetable and
-// Student Presence.
-func newCallerContext(wiring CallerContextWiring) (identityaccess.CallerContext, error) {
+// Student Presence. tokens reads the verified principal and the request
+// identity memo (#2099) the request middleware attached; activities reads
+// the planned supervisions of a staff member, which no owner contract serves
+// yet. settings may be nil: the school-wide live-update scope is then never
+// granted and the parent request review policy reports itself unconfigured.
+func newCallerContext(
+	tokens TokenAdapter, accounts identityaccess.AccountProfiles, persons callerPersons, membership schoolmembership.Capability,
+	staffGroups schoolstructure.StaffGroupQuery, activities identityCompose.CallerActivities, presence *studentpresence.Module,
+	settings CallerSettings, logger *slog.Logger,
+) (identityaccess.CallerContext, error) {
+	if accounts == nil || persons.rows == nil || persons.people == nil || membership == nil || staffGroups == nil ||
+		activities == nil || presence == nil || logger == nil {
+		return identityaccess.CallerContext{}, errors.New("compose caller context: the accounts, persons, membership, staff groups, supervised activities, presence and a logger are required")
+	}
 	review := &identityCompose.ParentRequestReviewDependencies{
 		Permissions:           ReviewPermissions,
 		GroupLeaderSettingKey: configModels.KeyParentRequestGroupLeaderReviewEnabled,
@@ -54,33 +47,27 @@ func newCallerContext(wiring CallerContextWiring) (identityaccess.CallerContext,
 		AbsenceReadRequired:   securityruntime.ErrAbsenceReadRequired,
 	}
 	deps := identityCompose.CallerContextDependencies{
-		Caller:     wiring.Tokens.Caller,
-		Memo:       wiring.Tokens.memo,
-		Accounts:   wiring.Accounts,
-		People:     callerPeople{persons: wiring.Persons},
-		Membership: callerMembership{membership: wiring.Membership},
-		Structure:  callerStructure{groups: wiring.StaffGroups},
-		Activities: callerActivities(wiring.SupervisedActivities),
-		Sessions:   callerSessions{presence: wiring.Presence},
-		LiveTopics: callerLiveTopics{presence: wiring.Presence},
+		Caller:     tokens.Caller,
+		Memo:       tokens.memo,
+		Accounts:   accounts,
+		People:     callerPeople{persons: persons},
+		Membership: callerMembership{membership: membership},
+		Structure:  callerStructure{groups: staffGroups},
+		Activities: activities,
+		Sessions:   callerSessions{presence: presence},
+		LiveTopics: callerLiveTopics{presence: presence},
 		Review:     review,
-		Logger:     wiring.Logger,
+		Logger:     logger,
 	}
-	if wiring.Settings != nil {
-		deps.Overview = CallerOverview{Settings: wiring.Settings}
-		review.Settings = wiring.Settings
+	if settings != nil {
+		deps.Overview = CallerOverview{Settings: settings}
+		review.Settings = settings
 	}
-	return identityCompose.NewCallerContext(deps)
-}
-
-// NewCallerRowsFromWiring composes the caller context and the rows its retained
-// consumers read through it.
-func NewCallerRowsFromWiring(wiring CallerContextWiring, sources CallerRowSources) (*CallerRows, error) {
-	caller, err := newCallerContext(wiring)
+	caller, err := identityCompose.NewCallerContext(deps)
 	if err != nil {
-		return nil, fmt.Errorf("compose caller context: %w", err)
+		return identityaccess.CallerContext{}, fmt.Errorf("compose caller context: %w", err)
 	}
-	return NewCallerRows(caller, sources), nil
+	return caller, nil
 }
 
 // callerPersons reads the caller's person from the retained rows and writes
@@ -161,12 +148,6 @@ func (s callerStructure) SubstitutedGroups(ctx context.Context, staffID int64) (
 
 func (s callerStructure) SchoolClasses(ctx context.Context, staffID int64) ([]string, error) {
 	return s.groups.ListSchoolClassesByStaff(ctx, staffID)
-}
-
-type callerActivities func(context.Context, int64) ([]int64, error)
-
-func (read callerActivities) SupervisedActivityGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {
-	return read(ctx, staffID)
 }
 
 type callerSessions struct{ presence *studentpresence.Module }

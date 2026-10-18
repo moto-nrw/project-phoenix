@@ -42,14 +42,11 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 		return nil, err
 	}
 	tt := r.Timetable
-	return NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts: r.Profile, Persons: callerPersons{rows: tt.Person, people: people}, Membership: membership, StaffGroups: r.StaffGroups,
-		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
-		Presence:             NewLoggedStudentPresence(db, slog.Default()),
-		Settings:             settings,
-		Tokens:               requestTokenReads,
-	}, CallerRowSources{
-		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
-		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,
-	})
+	activities := timetableCompose.NewCallerActivityGroups(tt.ActivityGroup)
+	caller, err := newCallerContext(requestTokenReads, r.Profile, callerPersons{rows: tt.Person, people: people}, membership, r.StaffGroups,
+		activities, NewLoggedStudentPresence(db, slog.Default()), settings, slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return NewCallerRows(caller, tt.Group, tt.Staff, tt.Teacher, tt.Student, activities, tt.ActiveGroup, slog.Default())
 }

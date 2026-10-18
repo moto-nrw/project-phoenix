@@ -121,20 +121,12 @@ func buildIdentityAccess(
 	// owners of each link; the rows serve the consumers that still speak the
 	// retained records.
 	usercontextLogger := env.Logger.With("service", "usercontext")
-	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts:             module,
-		Persons:              callerPersons{rows: people.Persons, people: persons},
-		Membership:           membership,
-		StaffGroups:          staffGroups,
-		SupervisedActivities: activityGroups.SupervisedActivityGroupIDs,
-		Presence:             presence,
-		Settings:             settings,
-		Logger:               usercontextLogger,
-		Tokens:               tokens,
-	}, CallerRowSources{
-		Groups: groups, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
-		Activities: activityGroups, Sessions: sessions, Logger: usercontextLogger,
-	})
+	caller, err := newCallerContext(tokens, module, callerPersons{rows: people.Persons, people: persons}, membership, staffGroups,
+		activityGroups, presence, settings, usercontextLogger)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, err := NewCallerRows(caller, groups, people.Staff, people.Teachers, people.Students, activityGroups, sessions, usercontextLogger)
 	if err != nil {
 		return nil, nil, err
 	}

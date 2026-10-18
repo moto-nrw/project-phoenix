@@ -146,20 +146,12 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	// owners of each link; the rows serve the consumers that still speak the
 	// retained records.
 	usercontextLogger := m.Logger.With("service", "usercontext")
-	rows, err := NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts:             module,
-		Persons:              callerPersons{rows: m.PersonRows, people: m.Persons},
-		Membership:           m.Membership,
-		StaffGroups:          m.StaffGroups,
-		SupervisedActivities: m.ActivityGroups.SupervisedActivityGroupIDs,
-		Presence:             m.Presence,
-		Settings:             m.Settings,
-		Logger:               usercontextLogger,
-		Tokens:               r.tokens,
-	}, CallerRowSources{
-		Groups: m.Groups, Staff: m.StaffRows, Teachers: m.TeacherRows, Students: m.StudentRows,
-		Activities: m.ActivityGroups, Sessions: m.Sessions, Logger: usercontextLogger,
-	})
+	caller, err := newCallerContext(r.tokens, module, callerPersons{rows: m.PersonRows, people: m.Persons}, m.Membership, m.StaffGroups,
+		m.ActivityGroups, m.Presence, m.Settings, usercontextLogger)
+	if err != nil {
+		return IdentityComposition{}, nil, err
+	}
+	rows, err := NewCallerRows(caller, m.Groups, m.StaffRows, m.TeacherRows, m.StudentRows, m.ActivityGroups, m.Sessions, usercontextLogger)
 	if err != nil {
 		return IdentityComposition{}, nil, err
 	}
