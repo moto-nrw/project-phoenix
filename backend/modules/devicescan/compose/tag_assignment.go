@@ -17,11 +17,11 @@ func NewTagAssignments(users PersonDirectory, logger *slog.Logger) devicescan.Ta
 	if users == nil {
 		panic("tag assignment composition: users are required")
 	}
-	return application.NewTagAssignments(tagPeople{people{users: users}}, principals{}, clock{now: time.Now}, logger)
+	return application.NewTagAssignments(tagPeople{people{users}}, principals{}, clock{now: time.Now}, logger)
 }
 
 func (p tagPeople) FindStaff(ctx context.Context, staffID int64) (*ports.StaffMember, error) {
-	staff, err := p.users.GetStaffByID(ctx, staffID)
+	staff, err := p.GetStaffByID(ctx, staffID)
 	if err != nil || staff == nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func (p tagPeople) FindStaff(ctx context.Context, staffID int64) (*ports.StaffMe
 }
 
 func (p tagPeople) FindPerson(ctx context.Context, personID int64) (*ports.Person, error) {
-	person, err := p.users.Get(ctx, personID)
+	person, err := p.Get(ctx, personID)
 	if err != nil || person == nil {
 		return nil, err
 	}
@@ -37,17 +37,17 @@ func (p tagPeople) FindPerson(ctx context.Context, personID int64) (*ports.Perso
 }
 
 func (p tagPeople) LinkTag(ctx context.Context, personID int64, tag string) error {
-	return p.users.LinkToRFIDCard(ctx, personID, tag)
+	return p.LinkToRFIDCard(ctx, personID, tag)
 }
 
 func (p tagPeople) UnlinkTag(ctx context.Context, personID int64) error {
-	return p.users.UnlinkFromRFIDCard(ctx, personID)
+	return p.UnlinkFromRFIDCard(ctx, personID)
 }
 
 type tagPeople struct{ people }
 
 func (p tagPeople) TeacherRole(ctx context.Context, staffID int64) (string, string, bool, error) {
-	teacher, err := p.users.GetTeacherByStaffID(ctx, staffID)
+	teacher, err := p.GetTeacherByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		return "", "", false, err
 	}

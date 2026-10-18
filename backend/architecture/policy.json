@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 74,
+  "policy_epoch": 75,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1016,7 +1016,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/delivery",
+      "path": "modules/delivery/internal/adapters/deliverypostgres",
       "owner": "delivery-platform",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1072,7 +1072,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/workforce",
+      "path": "modules/workforce/internal/adapters/workforcepostgres",
       "owner": "workforce",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1576,7 +1576,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/emergencysnapshot/legacy",
+      "path": "modules/emergencysnapshot/internal/adapters/nameorder",
       "owner": "emergency-snapshot",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -2227,7 +2227,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/grouplive/legacy",
+      "path": "modules/grouplive/internal/adapters/nameorder",
       "owner": "group-live-view",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -2458,7 +2458,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/supervisiondashboard/legacy",
+      "path": "modules/supervisiondashboard/internal/adapters/nameorder",
       "owner": "calendar-view",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -15255,9 +15255,19 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "database/repositories/delivery",
+      "to": "modules/delivery/internal/adapters/deliverypostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "database/repositories/workforce",
+      "to": "modules/workforce/internal/adapters/workforcepostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
       "from": "modules/careplan/inbound/parent",
@@ -15270,9 +15280,24 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/emergencysnapshot/legacy",
+      "to": "modules/emergencysnapshot/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/grouplive/legacy",
+      "to": "modules/grouplive/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
+    },
+    {
+      "from": "modules/supervisiondashboard/legacy",
+      "to": "modules/supervisiondashboard/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
       "from": "modules/workforce/inbound/timetracking",

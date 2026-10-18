@@ -236,6 +236,7 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 		Tenants:      NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),
 		Now:          timezone.Now,
 		OnlineWindow: NewOnlineWindowResolver(b.settingsService, b.Logger.With("module", "device-fleet")),
+		APIKeys:      DeviceAPIKeys{},
 		Observe: func(observation devicefleetCompose.Observation) {
 			b.ObserveDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
 		},
