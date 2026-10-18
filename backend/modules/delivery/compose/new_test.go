@@ -80,4 +80,10 @@ func TestNewComposesModuleAndWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, runtime.Module)
 	assert.NotNil(t, worker)
+	result, err := runtime.Module.EnqueueEmail(context.Background(), delivery.EmailIntent{})
+	require.EqualError(t, err, "delivery: tenant is required")
+	assert.Equal(t, delivery.Enqueued{}, result)
+	processed, err := worker.RunOnce(context.Background(), 0, 3)
+	require.EqualError(t, err, "delivery worker: batch size must be positive")
+	assert.Zero(t, processed)
 }

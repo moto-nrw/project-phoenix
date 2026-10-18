@@ -9,17 +9,18 @@ import (
 )
 
 type recordingEngine struct {
-	created   peopledirectory.CreatePerson
-	updated   peopledirectory.UpdatePerson
-	listed    []int64
-	across    bool
-	searched  peopledirectory.PersonFilter
-	tag       string
-	calls     int
-	student   studentCall
-	guardian  guardianCall
-	observed  []string
-	directory peopledirectory.StudentDirectoryFilter
+	created       peopledirectory.CreatePerson
+	updated       peopledirectory.UpdatePerson
+	listed        []int64
+	across        bool
+	searched      peopledirectory.PersonFilter
+	tag           string
+	calls         int
+	student       studentCall
+	guardian      guardianCall
+	observed      []string
+	directory     peopledirectory.StudentDirectoryFilter
+	directoryRows []peopledirectory.StudentRecord
 
 	noteFilter  peopledirectory.StudentNoteFilter
 	updatedNote peopledirectory.UpdateStudentNote

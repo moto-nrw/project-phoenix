@@ -419,19 +419,26 @@ func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
 func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 	t.Parallel()
 
-	auth := &fakeAuthCleanup{tokenResult: 5}
+	auth := &fakeAuthCleanup{tokenResult: 5, passwordResult: 7, rateLimitResult: 11}
 	invitations := &fakeInvitationCleaner{result: 3}
 
 	jobs := buildCleanupJobs(auth, invitations, nil, nil)
 	ctx := context.Background()
 
+	expected := map[string]int{"Auth token cleanup": 5, "Password reset token cleanup": 7, "Password reset rate limit cleanup": 11, "Invitation cleanup": 3}
+	require.Len(t, jobs, len(expected))
 	// All jobs should be callable
 	for _, job := range jobs {
 		require.NotNil(t, job.Run)
 		count, err := job.Run(ctx)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 0)
+		assert.Equal(t, expected[job.Description], count, job.Description)
 	}
+	assert.Equal(t, 1, auth.tokenCalls)
+	assert.Equal(t, 1, auth.passwordCalls)
+	assert.Equal(t, 1, auth.rateLimitCalls)
+	assert.Equal(t, 1, invitations.calls)
 }
 
 // =============================================================================
