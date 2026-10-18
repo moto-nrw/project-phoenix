@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,9 +12,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Database yields the caller's tenant transaction and its tenant id. The
-// journal is written on the SAME transaction as the request, so it cannot end
-// up describing a state the database never reached.
+// Database yields the command's scoped transaction. Begin persists intent and
+// audit evidence together; claim and outcome settlement use fresh transactions.
 type Database func(context.Context) (bun.IDB, int64, error)
 
 type Store struct{ database Database }
@@ -45,10 +45,10 @@ const (
 	statusFailed  = "failed"
 )
 
-func (s *Store) Record(ctx context.Context, entry domain.JournalEntry) error {
+func (s *Store) Begin(ctx context.Context, entry domain.JournalEntry) (int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	status := statusFailed
@@ -60,7 +60,7 @@ func (s *Store) Record(ctx context.Context, entry domain.JournalEntry) error {
 		reason = ""
 	}
 	if status == statusFailed && reason == "" {
-		return fmt.Errorf("export transfer postgres: a failed attempt must name a reason")
+		return 0, fmt.Errorf("export transfer postgres: a failed attempt must name a reason")
 	}
 
 	record := row{
@@ -81,10 +81,70 @@ func (s *Store) Record(ctx context.Context, entry domain.JournalEntry) error {
 		record.ActorAccountID = &accountID
 	}
 
-	if _, err := db.NewInsert().Model(&record).ModelTableExpr(`audit.export_transfers`).Exec(ctx); err != nil {
-		return fmt.Errorf("export transfer postgres: record attempt: %w", err)
+	var id int64
+	if err := db.NewRaw(`INSERT INTO audit.export_transfers
+ (tenant_id,actor_account_id,actor_name,export_kind,export_format,filename,byte_size,target_host,target_port,target_directory,status,failure_reason,dispatch_state,dispatch_expires_at)
+ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pending',clock_timestamp()+INTERVAL '2 minutes') RETURNING id`,
+		record.TenantID, record.ActorAccountID, record.ActorName, record.ExportKind, record.ExportFormat,
+		record.Filename, record.ByteSize, record.TargetHost, record.TargetPort, record.TargetDirectory, record.Status, record.FailureReason).Scan(ctx, &id); err != nil {
+		return 0, fmt.Errorf("export transfer postgres: record intent: %w", err)
+	}
+	return id, nil
+}
+
+// Claim installs the dispatch fence for exactly this committed intent.
+func (s *Store) Claim(ctx context.Context, id int64) (string, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return "", err
+	}
+	var token string
+	if err := db.NewRaw(`SELECT audit.claim_export_transfer(?,?)`, tenantID, id).Scan(ctx, &token); err != nil {
+		return "", err
+	}
+	if token == "" {
+		return "", errors.New("export transfer intent cannot be dispatched")
+	}
+	return token, nil
+}
+
+// Complete settles exactly one live fence. Evidence fields never change.
+func (s *Store) Complete(ctx context.Context, id int64, token string, entry domain.JournalEntry) error {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	var done bool
+	if err := db.NewRaw(`SELECT audit.complete_export_transfer(?,?,?,?,?)`, tenantID, id, token, entry.Success, entry.Reason).Scan(ctx, &done); err != nil {
+		return err
+	}
+	if !done {
+		return errors.New("export transfer dispatch fence expired")
 	}
 	return nil
+}
+
+// SettleExpired is administrative recovery only. It never has file bytes,
+// credentials or a transport, and cannot retry an ambiguous remote operation.
+func (s *Store) SettleExpired(ctx context.Context, limit int) (int, error) {
+	if limit <= 0 || limit > 1000 {
+		return 0, errors.New("export transfer recovery batch must be between 1 and 1000")
+	}
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.NewRaw(`WITH expired AS (
+ SELECT id FROM audit.export_transfers WHERE dispatch_state IN ('pending','dispatching')
+ AND dispatch_expires_at <= clock_timestamp() ORDER BY dispatch_expires_at,id LIMIT ? FOR UPDATE SKIP LOCKED)
+ UPDATE audit.export_transfers AS attempt SET dispatch_state='unknown', dispatch_token=NULL,
+ status='failed',failure_reason='internal_error',updated_at=clock_timestamp()
+ FROM expired WHERE attempt.id=expired.id`, limit).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	count, err := result.RowsAffected()
+	return int(count), err
 }
 
 // DeleteExpired removes the school's journal entries before the instant

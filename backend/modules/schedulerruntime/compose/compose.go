@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/cleanupruns"
-	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/workerlease"
+	scheduler "github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

@@ -2,19 +2,21 @@
 
 Base: fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee` after PR #4338. The earlier rounds below are historical.
 
+Integrated development: `68e67f40165454c17db6713e86082de7db71c37f` after PR #4337. Its export dispatch recovery, strict side-effect guard and budget reductions are preserved. Current before/after measurements use this integrated base.
+
 ## Current result
 
 | Surface | Before | After |
 |---|---:|---:|
 | Legacy keys | 1 | 1 |
 | Foreign compose aliases | 23 | 0 |
-| Conventional carriers | 5 | 2 |
-| Compose LOC | 27,190 | 27,150 |
+| Conventional carriers | 5 | 3 |
+| Compose LOC | 27,101 | 27,061 |
 | Legacy-prefixed LOC | 2,666 | 2,666 |
 | Rules | 926 | 928 |
 | Current composition field/setter targets | 0 | 0 |
 
-`services/scheduler`, `models/base` and `models/delivery` are gone. `database/repositories/base` was already absent at the base; it still has no package or consumer. Only `models/activities` and `models/schedule` remain as conventional carriers. The retained activity service and every `legacy_*.go` file are outside this round.
+`models/base` and `models/delivery` are gone. Scheduler remains at its original path for the blocker below. `database/repositories/base` was already absent at the base; it still has no package or consumer. The remaining conventional carriers are `models/activities`, `models/schedule` and `services/scheduler`. The retained activity service and every `legacy_*.go` file are outside this round.
 
 The original Data Import authorization key and the zero-baseline regression test are unchanged. The separate zero-ratchet cutover follows #3021. Projection locations and grants are unchanged.
 
@@ -30,13 +32,13 @@ The original Data Import authorization key and the zero-baseline regression test
 
 | Old reference | New reference | Preserved count / behavior |
 |---|---|---|
-| `services/scheduler` | `modules/schedulerruntime/internal/application` | 66 Go files, identical file set and normalized bytes; same owner/application/test roles via ADR 0020 |
-| Worker registry directory and `services/scheduler/worker.go` literals in composition discovery | Corresponding internal Scheduler directory and `worker.go` | 27 job IDs before and after, identical order; constructor identities and fixed-commit evidence remain unchanged |
+| Scheduler relocation probe | Reverted to `services/scheduler` | 66 Go files are byte-identical to integrated development; no relocation or notice allowance is added |
+| Scheduler discovery and contract inventory | Original paths retained | 27 job IDs and all 7 constructor callers remain unchanged, including the four Worker tests; fixed-commit evidence remains unchanged |
 | SQLSTATE skip prefix `models/base/` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | One prefix replaces one prefix and narrows to the canonical file; 4 non-comment SQLSTATE literal hits before and after; empty per-file allowance map stays empty |
 | `models/base/db_errors.go` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | Exact bytes after normalizing only `package base` to `package postgres` |
 | `database/tenant_runtime.go` | Transaction Runtime private Postgres adapter plus `protocol` errors | Same transaction context keys, role/tenant setup, commit/rollback/retry/savepoint behavior, error text and Unwrap/marker protocol |
 
-The Scheduler contract register now points to its existing public lease contract test. Its original registry contract assertions still run unchanged in the relocated internal suite. The Delivery contract register points to the native intent contract imported by its original public-contract suite. The 28-owner register count is unchanged. These are evidence-target repairs, not checker logic changes.
+The Scheduler contract register and its registry assertions remain unchanged at the original path. The Delivery contract register points to the native intent contract imported by its original public-contract suite. The 28-owner register count is unchanged. These are evidence-target repairs, not checker logic changes.
 
 All route, middleware and IoT goldens, including the source of TestFullProductionRouterGolden, are byte-identical to the base. Test edits are imports, types, constructor calls and field-path repairs only. There is no test deletion or assertion change in this round.
 
@@ -71,16 +73,22 @@ Removed rules: `delivery-platform.workflow-integration-test.delivery-platform-le
 
 ## Verification and issue exits
 
-Architecture must pass with the single unchanged key and zero current composition targets. `validate-ticket --all --base-ref b033bd74ff7f0c0c9d3377800818ecf49818f1ee` must report zero removed keys and zero uncovered retirements. Historical evidence whose file moved is pinned to that immutable base URL. The full affected suite, lint, dead-code gates and hooks are required before the single publication push; final outcomes and offline review are recorded in the PR.
+Architecture must pass with the single unchanged key and zero current composition targets. `validate-ticket --all --base-ref 68e67f40165454c17db6713e86082de7db71c37f` must report zero removed keys and zero uncovered retirements. Historical evidence whose file moved is pinned to that immutable base URL. The full affected suite, lint, dead-code gates and hooks are required before the single publication push; final outcomes and offline review are recorded in the PR.
 
 | Issue | Exit evidence |
 |---|---|
 | #4085 | The foreign compose alias register is empty and its total is 0; no vocabulary/retained alias package remains. |
-| #4086 | Not met: two Timetable model carriers and legacy-prefixed implementations remain for round 6. |
+| #4086 | Not met: two Timetable model carriers, Scheduler and legacy-prefixed implementations remain. |
 | #4084 | Not met: retained composition/business and forwarding debt remains outside this round. |
 | #4004 | One original key remains by the agreed zero-ratchet sequence after #3021. |
 
-No scoped family remains blocked. The last key and Timetable work are deferred by explicit scope, not hidden through allowances.
+## Exact remaining blocker
+
+| Family | Observed blocker | Safe retained state |
+|---|---|---|
+| Scheduler internal relocation | PR #4337 introduced `sideEffectRegisterOnlyShrinks` / `sideEffectRegisterSubset` in `backend/test/side_effect_register.go`. Its exact origin/development subset comparison rejects the moved `Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` notice key, even with all 117 entries, fingerprints and reasons identical after one-to-one path normalization. ADR 0020 does not rename this JSON register. The actual test rejects the one renamed key as an addition. | The relocation is reverted; all 66 Scheduler files, its 7 constructor callers, 27 jobs and the 117-entry notice register match integrated development. No forwarding indirection, renamed hook, new allowance, checker edit or directory keep-alive is used. |
+
+The first publication also exposed three scanners walking the deleted `services/` root only in clean checkouts; an empty local directory had masked those failures. One-to-one root repairs were verified locally, including 7/7 normalized constructor records. Retaining Scheduler for the independent strict-register blocker restores its real directory, so those extra scanner repairs are reverted too. The canonical detector's file-literal repair remains. The last key and Timetable work are deferred by explicit scope.
 
 ---
 

@@ -20,19 +20,18 @@ type TargetResolver interface {
 	State(context.Context) (domain.TargetState, error)
 }
 
-// Uploader moves the bytes and returns a compensating handle. The
+// Uploader atomically replaces the file after its dispatch fence commits. The
 // implementation decides where a file may go — the address policy that keeps
 // this from becoming a request-forgery tool lives with the transport, not here.
 type Uploader interface {
 	Prepare(ctx context.Context, target domain.Target, filename string, data []byte) (commit func() error, rollback func() error, err error)
 }
 
-// TransactionLifecycle coordinates external effects with the caller's tenant
-// transaction.
-type TransactionLifecycle interface {
-	Active(context.Context) bool
-	AfterCommit(context.Context, func())
-	AfterRollback(context.Context, func())
+// CommandRuntime commits the intent independently of an ambient HTTP transaction.
+type CommandRuntime struct {
+	Active       func(context.Context) bool
+	Detached     func(context.Context) context.Context
+	WithinTenant func(context.Context, func(context.Context) error) error
 }
 
 // ReasonedError is the transport's error vocabulary: a failure names WHY it
@@ -44,7 +43,10 @@ type ReasonedError interface {
 	TransferReason() string
 }
 
-// Journal appends the audit trail of transfer attempts.
+// Journal holds one durable, one-shot transfer intent and its audit evidence.
+// File bytes and credentials never enter this store: recovery only settles unknowns.
 type Journal interface {
-	Record(context.Context, domain.JournalEntry) error
+	Begin(context.Context, domain.JournalEntry) (int64, error)
+	Claim(context.Context, int64) (string, error)
+	Complete(context.Context, int64, string, domain.JournalEntry) error
 }

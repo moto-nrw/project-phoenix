@@ -2284,7 +2284,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/schedulerruntime/internal/application",
+      "path": "services/scheduler",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -15810,11 +15810,6 @@
     {
       "from": "services/parentmessaging",
       "to": "modules/communication/internal/application/parentmessaging",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
-    },
-    {
-      "from": "services/scheduler",
-      "to": "modules/schedulerruntime/internal/application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

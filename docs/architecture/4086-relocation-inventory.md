@@ -2,12 +2,11 @@
 
 ## Final cluster round 5 (current follow-up)
 
-Fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee`: the three remaining scoped carriers are dissolved. Scheduler moves 66 files into Scheduler Runtime internal/application with unchanged owner, role and byte-normalized code. The canonical SQLSTATE detector moves into Transaction Runtime, with a one-to-one path-literal repair and the same 4 literal sites. Delivery owns native subscription records, its internal persistence port and test fixtures. `database/repositories/base` stays absent.
+Initial base after PR #4338; integrated development `68e67f40165454c17db6713e86082de7db71c37f` after PR #4337. Two scoped carriers are dissolved: the canonical SQLSTATE detector moves from `models/base` into Transaction Runtime with one narrowed file-literal repair and the same four sites; Delivery owns native subscription records, its internal persistence port and owner test fixture, deleting `models/delivery`. `database/repositories/base` stays absent.
 
-Conventional carriers: **5 → 2**, only `models/activities` and `models/schedule`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**; the last key waits for the agreed post-#3021 zero-ratchet cutover. Legacy-prefixed files stay unchanged for round 6. Projection locations/grants stay unchanged. The complete package-layout exit is not established.
+Conventional carriers: **5 → 3**, namely `models/activities`, `models/schedule` and `services/scheduler`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**. Legacy-prefixed files and projection locations/grants stay unchanged. Scheduler's 66-file internal relocation was verified, then reverted because the new exact side-effect notice subset guard rejects even its one-to-one path-key rename. No allowance or checker behavior is added.
 
-[Round-5 proof, native contract split and inventory](final-legacy-cluster.md#one-to-one-relocation-proof). All sections below are historical snapshots.
-
+[Exact blocker and current evidence](final-legacy-cluster.md#exact-remaining-blocker). The whole package-layout exit is not established. All sections below are historical snapshots.
 
 ## Final cluster round 4 (historical)
 

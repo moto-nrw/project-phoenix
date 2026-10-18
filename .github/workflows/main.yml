@@ -298,6 +298,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch source ratchet comparison ref
+        if: matrix.suite == 'ratchets'
+        run: git fetch --no-tags --depth=1 origin development:refs/remotes/origin/development
+
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
         run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
