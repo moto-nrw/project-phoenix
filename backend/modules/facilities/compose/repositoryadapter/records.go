@@ -2,6 +2,7 @@ package repositoryadapter
 
 import (
 	"context"
+	"errors"
 
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -9,7 +10,8 @@ import (
 
 // Records serves the retained room rows the legacy readers ask for over the
 // Facilities queries alone, so a root can hand them out before the room
-// deletion exists (#4080). It writes no room.
+// deletion exists (#4080). It writes no room; the Repository reads through
+// it.
 type Records struct{ rooms facilities.Query }
 
 func NewRecords(rooms facilities.Query) *Records {
@@ -19,12 +21,24 @@ func NewRecords(rooms facilities.Query) *Records {
 	return &Records{rooms: rooms}
 }
 
+// query is unbound only for a Repository before Bind.
+func (r *Records) query() (facilities.Query, error) {
+	if r.rooms == nil {
+		return nil, errors.New("room repository adapter: Facilities capability is not bound")
+	}
+	return r.rooms, nil
+}
+
 func (r *Records) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
 	id, err := roomID(rawID)
 	if err != nil {
 		return nil, err
 	}
-	room, err := r.rooms.FindRoom(ctx, id)
+	rooms, err := r.query()
+	if err != nil {
+		return nil, err
+	}
+	room, err := rooms.FindRoom(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +50,11 @@ func (r *Records) List(ctx context.Context, filters map[string]any) ([]*faciliti
 	if err != nil {
 		return nil, err
 	}
-	values, err := r.rooms.ListRooms(ctx, filter)
+	rooms, err := r.query()
+	if err != nil {
+		return nil, err
+	}
+	values, err := rooms.ListRooms(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +62,11 @@ func (r *Records) List(ctx context.Context, filters map[string]any) ([]*faciliti
 }
 
 func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
-	values, err := r.rooms.ListRoomsByID(ctx, ids)
+	rooms, err := r.query()
+	if err != nil {
+		return nil, err
+	}
+	values, err := rooms.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +74,11 @@ func (r *Records) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesMode
 }
 
 func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
-	room, err := r.rooms.FindRoomForUpdate(ctx, id)
+	rooms, err := r.query()
+	if err != nil {
+		return nil, err
+	}
+	room, err := rooms.FindRoomForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +86,11 @@ func (r *Records) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesM
 }
 
 func (r *Records) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
-	room, err := r.rooms.FindRoomByName(ctx, name)
+	rooms, err := r.query()
+	if err != nil {
+		return nil, err
+	}
+	room, err := rooms.FindRoomByName(ctx, name)
 	if err != nil {
 		return nil, err
 	}

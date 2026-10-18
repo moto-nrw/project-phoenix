@@ -22,19 +22,35 @@ func (r *Repository) Bind(rooms facilities.Capability) {
 	r.rooms = rooms
 }
 
+// records reads through the Records; before Bind they report the missing
+// binding.
+func (r *Repository) records() *Records { return &Records{rooms: r.rooms} }
+
+func (r *Repository) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
+	return r.records().FindByID(ctx, rawID)
+}
+
+func (r *Repository) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
+	return r.records().List(ctx, filters)
+}
+
+func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
+	return r.records().FindByIDs(ctx, ids)
+}
+
+func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
+	return r.records().FindByIDForUpdate(ctx, id)
+}
+
+func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
+	return r.records().FindByName(ctx, name)
+}
+
 func (r *Repository) capability() (facilities.Capability, error) {
 	if r.rooms == nil {
 		return nil, errors.New("room repository adapter: Facilities capability is not bound")
 	}
 	return r.rooms, nil
-}
-
-func (r *Repository) records() (*Records, error) {
-	rooms, err := r.capability()
-	if err != nil {
-		return nil, err
-	}
-	return &Records{rooms: rooms}, nil
 }
 
 func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) error {
@@ -54,14 +70,6 @@ func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) er
 		applyPublic(room, created)
 	}
 	return err
-}
-
-func (r *Repository) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
-	records, err := r.records()
-	if err != nil {
-		return nil, err
-	}
-	return records.FindByID(ctx, rawID)
 }
 
 func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) error {
@@ -97,38 +105,6 @@ func (r *Repository) Delete(ctx context.Context, rawID any) error {
 		return err
 	}
 	return rooms.DeleteRoom(ctx, id)
-}
-
-func (r *Repository) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
-	records, err := r.records()
-	if err != nil {
-		return nil, err
-	}
-	return records.List(ctx, filters)
-}
-
-func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
-	records, err := r.records()
-	if err != nil {
-		return nil, err
-	}
-	return records.FindByIDs(ctx, ids)
-}
-
-func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
-	records, err := r.records()
-	if err != nil {
-		return nil, err
-	}
-	return records.FindByIDForUpdate(ctx, id)
-}
-
-func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
-	records, err := r.records()
-	if err != nil {
-		return nil, err
-	}
-	return records.FindByName(ctx, name)
 }
 
 func roomID(value any) (int64, error) {
