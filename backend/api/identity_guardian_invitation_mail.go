@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // The guardian invitation mail: this file writes the outbox payload the
@@ -30,14 +31,14 @@ type GuardianMailRecipient struct {
 // invitation: the outbox to queue in and the portal origin the links point
 // at. A nil outbox skips the send with a warning.
 type GuardianInvitationMailerConfig struct {
-	Outbox      platformModels.OutboxResultEnqueuer
+	Outbox      MailResultOutbox
 	FrontendURL string
 	Logger      *slog.Logger
 }
 
 // GuardianInvitationMailer queues the two guardian mail variants.
 type GuardianInvitationMailer struct {
-	outbox      platformModels.OutboxResultEnqueuer
+	outbox      MailResultOutbox
 	frontendURL string
 	logger      *slog.Logger
 }
@@ -66,10 +67,10 @@ func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitat
 	payload := m.payload(recipient, "/accept-guardian-invite/"+token, schoolName)
 	payload[guardianPayloadExpiryHours] = expiryHours
 
-	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:              platformModels.EmailKindGuardianInvitation,
+	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, deliveryCompose.MailEnqueueRequest{
+		Kind:              identityaccess.MailKindGuardianInvitation,
 		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeGuardianInvitation,
+		RelatedEntityType: identityaccess.MailRelatedGuardianInvitation,
 		RelatedEntityID:   invitationID,
 	})
 	if err != nil {
@@ -94,8 +95,8 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 	}
 	payload := m.payload(recipient, "/login", schoolName)
 	payload[guardianPayloadExistingAccount] = true
-	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:    platformModels.EmailKindGuardianInvitation,
+	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, deliveryCompose.MailEnqueueRequest{
+		Kind:    identityaccess.MailKindGuardianInvitation,
 		Payload: payload,
 	})
 	if err != nil {
@@ -130,10 +131,10 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 	payload[guardianPayloadHelpURL] = helpURL
 	payload[guardianPayloadParentInfoURL] = portalOrigin(m.frontendURL) + parentInfoPath
 	payload[guardianPayloadPrecedingOutboxID] = precedingOutboxID
-	err := m.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:              platformModels.EmailKindGuardianWelcome,
+	err := m.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+		Kind:              identityaccess.MailKindGuardianWelcome,
 		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeGuardianProfile,
+		RelatedEntityType: identityaccess.MailRelatedGuardianProfile,
 		RelatedEntityID:   guardianProfileID,
 		IdempotencyKey:    fmt.Sprintf("guardian_welcome:%d", guardianProfileID),
 	})

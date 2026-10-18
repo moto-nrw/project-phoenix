@@ -36,32 +36,31 @@ import (
 // Form: a budget per composition package, keyed by its backend-relative
 // directory. A package without aliases has no entry.
 var moduleComposeAliasBudgets = map[string]int{
-	"modules/auditlog/compose":                       16,
-	"modules/auditlog/compose/vocabulary":            115,
-	"modules/communication/composition":              4,
-	"modules/dataimport/compose/retained":            16,
-	"modules/delivery/compose":                       2,
-	"modules/delivery/compose/email":                 23,
-	"modules/delivery/compose/realtime":              17,
-	"modules/devicefleet/compose":                    1,
-	"modules/devicescan/compose":                     1,
-	"modules/facilities/compose":                     11,
-	"modules/facilities/compose/legacy":              2,
-	"modules/organizationtenancy/compose/vocabulary": 34,
-	"modules/peopledirectory/compose":                16,
-	"modules/peopledirectory/compose/vocabulary":     92,
-	"modules/requestreview/compose":                  6,
-	"modules/schoolstructure/compose":                2,
-	"modules/settings/compose":                       29,
-	"modules/settings/compose/vocabulary":            109,
-	"modules/timetable/compose/httpadapter":          1,
-	"modules/workforce/compose":                      3,
-	"observability/compose":                          1,
-	"workflows/staffclock/compose":                   19,
+	"modules/auditlog/compose":                   16,
+	"modules/auditlog/compose/vocabulary":        115,
+	"modules/communication/composition":          4,
+	"modules/dataimport/compose/retained":        16,
+	"modules/delivery/compose":                   2,
+	"modules/delivery/compose/email":             23,
+	"modules/delivery/compose/realtime":          17,
+	"modules/devicefleet/compose":                1,
+	"modules/devicescan/compose":                 1,
+	"modules/facilities/compose":                 11,
+	"modules/facilities/compose/legacy":          2,
+	"modules/peopledirectory/compose":            16,
+	"modules/peopledirectory/compose/vocabulary": 92,
+	"modules/requestreview/compose":              6,
+	"modules/schoolstructure/compose":            2,
+	"modules/settings/compose":                   29,
+	"modules/settings/compose/vocabulary":        109,
+	"modules/timetable/compose/httpadapter":      1,
+	"modules/workforce/compose":                  3,
+	"observability/compose":                      1,
+	"workflows/staffclock/compose":               19,
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 520
+const moduleComposeAliasBudgetTotal = 486
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

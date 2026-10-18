@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -82,12 +82,12 @@ type operatorAuditLedger struct {
 }
 
 func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error {
-	row := &platformModels.OperatorAuditLog{
+	row := &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
 	if changes := operatorAuditChanges(entry); len(changes) > 0 {
-		if err := row.SetChanges(changes); err != nil {
+		if err := setOperatorAuditChanges(row, changes); err != nil {
 			return fmt.Errorf("encode operator audit log changes: %w", err)
 		}
 	}
@@ -111,14 +111,14 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 	}
 	changes := map[string]any{"schoolID": change.SchoolID, "email": change.Email}
 	switch entry.Action {
-	case platformModels.ActionCreate:
+	case identityaccess.OperatorAuditActionCreate:
 		changes["roleID"] = change.RoleID
 		changes["roleName"] = change.RoleName
-	case platformModels.ActionUpdate:
+	case identityaccess.OperatorAuditActionUpdate:
 		changes["roleID"] = change.RoleID
 		changes["roleName"] = change.RoleName
 		changes["removedRoles"] = change.RemovedRoles
-	case platformModels.ActionDelete:
+	case identityaccess.OperatorAuditActionDelete:
 		changes["accountDeactivated"] = change.AccountDeactivated
 	}
 	return changes

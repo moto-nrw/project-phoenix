@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -278,7 +278,7 @@ type operatorActionLog struct {
 // drive the seam without reaching past it into the owner's rows.
 type (
 	operatorAuditWriter = operatorAuditEntries
-	operatorAuditRow    = platformModels.OperatorAuditLog
+	operatorAuditRow    = auditModels.OperatorAuditEntry
 	operatorAuditEntry  = identityaccess.OperatorAuditEntry
 )
 
@@ -286,14 +286,14 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 	if l.ledger == nil {
 		return
 	}
-	row := &platformModels.OperatorAuditLog{
+	row := &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
 	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
 		// A marshal failure falls through with empty changes: losing the
 		// metadata beats losing the whole audit row.
-		if err := row.SetChanges(changes); err != nil {
+		if err := setOperatorAuditChanges(row, changes); err != nil {
 			l.logger.Warn("failed to encode operator mfa audit changes",
 				slog.String("action", entry.Action),
 				slog.String("error", err.Error()))

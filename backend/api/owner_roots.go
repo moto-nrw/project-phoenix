@@ -23,7 +23,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -51,7 +50,7 @@ func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy
 // NewOperatorAuditLog composes the operator ledger over the Audit handoff on
 // the context, with the root database as the fallback, for the roots that
 // record operator actions.
-func NewOperatorAuditLog(db transactionruntime.Database) platform.OperatorAuditLogRepository {
+func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).OperatorAuditLog)
 }
 

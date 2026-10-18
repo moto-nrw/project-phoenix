@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -478,7 +477,7 @@ func composeIdentity(b graphBuild) (graphBuild, error) {
 		Dispatcher: b.dispatcher, DefaultFrom: b.graph.DefaultFrom, MailIdentity: b.tenantMailIdentity,
 		FrontendURL: b.frontendURL, ParentsURL: b.parentsURL, SchoolURL: b.schoolURL,
 		InvitationExpiry: b.graph.InvitationTokenExpiry, PasswordResetExpiry: b.graph.PasswordResetTokenExpiry,
-		Outbox:      func() platformModels.OutboxResultEnqueuer { return b.outbox() },
+		Outbox:      func() MailResultOutbox { return b.outbox() },
 		EmailStatus: b.late.emailStatus,
 		PersonRows:  people.Persons, StaffRows: people.Staff, TeacherRows: people.Teachers, StudentRows: people.Students,
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
