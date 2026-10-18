@@ -693,12 +693,12 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			if access == mealplanAPI.AccessParticipants {
-				return apiCommon.RequireMealParticipantsRead()
+				return RequireMealParticipantsRead()
 			}
 			if access == mealplanAPI.AccessRead {
-				return apiCommon.RequireConfigRead()
+				return RequireConfigRead()
 			}
-			return apiCommon.RequireConfigUpdate()
+			return RequireConfigUpdate()
 		},
 		Success: apiCommon.Respond,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -1169,7 +1169,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	router.Use(middleware.Recoverer)
 	// Inside the Recoverer: sentryhttp reports a panic and repanics to it, and
 	// every 5xx answer becomes one Sentry event (#3639).
-	router.Use(apiCommon.ServerErrorReporting)
+	router.Use(ServerErrorReporting)
 	router.Use(customMiddleware.SecurityHeaders)
 	// Request-scoped settings memo cache (issue #2065). Router-wide so routes
 	// outside ProtectedTenantGroup (/auth incl. /auth/tenant/resolve,

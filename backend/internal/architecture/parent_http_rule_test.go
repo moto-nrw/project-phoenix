@@ -8,7 +8,7 @@ import (
 
 func TestParentHTTPPermissionsRequireReviewedEpoch(t *testing.T) {
 	t.Parallel()
-	candidate := repositoryPolicy(t)
+	candidate := historicalParentHTTPPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), reviewedParentHTTPRule)
@@ -82,4 +82,12 @@ func TestParentHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 	if reviewedParentHTTPRule(sessionTest) {
 		t.Fatal("session test rule gained production access")
 	}
+}
+
+// historicalParentHTTPPolicy retains the original epoch contract after its live rule retires.
+func historicalParentHTTPPolicy(t *testing.T) *Policy {
+	t.Helper()
+	policy := historicalCommonHTTPPolicy(t)
+	policy.Rules = append(policy.Rules, Rule{ID: "parent-portal.http.inbound-common", Description: "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).", SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "inbound-common", TargetRole: "http", Scopes: []string{"production"}})
+	return policy
 }

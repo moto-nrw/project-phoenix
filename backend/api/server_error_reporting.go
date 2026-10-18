@@ -1,52 +1,20 @@
-package common
+package api
 
 import (
 	"context"
+
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5/middleware"
 )
-
-type serverErrorKey struct{}
-
-// serverErrorCause holds the error a handler gave for the 5xx answer it
-// wrote, so the Sentry event carries the cause instead of a bare status.
-type serverErrorCause struct {
-	err error
-	// code is the error code of the answer, if it has one. It only becomes a
-	// tag: Sentry groups by stack trace, since server errors mostly share a
-	// generic code (#3590).
-	code string
-	// unreported marks the one 5xx answer that must not reach Sentry.
-	unreported bool
-}
-
-// noteServerError records err and its error code as the cause of the 5xx
-// answer the current request is about to write. Outside
-// ServerErrorReporting it does nothing.
-func noteServerError(ctx context.Context, err error, code string) {
-	if cause, ok := ctx.Value(serverErrorKey{}).(*serverErrorCause); ok && err != nil {
-		cause.err = err
-		cause.code = code
-	}
-}
-
-// SkipServerErrorReport keeps the 5xx answer the current request is about to
-// write out of Sentry. It is the single exception to the 5xx rule: the
-// error-report relay answers 502 when Sentry itself is unreachable, and
-// reporting that to Sentry could only loop (#3645). Outside
-// ServerErrorReporting it does nothing.
-func SkipServerErrorReport(ctx context.Context) {
-	if cause, ok := ctx.Value(serverErrorKey{}).(*serverErrorCause); ok {
-		cause.unreported = true
-	}
-}
 
 var sentryHandler = sentryhttp.New(sentryhttp.Options{Repanic: true})
 
@@ -77,26 +45,26 @@ func reportServerErrors(next http.Handler) http.Handler {
 			hub.Scope().SetTag("request_id", requestID)
 		}
 
-		cause := &serverErrorCause{}
+		cause := common.NewServerErrorCapture()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-		next.ServeHTTP(ww, r.WithContext(context.WithValue(r.Context(), serverErrorKey{}, cause)))
+		next.ServeHTTP(ww, r.WithContext(common.WithServerErrorCapture(r.Context(), cause)))
 
 		status := ww.Status()
-		if status < http.StatusInternalServerError || cause.unreported || clientCanceled(r, cause.err) {
+		if status < http.StatusInternalServerError || cause.Unreported() || clientCanceled(r, cause.Err()) {
 			return
 		}
 		hub.WithScope(func(scope *sentry.Scope) {
 			scope.SetTag("http.status_code", strconv.Itoa(status))
-			if cause.code != "" {
-				scope.SetTag("error_code", cause.code)
+			if cause.Code() != "" {
+				scope.SetTag("error_code", cause.Code())
 			}
-			if cause.err != nil {
-				hub.CaptureException(cause.err)
+			if cause.Err() != nil {
+				hub.CaptureException(cause.Err())
 				return
 			}
 			event := sentry.NewEvent()
 			event.Level = sentry.LevelError
-			event.Message = fmt.Sprintf("HTTP %d %s %s", status, r.Method, RoutePattern(r))
+			event.Message = fmt.Sprintf("HTTP %d %s %s", status, r.Method, common.RoutePattern(r))
 			hub.CaptureEvent(event)
 		})
 	})
@@ -114,7 +82,7 @@ func clientCanceled(r *http.Request, cause error) bool {
 // The route is read when the event is built, so panic events get it too.
 func requestEventProcessor(r *http.Request) sentry.EventProcessor {
 	return func(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
-		if pattern := RoutePattern(r); pattern != unmatchedRoute {
+		if pattern := common.RoutePattern(r); pattern != common.UnmatchedRoute {
 			event.Transaction = pattern
 			event.TransactionInfo = &sentry.TransactionInfo{Source: sentry.SourceRoute}
 		}
