@@ -97,19 +97,7 @@ func (s *StudentPhotoService) CommitPhoto(ctx context.Context, studentID int64, 
 			}
 		}
 
-		if capturedOld != "" && capturedOld != newURL {
-			if err := s.runtime.QueueUnlinkStoredPhoto(txCtx, capturedOld); err != nil {
-				return err
-			}
-		}
-		tenantID := s.tx.TenantID(txCtx)
-		s.tx.RegisterAfterCommit(txCtx, func() {
-			if capturedOld != "" && capturedOld != newURL {
-				s.runtime.UnlinkStoredPhoto(capturedOld)
-			}
-			s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
-		})
-		return nil
+		return s.finishPhotoReplacement(txCtx, studentID, capturedOld, newURL)
 	})
 }
 
@@ -334,4 +322,20 @@ func (s *StudentPhotoService) LockFeature(ctx context.Context) error {
 			stats.Add(lockStats)
 			return err
 		})
+}
+
+func (s *StudentPhotoService) finishPhotoReplacement(ctx context.Context, studentID int64, capturedOld, newURL string) error {
+	if capturedOld != "" && capturedOld != newURL {
+		if err := s.runtime.QueueUnlinkStoredPhoto(ctx, capturedOld); err != nil {
+			return err
+		}
+	}
+	tenantID := s.tx.TenantID(ctx)
+	s.tx.RegisterAfterCommit(ctx, func() {
+		if capturedOld != "" && capturedOld != newURL {
+			s.runtime.UnlinkStoredPhoto(capturedOld)
+		}
+		s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
+	})
+	return nil
 }

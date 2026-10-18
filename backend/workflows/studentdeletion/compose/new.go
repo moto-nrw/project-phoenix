@@ -144,18 +144,17 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	if now == nil {
 		now = time.Now
 	}
-	owners := deps.Owners
 	return studentdeletion.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
 		Authorize: func(ctx context.Context) (studentdeletion.Actor, error) {
 			return Authorize(ctx, deps.IsVerifiedStaff)
 		},
 		Today: today, Now: now,
-		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: owners.Structure,
-		Conversations: owners.Conversations, Enrollment: owners.Enrollment,
-		CountAttendance: owners.Attendance,
-		CountVisits:     owners.Visits,
-		CountConsents:   owners.Consents,
+		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: deps.Owners.Structure,
+		Conversations: deps.Owners.Conversations, Enrollment: deps.Owners.Enrollment,
+		CountAttendance: deps.Owners.Attendance,
+		CountVisits:     deps.Owners.Visits,
+		CountConsents:   deps.Owners.Consents,
 		CountActivityEnrollments: func(ctx context.Context, studentID int64) (int, error) {
 			db, tenantID := ambientTransaction(ctx)
 			if db == nil {
@@ -163,12 +162,12 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 			}
 			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, studentID)
 		},
-		CountAppointments:        owners.Appointments,
+		CountAppointments:        deps.Owners.Appointments,
 		CountFeedback:            deps.Feedback.CountForStudent,
-		CountAuditReferences:     owners.AuditReferences,
-		CountGuardianInvitations: owners.GuardianInvitations,
+		CountAuditReferences:     deps.Owners.AuditReferences,
+		CountGuardianInvitations: deps.Owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
-		AppendAudit:              appendDeletionAudit(deps.Audit, owners),
+		AppendAudit:              appendDeletionAudit(deps.Audit, deps.Owners),
 		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) error {
 			if deps.UnlinkPhoto != nil {
 				return deps.UnlinkPhoto(ctx, path)

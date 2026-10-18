@@ -229,7 +229,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/identityaccess":      587,
 	"modules/mealplan":            15,
 	"modules/organizationtenancy": 60,
-	"modules/peopledirectory":     308,
+	"modules/peopledirectory":     307,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	"modules/schoolcalendar":      44,

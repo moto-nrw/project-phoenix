@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 31884
+const moduleComposeBudgetTotal = 31870
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -170,7 +170,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/communication/composition":               1453,
 	"modules/dataimport/compose":                      253,
 	"modules/dataimport/compose/imports":              29,
-	"modules/delivery/compose":                        779,
+	"modules/delivery/compose":                        774,
 	"modules/delivery/compose/email":                  36,
 	"modules/devicefleet/compose":                     369,
 	"modules/devicefleet/compose/repositoryadapter":   298,
@@ -182,19 +182,19 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose/httpadapter":          473,
 	"modules/facilities/compose/repositoryadapter":    237,
 	"modules/feedback/compose":                        196,
-	"modules/filestorage/compose":                     363,
+	"modules/filestorage/compose":                     361,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
 	"modules/identityaccess/compose":                  1754,
 	"modules/mealplan/compose":                        242,
 	"modules/organizationtenancy/compose":             479,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2578,
+	"modules/peopledirectory/compose":                 2576,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1069,
 	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  562,
-	"modules/schoolcalendar/portal/compose":           160,
+	"modules/schoolcalendar/portal/compose":           155,
 	"modules/schoolmembership/compose":                343,
 	"modules/schoolsetup/compose":                     92,
 	"modules/schoolstructure/compose":                 901,

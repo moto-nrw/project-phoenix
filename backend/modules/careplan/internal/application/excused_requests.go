@@ -595,18 +595,11 @@ func (w *ExcusedRequests) Decide(ctx context.Context, input careplan.ExcusedRequ
 	// Either decision clears the child's pending badge (approval also
 	// surfaces the confirmed absence). Wake staff tabs for both outcomes.
 	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	decisionEvent := ports.RequestEvent{
+	if err := w.notifyDecision(ctx, &req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
 		ActorAccountID: input.ReviewedBy, Body: pillBody, RequestType: requestType,
 		RequestStatus: pillStatus, DecisionReason: reason,
-	}
-	if err := w.emitRequestPill(ctx, &req, decisionEvent); err != nil {
-		return nil, err
-	}
-	// Every other guardian of this child gets a neutral line: the care
-	// changed, on these days. Explicit share recipients get the submitter's
-	// pill verbatim.
-	if err := w.notifyOtherGuardians(ctx, &req, decisionEvent); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 

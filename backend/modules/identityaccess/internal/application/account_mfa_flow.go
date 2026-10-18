@@ -154,9 +154,7 @@ func (f *AccountMFAFlows) resolvePolicy(ctx context.Context, accountID, tenantID
 		return domain.MFAPolicy{}, domain.ErrMFAStatusUnavailable
 	}
 	if !domain.KnownMFAMode(mode) {
-		f.logger.Warn("unknown mfa_mode value; treating as off",
-			slog.String("value", mode),
-		)
+		f.logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
 	}
 	return domain.MFAPolicyForMode(mode), nil
 }
@@ -243,24 +241,14 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 	// the enrollment-confirm and passkey-registration paths look a code up
 	// by account, and only these columns keep that lookup inside its portal.
 	createdAt := f.now()
-	var challenge domain.AccountMFAChallenge
-	var send func(context.Context) error
 	enabled, days := f.trustedDeviceHint(ctx, tenantID)
-	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		var err error
-		challenge, err = f.records.CreateChallenge(txCtx, domain.AccountMFAChallenge{
-			AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
-			ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
-			CreatedAt: createdAt, UpdatedAt: createdAt,
-		})
-		if err != nil {
-			return fmt.Errorf("persist email challenge: %w", err)
-		}
-		send, err = f.mail.EnqueueCode(txCtx, domain.MFACodeMailFor(
-			account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-		), challenge.ID, challenge.ExpiresAt)
-		return err
-	})
+	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
+		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
+		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
+		CreatedAt: createdAt, UpdatedAt: createdAt,
+	}, domain.MFACodeMailFor(
+		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
+	))
 	if err != nil {
 		return "", fmt.Errorf("prepare email challenge: %w", err)
 	}
@@ -271,16 +259,7 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 		)
 		return "", domain.ErrMFAStatusUnavailable
 	}
-	if err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
-			return err
-		}
-		f.recordAuthEvent(txCtx, domain.AuthEvent{
-			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFAEmailSent, Success: true,
-			IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID},
-		})
-		return nil
-	}); err != nil {
+	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
 		f.logger.Error("failed to activate delivered mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
 			slog.String("error", err.Error()),
@@ -389,9 +368,7 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 	// One UPDATE, so a successful verify cannot clobber a concurrent failed
 	// verify's increment with stale in-memory state.
 	if err := f.records.ResetMFAAttempts(ctx, account.ID); err != nil {
-		f.logger.Warn("failed to reset MFA attempts",
-			slog.String("error", err.Error()),
-		)
+		f.logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
 	}
 	if credential, credFound, credErr := f.records.FindCredential(ctx, claims.AccountID); credErr == nil && credFound && credential.ID > 0 {
 		_ = f.records.TouchCredential(ctx, credential.ID, now)
@@ -738,4 +715,29 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 			slog.String("event_type", event.Type),
 			slog.String("error", err.Error()))
 	}
+}
+
+func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {
+	var challenge domain.AccountMFAChallenge
+	var send func(context.Context) error
+	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		var err error
+		challenge, err = f.records.CreateChallenge(txCtx, input)
+		if err != nil {
+			return fmt.Errorf("persist email challenge: %w", err)
+		}
+		send, err = f.mail.EnqueueCode(txCtx, message, challenge.ID, challenge.ExpiresAt)
+		return err
+	})
+	return challenge, send, err
+}
+
+func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) error {
+	return f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
+			return err
+		}
+		f.recordAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
+		return nil
+	})
 }

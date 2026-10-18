@@ -69,7 +69,7 @@ func NewWorker(runtime *Runtime, provider Provider) (*delivery.Worker, error) {
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
-	return delivery.NewWorker(workerEngine{Worker: worker}), nil
+	return delivery.NewWorker(workerEngine{Worker: worker, store: runtime.store}), nil
 }
 
 // EmailStatus reports the durable state of an e-mail intent.
@@ -232,19 +232,16 @@ func (e moduleEngine) ClaimFailedEmailDelivery(ctx context.Context, tenantID, de
 	return e.store.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
 }
 
-type workerEngine struct{ *application.Worker }
+type workerEngine struct {
+	*application.Worker
+	store *postgres.Store
+}
+
+func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.store.Backlog(ctx) }
 
 func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
 	stats, err := e.Worker.RunOnce(ctx, batchSize, maxAttempts)
 	return delivery.WorkerStats(stats), err
-}
-
-func (e workerEngine) DispatchEmail(ctx context.Context, tenantID, id int64) error {
-	err := e.Worker.DispatchEmail(ctx, tenantID, id)
-	if errors.Is(err, domain.ErrCancelled) {
-		return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
-	}
-	return err
 }
 
 type providerAdapter struct{ provider Provider }

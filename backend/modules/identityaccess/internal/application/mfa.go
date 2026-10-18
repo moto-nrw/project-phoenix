@@ -67,10 +67,16 @@ func (c MFAChallengeCodec) ParseChallengeToken(token string) (domain.MFAChalleng
 type MFAMail struct{ Source identityPorts.MFAMail }
 
 func (m MFAMail) EnqueueCode(ctx context.Context, message domain.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error) {
+	if challengeID <= 0 || expiresAt.IsZero() {
+		return nil, domain.ErrMFAStatusUnavailable
+	}
 	return m.Source.EnqueueCode(ctx, identityaccess.MFACodeMail(message), challengeID, expiresAt)
 }
 
 func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail, deviceID int64) error {
+	if deviceID <= 0 {
+		return domain.ErrMFAStatusUnavailable
+	}
 	return m.Source.NotifyTrustedDeviceAdded(ctx, identityaccess.TrustedDeviceMail(message), deviceID)
 }
 

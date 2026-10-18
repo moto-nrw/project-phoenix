@@ -251,12 +251,12 @@
     "fingerprint": "5783a44290a797005e31b1ec4b48981c",
     "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
   },
-  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.CommitPhoto:RegisterAfterCommit@34f6f155414dd275281c9a454538ec47#1": {
-    "fingerprint": "34f6f155414dd275281c9a454538ec47",
-    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
-  },
   "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.ScheduleUnlink:RegisterAfterCommit@86b02080c0e7ec94f91260a174feaed8#1": {
     "fingerprint": "86b02080c0e7ec94f91260a174feaed8",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.finishPhotoReplacement:RegisterAfterCommit@950e750b40035508c2cd3b4e0015e28b#1": {
+    "fingerprint": "950e750b40035508c2cd3b4e0015e28b",
     "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
   },
   "modules/schoolstructure/internal/application/groups/substitution_module.go:notifyScheduleChange:AfterCommit@add9a57e9f378aecd4b73f09f9e57b37#1": {

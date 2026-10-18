@@ -335,10 +335,7 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 	}
 
 	if req.SendEmail {
-		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
-			return nil, err
-		}
-		if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
+		if err := s.notifyGuardianLifecycle(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
 			return nil, err
 		}
 	}
@@ -564,10 +561,7 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 	if appointment.NotifyGuardians {
-		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
-			return nil, err
-		}
-		if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
+		if err := s.notifyGuardianLifecycle(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
 	}
@@ -630,10 +624,7 @@ func (s *service) cancelStaffAppointment(ctx context.Context, appointmentID int6
 			return nil, err
 		}
 		if appointment.NotifyGuardians {
-			if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
-				return nil, err
-			}
-			if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
+			if err := s.notifyGuardianLifecycle(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
 			}
 		}

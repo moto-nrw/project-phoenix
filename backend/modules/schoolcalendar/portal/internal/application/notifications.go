@@ -322,34 +322,16 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *appoin
 		return nil
 	}
 
-	var accountIDs []int64
+	var accountCount int
 	err := s.cfg.Runtime.WithinTenant(ctx, appointment.TenantID, func(txCtx context.Context) error {
-		current, err := s.findAppointment(txCtx, appointment.ID)
-		if err != nil {
-			return err
-		}
-		if current == nil || current.DeletedAt != nil {
-			return nil
-		}
-		if kind != portal.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
-			return nil
-		}
-		recipients, err := s.reachableGuardianRecipients(txCtx, current.ID)
-		if err != nil {
-			return err
-		}
-		accountIDs = guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
-		for _, group := range guardianStudentGroups(recipients, accountIDs) {
-			if _, err := s.dispatchGuardianAccountDevicesLocalized(txCtx, current, kind, group.accountIDs, group.studentIDs, group.locale); err != nil {
-				return err
-			}
-		}
-		return nil
+		var err error
+		accountCount, err = s.queueGuardianDevices(txCtx, appointment.ID, kind)
+		return err
 	})
 	if s.cfg.PushSuppressed(err) {
 		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
 			slog.Int64("appointment_id", appointment.ID),
-			slog.Int("recipient_count", len(accountIDs)),
+			slog.Int("recipient_count", accountCount),
 			slog.String("reason", err.Error()),
 		)
 		return nil
@@ -494,4 +476,35 @@ func appointmentWhenText(appointment *appointmentcap.Appointment) string {
 		return fmt.Sprintf("%s, %s Uhr – %s, %s Uhr", day, start, appointment.EndDate.Format("02.01.2006"), end)
 	}
 	return fmt.Sprintf("%s, %s–%s Uhr", day, start, end)
+}
+
+func (s *service) notifyGuardianLifecycle(ctx context.Context, appointment *appointmentcap.Appointment, kind string) error {
+	if err := s.notifyGuardians(ctx, appointment, kind); err != nil {
+		return err
+	}
+	return s.notifyGuardianDevices(ctx, appointment, kind)
+}
+
+func (s *service) queueGuardianDevices(ctx context.Context, appointmentID int64, kind string) (int, error) {
+	current, err := s.findAppointment(ctx, appointmentID)
+	if err != nil {
+		return 0, err
+	}
+	if current == nil || current.DeletedAt != nil {
+		return 0, nil
+	}
+	if kind != portal.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
+		return 0, nil
+	}
+	recipients, err := s.reachableGuardianRecipients(ctx, current.ID)
+	if err != nil {
+		return 0, err
+	}
+	accountIDs := guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
+	for _, group := range guardianStudentGroups(recipients, accountIDs) {
+		if _, err := s.dispatchGuardianAccountDevicesLocalized(ctx, current, kind, group.accountIDs, group.studentIDs, group.locale); err != nil {
+			return 0, err
+		}
+	}
+	return len(accountIDs), nil
 }

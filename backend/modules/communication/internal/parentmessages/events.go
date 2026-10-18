@@ -132,7 +132,6 @@ func (e *EventEmitter) EmitChildEvent(ctx context.Context, tenantID, studentID, 
 	if messagingOff && !isTerminal {
 		return nil
 	}
-
 	var threadID int64
 	var suppressReason string
 	skipGuardianBroadcast := false

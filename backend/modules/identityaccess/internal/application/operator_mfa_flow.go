@@ -128,23 +128,13 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 	}
 
 	createdAt := f.now()
-	var challenge domain.OperatorMFAChallenge
-	var send func(context.Context) error
-	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		var err error
-		challenge, err = f.records.CreateChallenge(txCtx, domain.OperatorMFAChallenge{
-			OperatorID: operatorID, CodeHash: codeHash, ExpiresAt: createdAt.Add(domain.OperatorMFAChallengeTTL),
-			ConsumedAt: &createdAt, IPAddress: ip,
-		})
-		if err != nil {
-			return fmt.Errorf("persist email challenge: %w", err)
-		}
-		send, err = f.mail.EnqueueCode(txCtx, domain.MFACodeMailFor(
-			operator.Email, operator.DisplayName, operator.ID, true, plainCode,
-			domain.OperatorMFAChallengeTTL, ip, true, f.TrustedDeviceDays(),
-		), challenge.ID, challenge.ExpiresAt)
-		return err
-	})
+	challenge, send, err := f.enqueueChallenge(ctx, domain.OperatorMFAChallenge{
+		OperatorID: operatorID, CodeHash: codeHash, ExpiresAt: createdAt.Add(domain.OperatorMFAChallengeTTL),
+		ConsumedAt: &createdAt, IPAddress: ip,
+	}, domain.MFACodeMailFor(
+		operator.Email, operator.DisplayName, operator.ID, true, plainCode,
+		domain.OperatorMFAChallengeTTL, ip, true, f.TrustedDeviceDays(),
+	))
 	if err != nil {
 		return "", fmt.Errorf("prepare operator email challenge: %w", err)
 	}
@@ -155,12 +145,7 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		)
 		return "", domain.ErrMFAStatusUnavailable
 	}
-	if err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
-			return err
-		}
-		return f.recordAudit(txCtx, operatorID, domain.OperatorAuditActionMFAEmailSent, ip, &challenge.ID, nil)
-	}); err != nil {
+	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
 		f.logger.Error("failed to activate delivered operator mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
 			slog.String("error", err.Error()),
@@ -186,22 +171,15 @@ func (f *OperatorMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, 
 	if err != nil || claims.Scope != domain.MFAChallengeScopePlatform {
 		return domain.OperatorVerifiedChallenge{}, domain.ErrMFAChallengeTokenInvalid
 	}
-	operator, err := f.operators.FindOperator(ctx, claims.AccountID)
-	if err != nil {
-		return domain.OperatorVerifiedChallenge{}, domain.ErrMFAChallengeTokenInvalid
-	}
-	if domain.MFALocked(operator.MFALockedUntil, f.now()) {
-		return domain.OperatorVerifiedChallenge{}, domain.ErrMFALocked
-	}
-	challenge, err := f.verifyActiveCode(ctx, operator, code)
+	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, domain.ErrMFAChallengeTokenInvalid)
 	if err != nil {
 		return domain.OperatorVerifiedChallenge{}, err
 	}
-	credential, found, credErr := f.findCredential(ctx, operator.ID)
+	credential, found, credErr := f.findCredential(ctx, claims.AccountID)
 	if credErr == nil && found && credential.ID > 0 {
 		_ = f.records.TouchCredential(ctx, credential.ID, challenge.consumedAt)
 	}
-	return domain.OperatorVerifiedChallenge{OperatorID: operator.ID}, nil
+	return domain.OperatorVerifiedChallenge{OperatorID: claims.AccountID}, nil
 }
 
 // ResendChallenge re-issues a code for the challenge the token names and
@@ -218,18 +196,8 @@ func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken s
 // enrollment confirmation and the passkey registration have already
 // authenticated the operator out of band.
 func (f *OperatorMFAFlows) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {
-	operator, err := f.operators.FindOperator(ctx, operatorID)
-	if err != nil {
-		return domain.ErrMFACodeInvalid
-	}
-	if domain.MFALocked(operator.MFALockedUntil, f.now()) {
-		return domain.ErrMFALocked
-	}
-	_, err = f.verifyActiveCode(ctx, operator, code)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := f.verifyActiveCode(ctx, operatorID, code, domain.ErrMFACodeInvalid)
+	return err
 }
 
 // redeemed names the row a verification consumed and when.
@@ -241,10 +209,17 @@ type redeemed struct {
 // verifyActiveCode resolves the operator's active code, compares it and
 // consumes it exactly once. The loser of two concurrent verifications is
 // refused rather than allowed to mint a second session from one code.
-func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operator domain.Operator, code string) (redeemed, error) {
+func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operatorID int64, code string, lookupError error) (redeemed, error) {
 	var result redeemed
 	var verificationErr error
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		operator, err := f.operators.FindOperator(txCtx, operatorID)
+		if err != nil {
+			return lookupError
+		}
+		if domain.MFALocked(operator.MFALockedUntil, f.now()) {
+			return domain.ErrMFALocked
+		}
 		result, verificationErr = f.verifyActiveCodeInTx(txCtx, operator, code)
 		// Invalid codes still commit their failure counters and audit evidence.
 		if verificationErr != nil && !errors.Is(verificationErr, domain.ErrMFACodeInvalid) {
@@ -458,5 +433,29 @@ func (f *OperatorMFAFlows) recordAudit(ctx context.Context, operatorID int64, ac
 	return f.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: action, ResourceType: domain.OperatorAuditResourceOperatorMFA,
 		ResourceID: resourceID, IPAddress: domain.AuditIPString(ip), MFA: evidence,
+	})
+}
+
+func (f *OperatorMFAFlows) enqueueChallenge(ctx context.Context, input domain.OperatorMFAChallenge, message domain.MFACodeMail) (domain.OperatorMFAChallenge, func(context.Context) error, error) {
+	var challenge domain.OperatorMFAChallenge
+	var send func(context.Context) error
+	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		var err error
+		challenge, err = f.records.CreateChallenge(txCtx, input)
+		if err != nil {
+			return fmt.Errorf("persist email challenge: %w", err)
+		}
+		send, err = f.mail.EnqueueCode(txCtx, message, challenge.ID, challenge.ExpiresAt)
+		return err
+	})
+	return challenge, send, err
+}
+
+func (f *OperatorMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.OperatorMFAChallenge) error {
+	return f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
+			return err
+		}
+		return f.recordAudit(txCtx, challenge.OperatorID, domain.OperatorAuditActionMFAEmailSent, challenge.IPAddress, &challenge.ID, nil)
 	})
 }
