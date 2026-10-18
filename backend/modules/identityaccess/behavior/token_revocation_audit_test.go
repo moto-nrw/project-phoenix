@@ -77,10 +77,9 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	sessionTokens, err := api.NewConfiguredSessionTokens(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
-		SessionTokens: sessionTokens, TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit: failingAuditCommand{}, FrontendURL: "http://localhost:3000",
+		SessionTokens: sessionTokens, FrontendURL: "http://localhost:3000",
 		PasswordResetExpiry: time.Hour,
-	}, testpkg.NewDatabase(t, db), nil)
+	}, testpkg.TenantRuntime(t, db), failingAuditCommand{}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
@@ -104,9 +103,8 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
-		TenantRuntime: testpkg.TenantRuntime(t, db), Audit: failingAuditCommand{},
 		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, testpkg.NewDatabase(t, db), nil)
+	}, testpkg.TenantRuntime(t, db), failingAuditCommand{}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	err = service.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), account.ID, "password_reset")

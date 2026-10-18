@@ -26,11 +26,12 @@ import (
 
 // welcomeSchoolSettings gives the school settings that differ from the
 // registry defaults, so the help link has to carry the school's values.
-func welcomeSchoolSettings(t *testing.T, module api.AuthTestModule) {
+func welcomeSchoolSettings(t *testing.T, db *bun.DB) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, module.Settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
-	require.NoError(t, module.Settings.SetValue(ctx, "operations.presence_mode", "binary", nil, nil))
+	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, "operations.presence_mode", "binary", nil, nil))
 }
 
 const welcomeSettingsQuery = "nfc_enabled=true&presence_mode=binary&group_mode=fixed_groups"
@@ -110,7 +111,7 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
-	welcomeSchoolSettings(t, module)
+	welcomeSchoolSettings(t, db)
 	ctx := testpkg.Ctx(t)
 	_, err = db.NewRaw(`UPDATE platform.schools SET name = 'OGS Am Berg' WHERE id = ?`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
@@ -328,7 +329,7 @@ func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	welcomeSchoolSettings(t, module)
+	welcomeSchoolSettings(t, db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "welcome-guardian")
 	creator := testpkg.CreateTestAccount(t, db, "welcome-guardian-creator")

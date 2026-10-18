@@ -53,7 +53,7 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 
 	return &wiredMFAFixture{
 		svc:      module.MFA,
-		repos:    module.Repos,
+		repos:    api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)),
 		db:       db,
 		tenantID: tenantID,
 		mailer:   mailer,
