@@ -30,8 +30,9 @@ type Resource[E Event, C Client[E]] struct {
 	runtime Runtime[E, C]
 	logger  *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
-	// NewResourceWithSchoolAccess or SetSchoolAccess; the school handler
-	// refuses to stream without it.
+	// NewResourceWithSchoolAccess; the school handler refuses to stream
+	// without it: a long-lived connection that nobody re-authorizes is
+	// exactly what this guard exists to prevent.
 	schoolAccess SchoolAccessChecker
 }
 
@@ -63,9 +64,8 @@ func NewResource[E Event, C Client[E]](
 }
 
 // NewResourceWithSchoolAccess is NewResource with the school stream's access
-// re-check at construction, in place of SetSchoolAccess after it (ADR 0059).
-// A missing hub, subscription resolver or access checker is a construction
-// error.
+// re-check at construction (ADR 0059). A missing hub, subscription resolver
+// or access checker is a construction error.
 func NewResourceWithSchoolAccess[E Event, C Client[E]](
 	hub Hub[C],
 	userCtx SubscriptionResolver,

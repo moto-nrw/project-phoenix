@@ -23,43 +23,19 @@ type GuardianDisplayResolver interface {
 	ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error)
 }
 
-type Dependencies struct {
-	DB       *bun.DB
-	Provider Provider
-	People   GuardianDisplayResolver
-	Observe  func(delivery.Observation)
-}
-
-// ModuleDependencies are Dependencies without the Provider: the enqueue and
-// state side of Delivery, which the producers and Identity & Access need
-// before the mail renderers exist.
+// ModuleDependencies are the enqueue and state side of Delivery, which the
+// producers and Identity & Access need before the mail renderers exist.
 type ModuleDependencies struct {
 	DB      *bun.DB
 	People  GuardianDisplayResolver
 	Observe func(delivery.Observation)
 }
 
-// Runtime is the composed Delivery platform. Worker is set by New only;
-// NewWorker builds it over a Runtime from NewModule.
+// Runtime is the composed Delivery module; NewWorker adds the worker.
 type Runtime struct {
 	Module  *delivery.Module
-	Worker  *delivery.Worker
 	store   *postgres.Store
 	observe func(domain.Observation)
-}
-
-func New(dependencies Dependencies) (*Runtime, error) {
-	if dependencies.DB == nil || dependencies.Provider == nil || dependencies.People == nil || dependencies.Observe == nil {
-		return nil, errors.New("delivery compose: all dependencies are required")
-	}
-	runtime, err := NewModule(ModuleDependencies{DB: dependencies.DB, People: dependencies.People, Observe: dependencies.Observe})
-	if err != nil {
-		return nil, err
-	}
-	if runtime.Worker, err = NewWorker(runtime, dependencies.Provider); err != nil {
-		return nil, err
-	}
-	return runtime, nil
 }
 
 // NewModule composes the enqueue facade and the e-mail state without the
@@ -96,8 +72,7 @@ func NewWorker(runtime *Runtime, provider Provider) (*delivery.Worker, error) {
 	return delivery.NewWorker(workerEngine{worker: worker, store: runtime.store}), nil
 }
 
-// EmailStatus reports the durable state of an e-mail intent while the root
-// binds a renderer that depends on an earlier delivery.
+// EmailStatus reports the durable state of an e-mail intent.
 func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.State, bool, error) {
 	if r == nil || r.store == nil {
 		return "", false, errors.New("delivery compose: service is not initialized")

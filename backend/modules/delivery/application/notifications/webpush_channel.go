@@ -97,10 +97,6 @@ type PushOutbox interface {
 	EnqueuePush(context.Context, PushIntent) (bool, error)
 }
 
-func (c *webPushChannel) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	c.tenantRuntime = &runtime
-}
-
 func (c *webPushChannel) withTenantRuntime(ctx context.Context) context.Context {
 	if c.tenantRuntime == nil {
 		return ctx
