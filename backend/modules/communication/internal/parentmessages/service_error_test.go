@@ -118,6 +118,7 @@ func (fakePersons) FindStaffSenderName(context.Context, int64) (*communication.S
 func errSvc(tr messaging.ParentMessageThreadRepository, mr messaging.ParentMessageRepository, rr messaging.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
 		ThreadRepo:  tr,
 		MessageRepo: mr,
 		ReadRepo:    rr,
@@ -227,6 +228,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
 		ThreadRepo:  tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}), Broadcaster: bc, Logger: slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

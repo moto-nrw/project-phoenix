@@ -19,7 +19,6 @@ import (
 	"unicode/utf8"
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -82,6 +81,8 @@ type Config struct {
 	ReadRepo    ParentMessageReadRepository
 	Persons     PersonLookup
 	UserContext StudentReadAccess
+	// Session reads the authenticated staff account and its permissions.
+	Session     deliveryPorts.RequestSession
 	Settings    Settings
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
@@ -110,6 +111,9 @@ type Config struct {
 
 // NewService wires a staff messaging service.
 func NewService(cfg Config, runtime Runtime, policy deliveryPorts.ParentDeliveryPolicy) *Service {
+	if cfg.Session == nil {
+		panic("parent messaging: the request session is required")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -129,16 +133,16 @@ func (s *Service) scope(ctx context.Context) bool {
 	if s.UserContext == nil {
 		return false
 	}
-	perms := sessiontoken.PermissionsFromCtx(ctx)
+	perms := s.Session.Permissions(ctx)
 	return s.UserContext.ReadsAllStudents(ctx, perms)
 }
 
-func accountIDFromCtx(ctx context.Context) int64 {
-	return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
+func (s *Service) accountID(ctx context.Context) int64 {
+	return s.Session.AccountID(ctx)
 }
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*InboxThread, error) {
-	accountID := accountIDFromCtx(ctx)
+	accountID := s.accountID(ctx)
 	allStudents := s.scope(ctx)
 	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	if err != nil {
@@ -205,7 +209,7 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	if !parentmessaging.MessagingEnabled(ctx, s.Settings, s.Logger) {
 		return 0, nil
 	}
-	accountID := accountIDFromCtx(ctx)
+	accountID := s.accountID(ctx)
 	allStudents := s.scope(ctx)
 	// The counter follows the caller's personal count scope (#3673); the inbox
 	// and the per-conversation marks do not.
@@ -238,7 +242,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 	if student.IsAlumnus() {
 		return ErrForbidden
 	}
-	perms := sessiontoken.PermissionsFromCtx(ctx)
+	perms := s.Session.Permissions(ctx)
 	if s.UserContext == nil || !s.UserContext.CanReadStudent(ctx, perms, student) {
 		return ErrForbidden
 	}
@@ -333,7 +337,7 @@ func (s *Service) markReadAndBuild(ctx context.Context, thread *ParentMessageThr
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
+	advanced, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, s.accountID(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -394,7 +398,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 		return nil, err
 	}
 
-	accountID := accountIDFromCtx(ctx)
+	accountID := s.accountID(ctx)
 	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
 	if err != nil {
 		return nil, err
@@ -493,7 +497,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 		return nil, err
 	}
 
-	accountID := accountIDFromCtx(ctx)
+	accountID := s.accountID(ctx)
 	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
@@ -579,7 +583,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*I
 	if err := s.canReadStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	rows, err := s.ReadRepo.ListThreadsForStudent(ctx, accountIDFromCtx(ctx), studentID)
+	rows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list student threads: %w", err)
 	}

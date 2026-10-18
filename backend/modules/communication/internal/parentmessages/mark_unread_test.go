@@ -327,6 +327,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(repos.ParentMessageRead),
 		Persons:     newPersons(repos, f.db),
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false}),

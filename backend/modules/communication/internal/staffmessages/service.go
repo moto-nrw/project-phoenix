@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -94,6 +93,8 @@ type Config struct {
 	ReadRepo    StaffMessageReadRepository
 	Persons     PersonLookup
 	Settings    Settings
+	// Session reads the authenticated account of the request.
+	Session     deliveryPorts.RequestAccount
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 
@@ -107,6 +108,9 @@ type Config struct {
 
 // NewService wires an internal messaging service.
 func NewService(cfg Config, runtime Runtime, policy deliveryPorts.NotificationErrors) *Service {
+	if cfg.Session == nil {
+		panic("staff messaging: the request session is required")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -115,8 +119,8 @@ func NewService(cfg Config, runtime Runtime, policy deliveryPorts.NotificationEr
 
 // actor returns the authenticated account id for the request.
 func (s *Service) actor(ctx context.Context) (int64, error) {
-	if id := sessiontoken.ActorAccountIDFromCtx(ctx); id != nil && *id != 0 {
-		return *id, nil
+	if id := s.Session.AccountID(ctx); id != 0 {
+		return id, nil
 	}
 	return 0, ErrNoActor
 }

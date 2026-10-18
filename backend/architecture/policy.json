@@ -7600,17 +7600,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "communication.messages.adapter-identity-adapter",
-      "description": "The retained message implementation reads authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "communication.messages.adapter-delivery-public",
       "description": "The retained message implementation publishes realtime updates through Delivery.",
       "scopes": [

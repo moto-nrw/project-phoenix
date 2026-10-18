@@ -468,7 +468,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(b.graph.Users), UserContext: StaffStudentReads{Caller: b.callerContext},
-		Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Session: CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
 		Logger: b.Logger.With("service", "messaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
@@ -478,7 +478,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: BindStaffSenderNames(b.graph.Users), Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
+		Persons: BindStaffSenderNames(b.graph.Users), Session: CommunicationSession{}, Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

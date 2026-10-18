@@ -167,7 +167,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/compose":                      2556,
 	"modules/careplan/requestfeed/compose":          68,
 	"modules/classday/compose":                      461,
-	"modules/communication/composition":             1480,
+	"modules/communication/composition":             1475,
 	"modules/dataimport/compose":                    253,
 	"modules/dataimport/compose/retained":           34,
 	"modules/delivery/compose":                      797,

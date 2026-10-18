@@ -62,3 +62,13 @@ func TestUnknownMessagingErrorsRemainStable(t *testing.T) {
 	assert.Same(t, databaseErr, mapParentMessagingError(databaseErr))
 	assert.Same(t, databaseErr, mapStaffMessagingError(databaseErr))
 }
+
+func TestMessagingRequiresTheRequestSession(t *testing.T) {
+	t.Parallel()
+	assert.PanicsWithValue(t, "parent messaging: the request session is required", func() {
+		NewParentMessaging(ParentMessagingConfig{}, nil, nil)
+	})
+	assert.PanicsWithValue(t, "staff messaging: the request session is required", func() {
+		NewStaffMessaging(StaffMessagingConfig{}, nil, nil)
+	})
+}
