@@ -45,6 +45,22 @@ type ParentAnnouncementConfig struct {
 type ParentAnnouncementEmailConfig communication.MailRendererConfig
 
 func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentAnnouncementCapability {
+	return newParentAnnouncements(cfg, nil, runtime, policy)
+}
+
+// NewParentAnnouncementsWithAttachments composes the parent announcements
+// over the file side of their attachments, which File Storage builds from
+// its database and object store before it builds its attachment routes
+// over these announcements (#4080). A missing file side is a construction
+// error.
+func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachments communication.ParentAnnouncementAttachmentPurger, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) (communication.ParentAnnouncementCapability, error) {
+	if attachments == nil {
+		return nil, errors.New("parent announcements compose: the attachment purger is required")
+	}
+	return newParentAnnouncements(cfg, attachments, runtime, policy), nil
+}
+
+func newParentAnnouncements(cfg ParentAnnouncementConfig, attachments staff.AttachmentPurger, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentAnnouncementCapability {
 	var deliveries staff.DeliveryRecorder
 	if cfg.Deliveries != nil {
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
@@ -53,7 +69,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime,
 		Repo: staff.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
 		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
-		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
+		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints, Attachments: attachments,
 	}, runtime, policy)}
 }
 

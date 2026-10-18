@@ -96,6 +96,41 @@ type Dependencies struct {
 	Now func() time.Time
 }
 
+// AttachmentPurgerDependencies are the bindings of the attachment purger:
+// the database and the object store alone.
+type AttachmentPurgerDependencies struct {
+	DB      *bun.DB
+	Objects ObjectBackend
+	Observe func(Observation)
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+}
+
+// NewAttachmentPurger composes the side of the announcement attachments
+// the parent announcements call: cleanup before a deletion, the count for
+// the e-mail and the digests of an Erklärung. It needs neither the
+// announcements nor the parents portal, so a root hands it to the
+// announcements at their construction and builds New over them afterwards
+// (#4080). Both are stateless over the same tables and objects.
+func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage.AttachmentPurger, error) {
+	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Observe == nil {
+		return nil, errors.New("file storage compose: all dependencies are required")
+	}
+	now := dependencies.Now
+	if now == nil {
+		now = time.Now
+	}
+	runtime := databaseRuntime(dependencies.DB)
+	return purger{side: application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
+		Attachments:        postgres.NewAttachmentStore(runtime),
+		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
+		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
+		Tx:                 transaction{},
+		Observe:            observer(dependencies.Observe),
+		Now:                now,
+	})}, nil
+}
+
 // New composes the File Storage module. Every operation resolves the tenant
 // from the context; the stores apply it as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*filestorage.Module, error) {
@@ -125,14 +160,19 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
 		StoredNames:        apiDocuments.NewStoredName,
-		Observe: func(observation Observation) {
-			observation.Err = mapError(observation.Err)
-			dependencies.Observe(observation)
-		},
-		Logger: dependencies.Logger,
-		Now:    now,
+		Observe:            observer(dependencies.Observe),
+		Logger:             dependencies.Logger,
+		Now:                now,
 	})
-	return filestorage.NewModule(engine{service: service, hasPermission: dependencies.HasPermission}), nil
+	return filestorage.NewModule(engine{purger: purger{side: service}, service: service, hasPermission: dependencies.HasPermission}), nil
+}
+
+// observer reports every observation with the public error.
+func observer(observe func(Observation)) func(Observation) {
+	return func(observation Observation) {
+		observation.Err = mapError(observation.Err)
+		observe(observation)
+	}
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -277,9 +317,21 @@ func (p people) PersonNames(ctx context.Context, accountIDs []int64) (map[int64]
 // --- public engine -------------------------------------------------------------
 
 type engine struct {
+	purger
 	service       *application.Service
 	hasPermission func(string, []string) bool
 }
+
+// attachmentSide is the announcement side of the attachments, served by
+// the whole service and by the attachment purger alone.
+type attachmentSide interface {
+	QueueAttachmentCleanupForAnnouncement(context.Context, int64) error
+	CountAttachments(context.Context, int64) (int, error)
+	AttachmentDigests(context.Context, int64, func(io.Reader) (string, int64, error)) ([]application.AttachmentDigest, error)
+}
+
+// purger serves filestorage.AttachmentPurger with the public errors.
+type purger struct{ side attachmentSide }
 
 func (e engine) actor(value filestorage.Actor) domain.Actor {
 	return domain.Actor{
@@ -435,17 +487,17 @@ func (e engine) DeleteAttachment(ctx context.Context, announcementID, attachment
 	return mapError(e.service.DeleteAttachment(ctx, announcementID, attachmentID, e.actor(who)))
 }
 
-func (e engine) QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error {
-	return mapError(e.service.QueueAttachmentCleanupForAnnouncement(ctx, announcementID))
+func (p purger) QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error {
+	return mapError(p.side.QueueAttachmentCleanupForAnnouncement(ctx, announcementID))
 }
 
-func (e engine) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
-	count, err := e.service.CountAttachments(ctx, announcementID)
+func (p purger) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
+	count, err := p.side.CountAttachments(ctx, announcementID)
 	return count, mapError(err)
 }
 
-func (e engine) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]filestorage.AttachmentDigest, error) {
-	digests, err := e.service.AttachmentDigests(ctx, announcementID, digest)
+func (p purger) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]filestorage.AttachmentDigest, error) {
+	digests, err := p.side.AttachmentDigests(ctx, announcementID, digest)
 	if err != nil {
 		return nil, mapError(err)
 	}
