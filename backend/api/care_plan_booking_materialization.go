@@ -346,7 +346,7 @@ func (e bookingEnrollment) Child(ctx context.Context, id int64) (careplanCompose
 		return careplanCompose.BookingChild{}, careplanCompose.BookingRowNotFound(fmt.Errorf("request child %d not found", id))
 	}
 	return careplanCompose.BookingChild{
-		ID: child.ID, RequestID: child.RequestID, Approved: child.Status == enrollmentOwner.ChildStatusApproved,
+		ID: child.ID, RequestID: child.RequestID, Approved: child.IsApproved(),
 		CreatedStudentID: child.CreatedStudentID, TargetGradeLevel: child.TargetGradeLevel,
 	}, nil
 }

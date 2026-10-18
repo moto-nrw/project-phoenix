@@ -30,7 +30,7 @@ func (r parentCareOfferingReads) ListByIDs(ctx context.Context, ids []int64) ([]
 		if row != nil {
 			out[i] = &parentportal.CareOffering{
 				ID: row.ID, Name: row.Name, Description: row.Description,
-				FixedDays:     row.DaysOfWeekMode == enrollment.CareOfferingDaysFixed,
+				FixedDays:     row.HasFixedDays(),
 				AvailableDays: row.AvailableDays, IncludesHolidayCare: row.IncludesHolidayCare,
 				IncludesLunch: row.IncludesLunch, PriceCents: row.PriceCents, SortOrder: row.SortOrder,
 			}

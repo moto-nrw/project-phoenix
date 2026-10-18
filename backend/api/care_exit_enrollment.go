@@ -28,7 +28,7 @@ func (e careExitEnrollment) CareExitApplicationLinks(ctx context.Context, studen
 	for _, link := range links {
 		result = append(result, carePlanCompose.CareExitApplication{
 			ID: link.ID, TenantID: link.TenantID, CreatedStudentID: link.CreatedStudentID,
-			MatchedStudentID: link.MatchedStudentID, Approved: link.Status == enrollment.ChildStatusApproved,
+			MatchedStudentID: link.MatchedStudentID, Approved: link.IsApproved(),
 		})
 	}
 	return result, nil
