@@ -102,7 +102,6 @@ type fakeSender struct {
 type sentPush struct {
 	endpoint string
 	payload  []byte
-	options  *webpush.Options
 }
 
 type fakePushOutbox struct {
@@ -121,12 +120,12 @@ func (f *fakePushOutbox) EnqueuePush(ctx context.Context, intent PushIntent) (bo
 	return true, nil
 }
 
-func (f *fakeSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+func (f *fakeSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, _ *webpush.Options) (*http.Response, error) {
 	if f.sendFn != nil {
 		f.sendFn(ctx)
 	}
 	f.mu.Lock()
-	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload, options: opts})
+	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload})
 	f.mu.Unlock()
 	if f.done != nil {
 		close(f.done)
