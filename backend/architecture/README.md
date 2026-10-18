@@ -5,8 +5,31 @@ roles, tenant-safe read projections, legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
+## Architecture principles
+
+Six principle ADRs state the architecture rules that hold. Read the matching
+one before a backend design, implementation or review; the decision ADRs they
+cite keep the context, measurements and history.
+
+| Principle | ADR |
+|---|---|
+| Module, data and projection ownership | [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md) |
+| Contracts, workflows and transactions | [ADR 0067](../../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md) |
+| Construction and runtime boundaries | [ADR 0068](../../docs/adr/0068-principle-owners-compose-themselves-and-the-roots-only-wire.md) |
+| Test boundaries and the shared kernel | [ADR 0069](../../docs/adr/0069-principle-a-test-reaches-its-owner-the-typed-roots-and-the-shared-kernel.md) |
+| Ratchet, debt and evidence | [ADR 0070](../../docs/adr/0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md) |
+| Dependency direction and cycles | [ADR 0071](../../docs/adr/0071-principle-owner-dependencies-point-one-way.md) |
+
+The [traceability appendix](#appendix-principle-traceability) maps every rule
+that still holds to exactly one principle and every architecture ADR to its
+principles. The sections below describe how the checker enforces the rules and
+record the migration history; where they differ from a principle, the
+principle states the target.
+
 ## Canonical module map
 
+[ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
+is the principle for this map.
 [ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
 records File Storage as the eighteenth domain, and
 [ADR 0012](../../docs/adr/0012-export-transfer-is-the-tenth-platform.md)
@@ -5025,3 +5048,108 @@ generic store's unresolved expression: the base records a
 classifies, and an analysis of the candidate with the table assigned to a
 non-existent owner shows it named statically by packages of the adopting
 owner and no other.
+
+## Appendix: principle traceability
+
+Every rule that still holds appears once, with its sources and the one
+principle that states it. Principles: 0066 ownership, 0067 contracts and
+workflows, 0068 construction and runtime, 0069 tests and shared kernel, 0070
+ratchet and evidence, 0071 dependency direction (links in
+[Architecture principles](#architecture-principles)). A point refers to the
+numbered decision of the principle ADR.
+
+### Rule → principle
+
+| Rule that holds | Sources | Principle |
+|---|---|---|
+| 18 domain and 10 platform modules, pinned by validation; a change needs its own decision | ADR 0010, ADR 0012 | 0066 point 1 |
+| A domain owns a business concept, a platform a runtime; File Storage, Document Rendering and Export Transfer boundaries | ADR 0010, ADR 0012 | 0066 point 2 |
+| Projection, workflow, tool, composition, kernel, migration and test-support owners are not modules; no `inbound` kind | ADR 0057 and ADR 0060 addenda | 0066 point 3 |
+| One runtime write owner per table; no invented owner for an obsolete table | this README | 0066 point 4 |
+| Projections and workflows own no writable data | ADR 0012, ADR 0013, ADR 0023 | 0066 point 5 |
+| A foreign read uses the owner's capability or an exact tenant-safe projection; a projection only for a joined statement, named after its read | ADR 0023, ADR 0037, ADR 0052 | 0066 point 6 |
+| Installation-wide `tenant_safe` means operator scope; a repeated owner literal changes with its owner | ADR 0033 | 0066 point 7 |
+| Student record split, class-writes gate, public student ID, child documents, work-session edit audit | ADR 0023, ADR 0025, ADR 0035, ADR 0052 | 0066 point 8 |
+| `public` and `contract` expose no ORM, repository, internal model or generic CRUD | this README, ADR 0046 | 0067 point 1 |
+| A foreign owner is reached through its contract or a consumer-owned port the root binds | ADR 0053 point 4 | 0067 point 2 |
+| Owners change data through commands that own their guards | ADR 0023 | 0067 point 3 |
+| A write across owners is a workflow with one outer unit of work, reversible or not | ADR 0013, ADR 0016, ADR 0017, ADR 0018, ADR 0022, ADR 0023 amendment | 0067 point 4 |
+| A workflow re-reads under its locks; the tenant-wide gate order | ADR 0016, ADR 0017, ADR 0023 | 0067 point 5 |
+| A durable side effect commits with its write; callbacks are losable hints in an exact register | ADR 0013, ADR 0016, #4087 | 0067 point 6 |
+| A cross-owner database function needs its own decision and narrow runtime authorization | ADR 0062 | 0067 point 7 |
+| An owner composition builds its own owner, including its application and persistence; glue lives in the root | ADR 0053 points 1 and 3, ADR 0041, ADR 0049 | 0068 point 1 |
+| The root reaches only `compose`, `public`, `contract`, `port` and `http` of the owners | ADR 0053 point 2 | 0068 point 2 |
+| An owner composition reaches no foreign implementation, `compose` or `http` role | ADR 0059 point 6 | 0068 point 3 |
+| Compositions construct and bind; the root holds wiring only | ADR 0053 point 4, #4082 | 0068 point 4 |
+| No service graph, no late binding, no nil-tolerant production branch; each root builds what it runs | ADR 0059 points 1 to 5 | 0068 point 5 |
+| The database reaches the roots as one Transaction Runtime value | ADR 0053 point 5, ADR 0047 addendum #3970 | 0068 point 6 |
+| One session token runtime, built by Identity's composition; session facts cross ports as values | ADR 0031, ADR 0054, ADR 0053 point 6, ADR 0046 amendment | 0068 point 7 |
+| A shared runtime is classified, not granted; `api/common` and `middleware` are Tenant Runtime `http`; HTTP roles reach the standing runtimes | ADR 0057 point 3, ADR 0046 amendment, ADR 0051, ADR 0056 point 3 | 0068 point 8 |
+| The server root is the HTTP host; each handler belongs to the `http` role of its data's owner | ADR 0056 point 1, ADR 0058 addendum #4079/#4314 | 0068 point 9 |
+| The Worker's contract is Scheduler Runtime's `port` role | ADR 0056 point 4 and amendment, ADR 0059 point 5 | 0068 point 10 |
+| The dev tools are the binary `cmd/devtools`, absent from the production image | ADR 0060 | 0068 point 11 |
+| No alias or re-export stands in for moved code | ADR 0050, ADR 0053 option 4 | 0068 point 12 |
+| Test roles name the seam; production permissions stay out of test scopes | this README | 0069 point 1 |
+| Test roles import ORM, router and test framework directly | ADR 0014 | 0069 point 2 |
+| A test of one owner uses that owner's roles and fakes of its ports | ADR 0053 point 7.1 | 0069 point 3 |
+| A test of several owners builds the typed root | ADR 0053 point 7.2, ADR 0059 point 5 | 0069 point 4 |
+| Shared fixtures create rows and hold a finite set of standing targets | ADR 0039, ADR 0047, ADR 0053 points 7.3 and 7.4 | 0069 point 5 |
+| A test driving a foreign implementation moves to that owner's suite | ADR 0047 | 0069 point 6 |
+| Every module's public contract has an inventoried contract test, 28 of 28 | #4090 | 0069 point 7 |
+| Every role may import the closed shared kernel | ADR 0040 | 0069 point 8 |
+| A rule states the target only | ADR 0057 points 1 and 2 | 0070 point 1 |
+| Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
+| `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
+| Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064 | 0070 point 4 |
+| Pass-throughs count per owner; moved code stays in the scan | ADR 0061, ADR 0064 | 0070 point 5 |
+| A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
+| The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7 | 0070 point 7 |
+| Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |
+| Migration evidence keeps its provenance and fails closed | ADR 0026 | 0070 point 9 |
+| The target owner graph is acyclic | ADR 0058 point 1 | 0071 point 1 |
+| Each owner kind depends in one direction | ADR 0058 point 2 and addendum #4314 | 0071 point 2 |
+| Two domains that need each other get one direction | ADR 0058 point 3 | 0071 point 3 |
+| People Directory lowest, Care Plan above it, Enrollment above Care Plan, Workforce above Student Presence | ADR 0058 addendum #3417 | 0071 point 4 |
+| A domain's implementation follows the owner's existing edges | ADR 0058 addendum #4084 | 0071 point 5 |
+| The cycle measurement counts every production package | ADR 0058 point 4 | 0071 point 6 |
+| Tools are outside the dependency graph | ADR 0060 addendum | 0071 point 7 |
+
+### Completed parts without a rule
+
+These parts of accepted ADRs describe one-time work that is done; no rule
+follows from them: ADR 0010's count of nine platform modules (ADR 0012 added
+the tenth); ADR 0031's timing (replaced by ADR 0054, whose relocation is done);
+ADR 0032 (superseded by ADR 0058; its platform-triangle cut holds no edge any
+more); ADR 0040's wrapper rules (the wrapper is deleted, #4081); ADR 0046's
+`inbound-common` owner (replaced by its amendment); ADR 0047's `configtest`
+keys (#3965); the compatibility bindings of ADR 0017, ADR 0018 and ADR 0022;
+ADR 0053 point 8, the way out of `services` (deleted); ADR 0057 point 6, the
+one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
+#4072).
+
+### ADR → principle
+
+| ADR | Status | Principles |
+|---|---|---|
+| 0010, 0012, 0033 | accepted | 0066 |
+| 0013 | accepted | 0066, 0067, 0070 |
+| 0014, 0039, 0040 | accepted | 0069 |
+| 0015, 0020, 0026, 0045, 0061, 0063, 0064 | accepted | 0070 |
+| 0016, 0017, 0018, 0022, 0062 | accepted | 0067 |
+| 0023 | accepted | 0066, 0067 |
+| 0025 | historical | 0066 |
+| 0030, 0036, 0038 | historical | 0070 |
+| 0031, 0051, 0054, 0056 | accepted | 0068 |
+| 0032 | superseded by ADR 0058 | none; its successor is in 0071 |
+| 0035, 0037, 0052 | historical | 0066, 0070 |
+| 0041, 0049, 0050 | historical | 0068 |
+| 0046 | accepted | 0067, 0068 |
+| 0047, 0059 | accepted | 0068, 0069 |
+| 0053 | accepted | 0067, 0068, 0069, 0070 |
+| 0057 | accepted | 0066, 0068, 0070 |
+| 0058 | accepted | 0068, 0071 |
+| 0060 | accepted | 0066, 0068, 0071 |
+
+ADRs 0001 to 0009, 0011, 0019, 0021, 0024, 0027 to 0029, 0034, 0042 to 0044,
+0048 and 0055 record product, data-contract and operations decisions outside
+#2580 and are not part of this map.
