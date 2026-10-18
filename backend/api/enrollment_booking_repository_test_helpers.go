@@ -168,3 +168,11 @@ func equalOfferingDate(a, b *enrollment.Date) bool {
 	}
 	return *a == *b
 }
+
+// CarePlanBookingDate converts an Enrollment booking date into Care Plan's.
+func CarePlanBookingDate(date *enrollment.Date) *careplan.Date {
+	if date == nil {
+		return nil
+	}
+	return new(careplan.Date(*date))
+}

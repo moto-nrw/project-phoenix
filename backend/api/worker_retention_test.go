@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -139,7 +141,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 		settingsModule.KeyGDPRStudentRetentionDays,
 		settingsModule.KeyGDPRTimeTrackingRetentionDays,
-	}, retentionSettingKeys)
+	}, settingsModule.RetentionWindowKeys())
 }
 
 func TestNightlyRetentionDeletesUnregisteredTagScansAfterNinetyDays(t *testing.T) {
@@ -159,8 +161,8 @@ func TestNightlyRetentionDeletesUnregisteredTagScansAfterNinetyDays(t *testing.T
 	assert.False(t, suite.exists(t, "audit.unregistered_tag_scans", expired), "a scan older than 90 days is deleted")
 	assert.True(t, suite.exists(t, "audit.unregistered_tag_scans", kept), "a scan younger than 90 days stays")
 	assert.True(t, suite.exists(t, "audit.unregistered_tag_scans", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionUnregisteredTagScans))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionUnregisteredTagScans))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeUnregisteredTagScanRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeUnregisteredTagScanRetention))
 }
 
 // insertStatusDay stores a status day daysAgo Berlin calendar days back.
@@ -200,8 +202,8 @@ func TestNightlyRetentionDeletesStatusDaysAfterTheirWindow(t *testing.T) {
 	assert.True(t, suite.exists(t, "active.student_status_days", keptExcused), "a younger day stays")
 	assert.True(t, suite.exists(t, "active.student_status_days", keptOnCutoff), "the day exactly 365 days back is still inside the window")
 	assert.True(t, suite.exists(t, "active.student_status_days", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStatusDays))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionStatusDays))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStatusDayRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeStatusDayRetention))
 	assert.Equal(t, mealHistory,
 		suite.count(t, `SELECT COUNT(*) FROM schedule.meal_sickness_status_history WHERE tenant_id = ?`, school),
 		"the purge must not copy the deleted sick day into the meal sickness history")
@@ -258,8 +260,8 @@ func TestNightlyRetentionDeletesAttendanceAfterItsWindow(t *testing.T) {
 	assert.True(t, suite.exists(t, "active.attendance", keptOnCutoff), "the day exactly 365 days back is still inside the window")
 	assert.True(t, suite.exists(t, "active.attendance", kept))
 	assert.True(t, suite.exists(t, "active.attendance", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionAttendance))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionAttendance))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAttendanceRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeAttendanceRetention))
 }
 
 func TestNightlyRetentionFollowsTheSchoolsRecordedAttendanceWindow(t *testing.T) {
@@ -279,7 +281,7 @@ func TestNightlyRetentionFollowsTheSchoolsRecordedAttendanceWindow(t *testing.T)
 
 	assert.True(t, suite.exists(t, "active.attendance", kept))
 	assert.False(t, suite.exists(t, "active.attendance", expired), "a shorter contractual window deletes earlier")
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionAttendance))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAttendanceRetention))
 }
 
 type parentThreadFixture struct {
@@ -388,8 +390,8 @@ func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
 		Scan(context.Background(), &preview))
 	assert.Equal(t, "Bitte Betreuung ändern", preview, "the preview shows the newest remaining message, never the deleted one")
 	assert.True(t, suite.exists(t, "users.parent_messages", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, retentionParentMessages), "expired messages and their empty threads are logged")
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionParentMessages))
+	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, auditModels.DeletionTypeParentMessageRetention), "expired messages and their empty threads are logged")
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeParentMessageRetention))
 }
 
 func TestNightlyRetentionDeletesExpiredAuditLedgerRows(t *testing.T) {
@@ -425,10 +427,10 @@ func TestNightlyRetentionDeletesExpiredAuditLedgerRows(t *testing.T) {
 	assert.True(t, suite.exists(t, "audit.data_access_log", keptAccess), "an access from last year stays until its end")
 	assert.False(t, suite.exists(t, "audit.data_deletions", expiredDeletion), "a deletion-log row older than three years is deleted")
 	assert.True(t, suite.exists(t, "audit.data_deletions", keptDeletion))
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionAuthEvents))
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDataAccessLog))
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDeletionLog))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionAuthEvents))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAuthEventRetention))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeDataAccessLogRetention))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeDeletionLogRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeAuthEventRetention))
 }
 
 // deliveryFixture plants delivery rows of one school as the Delivery worker
@@ -539,9 +541,9 @@ func TestNightlyRetentionDeletesDeliveriesThirtyDaysAfterTheirEnd(t *testing.T) 
 	assert.True(t, suite.exists(t, "platform.push_outbox", pushFailedRecent))
 	assert.True(t, suite.exists(t, "platform.push_outbox", pushPendingOld), "a push still being tried stays")
 
-	assert.Equal(t, []int{7}, suite.loggedDeletions(t, school, retentionDeliveries),
+	assert.Equal(t, []int{7}, suite.loggedDeletions(t, school, auditModels.DeletionTypeDeliveryRetention),
 		"three mails, the cleared welcome, two delivery logs and one push, logged once")
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionDeliveries))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeDeliveryRetention))
 }
 
 // cleanupIntent stores a cleanup intent of a stored file in table, finished
@@ -566,10 +568,10 @@ func TestNightlyRetentionDeletesFinishedCleanupIntentsThirtyDaysLater(t *testing
 
 	type intents struct{ finishedOld, finishedRecent, pendingOld, otherSchoolOld int64 }
 	tables := map[string]string{
-		"documents.file_cleanup":                    retentionFileCleanups,
-		"documents.announcement_attachment_cleanup": retentionFileCleanups,
-		"users.staff_document_file_cleanup":         retentionStaffCleanups,
-		"users.student_document_file_cleanup":       retentionStudentDocumentCleanup,
+		"documents.file_cleanup":                    auditModels.DeletionTypeFileCleanupRetention,
+		"documents.announcement_attachment_cleanup": auditModels.DeletionTypeFileCleanupRetention,
+		"users.staff_document_file_cleanup":         auditModels.DeletionTypeStaffCleanupRetention,
+		"users.student_document_file_cleanup":       auditModels.DeletionTypeStudentDocumentCleanupRetention,
 	}
 	planted := map[string]intents{}
 	for table := range tables {
@@ -590,9 +592,9 @@ func TestNightlyRetentionDeletesFinishedCleanupIntentsThirtyDaysLater(t *testing
 		assert.True(t, suite.exists(t, table, ids.pendingOld), "%s: an intent still waiting for its bytes stays", table)
 		assert.True(t, suite.exists(t, table, ids.otherSchoolOld), "%s: the run of one school never touches another", table)
 	}
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionFileCleanups), "the file storage and the attachments, logged once")
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionStudentDocumentCleanup))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionFileCleanups))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeFileCleanupRetention), "the file storage and the attachments, logged once")
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStudentDocumentCleanupRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeFileCleanupRetention))
 }
 
 func TestCleanupIntentRetentionRefusesAYoungCutoff(t *testing.T) {
@@ -648,7 +650,7 @@ func TestNightlyRetentionDeletesCompletedOffboardingJobsThirtyDaysLater(t *testi
 	assert.Equal(t, []int64{2, 3}, staffIDs(school), "a completed job goes 30 days later; a recent or running job stays")
 	assert.Equal(t, []int64{1}, staffIDs(otherSchool), "the run of one school never touches another")
 	assert.False(t, suite.exists(t, "users.staff_document_file_cleanup", fileCleanup))
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStaffCleanups), "the offboarding job and the file cleanup, logged once")
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStaffCleanupRetention), "the offboarding job and the file cleanup, logged once")
 }
 
 // withdrawalCompletion stores a care-withdrawal completion of the child (0
@@ -694,8 +696,8 @@ func TestNightlyRetentionDeletesFinishedWithdrawalCompletionsAfterAYear(t *testi
 	assert.True(t, suite.exists(t, "users.care_withdrawal_completions", otherSchoolOld), "the run of one school never touches another")
 	assert.True(t, suite.exists(t, "users.student_care_exits", exit), "the care exit stays and only loses its link")
 	assert.Zero(t, suite.count(t, `SELECT COUNT(*) FROM users.student_care_exits WHERE id = ? AND withdrawal_completion_id IS NOT NULL`, exit))
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionCareWithdrawals))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionCareWithdrawals))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeCareWithdrawalRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeCareWithdrawalRetention))
 }
 
 func TestNightlyRetentionDeletesSubmissionRateLimitsAfterTheirWindow(t *testing.T) {
@@ -716,8 +718,8 @@ func TestNightlyRetentionDeletesSubmissionRateLimitsAfterTheirWindow(t *testing.
 	assert.False(t, suite.exists(t, "enrollment.submission_rate_limits", expiredIP))
 	assert.True(t, suite.exists(t, "enrollment.submission_rate_limits", runningMail), "a running window keeps its count")
 	assert.True(t, suite.exists(t, "enrollment.submission_rate_limits", otherSchoolExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionSubmissionRateLimits))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSubmissionRateLimits))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeSubmissionRateLimitRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeSubmissionRateLimitRetention))
 }
 
 // retentionProtocol is one protocol of #4044 with a seed of one row for the
@@ -789,5 +791,5 @@ func TestNightlyRetentionDeletesExpiredProtocolRows(t *testing.T) {
 		assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, protocol.kind), "%s logs its own data kind", protocol.table)
 		assert.Empty(t, suite.loggedDeletions(t, otherSchool, protocol.kind))
 	}
-	assert.Len(t, retentionProtocols, len(auditProtocols)+2, "every protocol of #4044 is covered")
+	assert.Len(t, retentionProtocols, len(auditModels.ProtocolRetentionTypes())+2, "every protocol of #4044 is covered")
 }

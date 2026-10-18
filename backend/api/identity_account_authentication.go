@@ -8,7 +8,6 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -160,103 +159,48 @@ func demoDependencies(wiring *DemoAccessWiring, standingSchool string, schools o
 		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
 	}
 	return &identityaccessCompose.DemoDependencies{
-		Schools: demoSchoolDirectory{
-			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.MaxActiveSchools), standing: standingSchool,
-		},
+		Schools: demoSchoolDirectory{access: organizationtenancy.NewDemoSchoolAccess(
+			schools, organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.MaxActiveSchools), standingSchool,
+		)},
 		Mail:     newDemoAccessMail(wiring),
 		NewToken: wiring.NewToken, Fingerprint: wiring.Fingerprint,
 		OperatorWithoutSecondFactor: wiring.OperatorWithoutSecondFactor,
 	}, nil
 }
 
-// StandingDemoSchoolSlug is the shared demo school `go run ./cmd/devtools demo` provisions.
-// Every demo access enters it while the fallback is selected; accesses issued
-// before #3463 carry it as well.
-const StandingDemoSchoolSlug = "messe-demo"
-
-func standingDemoSchool(selected bool) string {
-	if selected {
-		return StandingDemoSchoolSlug
-	}
-	return ""
-}
-
+// demoSchoolDirectory serves Identity & Access's demo school port over
+// Organisation & Tenancy's demo school access.
 type demoSchoolDirectory struct {
-	schools  organizationtenancy.Query
-	orders   *organizationtenancy.DemoSchoolOrders
-	standing string
+	access organizationtenancy.DemoSchoolAccess
 }
 
 func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
-	if d.standing != "" {
-		return d.standing, nil
-	}
-	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, firstName, lastName)
-	if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
-		return "", identityaccess.ErrDemoCapacityReached
-	}
-	return slug, err
+	return demoSchoolSlug(d.access.PrepareDemoSchool(ctx, schoolName, firstName, lastName))
 }
 
-// ReplaceDemoSchool hides the visitor's school and queues a fresh one with
-// the same names (#3470). It hides first, so the restart needs no free place
-// at the capacity; both happen in the caller's transaction, so a refused
-// order leaves the old school as it was. The standing school is shared: a
-// restart is refused.
 func (d demoSchoolDirectory) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
-	if d.standing != "" || slug == StandingDemoSchoolSlug {
-		return "", identityaccess.ErrDemoAccessInvalid
-	}
-	if err := d.orders.RetireDemoSchool(ctx, slug); err != nil {
-		return "", err
-	}
-	return d.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
+	return demoSchoolSlug(d.access.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName))
 }
 
-// MarkDemoSchoolUsed notes an entry. The standing school has no order and is
-// always simulated, so there is nothing to note for it.
 func (d demoSchoolDirectory) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
-	if slug == d.standing {
-		return nil
-	}
-	return d.orders.MarkDemoSchoolUsed(ctx, slug, usedAt)
+	return d.access.MarkDemoSchoolUsed(ctx, slug, usedAt)
 }
 
 func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error) {
-	preparing := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolPreparing}
-	progress, err := d.orders.DemoSchoolProgress(ctx, slug)
-	if err != nil {
-		return preparing, err
+	entry, err := d.access.DemoSchoolEntry(ctx, slug)
+	return identityaccess.DemoSchoolEntry(entry), err
+}
+
+// demoSchoolSlug reports Organisation & Tenancy's refusals as Identity &
+// Access's demo errors.
+func demoSchoolSlug(slug string, err error) (string, error) {
+	switch {
+	case errors.Is(err, organizationtenancy.ErrDemoCapacityReached):
+		return "", identityaccess.ErrDemoCapacityReached
+	case errors.Is(err, organizationtenancy.ErrDemoRestartRefused):
+		return "", identityaccess.ErrDemoAccessInvalid
 	}
-	// The standing school is provisioned without an order; its school record
-	// alone tells whether it can be entered.
-	if progress == nil && slug != d.standing {
-		return preparing, nil
-	}
-	if progress != nil && progress.Status != organizationtenancy.DemoSchoolReady {
-		return identityaccess.DemoSchoolEntry{Exists: true, Status: progress.Status}, nil
-	}
-	var school organizationtenancy.School
-	if progress != nil {
-		// The order names the school it seeded; the slug is only its address.
-		school, err = d.schools.FindSchool(ctx, progress.SchoolID)
-	} else {
-		school, err = d.schools.FindSchoolBySlug(ctx, slug)
-	}
-	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
-		return preparing, nil
-	}
-	if err != nil {
-		return preparing, err
-	}
-	if !school.Operational() {
-		return preparing, nil
-	}
-	entry := identityaccess.DemoSchoolEntry{Exists: true, Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
-	if progress != nil {
-		entry.AccountID, entry.ParentAccountID = progress.VisitorAccountID, progress.VisitorParentAccountID
-	}
-	return entry, nil
+	return slug, err
 }
 
 // --- retained owner seams -------------------------------------------------
@@ -405,32 +349,8 @@ func (a authAudit) RecordAuthEvent(ctx context.Context, event identityaccess.Aut
 	if event.ErrorMessage != "" {
 		row.ErrorMessage = event.ErrorMessage
 	}
-	if evidence := event.TenantAccess; evidence != nil {
-		row.SetMetadata("school_id", evidence.SchoolID)
-		row.SetMetadata("school_name", evidence.SchoolName)
-		row.SetMetadata("operator_id", evidence.OperatorID)
-		switch event.Type {
-		case auditModels.EventTypeTenantAccessGranted:
-			row.SetMetadata("role", evidence.Role)
-		case auditModels.EventTypeTenantRoleChanged:
-			row.SetMetadata("role", evidence.Role)
-			row.SetMetadata("removed_roles", evidence.RemovedRoles)
-		case auditModels.EventTypeTenantAccessRevoked:
-			row.SetMetadata("account_deactivated", evidence.AccountDeactivated)
-		}
-	}
-	if evidence := event.RevokedSessions; evidence != nil {
-		row.SetMetadata("portal_scope", evidence.PortalScope)
-		row.SetMetadata("family_fingerprint", evidence.FamilyFingerprint)
-		row.SetMetadata("reason", evidence.Reason)
-		row.SetMetadata("revoked_token_count", evidence.Count)
-	}
-	if evidence := event.PendingWipe; evidence != nil {
-		row.SetMetadata("reason", evidence.Reason)
-		row.SetMetadata("pending_account_wide_wipe", true)
-	}
-	if evidence := event.CompletedWipe; evidence != nil {
-		row.SetMetadata("pending_event_id", evidence.PendingEventID)
+	for _, entry := range event.Metadata() {
+		row.SetMetadata(entry.Key, entry.Value)
 	}
 	return a.command.Append(ctx, row)
 }
@@ -505,14 +425,7 @@ func (p pushSubscriptionCleanup) DeleteUnboundByAccount(ctx context.Context, acc
 	if p.subscriptions == nil {
 		return nil
 	}
-	switch portal {
-	case deliveryCompose.PushPortalParent:
-		return p.subscriptions.DeleteParentUnboundByAccount(ctx, accountID, tenantID)
-	case deliveryCompose.PushPortalSchool:
-		return p.subscriptions.DeleteSchoolUnboundByAccount(ctx, accountID, tenantID)
-	default:
-		return p.subscriptions.DeleteStaffUnboundByAccount(ctx, accountID, tenantID)
-	}
+	return p.subscriptions.DeleteUnboundByAccountForPortal(ctx, accountID, tenantID, portal)
 }
 
 func (p pushSubscriptionCleanup) DeleteOrphaned(ctx context.Context) error {

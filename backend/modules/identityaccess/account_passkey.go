@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// PasskeyRPName is the relying-party name the authenticators show for the
+// passkeys of both portals.
+const PasskeyRPName = "moto"
+
 // Account passkey records (#2724): the WebAuthn credentials a school-portal
 // account registered and the server-side state of that portal's ceremonies.
 // A credential belongs to the account and carries no school; the ceremony

@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -30,7 +32,7 @@ func NewPickupAdjustments(inputs PickupAdjustmentInputs) (careplan.PickupAdjustm
 	return carePlanCompose.NewPickupAdjustments(carePlanCompose.PickupAdjustmentDependencies{
 		PickupSchedules: inputs.PickupSchedules, ArrivalSchedules: inputs.ArrivalSchedules, Records: inputs.CarePlan,
 		Baselines: inputs.Baselines, Offerings: inputs.Offerings,
-		Settings: offeringChangeSettings{BookingSettings{Settings: inputs.Settings}, inputs.Settings},
+		Settings: offeringChangeSettings{settingsModule.NewCareBookingValues(inputs.Settings), inputs.Settings},
 		Audit:    inputs.Audit, Students: pickupAdjustmentStudents{students: inputs.Students},
 		Fingerprint: securityruntime.Fingerprint, Today: inputs.Today,
 	})
@@ -79,13 +81,13 @@ type OfferingChangeSettingsReads interface {
 // NewOfferingChangeSettings resolves the tenant settings the root's
 // offering-change review obeys, the ones the pickup adjustment reads too.
 func NewOfferingChangeSettings(reads OfferingChangeSettingsReads) carePlanCompose.OfferingChangeSettings {
-	return offeringChangeSettings{BookingSettings{Settings: reads}, reads}
+	return offeringChangeSettings{settingsModule.NewCareBookingValues(reads), reads}
 }
 
 // offeringChangeSettings resolves the tenant settings offering changes and
 // pickup adjustments obey.
 type offeringChangeSettings struct {
-	BookingSettings
+	settingsModule.CareBookingValues
 	reads OfferingChangeSettingsReads
 }
 

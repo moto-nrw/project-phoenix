@@ -2,9 +2,9 @@ package compose
 
 import (
 	"context"
-	"errors"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -15,7 +15,8 @@ import (
 // Directory owns users.students, and the retained callers still carry
 // users.Student rows. Every method here is a value translation; which rows a
 // lookup returns — whether alumni are in it, how a name is matched — is the
-// owner's decision.
+// owner's decision, and so is the retained error shape
+// (application.RetainedStudentReadError).
 
 // StudentReadCapability is the owner surface this seam translates to.
 type StudentReadCapability interface {
@@ -29,7 +30,6 @@ type StudentReadCapability interface {
 	ListStudentRosterOverlapping(context.Context, string, string, string) ([]peopleModule.StudentRosterEntry, error)
 	FindStudentRecordForMutation(context.Context, int64) (peopleModule.StudentRecord, error)
 	FindStudentRecordForMutationNoWait(context.Context, int64) (peopleModule.StudentRecord, error)
-	LockEnrollmentClassWrites(context.Context) error
 }
 
 // StudentReads adapts the owner's child reads to the retained model-typed
@@ -47,7 +47,7 @@ func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Studen
 	}
 	record, err := r.directory.FindStudentRecord(ctx, studentID)
 	if err != nil {
-		return nil, translateStudentReadError("find by id", err)
+		return nil, application.RetainedStudentReadError("find by id", err)
 	}
 	return usersRepo.RetainedStudentModel(record), nil
 }
@@ -55,7 +55,7 @@ func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Studen
 func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
 	records, err := r.directory.ListStudentRecordsByPerson(ctx, []int64{personID})
 	if err != nil {
-		return nil, translateStudentReadError("find by person id", err)
+		return nil, application.RetainedStudentReadError("find by person id", err)
 	}
 	if len(records) == 0 {
 		return nil, peoplePorts.MissingStudentError("find by person id")
@@ -66,7 +66,7 @@ func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*use
 func (r *StudentReads) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
 	records, err := r.directory.ListStudentRecordsByID(ctx, ids)
 	if err != nil {
-		return nil, translateStudentReadError("find by ids", err)
+		return nil, application.RetainedStudentReadError("find by ids", err)
 	}
 	return studentRecordsByID(records), nil
 }
@@ -110,7 +110,7 @@ func (r *StudentReads) ListClassRoster(ctx context.Context, schoolClass string) 
 func (r *StudentReads) CountEnrolled(ctx context.Context) (int, error) {
 	ids, err := r.directory.ListStudentDirectoryIDs(ctx)
 	if err != nil {
-		return 0, translateStudentReadError("count enrolled students", err)
+		return 0, application.RetainedStudentReadError("count enrolled students", err)
 	}
 	return len(ids), nil
 }
@@ -144,7 +144,7 @@ func (r *StudentReads) FindActiveDueForDeactivation(
 func (r *StudentReads) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
 	records, err := r.directory.LockStudentRecordsByID(ctx, ids)
 	if err != nil {
-		return nil, translateStudentReadError("find by ids for update", err)
+		return nil, application.RetainedStudentReadError("find by ids for update", err)
 	}
 	return studentRecordsByID(records), nil
 }
@@ -152,7 +152,7 @@ func (r *StudentReads) FindByIDsForUpdate(ctx context.Context, ids []int64) (map
 func (r *StudentReads) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
 	counts, err := r.directory.CountStudentsByGroup(ctx, groupIDs)
 	if err != nil {
-		return nil, translateStudentReadError("count by group ids", err)
+		return nil, application.RetainedStudentReadError("count by group ids", err)
 	}
 	return counts, nil
 }
@@ -166,7 +166,7 @@ func (r *StudentReads) ExistsEnrolledByNameAndBirthday(
 	ids, err := r.directory.ListEnrolledStudentIDsByNameAndBirthday(
 		ctx, tenantID, firstName, lastName, birthday.String())
 	if err != nil {
-		return false, translateStudentReadError("exists enrolled by name and birthday", err)
+		return false, application.RetainedStudentReadError("exists enrolled by name and birthday", err)
 	}
 	return len(ids) > 0, nil
 }
@@ -184,7 +184,7 @@ func (r *StudentReads) FindEnrolledStudentIDByNameAndBirthday(
 	ids, err := r.directory.ListEnrolledStudentIDsByNameAndBirthday(
 		ctx, tenantID, firstName, lastName, birthday.String())
 	if err != nil {
-		return nil, translateStudentReadError("find enrolled student id by name and birthday", err)
+		return nil, application.RetainedStudentReadError("find enrolled student id by name and birthday", err)
 	}
 	if len(ids) != 1 {
 		return nil, nil
@@ -195,7 +195,7 @@ func (r *StudentReads) FindEnrolledStudentIDByNameAndBirthday(
 func (r *StudentReads) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	classes, err := r.directory.ListSchoolClasses(ctx)
 	if err != nil {
-		return nil, translateStudentReadError("list school classes", err)
+		return nil, application.RetainedStudentReadError("list school classes", err)
 	}
 	return classes, nil
 }
@@ -206,15 +206,9 @@ func (r *StudentReads) ListSchoolClasses(ctx context.Context) ([]string, error) 
 func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
 	record, err := r.directory.FindStudentRecordForMutation(ctx, id)
 	if err != nil {
-		return nil, translateStudentReadError("find by id for update", err)
+		return nil, application.RetainedStudentReadError("find by id for update", err)
 	}
 	return usersRepo.RetainedStudentModel(record), nil
-}
-
-// LockStudentClassWritesShared exposes the owner's shared class-writes gate for
-// the caller that has to take it before another tenant-wide gate.
-func (r *StudentReads) LockStudentClassWritesShared(ctx context.Context) error {
-	return translateStudentReadError("lock student class writes", r.directory.LockEnrollmentClassWrites(ctx))
 }
 
 // The roster reads. The teacher-scoped ones resolve their groups through
@@ -255,7 +249,7 @@ func (r *StudentReads) roster(
 ) ([]*userModels.StudentWithGroupInfo, error) {
 	entries, err := read()
 	if err != nil {
-		return nil, translateStudentReadError(operation, err)
+		return nil, application.RetainedStudentReadError(operation, err)
 	}
 	result := make([]*userModels.StudentWithGroupInfo, 0, len(entries))
 	for _, entry := range entries {
@@ -279,7 +273,7 @@ func (r *StudentReads) listRecords(
 ) ([]*userModels.Student, error) {
 	records, err := read()
 	if err != nil {
-		return nil, translateStudentReadError(operation, err)
+		return nil, application.RetainedStudentReadError(operation, err)
 	}
 	// nil, not an empty slice: the retained contract distinguishes them, and a
 	// caller that ranges over the result sees no difference either way.
@@ -299,14 +293,4 @@ func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*userMod
 		result[record.ID] = usersRepo.RetainedStudentModel(record)
 	}
 	return result
-}
-
-func translateStudentReadError(op string, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
-		return peoplePorts.MissingStudentError(op)
-	}
-	return err
 }

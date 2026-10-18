@@ -205,6 +205,15 @@ func (r guestMembershipRepository) List(ctx context.Context, filters map[string]
 	if err != nil {
 		return nil, repositoryError("list guests", err)
 	}
+	return r.listGuests(ctx, filter)
+}
+
+// ActiveGuests lists the guests whose window covers today's calendar date.
+func (r guestMembershipRepository) ActiveGuests(ctx context.Context) ([]*userModels.Guest, error) {
+	return r.listGuests(ctx, schoolmembership.GuestFilter{ActiveOn: calendar.TodayDate().String()})
+}
+
+func (r guestMembershipRepository) listGuests(ctx context.Context, filter schoolmembership.GuestFilter) ([]*userModels.Guest, error) {
 	values, err := r.membership.ListGuests(ctx, filter)
 	if err != nil {
 		return nil, membershipError("list guests", err)

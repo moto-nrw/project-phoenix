@@ -51,9 +51,10 @@ type timeTrackingAudits struct {
 type timeTrackingPortDependencies struct {
 	Workforce workforceModule.Capability
 	// Bound are the ports the caller binds before timeTrackingPorts runs:
-	// the staff absences and their audit, the supervisions and session
-	// records, the holidays, the events, the absence mail and the shift-plan
-	// sync. timeTrackingPorts sets every other port and leaves these alone.
+	// the staff absences and their audit, the work-session staff, the
+	// supervisions and session records, the holidays, the events, the
+	// absence mail and the shift-plan sync. timeTrackingPorts sets every
+	// other port and leaves these alone.
 	Bound           workforceCompose.TimeTrackingPorts
 	Audits          timeTrackingAudits
 	Staff           timeTrackingStaffRecords
@@ -88,7 +89,6 @@ func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeT
 	ports.DeletionAudit = NewTimeTrackingDeletionAudit(deps.Audits.TimeTrackingDeletion)
 	ports.DataAccessAudit = NewTimeTrackingDataAccessAudit(deps.Audits.DataAccessLog)
 	ports.AuditReader = NewTimeTrackingAuditReader(deps.Audits.TimeTrackingAuditLog)
-	ports.Staff = WorkSessionStaff(deps.Staff, deps.StaffEmployment)
 	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(deps.StaffEmployment)
 	ports.MonthCloseStaff, ports.OverviewStaff = MonthCloseStaff(deps.Staff), OverviewStaff(deps.Staff)
 	ports.ExportStaff, ports.StaffNames = TimeExportStaff(deps.Staff), StaffDisplayNames(deps.Staff)

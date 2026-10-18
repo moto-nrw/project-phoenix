@@ -178,12 +178,16 @@ const modulePassthroughMaxBodyLines = 14
 // lands, so a move cannot lower a budget: the Workforce Dienstplan rows went
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
-var modulePassthroughMovedTrees = []string{
-	"modules/careplan/ports/",
-	"modules/identityaccess/ports/",
-	"modules/peopledirectory/ports/",
-	"modules/timetable/ports/",
-	"modules/workforce/internal/planning/",
+var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	// ADR 0064: consumer glue moved to the root, but its delegations stay
+	// attributed to the consumer. These entries expand the scan, not allowances.
+	{"api/device_scan_catalog.go", "modules/devicescan"},
+	{"api/kiosk_timetable.go", "modules/devicescan"},
+	{"modules/careplan/ports/", "modules/careplan"},
+	{"modules/identityaccess/ports/", "modules/identityaccess"},
+	{"modules/peopledirectory/ports/", "modules/peopledirectory"},
+	{"modules/timetable/ports/", "modules/timetable"},
+	{"modules/workforce/internal/planning/", "modules/workforce"},
 }
 
 // modulePassthroughApplicationSegment selects the scanned tree: every path
@@ -497,8 +501,14 @@ func modulePassthroughTotalViolations(name string, budgets map[string]int, total
 // stale budget detectable.
 func modulePassthroughScan(backendRoot string, key func(string) string) (map[string]int, error) {
 	counts := make(map[string]int)
-	for _, tree := range []string{"modules", "workflows"} {
+	for _, tree := range []string{"modules", "workflows", "api"} {
 		root := filepath.Join(backendRoot, tree)
+		// Synthetic module/workflow fixtures need not contain a root package.
+		if tree == "api" {
+			if _, err := os.Stat(root); os.IsNotExist(err) {
+				continue
+			}
+		}
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -555,17 +565,17 @@ func modulePassthroughScan(backendRoot string, key func(string) string) (map[str
 // composition is a directory named compose or composition below the module
 // directory (ADR 0061).
 func modulePassthroughOwnerKey(rel string) string {
+	for _, tree := range modulePassthroughMovedTrees {
+		if strings.HasPrefix(rel, tree.path) {
+			return tree.owner
+		}
+	}
 	parts := strings.Split(rel, "/")
 	if len(parts) < 3 {
 		return ""
 	}
 	if strings.Contains(rel, modulePassthroughApplicationSegment) {
 		return parts[0] + "/" + parts[1]
-	}
-	for _, tree := range modulePassthroughMovedTrees {
-		if strings.HasPrefix(rel, tree) {
-			return parts[0] + "/" + parts[1]
-		}
 	}
 	for index, part := range parts[:len(parts)-1] {
 		if index >= 2 && (part == "compose" || part == "composition") {

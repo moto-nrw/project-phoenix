@@ -48,14 +48,14 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := SessionRosters{Sessions: NewLoggedStudentPresence(db, logger), Roster: NewUnobservedTimetableDependencies(db).Capability}
+	rosters := NewUnobservedTimetableDependencies(db).Capability
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      module.IoT.Fleet(),
 		Presence:   NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,
 		Active:     module.Active,
 		Users:      NewDeviceScanPeople(module.Users),
-		Activities: module.Activities,
+		Activities: DeviceActivityCatalog(module.Activities),
 		Rosters:    rosters,
 		Education:  module.Education,
 		Pickups:    module.PickupSchedule,

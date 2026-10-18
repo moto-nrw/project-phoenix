@@ -115,7 +115,7 @@ type enrollmentReportSettings struct {
 
 func (s enrollmentReportSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
-		return true, nil
+		return configModels.EnrollmentCareOfferingsEnabledFallback, nil
 	}
 	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
 }

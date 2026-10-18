@@ -303,15 +303,12 @@ func composeMail(b graphBuild) (graphBuild, error) {
 		return b, err
 	}
 	b.dispatcher = email.NewDispatcher(mailer, b.Logger.With("component", "email"), email.DeliveryObserver(b.ObserveDelivery))
-	b.graph.DefaultFrom = email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
-	if b.graph.DefaultFrom.Address == "" {
-		b.graph.DefaultFrom = email.NewEmail("moto", "no-reply@moto.local")
-	}
+	b.graph.DefaultFrom = email.NewEmail(deliveryModule.SenderOrDefault(cfg.EmailFromName, cfg.EmailFromAddress))
 	if b, err = resolveLinks(b); err != nil {
 		return b, err
 	}
-	b.graph.InvitationTokenExpiry = clampedDuration(cfg.InvitationTokenExpiryHours, 48, 168, time.Hour)
-	b.graph.PasswordResetTokenExpiry = clampedDuration(cfg.PasswordResetExpiryMinutes, 30, 1440, time.Minute)
+	b.graph.InvitationTokenExpiry = identityaccess.InvitationTokenExpiry(cfg.InvitationTokenExpiryHours)
+	b.graph.PasswordResetTokenExpiry = identityaccess.PasswordResetTokenExpiry(cfg.PasswordResetExpiryMinutes)
 	return b, nil
 }
 
@@ -378,17 +375,6 @@ func requiredLink(name, raw string, production bool) (string, error) {
 		return "", fmt.Errorf("%s must use https:// in production (received %q)", name, raw)
 	}
 	return value, nil
-}
-
-// clampedDuration bounds a configured count to (0, upper], falling back to
-// fallback for a value at or below zero.
-func clampedDuration(value, fallback, upper int, unit time.Duration) time.Duration {
-	if value <= 0 {
-		value = fallback
-	} else if value > upper {
-		value = upper
-	}
-	return time.Duration(value) * unit
 }
 
 // composeSettings binds the realtime hub, the group management, the

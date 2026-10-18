@@ -530,7 +530,7 @@ func TestOfferingChangeRequestService_Decide_RebookingObsoletesWithdrawalWithout
 	studentID := fx.studentID
 	actorID := env.creatorID
 	repo := env.repos.CareWithdrawal
-	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: fx.switchDate,
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",

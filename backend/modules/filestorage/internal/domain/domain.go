@@ -103,6 +103,15 @@ type Actor struct {
 	Manager bool
 }
 
+// DisplayName is the actor's name as the file event trail records it; an
+// actor without a name is "Unbekannt".
+func (a Actor) DisplayName() string {
+	if name := strings.TrimSpace(a.Name); name != "" {
+		return name
+	}
+	return "Unbekannt"
+}
+
 // Folder is one folder of the school storage.
 type Folder struct {
 	ID         int64

@@ -72,10 +72,10 @@ type Dependencies struct {
 	// serves the dashboard must supply Berlin time (timezone.Now); device-only
 	// graphs may leave it unset and get plain instants.
 	Now func() time.Time
-	// OnlineWindow resolves the per-tenant iot.device_online_window_minutes
-	// setting. Graphs without a settings service leave it unset and the owner
-	// falls back to defaultDeviceOnlineWindow.
-	OnlineWindow func(context.Context) time.Duration
+	// OnlineWindowMinutes resolves the raw iot.device_online_window_minutes
+	// value. Graphs without a settings service leave it unset; unset and
+	// non-positive minutes fall back to the owner's default window.
+	OnlineWindowMinutes func(context.Context) int
 	// APIKeys mints device API keys; the root binds Security Runtime's minter.
 	APIKeys interface{ Mint() (string, error) }
 	Observe func(Observation)
@@ -129,7 +129,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Tokens:    credentials.DisplayTokens{},
 		APIKeys:   dependencies.APIKeys,
 		Now:       ports.Clock(now),
-		Window:    ports.WindowResolver(dependencies.OnlineWindow),
+		Window:    devicefleet.OnlineWindowFromMinutes(dependencies.OnlineWindowMinutes),
 		Observe:   observe,
 	})
 	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil

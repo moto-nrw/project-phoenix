@@ -11,7 +11,7 @@ import (
 
 type SchulhofService interface {
 	GetSchulhofStatus(context.Context, int64) (*SchulhofStatus, error)
-	EnsureInfrastructure(context.Context, int64) (*SystemActivity, error)
+	EnsureInfrastructure(context.Context, int64) (*facilitiesModule.SystemActivity, error)
 }
 
 type SchulhofStatus struct {
@@ -36,14 +36,14 @@ type SupervisorInfo struct {
 
 type schulhofService struct {
 	rooms      Service
-	activities ActivityCatalog
+	activities facilitiesModule.ActivityCatalog
 	groups     OpenGroupCatalog
 	logger     *slog.Logger
 }
 
 var errSchulhofActivityNotFound = errors.New("schulhof activity not found")
 
-func NewSchulhofService(rooms Service, activities ActivityCatalog, groups OpenGroupCatalog, logger *slog.Logger) SchulhofService {
+func NewSchulhofService(rooms Service, activities facilitiesModule.ActivityCatalog, groups OpenGroupCatalog, logger *slog.Logger) SchulhofService {
 	if rooms == nil || activities == nil || groups == nil {
 		panic("Schulhof service: rooms, activities, and open groups are required")
 	}
@@ -111,7 +111,7 @@ func applySupervisors(status *SchulhofStatus, supervisors []OpenGroupSupervisor,
 	status.SupervisorCount = len(status.Supervisors)
 }
 
-func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*SystemActivity, error) {
+func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*facilitiesModule.SystemActivity, error) {
 	room, err := s.ensureRoom(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof room: %w", err)
@@ -127,7 +127,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof category: %w", err)
 	}
-	created := SystemActivity{
+	created := facilitiesModule.SystemActivity{
 		Name: facilitiesModule.SchulhofActivityName, MaxParticipants: facilitiesModule.SchulhofMaxParticipants,
 		IsOpen: true, CategoryID: category.ID, PlannedRoomID: &room.ID, IsSystem: true,
 	}
@@ -146,7 +146,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 	return &created, nil
 }
 
-func (s *schulhofService) findActivity(ctx context.Context, room *facilitiesModule.Room) (*SystemActivity, error) {
+func (s *schulhofService) findActivity(ctx context.Context, room *facilitiesModule.Room) (*facilitiesModule.SystemActivity, error) {
 	groups, err := s.activities.ListActivities(ctx, facilitiesModule.SchulhofActivityName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
@@ -236,7 +236,7 @@ func (s *schulhofService) ensureRoom(ctx context.Context) (*facilitiesModule.Roo
 	return room, nil
 }
 
-func (s *schulhofService) ensureCategory(ctx context.Context) (*SystemCategory, error) {
+func (s *schulhofService) ensureCategory(ctx context.Context) (*facilitiesModule.SystemCategory, error) {
 	categories, err := s.activities.ListCategories(ctx)
 	if err != nil {
 		return nil, err
@@ -246,7 +246,7 @@ func (s *schulhofService) ensureCategory(ctx context.Context) (*SystemCategory, 
 			return &categories[index], nil
 		}
 	}
-	created, err := s.activities.CreateCategory(ctx, SystemCategory{
+	created, err := s.activities.CreateCategory(ctx, facilitiesModule.SystemCategory{
 		Name: facilitiesModule.SchulhofCategoryName, Description: facilitiesModule.SchulhofCategoryDescription,
 		Color: facilitiesModule.SchulhofColor, IsSystem: true,
 	})

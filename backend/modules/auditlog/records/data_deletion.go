@@ -89,6 +89,24 @@ const (
 	DeletionTypeSettingAuditRetention             = "setting_audit_retention"
 )
 
+// ProtocolRetentionTypes are the protocols of #4044 the Audit Platform
+// deletes itself, each after its fixed window and logged as its own data
+// kind, in the order the nightly cleanup deletes them.
+func ProtocolRetentionTypes() []string {
+	return []string{
+		DeletionTypeStudentDeletionLogRetention,
+		DeletionTypeEnrollmentDeletionLogRetention,
+		DeletionTypeEnrollmentRestorationLogRetention,
+		DeletionTypeTimeTrackingDeletionLogRetention,
+		DeletionTypeStaffMasterDataChangeRetention,
+		DeletionTypePersonnelNumberChangeRetention,
+		DeletionTypeGuardianFinancialChangeRetention,
+		DeletionTypeClassListChangeRetention,
+		DeletionTypeSubstitutionChangeRetention,
+		DeletionTypeFileEventRetention,
+	}
+}
+
 // IsDataKindRetention reports whether deletionType logs a whole data kind
 // without a subject.
 func IsDataKindRetention(deletionType string) bool {

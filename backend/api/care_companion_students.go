@@ -3,13 +3,11 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -36,7 +34,7 @@ type companionStudentRows interface {
 type CompanionStudents struct {
 	students companionStudentRows
 	people   CompanionStudentLock
-	audit    StudentChangeAudit
+	writes   peopleCompose.AuditedStudentUpdates
 }
 
 // CompanionStudentLock is the People Directory owner's refusing row lock: a
@@ -49,13 +47,13 @@ type CompanionStudentLock interface {
 // that never widen a companion's plan: the write refuses an unattributed
 // widening rather than skipping the trail.
 func NewCompanionStudents(students companionStudentRows, people CompanionStudentLock, audit StudentChangeAudit) carePlanCompose.CompanionStudents {
-	return CompanionStudents{students: students, people: people, audit: audit}
+	return CompanionStudents{students: students, people: people, writes: peopleCompose.NewAuditedStudentUpdates(students, audit)}
 }
 
 func companionStudent(row *users.Student) carePlanCompose.CompanionStudent {
 	return carePlanCompose.CompanionStudent{
 		ID:               row.ID,
-		HasCompanionNote: row.DepartureCompanionNote != nil && strings.TrimSpace(*row.DepartureCompanionNote) != "",
+		HasCompanionNote: peopledirectory.HasCompanionNote(row.DepartureCompanionNote),
 		AccompaniedDays:  users.AccompaniedWeekdays(row.AllowedDepartureModes, row.DepartureDays),
 	}
 }
@@ -104,49 +102,14 @@ func (s CompanionStudents) LockCompanionStudent(ctx context.Context, studentID i
 }
 
 // ExtendAccompaniedDays widens one child's allowed departure modes so the
-// days permit leaving with another child. Purely additive: the bus and
-// pickup permissions of those days stay untouched.
-//
-// The row is re-read under its lock rather than reused from an unlocked
-// snapshot: widening writes the WHOLE student row, so a change another request
-// committed in between would otherwise be rolled back by a stale write.
+// days permit leaving with another child (People Directory's locked
+// WidenAccompaniedDaysByID). Purely additive: the bus and pickup permissions
+// of those days stay untouched. A missing child is Care Plan's
+// ErrCompanionNotFound.
 func (s CompanionStudents) ExtendAccompaniedDays(ctx context.Context, studentID int64, days []string, actorAccountID int64) error {
-	companion, err := s.students.FindByIDForUpdate(ctx, studentID)
-	if err != nil {
-		if peoplePorts.IsRepositoryNoRows(err) {
-			return careplan.ErrCompanionNotFound
-		}
-		return err
-	}
-	if companion == nil {
+	found, err := s.writes.WidenAccompaniedDaysByID(ctx, studentID, days, actorAccountID)
+	if err == nil && !found {
 		return careplan.ErrCompanionNotFound
 	}
-	allowed := users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
-	var missing []string
-	for _, day := range careplan.CompanionWeekdays {
-		if slices.Contains(days, day) && !allowed[day] {
-			missing = append(missing, day)
-		}
-	}
-	if len(missing) == 0 {
-		return nil
-	}
-	if s.audit != nil && actorAccountID <= 0 {
-		return errors.New("users: companion departure audit requires an actor account")
-	}
-	before := *companion
-	companion.AllowedDepartureModes = users.WithAccompaniedDays(companion.AllowedDepartureModes, missing)
-	// The links about to be written ARE the "mit wem" detail for exactly these
-	// weekdays. Days the companion already had accompanied stay uncovered on
-	// purpose: the repository probes the stored edges for those.
-	companion.MarkDepartureCompanionDays(days...)
-	if err := s.students.Update(ctx, companion); err != nil {
-		return err
-	}
-	if s.audit != nil {
-		if err := s.audit.RecordChangesForActor(ctx, &before, companion, actorAccountID); err != nil {
-			return fmt.Errorf("users: audit companion departure plan: %w", err)
-		}
-	}
-	return nil
+	return err
 }

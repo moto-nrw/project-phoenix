@@ -511,3 +511,16 @@ func TestResponseOverview_Errors(t *testing.T) {
 		assert.ErrorIs(t, err, boom)
 	})
 }
+
+func TestResponseOverview_OnlyActiveChildrenAreAsked(t *testing.T) {
+	t.Parallel()
+	roster := responseRoster{
+		{ID: 41, LastName: "Aktiv", SchoolClass: "1a"},
+		{ID: 42, LastName: "Wartend", SchoolClass: "1a", NotActive: true},
+	}
+	svc := newResponseService(nextYearPhase(), &responseChildren{}, roster, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, 1, overview.Expected, "a child that is not active is not asked to re-enroll")
+}

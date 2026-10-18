@@ -78,7 +78,6 @@ func (f CareWithdrawalCompletionFilter) Normalized() CareWithdrawalCompletionFil
 }
 
 type CareWithdrawalCompletionRepository interface {
-	UpsertPending(ctx context.Context, completion *CareWithdrawalCompletion) error
 	FindByID(ctx context.Context, id int64) (*CareWithdrawalCompletion, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*CareWithdrawalCompletion, error)
 	ListPending(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)

@@ -96,6 +96,14 @@ const (
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
 )
 
+// The room history (Raumverlauf) reads its switch and window with these
+// fallbacks when a school's value cannot be read: no attendance log and a
+// window of 7 days, the registry defaults.
+const (
+	AttendanceLogEnabledFallback  = false
+	RoomDetailVisibleDaysFallback = 7
+)
+
 // Feedback settings.
 const (
 	KeyFeedbackEnabled           = "feedback.enabled"
@@ -275,6 +283,30 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
+// IsBinaryPresence reports whether a stored presence mode is the binary mode;
+// anything else is the detailed mode.
+func IsBinaryPresence(value string) bool {
+	return value == PresenceModeBinary
+}
+
+// PresenceModeOf reads a stored presence mode: anything but binary is the
+// detailed mode.
+func PresenceModeOf(value string) string {
+	if value == PresenceModeBinary {
+		return PresenceModeBinary
+	}
+	return PresenceModeDetailed
+}
+
+// GroupModeOf reads a stored group mode: anything but open care is fixed
+// groups.
+func GroupModeOf(value string) string {
+	if value == GroupModeOpenCare {
+		return GroupModeOpenCare
+	}
+	return GroupModeFixedGroups
+}
+
 // OperationalOverviewScope option values for KeyOperationalOverviewScope.
 // The setting decides which educational groups and running modules staff can
 // see; role permissions independently decide which actions they may perform.
@@ -289,6 +321,13 @@ const (
 	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
 )
+
+// OverviewOpenToAllStaff reports an overview scope that opens every group and
+// running module to all verified staff; any other value keeps the personal
+// view.
+func OverviewOpenToAllStaff(scope string) bool {
+	return scope == OverviewScopeAllStaff
+}
 
 // AttendanceEditScope extends attendance actions, not supervision or planning.
 const (
@@ -311,6 +350,13 @@ const (
 	StudentAbsenceEditScopeAdmins   = "admins"
 	StudentAbsenceEditScopeAllStaff = "all_staff"
 )
+
+// StudentAbsenceEditOpenToAllStaff reports a scope that lets every staff
+// member report sick and excused days directly; any other value keeps it to
+// admins.
+func StudentAbsenceEditOpenToAllStaff(scope string) bool {
+	return scope == StudentAbsenceEditScopeAllStaff
+}
 
 // ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors
 // (#2962). The setting says who may set a class-wide arrival day exception;
@@ -336,6 +382,12 @@ const (
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
 )
+
+// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
+// the school portal set class-wide arrival day exceptions.
+func SchoolPortalWritesClassArrivalExceptions(scope string) bool {
+	return scope == SchoolPortalWriteScopeClassArrivalExceptions
+}
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
 // setting says who has to write a reason for a parent request: the guardian
@@ -437,6 +489,11 @@ const (
 	KeyEmailReplyToAddress         = "email.reply_to_address"
 	KeyEnrollmentLegalPhotoEnabled = "enrollment.legal_photo_enabled"
 )
+
+// EnrollmentCareOfferingsEnabledFallback is what the enrollment reports read
+// for enrollment.care_offerings_enabled when no settings resolver is bound:
+// the registry default, care offerings on.
+const EnrollmentCareOfferingsEnabledFallback = true
 
 // Enrollment select-option values.
 const (

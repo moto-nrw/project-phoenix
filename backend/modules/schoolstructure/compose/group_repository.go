@@ -4,24 +4,26 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups"
+	supervision "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 type DirectoryRoom = groups.DirectoryRoom
-type GroupMembershipPairs = groups.GroupMembershipPairs
-type TeacherGroupID = groups.TeacherGroupID
+type TeacherGroupID = domain.TeacherGroupID
 type GroupRoomLookup = groups.RoomDirectory
 
 type GroupRepositoryDependencies struct {
 	Rooms               func() GroupRoomLookup
 	TeachingAssignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
-	SupervisingStaff    func(context.Context, GroupMembershipPairs) ([]domain.StaffGroupID, error)
+	TeacherStaffIDs     func(context.Context, []int64) (map[int64]int64, error)
+	LiveStaffIDs        func(context.Context, []int64) (map[int64]bool, error)
+	GroupSubstitutes    func(context.Context, []int64, string) ([]domain.StaffGroupID, error)
 }
 
 // NewGroupRepository serves retained consumer-owned record ports from the
 // School Structure owner. No implementation handle escapes.
 func NewGroupRepository(runtime groups.Runtime, deps GroupRepositoryDependencies) *GroupRepository {
-	store := groups.NewGroupRepository(runtime, deps.Rooms, deps.TeachingAssignments, deps.SupervisingStaff)
+	store := groups.NewGroupRepository(runtime, deps.Rooms, deps.TeachingAssignments, supervision.SupervisingStaff(supervision.SupervisionSources{TeacherStaffIDs: deps.TeacherStaffIDs, LiveStaffIDs: deps.LiveStaffIDs, GroupSubstitutes: deps.GroupSubstitutes}))
 	return &GroupRepository{store: store}
 }
 

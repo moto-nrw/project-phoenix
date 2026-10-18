@@ -112,10 +112,8 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 		return nil, err
 	}
 	result := make([]organizationCompose.ProvisioningRole, 0, len(roles))
-	for _, role := range roles {
-		if role.IsSystem {
-			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
-		}
+	for _, role := range identityaccess.SystemRoles(roles) {
+		result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
 	}
 	return result, nil
 }
@@ -155,16 +153,14 @@ func (p provisioningIdentity) role(id int64, name string, system bool, tenantID 
 	}
 }
 
-// InviteSchoolAdmin hands out the school admin role. The caller is
-// operator-authenticated (platform scope, no tenant permission set), so the
-// tenant-side role-grant check does not apply.
+// InviteSchoolAdmin hands out the school admin role as Identity & Access's
+// operator invitation; the caller is operator-authenticated (platform scope,
+// no tenant permission set).
 func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request organizationCompose.SchoolAdminInvitationRequest) (organizationCompose.SchoolAdminInvitation, error) {
-	invitation, err := p.invitations.CreateSchoolInvitation(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.SchoolInvitationRequest{
-		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID,
-		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position,
-		CaregiverEnabled: request.CaregiverEnabled,
-		OperatorGrant:    true,
-	})
+	invitation, err := p.invitations.CreateSchoolInvitation(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.OperatorSchoolInvitation(
+		request.Email, request.RoleID, request.TenantID,
+		request.FirstName, request.LastName, request.Position, request.CaregiverEnabled,
+	))
 	if err != nil {
 		// The operator routes classify on the provisioning capability's own
 		// contract; they may not name the owner's (#3364).
@@ -214,7 +210,7 @@ func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 		LastName:         request.LastName,
 		Position:         request.Position,
 		CaregiverUpgrade: request.CaregiverUpgrade,
-		CreatePerson:     true,
+		CreatePerson:     identityaccess.OperatorProvisioningCreatesPerson,
 	})
 	if errors.Is(err, identityaccess.ErrSchoolIdentityNamesRequired) || errors.Is(err, identityaccess.ErrSchoolIdentityPersonIsStudent) {
 		return invalidSchoolIdentityError{err: err}

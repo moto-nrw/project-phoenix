@@ -49,31 +49,6 @@ func (r careWithdrawalCompletionRepository) owner() (careplan.Capability, error)
 	return carePlan, nil
 }
 
-func (r careWithdrawalCompletionRepository) UpsertPending(ctx context.Context, completion *userModels.CareWithdrawalCompletion) error {
-	if completion.StudentID == nil || *completion.StudentID <= 0 {
-		return errors.New("care withdrawal completion requires a student")
-	}
-	carePlan, err := r.owner()
-	if err != nil {
-		return err
-	}
-	completion.State = userModels.CareWithdrawalStatePending
-	if completion.SourceOfferings == nil {
-		completion.SourceOfferings = []userModels.CareExitSourceOffering{}
-	}
-	value, err := withdrawalCompletionToPublic(completion)
-	if err != nil {
-		return err
-	}
-	stored, err := carePlan.UpsertPendingWithdrawal(ctx, value)
-	if err != nil {
-		return fmt.Errorf("upsert pending care withdrawal completion: %w", err)
-	}
-	completion.ID, completion.TenantID = stored.ID, stored.TenantID
-	completion.CreatedAt, completion.UpdatedAt = stored.CreatedAt, stored.UpdatedAt
-	return nil
-}
-
 // FindByID preserves this contract's nil-on-not-found behavior.
 func (r careWithdrawalCompletionRepository) FindByID(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {
 	return r.find(ctx, id, false)
@@ -290,22 +265,6 @@ func (r careWithdrawalCompletionRepository) ReopenAfterCancelledExit(
 		return false, fmt.Errorf("reopen care withdrawal after cancelled exit: %w", err)
 	}
 	return changed, nil
-}
-
-func withdrawalCompletionToPublic(completion *userModels.CareWithdrawalCompletion) (careplan.WithdrawalCompletion, error) {
-	offerings, err := json.Marshal(completion.SourceOfferings)
-	if err != nil {
-		return careplan.WithdrawalCompletion{}, fmt.Errorf("encode care withdrawal source offerings: %w", err)
-	}
-	return careplan.WithdrawalCompletion{
-		ID: completion.ID, TenantID: completion.TenantID, CreatedAt: completion.CreatedAt, UpdatedAt: completion.UpdatedAt,
-		StudentID: completion.StudentID, FirstBookinglessDay: careplan.Date(completion.FirstBookinglessDay),
-		Trigger: completion.Trigger, SourceAdjustmentID: completion.SourceAdjustmentID,
-		SourceRequestChildID: completion.SourceRequestChildID, WithdrawalConfirmedBy: completion.WithdrawalConfirmedBy,
-		WithdrawalConfirmedRole: completion.WithdrawalConfirmedRole, WithdrawalConfirmedAt: completion.WithdrawalConfirmedAt,
-		SourceOfferings: offerings, State: completion.State, Outcome: completion.Outcome,
-		ObsoleteReason: completion.ObsoleteReason, ResolvedBy: completion.ResolvedBy, ResolvedAt: completion.ResolvedAt,
-	}, nil
 }
 
 func withdrawalCompletionToLegacy(value careplan.WithdrawalCompletion) (*userModels.CareWithdrawalCompletion, error) {

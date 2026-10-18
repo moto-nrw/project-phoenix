@@ -95,6 +95,12 @@ func (e *OperationError) Unwrap() error {
 	return e.Err
 }
 
+// SchoolStatusReadFailed is the masked failure of a school-status read: the
+// public text of the retained Active service, without the owner's details.
+func SchoolStatusReadFailed() error {
+	return &OperationError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
+}
+
 // RoomCapacityCode is the stable error code of a web admission refused
 // because the room is full (#3633). Clients map it to their own text. The
 // kiosk keeps its own ROOM_CAPACITY_EXCEEDED contract.
@@ -307,6 +313,12 @@ type UnclaimedSession struct {
 	UnclaimedGroup
 	Room     *SessionRoomSummary
 	Activity *SessionActivitySummary
+}
+
+// VisitsFromAnotherSchool reports whether a child of the home school is a
+// visitor at the hosting school: only a child of another school is.
+func VisitsFromAnotherSchool(homeTenantID, hostingTenantID int64) bool {
+	return homeTenantID != hostingTenantID
 }
 
 // CrossTenantStudent is a child hosted from another school.

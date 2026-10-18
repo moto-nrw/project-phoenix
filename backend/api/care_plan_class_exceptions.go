@@ -11,11 +11,7 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type classArrivalStudentDirectory interface {
-	ListStudentRecordsByClass(context.Context, []string, peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error)
-}
-
-func NewClassArrivalExceptions(records timetable.ClassArrivalExceptions, students classArrivalStudentDirectory) (careplan.ClassArrivalExceptions, error) {
+func NewClassArrivalExceptions(records timetable.ClassArrivalExceptions, students peopledirectory.StudentClassRecords) (careplan.ClassArrivalExceptions, error) {
 	if records == nil || students == nil {
 		return nil, errors.New("class arrival exceptions: timetable and students are required")
 	}
@@ -56,17 +52,11 @@ func carePlanClassException(row timetable.ClassArrivalException) *careplan.Class
 		SchoolClass: row.SchoolClass, Date: timezone.Date(row.Date), ArrivalTime: row.ArrivalTime, Reason: row.Reason, CreatedBy: row.CreatedBy, Origin: row.Origin}
 }
 
-type classArrivalStudents struct{ students classArrivalStudentDirectory }
+type classArrivalStudents struct {
+	students peopledirectory.StudentClassRecords
+}
 
+// HasActiveClass is People Directory's HasActiveClass.
 func (s classArrivalStudents) HasActiveClass(ctx context.Context, class string, today timezone.Date) (bool, error) {
-	rows, err := s.students.ListStudentRecordsByClass(ctx, []string{class}, peopledirectory.StudentScopeEnrolled)
-	if err != nil {
-		return false, err
-	}
-	for _, row := range rows {
-		if row.EnrolledUntil == "" || !today.After(timezone.Date(row.EnrolledUntil)) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return peopledirectory.HasActiveClass(ctx, s.students, class, today)
 }

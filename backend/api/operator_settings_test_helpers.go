@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -47,7 +46,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 		return OperatorSettingsTestModule{}, err
 	}
 	registry := settingsCompose.NewSideEffectRegistry()
-	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
+	wc := facilitiesCompose.NewWCService(active.Facilities, FacilitiesActivityCatalog(active.Activities), slog.Default())
 	registerCheckoutSettingsSideEffects(registry, active.Schulhof, wc)
 	RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{

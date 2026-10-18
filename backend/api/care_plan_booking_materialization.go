@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -70,7 +72,7 @@ func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.Bo
 		Periods:     bookingPeriods{calendar: inputs.Periods},
 		Enrollment:  bookingEnrollment{owner: inputs.Enrollment, approved: inputs.Approved},
 		Students:    bookingStudents{people: inputs.Students},
-		Settings:    BookingSettings{Settings: inputs.Settings},
+		Settings:    settingsModule.NewCareBookingValues(inputs.Settings),
 		Bookings:    inputs.Bookings,
 		Withdrawals: inputs.Withdrawals,
 		Audit:       bookingAdjustmentAudit{repo: inputs.Adjustments, persons: inputs.Persons, accounts: inputs.Accounts},
@@ -240,16 +242,14 @@ func (r bookingRosters) ReconcileTemplateRosters(ctx context.Context, templateID
 type bookingTemplates struct{ timetable bookingTimetableOwner }
 
 func (t bookingTemplates) TemplatesWithOfferingSource(ctx context.Context) ([]careplanCompose.SourcedTemplate, error) {
-	isTemplate := true
-	return t.list(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true})
+	return t.list(ctx, timetable.ActiveOfferingSourcedTemplates())
 }
 
 func (t bookingTemplates) TemplatesSourcedFrom(ctx context.Context, offeringIDs []int64) ([]careplanCompose.SourcedTemplate, error) {
 	if len(offeringIDs) == 0 {
 		return []careplanCompose.SourcedTemplate{}, nil
 	}
-	isTemplate := true
-	return t.list(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true})
+	return t.list(ctx, timetable.ActiveTemplatesSourcedFrom(offeringIDs))
 }
 
 func (t bookingTemplates) Groups(ctx context.Context, ids []int64) ([]careplanCompose.SourcedTemplate, error) {
@@ -346,7 +346,7 @@ func (e bookingEnrollment) Child(ctx context.Context, id int64) (careplanCompose
 		return careplanCompose.BookingChild{}, careplanCompose.BookingRowNotFound(fmt.Errorf("request child %d not found", id))
 	}
 	return careplanCompose.BookingChild{
-		ID: child.ID, RequestID: child.RequestID, Approved: child.Status == enrollmentOwner.ChildStatusApproved,
+		ID: child.ID, RequestID: child.RequestID, Approved: child.IsApproved(),
 		CreatedStudentID: child.CreatedStudentID, TargetGradeLevel: child.TargetGradeLevel,
 	}, nil
 }

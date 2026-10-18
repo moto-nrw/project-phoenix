@@ -86,3 +86,11 @@ func NewActivityGroupRecords(capability timetable.Capability) activities.GroupRe
 func (r Repositories) GroupReads() application.TimetableGroupReads {
 	return application.NewTimetableGroupReads(r.ActivityGroup)
 }
+
+// NativeRecords exposes native session and template ports over these same wiring values.
+func (r Repositories) NativeRecords() interface {
+	timetable.SessionRecords
+	timetable.TemplateCatalog
+} {
+	return application.SessionRecords{Instances: r.ActivityInstance, Staff: r.InstanceStaff, Groups: r.ActivityGroup}
+}

@@ -138,7 +138,7 @@ func TestScan_StudentLookupFailureFallsThroughToStaff(t *testing.T) {
 	h := newHarness(t)
 	h.people.studentErr = errBoom
 	h.people.staff[testPersonID] = &ports.StaffMember{ID: testStaffID}
-	h.sessions.current = &ports.Session{ID: 201, RoomName: "Kreativraum", ActivityName: "Basteln"}
+	h.sessions.current = &devicescan.Session{ID: 201, RoomName: "Kreativraum", ActivityName: "Basteln"}
 
 	result, err := h.service().Scan(context.Background(), scanCommand(nil))
 
@@ -151,8 +151,8 @@ func TestScan_SupervisorJoinsSession(t *testing.T) {
 	h := newHarness(t)
 	delete(h.people.students, testPersonID)
 	h.people.staff[testPersonID] = &ports.StaffMember{ID: testStaffID}
-	h.sessions.current = &ports.Session{ID: 201, RoomName: "Kreativraum", ActivityName: "Basteln"}
-	h.sessions.supervisors = []ports.Supervisor{{StaffID: 7}, {StaffID: 8, Ended: true}}
+	h.sessions.current = &devicescan.Session{ID: 201, RoomName: "Kreativraum", ActivityName: "Basteln"}
+	h.sessions.supervisors = []devicescan.Supervisor{{StaffID: 7}, {StaffID: 8, Ended: true}}
 
 	result, err := h.service().Scan(context.Background(), scanCommand(nil))
 
@@ -173,8 +173,8 @@ func TestScan_SupervisorScanIsIdempotent(t *testing.T) {
 	h := newHarness(t)
 	delete(h.people.students, testPersonID)
 	h.people.staff[testPersonID] = &ports.StaffMember{ID: testStaffID}
-	h.sessions.current = &ports.Session{ID: 201, RoomName: "Kreativraum"}
-	h.sessions.supervisors = []ports.Supervisor{{StaffID: testStaffID}}
+	h.sessions.current = &devicescan.Session{ID: 201, RoomName: "Kreativraum"}
+	h.sessions.supervisors = []devicescan.Supervisor{{StaffID: testStaffID}}
 
 	result, err := h.service().Scan(context.Background(), scanCommand(nil))
 
@@ -209,7 +209,7 @@ func TestScan_SupervisorWriteFailures(t *testing.T) {
 			h := newHarness(t)
 			delete(h.people.students, testPersonID)
 			h.people.staff[testPersonID] = &ports.StaffMember{ID: testStaffID}
-			h.sessions.current = &ports.Session{ID: 201}
+			h.sessions.current = &devicescan.Session{ID: 201}
 			tc.arrange(h)
 
 			_, err := h.service().Scan(context.Background(), scanCommand(nil))
@@ -545,7 +545,7 @@ func TestScan_ActiveStudentsScopedToDeviceSession(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	deviceID := testDeviceID
-	h.sessions.open = append(h.sessions.open, ports.Session{ID: 202, RoomID: testRoomID, StartTime: fixedNow, DeviceID: &deviceID, Activity: &ports.Activity{ID: 302, Name: "Device Session"}})
+	h.sessions.open = append(h.sessions.open, devicescan.Session{ID: 202, RoomID: testRoomID, StartTime: fixedNow, DeviceID: &deviceID, Activity: &devicescan.Activity{ID: 302, Name: "Device Session"}})
 	h.presence.groupCounts[202] = 1
 	h.presence.roomCounts[testRoomID] = 3
 
@@ -561,7 +561,7 @@ func TestScan_ActiveStudentsScopedToDeviceSession(t *testing.T) {
 func TestScan_ActiveStudentsFallsBackToDeviceSessionLookup(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	h.sessions.deviceSession = &ports.Session{ID: 250}
+	h.sessions.deviceSession = &devicescan.Session{ID: 250}
 	h.presence.groupCounts[250] = 4
 
 	result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
@@ -577,7 +577,7 @@ func TestScan_ActiveStudentsFallsBackToDeviceSessionLookup(t *testing.T) {
 func TestScan_SessionHeartbeatFailureIsBestEffort(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	h.sessions.deviceSession = &ports.Session{ID: 250}
+	h.sessions.deviceSession = &devicescan.Session{ID: 250}
 	h.sessions.touchErr = errBoom
 
 	result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
@@ -686,7 +686,7 @@ func TestPingAndStatus(t *testing.T) {
 	t.Run("ping records the heartbeat and reports the session", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		h.sessions.current = &ports.Session{ID: 201}
+		h.sessions.current = &devicescan.Session{ID: 201}
 
 		ping, err := h.service().Ping(context.Background())
 
@@ -701,7 +701,7 @@ func TestPingAndStatus(t *testing.T) {
 	t.Run("a failed session refresh still reports the session", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		h.sessions.current = &ports.Session{ID: 201}
+		h.sessions.current = &devicescan.Session{ID: 201}
 		h.sessions.touchErr = errBoom
 
 		ping, err := h.service().Ping(context.Background())

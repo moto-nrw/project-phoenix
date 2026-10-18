@@ -5,7 +5,6 @@ import (
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
@@ -29,7 +28,7 @@ func (e careExitEnrollment) CareExitApplicationLinks(ctx context.Context, studen
 	for _, link := range links {
 		result = append(result, carePlanCompose.CareExitApplication{
 			ID: link.ID, TenantID: link.TenantID, CreatedStudentID: link.CreatedStudentID,
-			MatchedStudentID: link.MatchedStudentID, Approved: link.Status == enrollment.ChildStatusApproved,
+			MatchedStudentID: link.MatchedStudentID, Approved: link.IsApproved(),
 		})
 	}
 	return result, nil
@@ -55,19 +54,13 @@ func (e careExitEnrollment) LockCareExitOfferingLinks(ctx context.Context, reque
 	return e.projection.LockCareExitOfferingLinks(ctx, requestChildIDs, enrollment.Date(from))
 }
 
-// CareExitOfferingSnapshots keeps only the snapshots of the request's school:
-// the ledger that stores them is the care exit's reversible record.
 func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil users.CalendarDate, sourceRequestChildID *int64) ([]carePlanCompose.CareExitOfferingSnapshot, error) {
 	snapshots, err := e.projection.CareExitOfferingSnapshots(ctx, studentIDs, enrollment.Date(validUntil), sourceRequestChildID)
 	if err != nil {
 		return nil, err
 	}
-	tenantID := peopleCompose.CallerTenantID(ctx)
 	result := make([]carePlanCompose.CareExitOfferingSnapshot, 0, len(snapshots))
 	for _, snapshot := range snapshots {
-		if snapshot.TenantID != tenantID {
-			continue
-		}
 		result = append(result, carePlanCompose.CareExitOfferingSnapshot{
 			TenantID: snapshot.TenantID, StudentID: snapshot.StudentID, RequestChildID: snapshot.RequestChildID,
 			SourceRowID: snapshot.SourceRowID, WasDeleted: snapshot.WasDeleted, Snapshot: snapshot.Snapshot,

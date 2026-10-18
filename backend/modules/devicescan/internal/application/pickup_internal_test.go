@@ -32,7 +32,7 @@ func TestPickupInfo(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.pickups.pickup = &ports.Pickup{Time: ptr(time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)), DayNotes: []string{"Mama holt heute frueher ab"}}
-		h.sessions.current = &ports.Session{ID: 201}
+		h.sessions.current = &devicescan.Session{ID: 201}
 
 		info, err := h.service().PickupInfo(ctx, testTag)
 
@@ -50,7 +50,7 @@ func TestPickupInfo(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.pickups.pickup = &ports.Pickup{Time: ptr(time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC))}
-		h.sessions.current = &ports.Session{ID: 201}
+		h.sessions.current = &devicescan.Session{ID: 201}
 		h.sessions.touchErr = errBoom
 
 		info, err := h.service().PickupInfo(ctx, testTag)

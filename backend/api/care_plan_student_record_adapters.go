@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -51,11 +52,13 @@ func (r CompanionRepository) ListLinksForStudents(ctx context.Context, studentID
 	return result, nil
 }
 
+// CompanionIDsForWeekday binds the owner's weekday refusal to the people
+// model's sentinel.
 func (r CompanionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
-	if _, ok := userModels.CompanionWeekdayKeys[weekday]; !ok {
+	values, err := r.Capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
+	if errors.Is(err, careplan.ErrInvalidCompanion) {
 		return nil, userModels.ErrCompanionInvalidWeekday
 	}
-	values, err := r.Capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 	return values, WrapRetainedError("list companions for weekday", err)
 }
 

@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"golang.org/x/text/collate"
-	"golang.org/x/text/language"
 )
 
 // TeacherMembershipRepository serves users.TeacherRepository over the School
@@ -338,6 +335,7 @@ func (r TeacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	if err != nil {
 		return nil, err
 	}
+	schoolmembership.SortActiveCaregivers(values)
 	result := make([]*userModels.ActiveCaregiver, 0, len(values))
 	for _, value := range values {
 		result = append(result, &userModels.ActiveCaregiver{
@@ -346,7 +344,6 @@ func (r TeacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 			CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		})
 	}
-	sortActiveCaregivers(result)
 	return result, nil
 }
 
@@ -378,25 +375,6 @@ func (d caregiverDirectory) ListAccountIDsWithSystemRoleNames(ctx context.Contex
 
 func (d caregiverDirectory) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	return d.deps.identity.ListAccountEmails(ctx, accountIDs)
-}
-
-// sortActiveCaregivers keeps the picker order of the replaced query: first
-// name, last name, staff ID under the database collation (en_US.utf8). German
-// dictionary order keeps that order: "Özlem" sorts next to "Otto", not after
-// "Zimmermann". Same settings as internal/collation, which the architecture
-// policy keeps out of this package; one collator per call, it is not safe for
-// concurrent use.
-func sortActiveCaregivers(result []*userModels.ActiveCaregiver) {
-	collator := collate.New(language.German, collate.IgnoreCase)
-	sort.SliceStable(result, func(i, j int) bool {
-		if c := collator.CompareString(result[i].FirstName, result[j].FirstName); c != 0 {
-			return c < 0
-		}
-		if c := collator.CompareString(result[i].LastName, result[j].LastName); c != 0 {
-			return c < 0
-		}
-		return result[i].StaffID < result[j].StaffID
-	})
 }
 
 func (r TeacherMembershipRepository) ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error) {

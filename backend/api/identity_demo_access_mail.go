@@ -48,7 +48,7 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 	}
 	return &DemoAccessWiring{
 		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL, MaxActiveSchools: maxActiveSchools, Logger: logger,
-		OperatorWithoutSecondFactor: true,
+		OperatorWithoutSecondFactor: identityaccess.DemoOperatorWithoutSecondFactor,
 		NewToken:                    tokens.NewCapabilityToken, Fingerprint: tokens.CapabilityFingerprint,
 	}
 }
@@ -67,9 +67,6 @@ func newDemoAccessMail(wiring *DemoAccessWiring) demoAccessMail {
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	if backoff == nil {
-		backoff = passwordResetEmailBackoff
-	}
 	return demoAccessMail{
 		dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, backoff: backoff, logger: logger,
 		origin: wiring.FrontendURL,
@@ -95,11 +92,9 @@ func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int6
 			slog.Int64("demo_access_id", accessID))
 		return
 	}
-	m.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.DeliveryRequest{
-		Message:       message,
-		Metadata:      email.DeliveryMetadata{Type: kind, ReferenceID: accessID, Recipient: message.To.Address},
-		BackoffPolicy: m.backoff,
-		MaxAttempts:   3,
+	m.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.WithInteractiveRetry(email.DeliveryRequest{
+		Message:  message,
+		Metadata: email.DeliveryMetadata{Type: kind, ReferenceID: accessID, Recipient: message.To.Address},
 		Callback: func(_ context.Context, result email.DeliveryResult) {
 			if result.Final && result.Status == email.DeliveryStatusFailed {
 				m.logger.Error("demo mail permanently failed",
@@ -108,5 +103,5 @@ func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int6
 					slog.Any("error", result.Err))
 			}
 		},
-	})
+	}, m.backoff))
 }

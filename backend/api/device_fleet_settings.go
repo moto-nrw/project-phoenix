@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -19,21 +20,23 @@ type DeviceOnlineWindowSettings interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
-// NewOnlineWindowResolver reads the per-tenant
-// iot.device_online_window_minutes setting. A missing override, a
-// non-positive value, or a lookup failure yields zero, and Device Fleet then
-// applies its own default.
-func NewOnlineWindowResolver(settings DeviceOnlineWindowSettings, logger *slog.Logger) func(context.Context) time.Duration {
+// NewOnlineWindowMinutes reads the per-tenant raw
+// iot.device_online_window_minutes setting. A missing override or a lookup
+// failure yields zero; Device Fleet applies its default to a non-positive
+// value.
+func NewOnlineWindowMinutes(settings DeviceOnlineWindowSettings, logger *slog.Logger) func(context.Context) int {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return func(ctx context.Context) time.Duration {
-		minutes := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyDeviceOnlineWindowMinutes, 0, logger)
-		if minutes <= 0 {
-			return 0
-		}
-		return time.Duration(minutes) * time.Minute
+	return func(ctx context.Context) int {
+		return settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyDeviceOnlineWindowMinutes, 0, logger)
 	}
+}
+
+// NewOnlineWindowResolver binds the raw setting to Device Fleet's
+// online-window rule for consumers that take the resolved window.
+func NewOnlineWindowResolver(settings DeviceOnlineWindowSettings, logger *slog.Logger) func(context.Context) time.Duration {
+	return devicefleet.OnlineWindowFromMinutes(NewOnlineWindowMinutes(settings, logger))
 }
 
 // DisplaySchoolDirectory reads the display facts of one school. Organisation

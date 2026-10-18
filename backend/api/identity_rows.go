@@ -75,8 +75,6 @@ type pushSubscriptionRows interface {
 	DeleteParentByAccountID(ctx context.Context, accountID int64) error
 	DeleteSchoolByAccountID(ctx context.Context, accountID int64) error
 	DeleteByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
-	DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
-	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
-	DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	DeleteUnboundByAccountForPortal(ctx context.Context, accountID, tenantID int64, portal string) error
 	DeleteOrphanedSubscriptions(ctx context.Context) error
 }

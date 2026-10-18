@@ -149,6 +149,9 @@ type PushSubscriptionRepository interface {
 	// DeleteSchoolUnboundByAccount is DeleteStaffUnboundByAccount for
 	// school-portal subscriptions (#2208).
 	DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteUnboundByAccountForPortal is the unbound delete of the given
+	// portal; a portal other than parent or school is the staff portal.
+	DeleteUnboundByAccountForPortal(ctx context.Context, accountID, tenantID int64, portal string) error
 	// DeleteOrphanedSubscriptions removes push rows whose token family is gone
 	// or whose account has no live session left for that portal. Unbound
 	// parent rows stay if any parent session exists on the account.

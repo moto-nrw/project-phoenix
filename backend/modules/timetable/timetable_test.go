@@ -13,6 +13,7 @@ import (
 
 type recordingEngine struct {
 	timetable.RecurrenceRuleQuery
+	timetable.SessionRosterQuery
 	timetable.CareExitRosterCommand
 	timetable.CareExitBaselineQuery
 	timetable.ConflictAckCapability

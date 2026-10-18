@@ -26,6 +26,16 @@ type VisitLocationFilter struct {
 	LatestPerStudent  bool
 }
 
+// CurrentRoomVisitsFilter selects each student's latest open visit inside a
+// running session: the visit whose session room locates the student now.
+func CurrentRoomVisitsFilter(studentIDs []int64) VisitLocationFilter {
+	return VisitLocationFilter{
+		VisitFilter:       VisitFilter{StudentIDs: studentIDs, OpenOnly: true},
+		RunningGroupsOnly: true,
+		LatestPerStudent:  true,
+	}
+}
+
 type VisitLocationQuery interface {
 	ListVisitLocations(context.Context, VisitLocationFilter) ([]VisitLocation, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, error)

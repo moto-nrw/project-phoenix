@@ -12,6 +12,9 @@ type CareExitApplicationLink struct {
 	Status           string `json:"status"`
 }
 
+// IsApproved reports whether the application was approved.
+func (l CareExitApplicationLink) IsApproved() bool { return l.Status == ChildStatusApproved }
+
 // CareExitApplicationLinks returns links for the selected students. An empty
 // selection supplies the school's links for the scheduled expiry evaluation.
 func (m *Module) CareExitApplicationLinks(ctx context.Context, studentIDs []int64) ([]CareExitApplicationLink, error) {

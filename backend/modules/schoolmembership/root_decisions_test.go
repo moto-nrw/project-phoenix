@@ -178,3 +178,20 @@ func TestGroupTeacherBlockers(t *testing.T) {
 		{AssignmentID: 91, GroupID: 71, GroupName: "Wölfe", TeacherID: 41, TeacherIDs: []int64{41, 43}},
 	}, blockers)
 }
+
+func TestSortActiveCaregiversUsesTheGermanPickerOrder(t *testing.T) {
+	t.Parallel()
+	caregivers := []schoolmembership.ActiveCaregiver{
+		{StaffID: 15, FirstName: "Zoe", LastName: "Adam"},
+		{StaffID: 14, FirstName: "Özlem", LastName: "Yilmaz"},
+		{StaffID: 13, FirstName: "otto", LastName: "Berg"},
+		{StaffID: 12, FirstName: "Otto", LastName: "Berg"},
+		{StaffID: 11, FirstName: "Otto", LastName: "Adam"},
+	}
+	schoolmembership.SortActiveCaregivers(caregivers)
+	ids := make([]int64, 0, len(caregivers))
+	for _, caregiver := range caregivers {
+		ids = append(ids, caregiver.StaffID)
+	}
+	assert.Equal(t, []int64{11, 12, 13, 14, 15}, ids)
+}

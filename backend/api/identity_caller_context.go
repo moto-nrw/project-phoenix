@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CallerSettings resolves the tenant settings the caller context reads: the
@@ -149,7 +148,7 @@ func (s callerStructure) TeacherGroupIDs(ctx context.Context, teacherID int64) (
 }
 
 func (s callerStructure) SubstitutedGroups(ctx context.Context, staffID int64) (map[int64]bool, error) {
-	groups, err := s.groups.ListSubstitutedGroups(ctx, staffID, timezone.TodayDate().String())
+	groups, err := schoolstructure.ListSubstitutedGroupsToday(ctx, s.groups, staffID)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -42,62 +41,6 @@ type workerRetention struct {
 	runs  schedulerPorts.CleanupRunLedger
 }
 
-// Data kinds of the nightly retention steps. Each one is the deletion type
-// the Audit Platform records for its step in audit.data_deletions.
-const (
-	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
-	retentionStatusDays           = "status_day_retention"
-	retentionAttendance           = "attendance_retention"
-	retentionParentMessages       = "parent_message_retention"
-	retentionSettledEnrollments   = "settled_enrollment_retention"
-	retentionStaffSickNotes       = "staff_sick_note_retention"
-	// The automatic deletion of children (#3962) logs each child as
-	// student_retention, like a manual deletion; the step adds no entry.
-	retentionStudents = "student_retention"
-	// The automatic deletion of staff (#3963) logs each staff member as
-	// staff_retention; the step adds no entry either.
-	retentionStaff         = "staff_retention"
-	retentionAuthEvents    = "auth_event_retention"
-	retentionDataAccessLog = "data_access_log_retention"
-	retentionDeletionLog   = "deletion_log_retention"
-	retentionDeliveries    = "delivery_retention"
-	// The technical remains of #4046.
-	retentionFileCleanups           = "file_cleanup_retention"
-	retentionStaffCleanups          = "staff_cleanup_retention"
-	retentionStudentDocumentCleanup = "student_document_cleanup_retention"
-	retentionCareWithdrawals        = "care_withdrawal_retention"
-	retentionSubmissionRateLimits   = "submission_rate_limit_retention"
-	// The protocols of #4044: the setting protocol and the export journal
-	// of their owners; the rest are the Audit Platform's (auditProtocols).
-	retentionSettingAudit    = "setting_audit_retention"
-	retentionExportTransfers = "export_transfer_retention"
-)
-
-// auditProtocols are the protocols of #4044 the Audit Platform deletes, each
-// after its fixed window and logged as its own data kind.
-var auditProtocols = []string{
-	"student_deletion_log_retention",
-	"enrollment_deletion_log_retention",
-	"enrollment_restoration_log_retention",
-	"time_tracking_deletion_log_retention",
-	"staff_master_data_change_retention",
-	"personnel_number_change_retention",
-	"guardian_financial_change_retention",
-	"class_list_change_retention",
-	"substitution_change_retention",
-	"file_event_retention",
-}
-
-var retentionSettingKeys = []string{
-	settingsModule.KeyGDPRStatusDayRetentionDays,
-	settingsModule.KeyGDPRAttendanceRetentionDays,
-	settingsModule.KeyGDPRParentMessageRetentionDays,
-	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
-	settingsModule.KeyGDPRStaffSickNoteRetentionDays,
-	settingsModule.KeyGDPRStudentRetentionDays,
-	settingsModule.KeyGDPRTimeTrackingRetentionDays,
-}
-
 // retentionOwners are the owner capabilities whose data the nightly cleanup
 // deletes, and the deletion log. Each owner resolves its own window.
 type retentionOwners struct {
@@ -105,7 +48,9 @@ type retentionOwners struct {
 		LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error
 	}
 	// settings resolves the retention windows of the school in context.
-	settings             retentionWindows
+	settings interface {
+		ResolveInt(ctx context.Context, key string) (int, error)
+	}
 	unregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	statusDays           carePlanModule.StudentStatusDayRetention
 	parentMessages       communicationModule.ParentMessageCleanup
@@ -122,7 +67,7 @@ type retentionOwners struct {
 		DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
 		DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
 		// DeleteExpiredProtocol deletes the protocol of one of
-		// auditProtocols after its fixed window (#4044).
+		// auditModels.ProtocolRetentionTypes after its fixed window (#4044).
 		DeleteExpiredProtocol(ctx context.Context, kind string) (deleted, retentionDays int, err error)
 	}
 	// deliveries deletes the delivered mail and push intents and the mail
@@ -161,13 +106,13 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
-	if err := settingsCompose.VerifyPreloadKeys(retentionSettingKeys); err != nil {
+	if err := settingsCompose.VerifyPreloadKeys(settingsModule.RetentionWindowKeys()); err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: append(append(append(studentRetentionSteps(students), staffRetentionSteps(staff)...), retentionSteps(owners)...),
-			attendanceRetentionSteps(attendance, owners.settings)...),
+		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
+			append(retentionSteps(owners), attendanceRetentionSteps(attendance, owners.settings)...)),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -180,46 +125,59 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if owners.unregisteredTagScans != nil {
-		steps = append(steps, ownerRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeUnregisteredTagScanRetention, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
 	if owners.statusDays != nil {
-		steps = append(steps, windowRetentionStep(retentionStatusDays, settingsModule.KeyGDPRStatusDayRetentionDays,
-			owners.settings, owners.statusDays.DeleteExpiredStudentStatusDays, carePlanModule.ErrStatusDayRetentionWindow))
+		statusDays := owners.statusDays
+		steps = append(steps, schedulerPorts.RetentionStep{
+			Kind: auditModels.DeletionTypeStatusDayRetention,
+			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+				window := settingsModule.NewStatusDayRetention(owners.settings)
+				days, err := window.Days(ctx)
+				if err != nil {
+					return schedulerPorts.RetentionOutcome{}, err
+				}
+				deleted, err := statusDays.DeleteExpiredStudentStatusDays(ctx, days)
+				if errors.Is(err, carePlanModule.ErrStatusDayRetentionWindow) {
+					return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+				}
+				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+			},
+		})
 	}
 	if owners.parentMessages != nil {
 		messages := owners.parentMessages
 		steps = append(steps, schedulerPorts.RetentionStep{
-			Kind: retentionParentMessages,
+			Kind: auditModels.DeletionTypeParentMessageRetention,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 				result, err := messages.CleanupExpiredParentMessages(ctx)
-				return schedulerPorts.RetentionOutcome{Deleted: result.MessagesDeleted + result.ThreadsDeleted, RetentionDays: result.RetentionDays}, err
+				return schedulerPorts.RetentionOutcome{Deleted: result.Deleted(), RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
 	if owners.settledEnrollments != nil {
 		enrollments := owners.settledEnrollments
 		steps = append(steps, schedulerPorts.RetentionStep{
-			Kind: retentionSettledEnrollments,
+			Kind: auditModels.DeletionTypeSettledEnrollmentRetention,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 				result, err := enrollments.CleanupSettledEnrollments(ctx)
-				deleted := result.DeletedRequests + int(result.DeletedLateInvites)
-				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: result.RetentionDays}, err
+				return schedulerPorts.RetentionOutcome{Deleted: result.Deleted(), RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
 	if owners.staffSickNotes != nil {
-		steps = append(steps, ownerRetentionStep(retentionStaffSickNotes, owners.staffSickNotes.DeleteExpiredStaffSickNotes))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffSickNoteRetention, owners.staffSickNotes.DeleteExpiredStaffSickNotes))
 	}
 	if owners.auditLedgers != nil {
 		ledgers := owners.auditLedgers
 		steps = append(steps,
-			ownerRetentionStep(retentionAuthEvents, ledgers.DeleteExpiredAuthEvents),
-			ownerRetentionStep(retentionDataAccessLog, ledgers.DeleteExpiredDataAccessLog),
-			ownerRetentionStep(retentionDeletionLog, ledgers.DeleteExpiredDeletionLog),
+			ownerRetentionStep(auditModels.DeletionTypeAuthEventRetention, ledgers.DeleteExpiredAuthEvents),
+			ownerRetentionStep(auditModels.DeletionTypeDataAccessLogRetention, ledgers.DeleteExpiredDataAccessLog),
+			ownerRetentionStep(auditModels.DeletionTypeDeletionLogRetention, ledgers.DeleteExpiredDeletionLog),
 		)
 	}
 	if owners.deliveries != nil {
-		steps = append(steps, ownerRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeDeliveryRetention, owners.deliveries.DeleteExpiredDeliveries))
 	}
 	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
@@ -227,45 +185,56 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 
 // attendanceRetentionSteps is the deletion of the daily attendance after the
 // school's window (#3957).
-func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, settings retentionWindows) []schedulerPorts.RetentionStep {
+func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, settings settingsModule.StatisticsRetentionSource) []schedulerPorts.RetentionStep {
 	if attendance == nil {
 		return nil
 	}
-	return []schedulerPorts.RetentionStep{windowRetentionStep(retentionAttendance, settingsModule.KeyGDPRAttendanceRetentionDays,
-		settings, attendance.DeleteExpiredAttendance, studentpresence.ErrAttendanceRetentionWindow)}
+	return []schedulerPorts.RetentionStep{{
+		Kind: auditModels.DeletionTypeAttendanceRetention,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			window := settingsModule.NewAttendanceRetention(settings)
+			days, err := window.Days(ctx)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, err
+			}
+			deleted, err := attendance.DeleteExpiredAttendance(ctx, days)
+			if errors.Is(err, studentpresence.ErrAttendanceRetentionWindow) {
+				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}}
 }
 
-// studentRetentionSteps is the automatic deletion of children (#3962). It
+// studentRetentionStep is the automatic deletion of children (#3962). It
 // runs first: the shorter windows of the other steps then apply to the rows
-// of the children that stay.
-func studentRetentionSteps(students studentRetention) []schedulerPorts.RetentionStep {
+// of the children that stay (schedulerPorts.RetentionPlan).
+func studentRetentionStep(students studentRetention) schedulerPorts.SubjectRetention {
 	if students == nil {
-		return nil
+		return schedulerPorts.SubjectRetention{}
 	}
-	return []schedulerPorts.RetentionStep{{
-		Kind:         retentionStudents,
-		LogsSubjects: true,
+	return schedulerPorts.SubjectRetention{
+		Kind: auditModels.DeletionTypeStudentRetention,
 		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 			result, err := students.DeleteExpiredStudents(ctx)
 			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
 		},
-	}}
+	}
 }
 
-// staffRetentionSteps is the automatic deletion of staff (#3963). It runs
+// staffRetentionStep is the automatic deletion of staff (#3963). It runs
 // with the deletion of children before the other steps.
-func staffRetentionSteps(staff staffRetention) []schedulerPorts.RetentionStep {
+func staffRetentionStep(staff staffRetention) schedulerPorts.SubjectRetention {
 	if staff == nil {
-		return nil
+		return schedulerPorts.SubjectRetention{}
 	}
-	return []schedulerPorts.RetentionStep{{
-		Kind:         retentionStaff,
-		LogsSubjects: true,
+	return schedulerPorts.SubjectRetention{
+		Kind: auditModels.DeletionTypeStaffRetention,
 		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 			result, err := staff.DeleteExpiredStaff(ctx)
 			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
 		},
-	}}
+	}
 }
 
 // newStaffRetention composes the automatic deletion of staff over the
@@ -302,9 +271,7 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 		return nil, fmt.Errorf("compose staff retention: timetable lacks retired-staff deletion")
 	}
 	return staffoffboarding.NewRetention(staffoffboarding.RetentionDependencies{
-		Window: func(ctx context.Context) (int, error) {
-			return settings.ResolveInt(ctx, settingsModule.KeyGDPRTimeTrackingRetentionDays)
-		},
+		Window: settingsModule.StaffRetentionWindow(settings),
 		Tenant: tenant.FromContext, Today: calendar.TodayDate,
 		Membership: retired, LiveStaff: membership, Workforce: workforceCompose.NewRetiredStaffRecords(), Timetable: retiredTimetable,
 		SupervisionIDs: func(ctx context.Context, staffID int64) ([]int64, error) {
@@ -318,7 +285,9 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 		RemoveSupervision: presence.RemoveSupervision,
 		People:            peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
 		AppendAudit: func(ctx context.Context, erasure staffoffboarding.Erasure) error {
-			return audit.Append(ctx, staffRetentionDeletion(tenant.FromContext(ctx), erasure))
+			return audit.Append(ctx, auditModels.NewStaffRetentionDeletion(
+				tenant.FromContext(ctx), erasure.StaffID, erasure.Records(), erasure.PersonAnonymized, erasure.Counts(),
+			))
 		},
 		Isolate: func(ctx context.Context, fn func(context.Context) error) error {
 			err := tenant.WithSavepoint(ctx, fn)
@@ -331,24 +300,6 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 	})
 }
 
-// staffRetentionDeletion is the deletion log entry of one erased staff
-// member: the data kind staff_retention, the counts per record kind and the
-// reason retention_expired, never the deleted content, written by the
-// system like the automatic deletion of a child.
-func staffRetentionDeletion(tenantID int64, erasure staffoffboarding.Erasure) *auditModels.DataDeletion {
-	staffID := erasure.StaffID
-	metadata := map[string]interface{}{"person_anonymized": erasure.PersonAnonymized}
-	for kind, count := range erasure.Counts() {
-		metadata[kind] = count
-	}
-	event := &auditModels.DataDeletion{
-		StaffID: &staffID, DeletionType: retentionStaff, RecordsDeleted: erasure.Records(),
-		DeletionReason: "retention_expired", DeletedBy: "system", DeletedAt: time.Now(), Metadata: metadata,
-	}
-	event.SetTenantID(tenantID)
-	return event
-}
-
 // newStudentRetention composes the automatic deletion of children over the
 // student deletion workflow (#3962): the school's window from the settings,
 // each child in a savepoint of the cleanup's tenant transaction.
@@ -357,10 +308,8 @@ func newStudentRetention(workflow *studentdeletion.Workflow, settings interface 
 }, logger *slog.Logger) (*studentdeletion.Retention, error) {
 	return studentdeletion.NewRetention(studentdeletion.RetentionDependencies{
 		Workflow: workflow,
-		Window: func(ctx context.Context) (int, error) {
-			return settings.ResolveInt(ctx, settingsModule.KeyGDPRStudentRetentionDays)
-		},
-		Tenant: tenant.FromContext,
+		Window:   settingsModule.StudentRetentionWindow(settings),
+		Tenant:   tenant.FromContext,
 		Isolate: func(ctx context.Context, fn func(context.Context) error) error {
 			err := tenant.WithSavepoint(ctx, fn)
 			if errors.Is(err, tenant.ErrSavepointControl) {
@@ -378,17 +327,17 @@ func protocolRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionSt
 	var steps []schedulerPorts.RetentionStep
 	if owners.auditLedgers != nil {
 		ledgers := owners.auditLedgers
-		for _, kind := range auditProtocols {
+		for _, kind := range auditModels.ProtocolRetentionTypes() {
 			steps = append(steps, ownerRetentionStep(kind, func(ctx context.Context) (int, int, error) {
 				return ledgers.DeleteExpiredProtocol(ctx, kind)
 			}))
 		}
 	}
 	if owners.settingAudit != nil {
-		steps = append(steps, ownerRetentionStep(retentionSettingAudit, owners.settingAudit.DeleteExpiredSettingChanges))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSettingAuditRetention, owners.settingAudit.DeleteExpiredSettingChanges))
 	}
 	if owners.exportTransfers != nil {
-		steps = append(steps, ownerRetentionStep(retentionExportTransfers, owners.exportTransfers.DeleteExpiredTransfers))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeExportTransferRetention, owners.exportTransfers.DeleteExpiredTransfers))
 	}
 	return steps
 }
@@ -398,46 +347,21 @@ func protocolRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionSt
 func cleanupJobRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if owners.fileCleanups != nil {
-		steps = append(steps, ownerRetentionStep(retentionFileCleanups, owners.fileCleanups.DeleteFinishedCleanups))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeFileCleanupRetention, owners.fileCleanups.DeleteFinishedCleanups))
 	}
 	if owners.staffCleanups != nil {
-		steps = append(steps, ownerRetentionStep(retentionStaffCleanups, owners.staffCleanups.DeleteFinishedStaffCleanups))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffCleanupRetention, owners.staffCleanups.DeleteFinishedStaffCleanups))
 	}
 	if owners.carePlanCleanups != nil {
 		steps = append(steps,
-			ownerRetentionStep(retentionStudentDocumentCleanup, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
-			ownerRetentionStep(retentionCareWithdrawals, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
+			ownerRetentionStep(auditModels.DeletionTypeStudentDocumentCleanupRetention, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
+			ownerRetentionStep(auditModels.DeletionTypeCareWithdrawalRetention, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
 		)
 	}
 	if owners.submissionLimits != nil {
-		steps = append(steps, ownerRetentionStep(retentionSubmissionRateLimits, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSubmissionRateLimitRetention, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
 	}
 	return steps
-}
-
-// retentionWindows resolves the retention windows of the school in context.
-type retentionWindows interface {
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
-
-// windowRetentionStep runs an owner deletion over the school's window of the
-// setting key. An owner refusing the window (windowErr) reports a wrong
-// setting, so the run fails and is caught up once the setting is fixed.
-func windowRetentionStep(kind, key string, settings retentionWindows, deleteExpired func(context.Context, int) (int, error), windowErr error) schedulerPorts.RetentionStep {
-	return schedulerPorts.RetentionStep{
-		Kind: kind,
-		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-			days, err := settings.ResolveInt(ctx, key)
-			if err != nil {
-				return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
-			}
-			deleted, err := deleteExpired(ctx, days)
-			if errors.Is(err, windowErr) {
-				return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
-			}
-			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
-		},
-	}
 }
 
 // ownerRetentionStep runs an owner deletion that reports its deleted rows and

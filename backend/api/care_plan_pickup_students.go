@@ -35,13 +35,12 @@ func (s pickupPlanStudents) LockByID(ctx context.Context, id int64, date timezon
 	return pickupPlanStudent(row, date), nil
 }
 func pickupPlanStudent(row peopledirectory.StudentRecord, date timezone.Date) careplanCompose.PickupBulkStudent {
-	ended := row.EnrolledUntil != "" && date.After(timezone.Date(row.EnrolledUntil))
-	return careplanCompose.PickupBulkStudent{ScheduleStudent: careplan.ScheduleStudent{ID: row.ID, TenantID: row.TenantID}, PersonID: row.PersonID, Eligible: !row.IsAlumnus() && !ended}
+	return careplanCompose.PickupBulkStudent{ScheduleStudent: careplan.ScheduleStudent{ID: row.ID, TenantID: row.TenantID}, PersonID: row.PersonID, Eligible: row.PickupEligibleOn(date)}
 }
 func (s pickupPlanStudents) Name(ctx context.Context, student careplanCompose.PickupBulkStudent) (string, error) {
 	person, err := s.people.FindPerson(ctx, student.PersonID)
 	if err != nil {
 		return "", fmt.Errorf("find person for student %d: %w", student.ID, err)
 	}
-	return person.FirstName + " " + person.LastName, nil
+	return person.FullName(), nil
 }

@@ -170,3 +170,25 @@ func TestFormLegalBlockPublicTranslations(t *testing.T) {
 	assert.Equal(t, Translations{"en": {TranslationAttrTitle: {Text: "Terms"}}}, block.PublicTranslations(),
 		"a PDF block renders a generated link text, not the stored text")
 }
+
+func TestNormalizeOfferingTranslations(t *testing.T) {
+	t.Parallel()
+	normalized, ok, err := NormalizeOfferingTranslations(json.RawMessage(`{"EN":{"name":{"text":" Lunch ","source":"Mittagessen"}}}`))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.JSONEq(t, `{"en":{"name":{"text":"Lunch","source":"Mittagessen"}}}`, string(normalized))
+
+	normalized, ok, err = NormalizeOfferingTranslations(json.RawMessage(`{`))
+	require.NoError(t, err)
+	assert.False(t, ok, "a document that does not decode counts as absent")
+	assert.Nil(t, normalized)
+
+	normalized, ok, err = NormalizeOfferingTranslations(nil)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Nil(t, normalized, "nothing to store")
+
+	_, ok, err = NormalizeOfferingTranslations(json.RawMessage(`{"en":{"title":{"text":"x","source":"y"}}}`))
+	require.Error(t, err, "an offering has no title attribute")
+	assert.True(t, ok)
+}

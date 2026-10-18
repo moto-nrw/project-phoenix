@@ -8,30 +8,39 @@ import (
 	"context"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+type templateSource interface {
+	ListActivityTemplates(context.Context) ([]compose.ActivityTemplate, error)
+}
+type plannedActivitySource interface {
+	ListPlannedActivities(context.Context, time.Time) ([]compose.PlannedActivity, error)
+}
+
 // DashboardDependencies are the legacy readers the dashboard aggregate needs.
 type DashboardDependencies struct {
 	ActiveGroups   studentpresence.SessionRecords
-	Templates      activitiesModels.GroupRepository
-	Instances      scheduleModels.ActivityInstanceRepository
+	Templates      templateSource
+	Instances      plannedActivitySource
 	PickupSchedule careplan.BulkPickupTimes
 }
 
-type dashboardSources struct{ deps DashboardDependencies }
+type dashboardSources struct {
+	templateSource
+	plannedActivitySource
+	deps DashboardDependencies
+}
 
 // NewDashboardSources adapts the legacy readers to the owner's port.
 func NewDashboardSources(deps DashboardDependencies) compose.DashboardSources {
 	if deps.ActiveGroups == nil || deps.Templates == nil || deps.Instances == nil || deps.PickupSchedule == nil {
 		panic("devicefleet dashboard sources: all dependencies are required")
 	}
-	return dashboardSources{deps: deps}
+	return dashboardSources{templateSource: deps.Templates, plannedActivitySource: deps.Instances, deps: deps}
 }
 
 func (s dashboardSources) ListActiveSessions(ctx context.Context) ([]compose.ActiveSession, error) {
@@ -51,49 +60,6 @@ func (s dashboardSources) ListActiveSessions(ctx context.Context) ([]compose.Act
 		sessions = append(sessions, session)
 	}
 	return sessions, nil
-}
-
-func (s dashboardSources) ListActivityTemplates(ctx context.Context) ([]compose.ActivityTemplate, error) {
-	groups, err := s.deps.Templates.ListWithCategory(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	templates := make([]compose.ActivityTemplate, 0, len(groups))
-	for _, group := range groups {
-		if group == nil {
-			continue
-		}
-		template := compose.ActivityTemplate{
-			ID: group.ID, Name: group.Name, ParticipantLimit: group.ParticipantLimit(),
-		}
-		if group.Category != nil {
-			name := group.Category.Name
-			template.CategoryName = &name
-		}
-		templates = append(templates, template)
-	}
-	return templates, nil
-}
-
-func (s dashboardSources) ListPlannedActivities(ctx context.Context, today time.Time) ([]compose.PlannedActivity, error) {
-	date := calendar.DateFromTime(today)
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
-	if err != nil {
-		return nil, err
-	}
-	planned := make([]compose.PlannedActivity, 0, len(instances))
-	for _, instance := range instances {
-		if instance == nil {
-			continue
-		}
-		planned = append(planned, compose.PlannedActivity{
-			ID: instance.ID, Title: instance.Title, RoomID: instance.RoomID,
-			ActivityGroupID: instance.ActivityGroupID, ActiveGroupID: instance.ActiveGroupID,
-			Planned:        instance.Status == scheduleModels.InstanceStatusPlanned,
-			StartWallClock: calendar.NormalizeWallClock(instance.StartTime),
-		})
-	}
-	return planned, nil
 }
 
 func (s dashboardSources) ListPickupTimes(ctx context.Context, studentIDs []int64, today time.Time) ([]compose.PickupTime, error) {

@@ -102,21 +102,21 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 // observations and never serve the info-point dashboard. The serving root
 // composes the observed module where it mounts the IoT routes, so runtime
 // evidence and the dashboard collaborators are kept.
-func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
+func NewDeviceFleet(db transactionruntime.Database, onlineWindowMinutes ...func(context.Context) int) (devicefleet.Capability, error) {
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
 		return nil, err
 	}
-	var onlineWindow func(context.Context) time.Duration
-	if len(onlineWindows) > 0 {
-		onlineWindow = onlineWindows[0]
+	var minutes func(context.Context) int
+	if len(onlineWindowMinutes) > 0 {
+		minutes = onlineWindowMinutes[0]
 	}
 	return devicefleetCompose.New(devicefleetCompose.Dependencies{
-		DB:           db.Pool(),
-		Rooms:        rooms,
-		OnlineWindow: onlineWindow,
-		APIKeys:      DeviceAPIKeys{},
-		Observe:      func(devicefleetCompose.Observation) {},
+		DB:                  db.Pool(),
+		Rooms:               rooms,
+		OnlineWindowMinutes: minutes,
+		APIKeys:             DeviceAPIKeys{},
+		Observe:             func(devicefleetCompose.Observation) {},
 	})
 }
 

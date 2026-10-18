@@ -2,9 +2,8 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -14,89 +13,48 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 )
 
-// substitutedStaffQuery answers who substitutes in the given groups on a
-// day. education.group_substitution belongs to Workforce (#2688); the root
-// supplies the owner's query so the group repository never joins the table.
-type substitutedStaffQuery = func(ctx context.Context, groupIDs []int64, on string) ([]educationRepo.StaffGroupID, error)
+// The owner reads behind School Structure's rule of who supervises a group
+// on a day (#2667, #2688): the teacher and staff rows come from School
+// Membership, the substitutions from Workforce. The rule itself is School
+// Structure's; these bindings only translate.
 
-// SupervisionStaffResolver resolves who supervises a group on a day: the
-// assigned teachers through their live teacher and staff rows, plus the
-// substituting staff that are still live. Offboarded teachers and staff drop
-// out, as the replaced inner joins did.
-func SupervisionStaffResolver(membership schoolMembershipCompose.StaffLookup, substitutions substitutedStaffQuery) func(context.Context, educationRepo.GroupMembershipPairs) ([]educationRepo.StaffGroupID, error) {
-	return func(ctx context.Context, raw educationRepo.GroupMembershipPairs) ([]educationRepo.StaffGroupID, error) {
-		staffByTeacher, err := resolveTeacherStaff(ctx, membership, raw.Assigned)
+// supervisionTeacherStaff maps every given live teacher to its staff member.
+func supervisionTeacherStaff(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64) (map[int64]int64, error) {
+	return func(ctx context.Context, teacherIDs []int64) (map[int64]int64, error) {
+		teachers, err := membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: teacherIDs})
 		if err != nil {
 			return nil, err
 		}
-		substituted, liveSubstitutes, err := liveSubstitutions(ctx, membership, substitutions, raw)
+		result := make(map[int64]int64, len(teachers))
+		for _, teacher := range teachers {
+			result[teacher.ID] = teacher.StaffID
+		}
+		return result, nil
+	}
+}
+
+// supervisionLiveStaff reports the given staff members that are still live.
+func supervisionLiveStaff(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64) (map[int64]bool, error) {
+	return func(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {
+		live, err := schoolMembershipCompose.StaffByID(ctx, membership, staffIDs, false)
 		if err != nil {
 			return nil, err
 		}
-		return supervisionPairs(raw.Assigned, staffByTeacher, substituted, liveSubstitutes), nil
+		result := make(map[int64]bool, len(live))
+		for id := range live {
+			result[id] = true
+		}
+		return result, nil
 	}
 }
 
-// liveSubstitutions loads the substitutions of the groups on the day and the
-// substituting staff members that are still live.
-func liveSubstitutions(ctx context.Context, membership schoolMembershipCompose.StaffLookup, substitutions substitutedStaffQuery, raw educationRepo.GroupMembershipPairs) ([]educationRepo.StaffGroupID, map[int64]schoolmembership.Staff, error) {
-	if substitutions == nil {
-		return nil, nil, fmt.Errorf("group supervision resolves substitutions through Workforce")
-	}
-	substituted, err := substitutions(ctx, raw.GroupIDs, raw.On.String())
-	if err != nil {
-		return nil, nil, fmt.Errorf("load substitutions of group supervision: %w", err)
-	}
-	substituteIDs := make([]int64, 0, len(substituted))
-	for _, pair := range substituted {
-		substituteIDs = append(substituteIDs, pair.StaffID)
-	}
-	live, err := schoolMembershipCompose.StaffByID(ctx, membership, substituteIDs, false)
-	if err != nil {
-		return nil, nil, err
-	}
-	return substituted, live, nil
-}
-
-// supervisionPairs lists the assignments first, then the substitutions, each
-// in query order and without duplicates. An assignment whose teacher has no
-// live staff member and a substitute who is gone drop out.
-func supervisionPairs(assigned []educationRepo.TeacherGroupID, staffByTeacher map[int64]int64, substituted []educationRepo.StaffGroupID, liveSubstitutes map[int64]schoolmembership.Staff) []educationRepo.StaffGroupID {
-	candidates := make([]educationRepo.StaffGroupID, 0, len(assigned)+len(substituted))
-	for _, pair := range assigned {
-		if staffID, found := staffByTeacher[pair.TeacherID]; found {
-			candidates = append(candidates, educationRepo.StaffGroupID{StaffID: staffID, GroupID: pair.GroupID})
-		}
-	}
-	for _, pair := range substituted {
-		if _, found := liveSubstitutes[pair.StaffID]; found {
-			candidates = append(candidates, pair)
-		}
-	}
-	result := make([]educationRepo.StaffGroupID, 0, len(candidates))
-	seen := make(map[educationRepo.StaffGroupID]struct{}, len(candidates))
-	for _, pair := range candidates {
-		if _, dup := seen[pair]; dup {
-			continue
-		}
-		seen[pair] = struct{}{}
-		result = append(result, pair)
-	}
-	return result
-}
-
-// WorkforceSubstitutedStaff adapts the Workforce capability to the
-// supervision resolver's substitution query.
-func WorkforceSubstitutedStaff(capability workforce.Capability) substitutedStaffQuery {
-	if capability == nil {
-		return nil
-	}
+// supervisionSubstitutes lists who substitutes in the groups on the day.
+func supervisionSubstitutes(capability workforce.Capability) func(context.Context, []int64, string) ([]educationRepo.StaffGroupID, error) {
 	return func(ctx context.Context, groupIDs []int64, on string) ([]educationRepo.StaffGroupID, error) {
-		if len(groupIDs) == 0 {
-			return []educationRepo.StaffGroupID{}, nil
-		}
 		rows, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{GroupIDs: groupIDs, On: on})
 		if err != nil {
 			return nil, err
@@ -107,38 +65,6 @@ func WorkforceSubstitutedStaff(capability workforce.Capability) substitutedStaff
 		}
 		return pairs, nil
 	}
-}
-
-// resolveTeacherStaff maps every live teacher of the assignments to their
-// live staff member. A teacher or staff row that is gone yields no entry.
-func resolveTeacherStaff(ctx context.Context, membership schoolMembershipCompose.StaffLookup, assigned []educationRepo.TeacherGroupID) (map[int64]int64, error) {
-	result := make(map[int64]int64, len(assigned))
-	ids := make([]int64, 0, len(assigned))
-	for _, pair := range assigned {
-		ids = append(ids, pair.TeacherID)
-	}
-	ids = uniqueIDs(ids)
-	if len(ids) == 0 {
-		return result, nil
-	}
-	teachers, err := membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: ids})
-	if err != nil {
-		return nil, fmt.Errorf("load teachers of group assignments: %w", err)
-	}
-	staffIDs := make([]int64, 0, len(teachers))
-	for _, teacher := range teachers {
-		staffIDs = append(staffIDs, teacher.StaffID)
-	}
-	live, err := schoolMembershipCompose.StaffByID(ctx, membership, staffIDs, false)
-	if err != nil {
-		return nil, err
-	}
-	for _, teacher := range teachers {
-		if _, found := live[teacher.StaffID]; found {
-			result[teacher.ID] = teacher.StaffID
-		}
-	}
-	return result, nil
 }
 
 // groupSubstitutions serves the retained group substitution contract over
@@ -300,30 +226,35 @@ type GroupSubstitutionRows interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*workforceCompose.GroupSubstitution, error)
 }
 
-// EducationHandovers serves the substitution module's handover store from the
-// retained group substitution repository. Workforce owns the rows; the
-// binding translates them into the School Structure values (#3556).
+// EducationHandovers serves the substitution module's handover store: the
+// shift-plan-sync workflow writes the handovers into Workforce's rows, the
+// reads come from the retained group substitution repository. The binding
+// translates the rows into the School Structure values (#3556).
 type EducationHandovers struct {
 	substitutions GroupSubstitutionRepository
+	handovers     shiftplansync.GroupHandovers
 }
 
 // NewEducationHandovers binds the handover store to the group substitution
-// repository.
-func NewEducationHandovers(substitutions GroupSubstitutionRepository) EducationHandovers {
-	return EducationHandovers{substitutions: substitutions}
+// reads and the handover writes.
+func NewEducationHandovers(substitutions GroupSubstitutionRepository, handovers shiftplansync.GroupHandovers) EducationHandovers {
+	return EducationHandovers{substitutions: substitutions, handovers: handovers}
 }
 
 // Create stores a handover and reports educationRepo.ErrHandoverExists for
 // a duplicate.
 func (h EducationHandovers) Create(ctx context.Context, handover *educationRepo.GroupSubstitution) error {
-	row := workforceSubstitution(handover)
-	if err := h.substitutions.Create(ctx, row); err != nil {
-		if transactionruntime.IsUniqueViolation(err) {
-			return educationRepo.ErrHandoverExists
-		}
+	if handover == nil {
+		return errors.New("group_substitution cannot be nil or zero value")
+	}
+	created, err := h.handovers.CreateHandover(ctx, workforceHandover(handover))
+	if errors.Is(err, shiftplansync.ErrHandoverExists) {
+		return educationRepo.ErrHandoverExists
+	}
+	if err != nil {
 		return err
 	}
-	stored := educationHandover(row)
+	stored := educationHandoverFromWorkforce(created)
 	stored.Group, stored.RegularStaff, stored.SubstituteStaff = handover.Group, handover.RegularStaff, handover.SubstituteStaff
 	*handover = *stored
 	return nil
@@ -331,7 +262,11 @@ func (h EducationHandovers) Create(ctx context.Context, handover *educationRepo.
 
 // Delete removes a handover.
 func (h EducationHandovers) Delete(ctx context.Context, id any) error {
-	return h.substitutions.Delete(ctx, id)
+	handoverID, err := membershipID(id)
+	if err != nil {
+		return err
+	}
+	return h.handovers.DeleteHandover(ctx, handoverID)
 }
 
 // FindByID reads one handover.
@@ -384,14 +319,23 @@ func educationHandover(row *workforceCompose.GroupSubstitution) *educationRepo.G
 	}
 }
 
-func workforceSubstitution(handover *educationRepo.GroupSubstitution) *workforceCompose.GroupSubstitution {
-	if handover == nil {
-		return nil
+// workforceHandover is the Workforce value of a School Structure handover.
+func workforceHandover(handover *educationRepo.GroupSubstitution) workforce.GroupSubstitution {
+	return workforce.GroupSubstitution{
+		ID: handover.ID, TenantID: handover.TenantID, TargetType: handover.TargetType, GroupID: handover.GroupID,
+		RegularStaffID: handover.RegularStaffID, SubstituteStaffID: handover.SubstituteStaffID,
+		StartDate: handover.StartDate.String(), EndDate: handover.EndDate.String(), Reason: handover.Reason,
+		CreatedAt: handover.CreatedAt, UpdatedAt: handover.UpdatedAt,
 	}
-	return &workforceCompose.GroupSubstitution{
-		ID: handover.ID, TenantID: handover.TenantID, CreatedAt: handover.CreatedAt, UpdatedAt: handover.UpdatedAt,
-		TargetType: handover.TargetType, GroupID: handover.GroupID, RegularStaffID: handover.RegularStaffID,
-		SubstituteStaffID: handover.SubstituteStaffID, StartDate: handover.StartDate, EndDate: handover.EndDate, Reason: handover.Reason,
+}
+
+// educationHandoverFromWorkforce is the School Structure value of a stored
+// Workforce handover.
+func educationHandoverFromWorkforce(value workforce.GroupSubstitution) *educationRepo.GroupSubstitution {
+	return &educationRepo.GroupSubstitution{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		TargetType: value.TargetType, GroupID: value.GroupID, RegularStaffID: value.RegularStaffID,
+		SubstituteStaffID: value.SubstituteStaffID, StartDate: timezone.Date(value.StartDate), EndDate: timezone.Date(value.EndDate), Reason: value.Reason,
 	}
 }
 

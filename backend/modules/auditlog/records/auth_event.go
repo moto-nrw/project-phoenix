@@ -123,6 +123,21 @@ func (ae *AuthEvent) SetMetadata(key string, value interface{}) {
 	ae.Metadata[key] = value
 }
 
+// ServiceOriginatedAuditIP stands in for the client address of an auth event
+// a service records on its own, not on behalf of a login request.
+const ServiceOriginatedAuditIP = "0.0.0.0"
+
+// NewCaregiverCapabilityAuthEvent records a successful caregiver capability
+// change (#3754) as a service-originated auth event: enabled picks the
+// enabled event, otherwise the disabled one.
+func NewCaregiverCapabilityAuthEvent(accountID int64, enabled bool) *AuthEvent {
+	eventType := EventTypeCaregiverCapabilityDisabled
+	if enabled {
+		eventType = EventTypeCaregiverCapabilityEnabled
+	}
+	return NewAuthEvent(accountID, eventType, true, ServiceOriginatedAuditIP)
+}
+
 // NewAuthEvent creates a new auth event
 func NewAuthEvent(accountID int64, eventType string, success bool, ipAddress string) *AuthEvent {
 	return &AuthEvent{

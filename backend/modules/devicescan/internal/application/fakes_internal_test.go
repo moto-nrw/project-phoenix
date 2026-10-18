@@ -236,15 +236,15 @@ func (v *fakeVisits) Record(_ context.Context, studentID, sessionID int64) (int6
 }
 
 type fakeSessions struct {
-	open           []ports.Session
+	open           []devicescan.Session
 	listErr        error
-	deviceSession  *ports.Session
+	deviceSession  *devicescan.Session
 	deviceErr      error
-	current        *ports.Session
+	current        *devicescan.Session
 	currentErr     error
-	started        []ports.NewSession
+	started        []devicescan.NewSession
 	startErr       error
-	ensured        []ports.NewSession
+	ensured        []devicescan.NewSession
 	ensureErr      error
 	nextSessionID  int64
 	deleted        []int64
@@ -252,38 +252,38 @@ type fakeSessions struct {
 	endErr         error
 	touched        []int64
 	touchErr       error
-	supervisors    []ports.Supervisor
+	supervisors    []devicescan.Supervisor
 	supervisorsErr error
 	replaced       [][]int64
 	replaceErr     error
 }
 
-func (s *fakeSessions) ListOpenInRoom(context.Context, int64) ([]ports.Session, error) {
+func (s *fakeSessions) ListOpenInRoom(context.Context, int64) ([]devicescan.Session, error) {
 	return s.open, s.listErr
 }
-func (s *fakeSessions) FindDeviceSessionInRoom(context.Context, int64, int64) (*ports.Session, error) {
+func (s *fakeSessions) FindDeviceSessionInRoom(context.Context, int64, int64) (*devicescan.Session, error) {
 	return s.deviceSession, s.deviceErr
 }
-func (s *fakeSessions) Current(context.Context, int64) (*ports.Session, error) {
+func (s *fakeSessions) Current(context.Context, int64) (*devicescan.Session, error) {
 	return s.current, s.currentErr
 }
-func (s *fakeSessions) Start(_ context.Context, input ports.NewSession) (ports.Session, error) {
+func (s *fakeSessions) Start(_ context.Context, input devicescan.NewSession) (devicescan.Session, error) {
 	s.started = append(s.started, input)
 	if s.startErr != nil {
-		return ports.Session{}, s.startErr
+		return devicescan.Session{}, s.startErr
 	}
 	s.nextSessionID++
 	activityID := input.ActivityID
-	return ports.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
+	return devicescan.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
 }
-func (s *fakeSessions) EnsureRoomSession(_ context.Context, input ports.NewSession) (ports.Session, error) {
+func (s *fakeSessions) EnsureRoomSession(_ context.Context, input devicescan.NewSession) (devicescan.Session, error) {
 	s.ensured = append(s.ensured, input)
 	if s.ensureErr != nil {
-		return ports.Session{}, s.ensureErr
+		return devicescan.Session{}, s.ensureErr
 	}
 	s.nextSessionID++
 	activityID := input.ActivityID
-	return ports.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
+	return devicescan.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
 }
 func (s *fakeSessions) Delete(_ context.Context, id int64) error {
 	s.deleted = append(s.deleted, id)
@@ -297,7 +297,7 @@ func (s *fakeSessions) Touch(_ context.Context, id int64) error {
 	s.touched = append(s.touched, id)
 	return s.touchErr
 }
-func (s *fakeSessions) Supervisors(context.Context, int64) ([]ports.Supervisor, error) {
+func (s *fakeSessions) Supervisors(context.Context, int64) ([]devicescan.Supervisor, error) {
 	return s.supervisors, s.supervisorsErr
 }
 func (s *fakeSessions) ReplaceSupervisors(_ context.Context, _ int64, staffIDs []int64) error {
@@ -334,39 +334,39 @@ func (a *fakeAttendance) ConfirmDailyCheckout(_ context.Context, _, _ int64, des
 }
 
 type fakeActivities struct {
-	byID       map[int64]*ports.Activity
+	byID       map[int64]*devicescan.Activity
 	findErr    error
-	byName     map[string][]ports.Activity
+	byName     map[string][]devicescan.Activity
 	listErr    error
 	listCalls  int
-	categories []ports.Category
-	created    []ports.NewActivity
+	categories []devicescan.Category
+	created    []devicescan.NewActivity
 	createErr  error
 }
 
-func (a *fakeActivities) Find(_ context.Context, id int64) (*ports.Activity, error) {
+func (a *fakeActivities) Find(_ context.Context, id int64) (*devicescan.Activity, error) {
 	return a.byID[id], a.findErr
 }
-func (a *fakeActivities) ListByName(_ context.Context, name string) ([]ports.Activity, error) {
+func (a *fakeActivities) ListByName(_ context.Context, name string) ([]devicescan.Activity, error) {
 	a.listCalls++
 	return a.byName[name], a.listErr
 }
-func (a *fakeActivities) ListCategories(context.Context) ([]ports.Category, error) {
+func (a *fakeActivities) ListCategories(context.Context) ([]devicescan.Category, error) {
 	return a.categories, nil
 }
-func (a *fakeActivities) CreateCategory(_ context.Context, input ports.NewCategory) (ports.Category, error) {
-	category := ports.Category{ID: int64(len(a.categories) + 1), Name: input.Name}
+func (a *fakeActivities) CreateCategory(_ context.Context, input devicescan.NewCategory) (devicescan.Category, error) {
+	category := devicescan.Category{ID: int64(len(a.categories) + 1), Name: input.Name}
 	a.categories = append(a.categories, category)
 	return category, nil
 }
-func (a *fakeActivities) CreateActivity(_ context.Context, input ports.NewActivity) (ports.Activity, error) {
+func (a *fakeActivities) CreateActivity(_ context.Context, input devicescan.NewActivity) (devicescan.Activity, error) {
 	a.created = append(a.created, input)
 	if a.createErr != nil {
-		return ports.Activity{}, a.createErr
+		return devicescan.Activity{}, a.createErr
 	}
-	activity := ports.Activity{ID: 300 + int64(len(a.created)), Name: input.Name, MaxParticipants: input.MaxParticipants, PlannedRoomID: input.PlannedRoomID, IsSystem: input.IsSystem, IsOpen: input.IsOpen}
+	activity := devicescan.Activity{ID: 300 + int64(len(a.created)), Name: input.Name, MaxParticipants: input.MaxParticipants, PlannedRoomID: input.PlannedRoomID, IsSystem: input.IsSystem, IsOpen: input.IsOpen}
 	if a.byName == nil {
-		a.byName = map[string][]ports.Activity{}
+		a.byName = map[string][]devicescan.Activity{}
 	}
 	a.byName[input.Name] = append(a.byName[input.Name], activity)
 	return activity, nil
@@ -499,12 +499,12 @@ func newHarness(t *testing.T) *harness {
 			staff:    map[int64]*ports.StaffMember{},
 		},
 		visits: &fakeVisits{},
-		sessions: &fakeSessions{open: []ports.Session{{
+		sessions: &fakeSessions{open: []devicescan.Session{{
 			ID: sessionID, RoomID: testRoomID, StartTime: fixedNow.Add(-time.Hour), TemplateID: &templateID,
-			Activity: &ports.Activity{ID: templateID, Name: "Hausaufgaben", MaxParticipants: 20},
+			Activity: &devicescan.Activity{ID: templateID, Name: "Hausaufgaben", MaxParticipants: 20},
 		}}},
 		attendance: &fakeAttendance{},
-		activities: &fakeActivities{byID: map[int64]*ports.Activity{}, byName: map[string][]ports.Activity{}},
+		activities: &fakeActivities{byID: map[int64]*devicescan.Activity{}, byName: map[string][]devicescan.Activity{}},
 		groups:     &fakeGroups{},
 		pickups:    &fakePickups{},
 		settings:   &fakeSettings{roomDetails: true},

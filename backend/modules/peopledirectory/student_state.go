@@ -83,6 +83,20 @@ func (s *StudentState) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
+// CareLifecycle is a child's graduation and end-of-care facts, as every
+// student view of the People Directory reports them.
+type CareLifecycle interface {
+	IsAlumnus() bool
+	CareEndedOn(day calendar.Date) bool
+}
+
+// AttendsOn reports whether a child still attends on day: a graduate does
+// not, nor a child past the last care day (#405, #2487); the last care day
+// itself still counts.
+func AttendsOn(student CareLifecycle, day calendar.Date) bool {
+	return !student.IsAlumnus() && !student.CareEndedOn(day)
+}
+
 // CareEndsLater reports whether an end of care is recorded but has not taken
 // effect yet on the given day.
 func (s *StudentState) CareEndsLater(day calendar.Date) bool {

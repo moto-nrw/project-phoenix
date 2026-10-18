@@ -28,7 +28,7 @@ func FindCanonicalSchulhofRoom(ctx context.Context, rooms Service) (*facilitiesM
 	return room, nil
 }
 
-func ValidateSchulhofActivityRoom(activity *SystemActivity, room *facilitiesModule.Room) error {
+func ValidateSchulhofActivityRoom(activity *facilitiesModule.SystemActivity, room *facilitiesModule.Room) error {
 	if activity == nil {
 		return errors.New("schulhof activity is nil")
 	}

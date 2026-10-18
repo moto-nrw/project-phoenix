@@ -11,7 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // categoryIDParam is the URL parameter of the category Stammdaten routes. It

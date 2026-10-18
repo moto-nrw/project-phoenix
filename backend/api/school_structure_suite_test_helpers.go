@@ -16,6 +16,7 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 )
 
 // The composition the retained School Structure repository suites
@@ -68,6 +69,16 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 	return service
 }
 
+// NewTestGroupHandovers binds the handover writes of the shift-plan-sync
+// workflow to an unobserved Workforce owner on db.
+func NewTestGroupHandovers(db transactionruntime.Database) shiftplansync.GroupHandovers {
+	workTime, err := NewUnobservedWorkforce(db)
+	if err != nil {
+		panic(fmt.Sprintf("group handovers: compose workforce: %v", err))
+	}
+	return shiftplansync.NewGroupHandovers(workTime)
+}
+
 // NewSubstitutionSuiteModule composes the substitution module: the stores,
 // the audit trail and the runtime the suite left unset bind to the
 // repositories the way the service graph binds them.
@@ -76,7 +87,7 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transact
 		deps.Groups = repos.Group
 	}
 	if deps.Substitutions == nil {
-		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution)
+		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution, NewTestGroupHandovers(db))
 	}
 	if deps.Teachers == nil {
 		deps.Teachers = NewEducationCaregivers(repos.Teacher)

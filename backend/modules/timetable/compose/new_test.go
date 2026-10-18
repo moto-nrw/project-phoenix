@@ -774,6 +774,9 @@ func (s *fixedSessions) NotScheduledParticipantIDs(_ context.Context, ids []int6
 func (s *fixedSessions) ExecutionFacts(_ context.Context, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
 	return intersect(instanceIDs, s.completed), intersect(participantIDs, s.notScheduled), nil
 }
+func (s *fixedSessions) RunningSessionsByInstance(context.Context, []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
+}
 
 // buildModuleWithSessions composes the owner over the given session facts.
 func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {

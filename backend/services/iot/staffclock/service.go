@@ -137,13 +137,15 @@ type Workday struct {
 	IsBreakCompliant     bool
 }
 
-// Stamp is a check-in the kiosk files: on Day, with the work location Status
-// and an optional deviation Reason.
+// Stamp is a check-in the kiosk files: on Day, with the work location Status,
+// an optional deviation Reason and the Source every kiosk stamp carries, the
+// card scan (SourceNFC).
 type Stamp struct {
 	StaffID int64
 	Day     string
 	Status  string
 	Reason  string
+	Source  string
 }
 
 // TimeClock is the consumer-owned port to the Workforce time clock. Every
@@ -291,7 +293,7 @@ func (s *Service) checkIn(ctx context.Context, staffID int64, day string, comman
 	if command.Status != StatusPresent && command.Status != StatusHomeOffice {
 		return Session{}, fmt.Errorf("%w: status must be 'present' or 'home_office'", ErrStatusRequired)
 	}
-	return s.timeClock.CheckIn(ctx, Stamp{StaffID: staffID, Day: day, Status: command.Status, Reason: command.Reason})
+	return s.timeClock.CheckIn(ctx, Stamp{StaffID: staffID, Day: day, Status: command.Status, Reason: command.Reason, Source: SourceNFC})
 }
 
 func (s *Service) resolveStaff(ctx context.Context, rawTag string) (StaffIdentity, error) {

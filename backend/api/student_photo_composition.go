@@ -157,37 +157,34 @@ func (s studentPhotos) PurgeAllPhotos(ctx context.Context, tenantID int64) (func
 		return nil, err
 	}
 	detached := append([]string(nil), urls...)
-	return func() {
-		for _, url := range detached {
-			s.runtime.UnlinkStoredPhoto(url)
-		}
-		if len(detached) > 0 && s.runtime.logger != nil {
-			s.runtime.logger.Info("student photos purged after feature disable",
-				slog.Int("cleared_count", len(detached)),
-			)
-		}
-		s.runtime.BroadcastPhotoChange(tenantID, 0, photoSourcePurgeOnDisable)
-	}, nil
+	return func() { s.afterPhotoFeatureChange(tenantID, detached, peopleModule.StudentPhotoSourceFeatureDisabled) }, nil
 }
 
+// HandleFeatureToggle runs People Directory's ApplyPhotoFeatureSetting in the
+// caller's transaction and returns the after-commit unlink and broadcasts.
 func (s studentPhotos) HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (func(), error) {
 	notify := s.deferTenantSettingsChanged(tenantID, configModel.KeyStudentPhotosEnabled)
-	if !peopleModule.StudentPhotosSwitchedOff(value) {
-		return func() {
-			s.runtime.BroadcastPhotoChange(tenantID, 0, photoSourceFeatureEnabled)
-			notify()
-		}, nil
-	}
-	purge, err := s.PurgeAllPhotos(ctx, tenantID)
+	change, err := peopleModule.ApplyPhotoFeatureSetting(ctx, s.directory, value)
 	if err != nil {
 		return nil, err
 	}
 	return func() {
-		if purge != nil {
-			purge()
-		}
+		s.afterPhotoFeatureChange(tenantID, change.Purged, change.BroadcastSource)
 		notify()
 	}, nil
+}
+
+// afterPhotoFeatureChange removes the detached files and wakes the open tabs.
+func (s studentPhotos) afterPhotoFeatureChange(tenantID int64, detached []string, source string) {
+	for _, url := range detached {
+		s.runtime.UnlinkStoredPhoto(url)
+	}
+	if len(detached) > 0 && s.runtime.logger != nil {
+		s.runtime.logger.Info("student photos purged after feature disable",
+			slog.Int("cleared_count", len(detached)),
+		)
+	}
+	s.runtime.BroadcastPhotoChange(tenantID, 0, source)
 }
 
 // ApplyConsentTransition reconciles the requested consent on the row the
@@ -230,12 +227,6 @@ func (s studentPhotos) deferTenantSettingsChanged(tenantID int64, key string) fu
 		}
 	}
 }
-
-// Broadcast source labels for the two tenant-wide photo events.
-const (
-	photoSourcePurgeOnDisable = "tenant_photos_disabled"
-	photoSourceFeatureEnabled = "tenant_photos_enabled"
-)
 
 // NewStudentPhotos binds the owner capability and the runtime it needs, and
 // returns the retained contract the handlers call.

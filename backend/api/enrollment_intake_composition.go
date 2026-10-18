@@ -2,16 +2,15 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"strings"
+
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // The bindings below compose Enrollment's intake and change requests (#3565)
@@ -87,7 +86,7 @@ func intakeSettings(settings EnrollmentIntakeSettings) enrollmentCompose.IntakeS
 	if settings == nil {
 		return nil
 	}
-	return enrollmentIntakeSettings{settings: settings}
+	return enrollmentIntakeSettings{settingsModule.NewEnrollmentIntakeValues(settings)}
 }
 
 // enrollmentReviewerNames renders the deciding staffer's display name.
@@ -103,137 +102,22 @@ func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs [
 	names := make(map[int64]string, len(persons))
 	for accountID, person := range persons {
 		if person != nil {
-			names[accountID] = strings.TrimSpace(person.FirstName + " " + person.LastName)
+			names[accountID] = peopledirectory.PersonDisplayName(person.FirstName, person.LastName)
 		}
 	}
 	return names, nil
 }
 
-// enrollmentIntakeSettings resolves the intake settings with the fallbacks
-// the registry defines.
+// enrollmentIntakeSettings serves the intake's settings port over the
+// Settings Platform's intake values; only the legal texts need a type map.
 type enrollmentIntakeSettings struct {
-	settings EnrollmentIntakeSettings
+	settingsModule.EnrollmentIntakeValues
 }
 
-func (s enrollmentIntakeSettings) EnrollmentEnabled(ctx context.Context) bool {
-	return settingsCompose.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentEnabled, false, nil)
-}
-
-func (s enrollmentIntakeSettings) AllowSubmissionEdit(ctx context.Context) bool {
-	return settingsCompose.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentAllowSubmissionEdit, true, nil)
-}
-
-func (s enrollmentIntakeSettings) StatusTokenTTLDays(ctx context.Context) int {
-	return settingsCompose.ResolveIntOrDefault(ctx, s.settings, configModels.KeyEnrollmentStatusTokenTTLDays, 365, nil)
-}
-
-func (s enrollmentIntakeSettings) AdminNotificationEmails(ctx context.Context) string {
-	return settingsCompose.ResolveStringOrDefault(ctx, s.settings, configModels.KeyEnrollmentNotificationEmails, "", nil)
-}
-
-func (s enrollmentIntakeSettings) DuplicateHandling(ctx context.Context) (string, error) {
-	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentDuplicateHandling)
-}
-
-func (s enrollmentIntakeSettings) CollectGradeLevel(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)
-}
-
-func (s enrollmentIntakeSettings) CollectSchoolClass(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectSchoolClass)
-}
-
-func (s enrollmentIntakeSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
-}
-
-func (s enrollmentIntakeSettings) GradeLevelMax(ctx context.Context) (int, error) {
-	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
-}
-
-func (s enrollmentIntakeSettings) ChangeRequestMailsEnabled(ctx context.Context) bool {
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyEnrollmentChangeRequestEmailNotificationsEnabled)
-	return err == nil && enabled
-}
-
-// enrollmentLegalSettingKeys are read in one snapshot when the resolver
-// supports it.
-var enrollmentLegalSettingKeys = []string{
-	configModels.KeyEnrollmentLegalAGBText,
-	configModels.KeyEnrollmentLegalAGBDocumentURL,
-	configModels.KeyEnrollmentLegalAGBDisplayMode,
-	configModels.KeyEnrollmentLegalDSGVOText,
-	configModels.KeyEnrollmentLegalEmailContactText,
-	configModels.KeyEnrollmentLegalPhotoText,
-	configModels.KeyEnrollmentLegalTermsEnabled,
-	configModels.KeyEnrollmentLegalDSGVOEnabled,
-	configModels.KeyEnrollmentLegalEmailContactEnabled,
-	configModels.KeyEnrollmentLegalPhotoEnabled,
-}
-
-// LegalSettings resolves the legal texts and toggles. No env fallback: a
-// plain resolve (tenant override, then the registry default "") is correct,
-// and a failure is propagated because the texts drive legal blocks.
 func (s enrollmentIntakeSettings) LegalSettings(ctx context.Context) (enrollmentCompose.LegalSettings, error) {
-	if batch, ok := s.settings.(interface {
-		ResolveMany(context.Context, []string) (*settingsCompose.SettingsSnapshot, error)
-	}); ok {
-		snapshot, err := batch.ResolveMany(ctx, enrollmentLegalSettingKeys)
-		if err != nil {
-			return enrollmentCompose.LegalSettings{}, fmt.Errorf("resolve legal settings: %w", err)
-		}
-		if snapshot != nil {
-			ctx = settingsCompose.WithSettingsSnapshot(ctx, snapshot)
-		}
+	legal, err := s.Legal(ctx)
+	if err != nil {
+		return enrollmentCompose.LegalSettings{}, err
 	}
-	var out enrollmentCompose.LegalSettings
-	for _, text := range []struct {
-		key   string
-		label string
-		into  *string
-	}{
-		{configModels.KeyEnrollmentLegalAGBText, "AGB legal text", &out.AGB},
-		{configModels.KeyEnrollmentLegalAGBDocumentURL, "AGB legal document", &out.AGBDocumentURL},
-		{configModels.KeyEnrollmentLegalAGBDisplayMode, "AGB legal display mode", &out.AGBDisplayMode},
-		{configModels.KeyEnrollmentLegalDSGVOText, "DSGVO legal text", &out.DSGVO},
-		{configModels.KeyEnrollmentLegalEmailContactText, "email contact legal text", &out.EmailContact},
-		{configModels.KeyEnrollmentLegalPhotoText, "photo legal text", &out.Photo},
-	} {
-		value, err := s.settings.ResolveString(ctx, text.key)
-		if err != nil {
-			return enrollmentCompose.LegalSettings{}, fmt.Errorf("resolve %s: %w", text.label, err)
-		}
-		*text.into = value
-	}
-	return s.legalToggles(ctx, out)
-}
-
-// legalToggles resolves the legal block toggles. A toggle without a tenant
-// override is off; a failure fails closed, because the toggle decides whether
-// a required legal block is rendered and enforced.
-func (s enrollmentIntakeSettings) legalToggles(ctx context.Context, out enrollmentCompose.LegalSettings) (enrollmentCompose.LegalSettings, error) {
-	for _, toggle := range []struct {
-		key   string
-		label string
-		into  *bool
-	}{
-		{configModels.KeyEnrollmentLegalTermsEnabled, "AGB terms", &out.TermsEnabled},
-		{configModels.KeyEnrollmentLegalDSGVOEnabled, "DSGVO legal block", &out.DSGVOEnabled},
-		{configModels.KeyEnrollmentLegalEmailContactEnabled, "email contact legal block", &out.EmailContactEnabled},
-		{configModels.KeyEnrollmentLegalPhotoEnabled, "photo legal block", &out.PhotoEnabled},
-	} {
-		has, err := s.settings.HasTenantOverride(ctx, toggle.key)
-		if err != nil {
-			return enrollmentCompose.LegalSettings{}, fmt.Errorf("check %s setting override: %w", toggle.label, err)
-		}
-		if !has {
-			continue
-		}
-		value, err := s.settings.ResolveBool(ctx, toggle.key)
-		if err != nil {
-			return enrollmentCompose.LegalSettings{}, fmt.Errorf("resolve %s setting: %w", toggle.label, err)
-		}
-		*toggle.into = value
-	}
-	return out, nil
+	return enrollmentCompose.LegalSettings(legal), nil
 }

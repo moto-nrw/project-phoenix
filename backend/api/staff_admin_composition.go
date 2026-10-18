@@ -21,13 +21,12 @@ import (
 // repositories, so every read and write joins the caller's tenant transaction
 // and reports its failure exactly as the repositories always did.
 
-// staffAdminStaffRows are the retained staff rows the administration reads,
-// locks and writes.
+// staffAdminStaffRows are the retained staff rows the administration reads
+// and locks. The employment-only writes go through School Membership.
 type staffAdminStaffRows interface {
 	FindWithPerson(context.Context, int64) (*userModels.Staff, error)
 	FindByID(context.Context, any) (*userModels.Staff, error)
 	FindByIDForUpdate(context.Context, int64) (*userModels.Staff, error)
-	Update(context.Context, *userModels.Staff) error
 }
 
 // staffAdminPersonRows are the retained person rows behind a staff member.
@@ -128,28 +127,16 @@ func (s staffAdminSubjects) UpdatePerson(ctx context.Context, personID int64, fi
 }
 
 func (s staffAdminSubjects) SetEmploymentType(ctx context.Context, staffID int64, value *string) error {
-	staff, err := s.staff.FindByIDForUpdate(ctx, staffID)
-	if err != nil {
-		return err
-	}
-	staff.EmploymentType = value
-	return s.staff.Update(ctx, staff)
+	_, err := s.membership.UpdateEmploymentDetails(ctx, schoolmembership.UpdateEmploymentDetails{ID: staffID, SetEmploymentType: true, EmploymentType: value})
+	return membershipError("update staff", err)
 }
 
 func (s staffAdminSubjects) SetPersonnelNumber(ctx context.Context, staffID int64, value *string) error {
-	staff, err := s.staff.FindByIDForUpdate(ctx, staffID)
-	if err != nil {
-		return err
+	_, err := s.membership.UpdateEmploymentDetails(ctx, schoolmembership.UpdateEmploymentDetails{ID: staffID, SetPersonnelNumber: true, PersonnelNumber: value})
+	if errors.Is(err, schoolmembership.ErrPersonnelNumberConflict) {
+		return workforceModule.ErrPersonnelNumberTaken
 	}
-	staff.PersonnelNumber = value
-	if err := s.staff.Update(ctx, staff); err != nil {
-		// School Membership classifies the per-tenant duplicate itself.
-		if errors.Is(err, userModels.ErrPersonnelNumberConflict) {
-			return workforceModule.ErrPersonnelNumberTaken
-		}
-		return err
-	}
-	return nil
+	return membershipError("update staff", err)
 }
 
 func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {

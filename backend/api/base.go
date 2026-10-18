@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -83,7 +82,6 @@ import (
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
@@ -112,6 +110,7 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	openRoomMoveHTTP "github.com/moto-nrw/project-phoenix/workflows/openroommove/http"
@@ -658,33 +657,17 @@ func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) 
 				StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
 			})
 		}
-		sort.SliceStable(candidates, func(left, right int) bool {
-			return mealPlanParticipantLess(candidates[left], candidates[right])
-		})
 		return candidates, nil
 	}
 }
 
-func mealPlanParticipantLess(left, right mealplanCompose.ParticipantCandidate) bool {
-	if left.SchoolClass != right.SchoolClass {
-		return left.SchoolClass < right.SchoolClass
-	}
-	if left.LastName != right.LastName {
-		return left.LastName < right.LastName
-	}
-	if left.FirstName != right.FirstName {
-		return left.FirstName < right.FirstName
-	}
-	return left.StudentID < right.StudentID
-}
-
 var mealPlanErrorRules = []apiCommon.ErrorRule{
-	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("feature_disabled"), apiCommon.CodeMealsPlanDisabled)},
-	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrDisabled.Detail), apiCommon.CodeMealsPlanDisabled)},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New(mealplanModule.ErrInvalidMealDate.Detail))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("meal_registration_disabled"), apiCommon.CodeMealsRegistrationDisabled)},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrRegistrationDisabled.Detail), apiCommon.CodeMealsRegistrationDisabled)},
 	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New("meal_participation_cutoff_passed"), apiCommon.CodeMealsParticipationCutoffPassed)},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrParticipationCutoff.Detail), apiCommon.CodeMealsParticipationCutoffPassed)},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -698,13 +681,7 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
-			if access == mealplanAPI.AccessParticipants {
-				return RequireMealParticipantsRead()
-			}
-			if access == mealplanAPI.AccessRead {
-				return RequireConfigRead()
-			}
-			return RequireConfigUpdate()
+			return requireMealPlanAccess(access)
 		},
 		Success: apiCommon.Respond,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -720,26 +697,18 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 }
 
 func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-	rows := make([][]string, 0, len(list.Participants))
-	for _, participant := range list.Participants {
-		rows = append(rows, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
-	}
-	date, err := list.Date.German()
+	export, err := list.Export()
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}
+	columns := make([]SimpleListColumn, 0, len(export.Columns))
+	for _, column := range export.Columns {
+		columns = append(columns, SimpleListColumn{ID: column.ID, Label: column.Label})
+	}
 	file, err := renderer(SimpleListDocument{
-		Title:       "Mittagessen – Tagesliste",
-		Subtitle:    "Tagesliste für den " + date,
-		GeneratedAt: time.Now(),
-		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
-		Columns: []SimpleListColumn{
-			{ID: "student_name", Label: "Kind"},
-			{ID: "student_class", Label: "Klasse"},
-		},
-		Rows:   rows,
-		Footer: "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
-	}, format, "mittagessen-"+string(list.Date))
+		Title: export.Title, Subtitle: export.Subtitle, GeneratedAt: time.Now(), Filters: export.Filters,
+		Columns: columns, Rows: export.Lines, Footer: export.Footer,
+	}, format, export.Filename)
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}
@@ -1656,8 +1625,8 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Rooms:      modules.rooms,
 		Active:     svc.Active,
 		Users:      NewDeviceScanPeople(svc.Users),
-		Activities: svc.Activities,
-		Rosters:    SessionRosters{Sessions: presence, Roster: modules.timetable},
+		Activities: DeviceActivityCatalog(svc.Activities),
+		Rosters:    modules.timetable,
 		Education:  svc.Education,
 		Pickups:    svc.PickupSchedule,
 		// A destination chosen at the kiosk runs the phone's open-room
@@ -1674,7 +1643,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		StaffClock:       newStaffClockService(svc.Users, NewPeopleIdentityAccess(in.db, observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: svc.Settings}),
 		Rooms:            devicescanCompose.NewRoomAvailability(modules.presence.RoomService),
-		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(svc.Users), svc.Activities, logger),
+		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(svc.Users), DeviceActivityCatalog(svc.Activities), logger),
 		TagAssignments:   devicescanCompose.NewTagAssignments(NewDeviceScanPeople(svc.Users), logger),
 		FeedbackStudents: devicescanCompose.NewFeedbackStudents(NewDeviceScanPeople(svc.Users)),
 		FeedbackService:  modules.feedback,
@@ -1684,7 +1653,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(modules.organizations)),
 		ErrorReports:            NewIoTErrorReporter(errorReports),
 		SessionEnd:              bindIoTHostSessionEnd(BindIoTSessionEnd(sessionEnd)),
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), NewDeviceScanPeople(svc.Users), svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), NewDeviceScanPeople(svc.Users), svc.IoT, NewKioskSessionMirror(modules.timetableRepositories, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
@@ -1724,7 +1693,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 // staff reach under /api (#2207, #2527).
 func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *studentpresence.Module, limiters authRateLimiters) error {
 	svc := in.modules.services
-	pickupExtensions, err := newPickupExtensions(in.modules.timetable, presence)
+	pickupExtensions, err := careexit.NewPickupExtensions(in.modules.timetable, presence)
 	if err != nil {
 		return err
 	}
@@ -1903,7 +1872,7 @@ func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
 	// Public parent calendar subscription feed (no auth — the token in the URL
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
 	// the parent's Termine in sync.
-	root.Get("/public/calendar/{token}", publicCalendarFeed(in.modules))
+	root.Get("/public/calendar/{token}", calendarAPI.PublicFeed(in.modules.services.Calendar))
 
 	// Read-only staff CalDAV. Authentication happens inside the protocol
 	// handler with the tenant-bound calendar app password, before a tenant is
@@ -2258,38 +2227,6 @@ func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read DatabaseSta
 		return
 	}
 	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
-}
-
-// publicCalendarFeed serves parent and staff iCalendar subscription feeds.
-// There is no auth — the token in the URL is the capability.
-func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
-	svc := modules.services
-	return func(w http.ResponseWriter, r *http.Request) {
-		if svc.Calendar == nil {
-			apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
-			return
-		}
-		token := chi.URLParam(r, "token")
-		filename, content, err := svc.Calendar.ParentCalendarFeedByToken(r.Context(), token)
-		if errors.Is(err, calendarService.ErrNotFound) {
-			filename, content, err = svc.Calendar.StaffCalendarFeedByToken(r.Context(), token)
-		}
-		if err != nil {
-			if errors.Is(err, calendarService.ErrNotFound) {
-				apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
-				return
-			}
-			slog.Error("calendar feed failed",
-				"error", err.Error(),
-			)
-			apiCommon.RenderStatus(w, r, http.StatusInternalServerError, "")
-			return
-		}
-		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
-		w.Header().Set("Cache-Control", "private, max-age=3600")
-		_, _ = w.Write([]byte(content))
-	}
 }
 
 // newMealPlanExportRenderer keeps the export adapter construction in the API

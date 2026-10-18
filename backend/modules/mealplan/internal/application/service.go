@@ -132,6 +132,7 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 				list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
 			}
 		}
+		domain.SortDailyParticipants(list.Participants)
 		return stats, nil
 	})
 	return list, err

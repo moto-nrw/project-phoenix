@@ -66,19 +66,9 @@ func (p *ParentRequestReviewPolicy) StudentFilter(ctx context.Context, permissio
 	if err != nil {
 		return nil, err
 	}
-	if schoolWide {
-		return func(student *userModels.Student) bool { return student != nil }, nil
-	}
-	groups := make(map[int64]struct{}, len(groupIDs))
-	for _, id := range groupIDs {
-		groups[id] = struct{}{}
-	}
+	reaches := identityaccess.ReviewReachesGroup(schoolWide, groupIDs)
 	return func(student *userModels.Student) bool {
-		if student == nil || student.GroupID == nil {
-			return false
-		}
-		_, ok := groups[*student.GroupID]
-		return ok
+		return student != nil && reaches(student.GroupID)
 	}, nil
 }
 

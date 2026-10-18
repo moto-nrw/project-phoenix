@@ -40,15 +40,21 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		}
 		return len(staff), withoutPersonnelNumber, nil
 	})
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return nil, err
+	}
+	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 	return newTimeTracking(timeTrackingPortDependencies{
 		Workforce: repos.Workforce,
 		Bound: workforceCompose.TimeTrackingPorts{
 			Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
+			Staff:        WorkSessionStaff(repos.Staff, employment, membership),
 			Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
 			Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync,
 		},
 		Audits: graph.Audits,
-		Staff:  repos.Staff, People: graph.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db.Pool()),
+		Staff:  repos.Staff, People: graph.People, StaffEmployment: employment,
 		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel,
 		Settings: graph.Settings, Payroll: payroll,
 		DB: db, Logger: graph.Logger, Today: graph.Today,

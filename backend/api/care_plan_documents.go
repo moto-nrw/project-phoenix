@@ -8,6 +8,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
@@ -106,14 +107,11 @@ func StudentDocumentDependencies(
 	if edits == nil || accessLog == nil {
 		return carePlanCompose.StudentDocumentDependencies{}, errors.New("student documents: change history and data access log are required; refusing unaudited changes")
 	}
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
 	return carePlanCompose.StudentDocumentDependencies{
-		Records: records,
-		Access:  studentDocumentAccess{students: students, userContext: userContext},
-		Permissions: carePlanCompose.StudentDocumentPermissions{
-			Health:  securityruntime.PermissionStudentDocumentsHealth,
-			Legal:   securityruntime.PermissionStudentDocumentsLegal,
-			Default: securityruntime.PermissionUsersUpdate,
-		},
-		Audit: studentDocumentAudit{edits: edits, accessLog: accessLog},
+		Records:     records,
+		Access:      studentDocumentAccess{students: students, userContext: userContext},
+		Permissions: carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback},
+		Audit:       studentDocumentAudit{edits: edits, accessLog: accessLog},
 	}, nil
 }

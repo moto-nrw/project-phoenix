@@ -20,25 +20,25 @@ type ClassDaySlotListStaff interface {
 	CurrentStaffIDOfPerson(ctx context.Context) (staffID int64, found bool, err error)
 }
 
-// ClassDaySlotListAccess grants the slot lists' child rows to administrators
-// and to accounts with a staff record. Staff may be nil; the verdict then
-// rests on the admin permission alone.
+// ClassDaySlotListAccess binds the slot lists' read verdict (Security
+// Runtime's SlotListStudentAccess) to the session permissions and the
+// caller's staff record. Staff may be nil; the verdict then rests on the
+// permissions alone.
 type ClassDaySlotListAccess struct{ Staff ClassDaySlotListStaff }
 
 // CanReadStudents collapses only the legitimate restrictive condition (no
 // staff record) to "no"; operational failures propagate.
 func (a ClassDaySlotListAccess) CanReadStudents(ctx context.Context) (bool, error) {
-	if securityruntime.HasPermission("admin:*", sessiontoken.PermissionsFromCtx(ctx)) {
-		return true, nil
-	}
-	if a.Staff == nil {
-		return false, nil
-	}
-	_, found, err := a.Staff.CurrentStaffIDOfPerson(ctx)
-	if err != nil {
-		return false, fmt.Errorf("resolve current staff: %w", err)
-	}
-	return found, nil
+	return securityruntime.SlotListStudentAccess(sessiontoken.PermissionsFromCtx(ctx), func() (bool, error) {
+		if a.Staff == nil {
+			return false, nil
+		}
+		_, found, err := a.Staff.CurrentStaffIDOfPerson(ctx)
+		if err != nil {
+			return false, fmt.Errorf("resolve current staff: %w", err)
+		}
+		return found, nil
+	})
 }
 
 // ClassDaySlotListRenderer renders the slot list exports with Document

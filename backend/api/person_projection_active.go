@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 )
 
@@ -35,7 +36,7 @@ func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hosting
 		return nil, err
 	}
 	for _, visitor := range visitors {
-		if visitor.TenantID == hostingTenantID {
+		if !studentpresence.VisitsFromAnotherSchool(visitor.TenantID, hostingTenantID) {
 			continue
 		}
 		students = append(students, presenceCompose.CrossTenantStudent{StudentID: visitor.ID, PersonID: visitor.PersonID, HomeTenantID: visitor.TenantID, GroupID: visitor.GroupID})

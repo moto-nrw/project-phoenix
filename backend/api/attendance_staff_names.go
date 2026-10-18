@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -35,5 +34,5 @@ func (q attendanceStaffNames) StaffName(ctx context.Context, id int64) (string, 
 	if err != nil || person == nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s %s", person.FirstName, person.LastName), nil
+	return person.GetFullName(), nil
 }

@@ -65,25 +65,10 @@ func (r ReminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Contex
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 	}
+	// ActiveOn already keeps the supervisions running today: started on or
+	// before it and ending after it.
 	result := make([]*ports.GroupSupervisor, 0, len(values))
-	today := timezone.TodayDate()
 	for _, value := range values {
-		start, err := timezone.ParseDate(value.StartDate)
-		if err != nil {
-			return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
-		}
-		if start.After(today) {
-			continue
-		}
-		if value.EndDate != nil {
-			end, err := timezone.ParseDate(*value.EndDate)
-			if err != nil {
-				return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
-			}
-			if !today.Before(end) {
-				continue
-			}
-		}
 		result = append(result, &ports.GroupSupervisor{StaffID: value.StaffID, GroupID: value.GroupID})
 	}
 	return result, nil

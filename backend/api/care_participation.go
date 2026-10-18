@@ -21,7 +21,7 @@ func CareParticipationResolver(current func() careplan.CareParticipation) people
 		if lifecycle == nil {
 			return nil, errors.New("person service: care participation resolver is not configured")
 		}
-		resolution, err := lifecycle.ResolveListParticipation(ctx, studentIDs, on, today, false)
+		resolution, err := lifecycle.ResolveListParticipation(ctx, studentIDs, on, today, careplan.GroupRosterIncludesPendingWithdrawals)
 		if err != nil {
 			return nil, err
 		}

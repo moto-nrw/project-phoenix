@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )

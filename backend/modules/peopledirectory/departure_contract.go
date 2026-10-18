@@ -56,6 +56,17 @@ func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureMode
 	return departure.AllowedDepartureModesFromDeparture(days)
 }
 
+// HasCompanionNote reports whether the free-text "mit wem" note carries the
+// detail. A blank note is no answer.
+func HasCompanionNote(note *string) bool { return departure.HasCompanionNote(note) }
+
+// MissingAccompaniedDays returns, in weekday order, the requested weekdays the
+// child's plan does not yet allow leaving with another child on: the days a
+// confirmed companion link widens the plan by.
+func MissingAccompaniedDays(modes AllowedDepartureModes, days DepartureDays, requested []string) []string {
+	return departure.Plan{AllowedDepartureModes: modes, DepartureDays: days}.MissingAccompaniedDays(requested)
+}
+
 const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 
 var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired

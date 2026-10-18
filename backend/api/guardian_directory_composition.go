@@ -183,7 +183,7 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 		result, err := invitations.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 			StudentID: input.StudentID, Email: input.Email, FirstName: input.FirstName, LastName: input.LastName,
 			RelationshipType: input.RelationshipType, CreatedBy: input.ActorAccountID,
-			RequireApproval: false, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
+			RequireApproval: identityaccess.StaffInviteRequiresApproval, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
 		})
 		if err != nil {
 			runtime.MarkRollback(ctx)

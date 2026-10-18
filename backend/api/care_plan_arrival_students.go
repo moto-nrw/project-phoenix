@@ -15,7 +15,7 @@ type arrivalPlanStudents struct{ people peopledirectory.Capability }
 func arrivalPlanStudent(row peopledirectory.StudentRecord, date timezone.Date) careplanCompose.ArrivalBulkStudent {
 	return careplanCompose.ArrivalBulkStudent{ScheduleStudent: careplan.ScheduleStudent{ID: row.ID, TenantID: row.TenantID},
 		PersonID: row.PersonID, SchoolClass: row.SchoolClass, GroupID: row.GroupID, Alumnus: row.IsAlumnus(),
-		CareEnded: row.EnrolledUntil != "" && date.After(timezone.Date(row.EnrolledUntil))}
+		CareEnded: row.CareEndedOn(date)}
 }
 
 func arrivalPlanRows(rows []peopledirectory.StudentRecord, date timezone.Date) []careplanCompose.ArrivalBulkStudent {

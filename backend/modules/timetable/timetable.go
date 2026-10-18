@@ -189,6 +189,7 @@ type Query interface {
 	InstanceStudentQuery
 	ConflictAckQuery
 	PickupExtensionQuery
+	SessionRosterQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryForShare(context.Context, int64) (Category, error)

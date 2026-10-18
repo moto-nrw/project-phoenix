@@ -122,7 +122,7 @@ func NewDeviceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork)
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	fleet, err := NewDeviceFleet(db, NewOnlineWindowResolver(settings.Settings, nil))
+	fleet, err := NewDeviceFleet(db, NewOnlineWindowMinutes(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}

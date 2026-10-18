@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -78,12 +80,12 @@ func TestNightlyRetentionDeletesSickNotesAfterTheirWindow(t *testing.T) {
 	assert.False(t, suite.fileCleanupIntent(t, school, contractFile))
 	assert.True(t, suite.exists(t, "users.staff_documents", otherExpired), "the run of one school never touches another")
 	assert.False(t, suite.fileCleanupIntent(t, otherSchool, otherFile))
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStaffSickNotes))
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionStaffSickNotes))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStaffSickNoteRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeStaffSickNoteRetention))
 
 	suite.run(t, school)
 
-	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStaffSickNotes), "a second run deletes and logs nothing")
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStaffSickNoteRetention), "a second run deletes and logs nothing")
 }
 
 func TestNightlyRetentionFollowsTheSchoolsRecordedSickNoteWindow(t *testing.T) {
@@ -145,5 +147,5 @@ func TestNightlyRetentionTreatsARecordedDefaultSickNoteWindowLikeTheDefault(t *t
 
 	assert.True(t, suite.exists(t, "users.staff_documents", kept))
 	assert.False(t, suite.exists(t, "users.staff_documents", expired))
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionStaffSickNotes))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeStaffSickNoteRetention))
 }

@@ -22,12 +22,6 @@ import (
 // routes, which may not name it, read the retained envelope this file
 // translates into.
 
-var invitationEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
 // InvitationWiring is the configuration the invitation flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type InvitationWiring struct {
@@ -59,9 +53,6 @@ func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	if backoff == nil {
-		backoff = invitationEmailBackoff
-	}
 	return &identityaccessCompose.SchoolInvitationDependencies{
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
@@ -134,15 +125,13 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 		Recipient:   invitation.Email,
 	}
 	baseRetry := invitation.Delivery.RetryCount
-	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.DeliveryRequest{
-		Message:       message,
-		Metadata:      meta,
-		BackoffPolicy: d.backoff,
-		MaxAttempts:   3,
+	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.WithInteractiveRetry(email.DeliveryRequest{
+		Message:  message,
+		Metadata: meta,
 		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
 			d.recordDelivery(cbCtx, meta, baseRetry, result)
 		},
-	})
+	}, d.backoff))
 }
 
 // QueueSchoolWelcome persists the welcome with the invitation. Its renderer

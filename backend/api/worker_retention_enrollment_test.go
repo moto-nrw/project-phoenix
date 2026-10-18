@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -226,9 +228,9 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	assert.True(t, suite.exists(t, "enrollment.late_invites", keptInvite))
 	assert.True(t, suite.exists(t, "enrollment.late_invites", otherInvite))
 
-	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, retentionSettledEnrollments),
+	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, auditModels.DeletionTypeSettledEnrollmentRetention),
 		"one entry counting four requests and two invitations; the second run deletes nothing")
-	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSettledEnrollments))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeSettledEnrollmentRetention))
 }
 
 func TestNightlyRetentionCountsWithdrawnEnrollmentsFromTheirStatusChange(t *testing.T) {
@@ -265,5 +267,5 @@ func TestNightlyRetentionFollowsTheSchoolsRecordedSettledEnrollmentWindow(t *tes
 
 	assert.True(t, suite.exists(t, "enrollment.requests", kept), "a longer contractual window keeps the request")
 	assert.False(t, suite.exists(t, "enrollment.requests", expired))
-	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionSettledEnrollments))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeSettledEnrollmentRetention))
 }

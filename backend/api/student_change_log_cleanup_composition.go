@@ -24,17 +24,9 @@ func NewStudentChangeLogCleanup(
 	var deletionLog peoplePorts.StudentChangeLogDeletionLog
 	if deletions != nil {
 		deletionLog = func(ctx context.Context, entry peoplePorts.StudentChangeLogDeletion) error {
-			deletion := auditModels.NewDataDeletion(
-				entry.StudentID,
-				auditModels.DeletionTypeStudentChangeLogRetention,
-				entry.EditsDeleted,
-				"system",
-			)
-			deletion.SetTenantID(entry.TenantID)
-			deletion.DeletionReason = "automated student change-log retention cleanup"
-			deletion.SetMetadata("retention_days", entry.RetentionDays)
-			deletion.SetMetadata("cutoff", entry.Cutoff)
-			return deletions.Create(ctx, deletion)
+			return deletions.Create(ctx, auditModels.NewStudentChangeLogRetentionDeletion(
+				entry.TenantID, entry.StudentID, entry.EditsDeleted, entry.RetentionDays, entry.Cutoff,
+			))
 		}
 	}
 	var retention peoplePorts.StudentChangeLogRetention

@@ -9,8 +9,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -25,8 +25,11 @@ func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.M
 	}
 	deps := carePlanCompose.MasterDataDecisionDependencies{
 		CarePlan: wiring.CarePlan, People: masterDataFieldReviews{fields: wiring.Fields}, Scope: wiring.Scope, Shares: wiring.Shares,
-		Records: masterDataRecords{students: wiring.Students, persons: wiring.Persons, details: wiring.Fields, audit: wiring.Audit},
-		Today:   carePlanCompose.Today, Logger: wiring.Logger,
+		Records: masterDataRecords{
+			students: wiring.Students, persons: wiring.Persons, details: wiring.Fields,
+			writes: peopleCompose.NewAuditedStudentUpdates(wiring.Students, wiring.Audit),
+		},
+		Today: carePlanCompose.Today, Logger: wiring.Logger,
 	}
 	if wiring.Today != nil {
 		deps.Today = func() careplan.Date { return careplan.Date(wiring.Today()) }
@@ -127,14 +130,13 @@ type MasterDataPeople interface {
 }
 
 // masterDataRecords binds the decision's People Directory port to the
-// retained student and person reads, the student write path they reach, the
-// People Directory's person details write and the per-child change history.
-// A nil audit recorder skips the history, as graphs without one always did.
+// retained student and person reads, People Directory's audited student write
+// over the same rows and its person details write.
 type masterDataRecords struct {
 	students masterDataStudentRows
 	persons  masterDataPersonRows
 	details  peopledirectory.PersonDetailsCommand
-	audit    peoplePorts.StudentChangeRecorder
+	writes   peopleCompose.AuditedStudentUpdates
 }
 
 // masterDataStudentRows and masterDataPersonRows are the retained student and
@@ -176,9 +178,8 @@ func (r masterDataRecords) FindPerson(ctx context.Context, id int64) (carePlanCo
 	return masterDataPerson(person), nil
 }
 
-// UpdateStudent writes inside a companion recording scope, so the decision
-// learns whether the write trimmed a "läuft mit" link rather than guessing
-// from the request's target (see usersModels.CompanionChangeRecorder).
+// UpdateStudent reports whether the write trimmed a "läuft mit" link rather
+// than guessing from the request's target (see UpdateStudentAudited).
 func (r masterDataRecords) UpdateStudent(ctx context.Context, id, actorAccountID int64, change carePlanCompose.MasterDataStudentChange) (bool, error) {
 	student, err := r.students.FindByIDForUpdate(ctx, id)
 	if err != nil {
@@ -197,16 +198,15 @@ func (r masterDataRecords) UpdateStudent(ctx context.Context, id, actorAccountID
 		// the derived departure_days / pickup_days / bus_days columns too.
 		student.AllowedDepartureModes = allowedDepartureModes(write.DepartureModes)
 	}
-	writeCtx, companions := usersModels.ContextWithCompanionChangeRecorder(ctx)
-	if err := r.students.Update(writeCtx, student); err != nil {
+	trimmed, err := r.writes.UpdateStudentAudited(ctx, &before, student, actorAccountID)
+	var auditErr *peopledirectory.StudentAuditError
+	switch {
+	case errors.As(err, &auditErr):
+		return false, &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteAudit, Err: auditErr.Err}
+	case err != nil:
 		return false, &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteUpdate, Err: err}
 	}
-	if r.audit != nil {
-		if err := r.audit.RecordChangesForActor(writeCtx, &before, student, actorAccountID); err != nil {
-			return false, &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteAudit, Err: err}
-		}
-	}
-	return companions.Changed(), nil
+	return trimmed, nil
 }
 
 func (r masterDataRecords) UpdatePerson(ctx context.Context, id int64, change carePlanCompose.MasterDataPersonChange) error {

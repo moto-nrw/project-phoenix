@@ -3,12 +3,12 @@ package legacy
 import (
 	"context"
 
-	facilities "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
 // SettingHandler applies one setting's write side effect; the root registers it.
 type SettingHandler func(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
-type provisionedActivity = facilities.SystemActivity
+type provisionedActivity = facilitiesModule.SystemActivity
 
 type settingsRegistry interface {
 	Register(string, SettingHandler)

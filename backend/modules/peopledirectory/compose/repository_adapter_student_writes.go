@@ -11,6 +11,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -18,7 +19,8 @@ import (
 // Directory owns users.students and the departure plan, and the retained
 // callers still carry users.Student rows. The ordering, the gates, the
 // companion reconcile and the stranding refusal are the owner's; this only
-// carries values across.
+// carries values across, with the owner's value translation
+// (application.StudentWriteFromModel and its siblings).
 
 // StudentWriteCapability is the owner surface this seam translates to.
 type StudentWriteCapability interface {
@@ -52,11 +54,11 @@ func (w *StudentWrites) Create(ctx context.Context, student *userModels.Student)
 	if student == nil {
 		return errors.New("student cannot be nil")
 	}
-	record, err := w.directory.CreateStudent(ctx, toOwnerStudentWrite(student))
+	record, err := w.directory.CreateStudent(ctx, application.StudentWriteFromModel(student))
 	if err != nil {
-		return translateStudentWriteError(err)
+		return application.RetainedStudentWriteError(err)
 	}
-	applyStudentRecord(student, record)
+	application.ApplyStudentRecord(student, record)
 	return nil
 }
 
@@ -64,16 +66,16 @@ func (w *StudentWrites) Update(ctx context.Context, student *userModels.Student)
 	if student == nil {
 		return errors.New("student cannot be nil")
 	}
-	record, err := w.directory.UpdateStudent(ctx, toOwnerStudentWrite(student))
+	record, err := w.directory.UpdateStudent(ctx, application.StudentWriteFromModel(student))
 	if err != nil {
-		return translateStudentWriteError(err)
+		return application.RetainedStudentWriteError(err)
 	}
-	applyStudentRecord(student, record)
+	application.ApplyStudentRecord(student, record)
 	return nil
 }
 
 func (w *StudentWrites) Delete(ctx context.Context, id int64) error {
-	return translateStudentWriteError(w.directory.DeleteStudentRecord(ctx, id))
+	return application.RetainedStudentWriteError(w.directory.DeleteStudentRecord(ctx, id))
 }
 
 // SetEnrollmentStatus (the retained UpdateStatus), TransitionStatus,
@@ -86,7 +88,7 @@ func (w *StudentWrites) SetEnrollmentStatus(ctx context.Context, studentID int64
 	if err == nil && !changed {
 		err = peopleModule.ErrStudentNotFound
 	}
-	return translateStudentWriteError(err)
+	return application.RetainedStudentWriteError(err)
 }
 
 func (w *StudentWrites) TransitionStatus(
@@ -95,13 +97,13 @@ func (w *StudentWrites) TransitionStatus(
 	expected, next userModels.StudentStatus,
 ) (bool, error) {
 	moved, err := w.membership.TransitionStatus(ctx, studentID, string(expected), string(next))
-	return moved, translateStudentWriteError(err)
+	return moved, application.RetainedStudentWriteError(err)
 }
 
 func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
 	values, err := w.directory.ListStudentCareEnds(ctx, ids)
 	if err != nil {
-		return nil, translateStudentWriteError(err)
+		return nil, application.RetainedStudentWriteError(err)
 	}
 	bounds := make(map[int64]userModels.CalendarDate, len(values))
 	for id, value := range values {
@@ -113,118 +115,7 @@ func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (m
 }
 
 func (w *StudentWrites) VerifyCompanionStrandingBatch(ctx context.Context) error {
-	return translateStudentWriteError(w.directory.VerifyStudentStrandingBatch(ctx))
-}
-
-// toOwnerStudentWrite reads the plan and the baseline off the model. The
-// baseline is only present when the read that produced this struct hydrated the
-// plan; without one the owner takes the supplied fields at face value.
-func toOwnerStudentWrite(student *userModels.Student) peopleModule.StudentWrite {
-	write := peopleModule.StudentWrite{
-		Record: studentModelToRecord(student),
-		Plan: peopleModule.StudentPlan{
-			AllowedDepartureModes: student.AllowedDepartureModes,
-			DepartureDays:         student.DepartureDays,
-			BusDays:               student.BusDays,
-			PickupDays:            student.PickupDays,
-			PickupStatus:          student.PickupStatus,
-		},
-		CompanionNote: student.DepartureCompanionNote,
-		NoteSupplied:  student.DepartureCompanionNote != nil,
-	}
-	if baseline := student.DepartureBaseline; baseline != nil {
-		write.Baseline = &peopleModule.StudentPlan{
-			AllowedDepartureModes: baseline.AllowedDepartureModes,
-			DepartureDays:         baseline.DepartureDays,
-			BusDays:               baseline.BusDays,
-			PickupDays:            baseline.PickupDays,
-		}
-	}
-	return write
-}
-
-func studentModelToRecord(student *userModels.Student) peopleModule.StudentRecord {
-	record := peopleModule.StudentRecord{
-		ID: student.ID, TenantID: student.GetTenantID(),
-		PersonID: student.PersonID, SchoolClass: student.SchoolClass,
-		GroupID: student.GroupID, Status: string(student.Status),
-
-		AddressStreet:     student.AddressStreet,
-		AddressCity:       student.AddressCity,
-		AddressPostalCode: student.AddressPostalCode,
-
-		ExtraInfo:       student.ExtraInfo,
-		SupervisorNotes: student.SupervisorNotes,
-		HealthInfo:      student.HealthInfo,
-		PickupStatus:    student.PickupStatus,
-
-		DepartureCompanionNote: student.DepartureCompanionNote,
-
-		Sick:         student.Sick,
-		SickSince:    student.SickSince,
-		Excused:      student.Excused,
-		ExcusedSince: student.ExcusedSince,
-
-		PhotoPath:           student.PhotoPath,
-		PhotoConsentGivenAt: student.PhotoConsentGivenAt,
-		PhotoConsentGivenBy: student.PhotoConsentGivenBy,
-
-		AGBAcceptedAt:            student.AGBAcceptedAt,
-		DataProcessingAcceptedAt: student.DataProcessingAcceptedAt,
-		EmailContactAcceptedAt:   student.EmailContactAcceptedAt,
-	}
-	if student.EnrolledFrom != nil {
-		record.EnrolledFrom = student.EnrolledFrom.String()
-	}
-	if student.EnrolledUntil != nil {
-		record.EnrolledUntil = student.EnrolledUntil.String()
-	}
-	return record
-}
-
-// applyStudentRecord writes the stored row back onto the caller's struct and
-// records the persisted plan as the new baseline: the in-memory plan now equals
-// the stored one, so reusing the same instance for a second write must not make
-// this write's own result look like a pending caller change.
-func applyStudentRecord(student *userModels.Student, record peopleModule.StudentRecord) {
-	// Field by field rather than replacing the struct: the caller's value also
-	// carries things the row does not — a preloaded Person, the companion days
-	// it marked — and a write must not take those away.
-	student.ID, student.CreatedAt, student.UpdatedAt = record.ID, record.CreatedAt, record.UpdatedAt
-	student.SetTenantID(record.TenantID)
-	student.PersonID, student.SchoolClass = record.PersonID, record.SchoolClass
-	student.GroupID, student.Status = record.GroupID, userModels.StudentStatus(record.Status)
-	student.EnrolledFrom = userModels.OptionalCalendarDate(record.EnrolledFrom)
-	student.EnrolledUntil = userModels.OptionalCalendarDate(record.EnrolledUntil)
-
-	student.AllowedDepartureModes = record.AllowedDepartureModes
-	student.DepartureDays = record.DepartureDays
-	student.BusDays = record.BusDays
-	student.PickupDays = record.PickupDays
-	student.PickupStatus = record.PickupStatus
-	student.DepartureCompanionNote = record.DepartureCompanionNote
-
-	// The in-memory plan now equals the stored one, so it is also the new
-	// baseline: reusing the same value for a second write must not make this
-	// write's own result look like a pending caller change.
-	student.SnapshotDeparturePlan()
-}
-
-// translateStudentWriteError restates the owner's sentinels in the vocabulary
-// the retained callers branch on.
-func translateStudentWriteError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, peopleModule.ErrCompanionWouldLoseDeparture):
-		return userModels.ErrCompanionWouldLoseDeparture
-	case errors.Is(err, peopleModule.ErrCompanionLockBusy):
-		return userModels.ErrCompanionLockBusy
-	case errors.Is(err, peopleModule.ErrStudentNotFound):
-		return userModels.ErrStudentRowMissing
-	default:
-		return err
-	}
+	return application.RetainedStudentWriteError(w.directory.VerifyStudentStrandingBatch(ctx))
 }
 
 // studentRepositoryWithOwnerWrites keeps the retained read surface of the

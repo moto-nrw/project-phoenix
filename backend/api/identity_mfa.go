@@ -23,13 +23,6 @@ import (
 // settings that parameterise the gate, the challenge JWT codec, the Argon2id
 // code hasher, the two mails and the operator action log.
 
-// mfaEmailBackoff spaces the retries of the MFA mails.
-var mfaEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
 // MfaWiring is the retained material the MFA seams bind to. A nil wiring
 // composes the module without MFA, which the cleanup and fixture roots do.
 type MfaWiring struct {
@@ -65,12 +58,9 @@ func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	if backoff == nil {
-		backoff = mfaEmailBackoff
-	}
 	return &identityaccessCompose.MFADependencies{
 		DecorateRecords: wiring.Decorate,
-		Settings:        mfaSettings{settings: wiring.Settings},
+		Settings:        mfaSettingsFor(wiring.Settings),
 		Codec:           codec,
 		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
@@ -87,17 +77,21 @@ func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *
 
 // --- the school settings -----------------------------------------------------
 
-// mfaSettings resolves the gate's parameters. A root composed without a
-// settings service answers the registry defaults, which is what the retained
-// service did with a nil one.
+// mfaSettingsFor binds the gate's parameters to the settings service; a root
+// composed without one gets Identity & Access's answers for that case.
+func mfaSettingsFor(settings settingsCompose.SettingsService) identityaccessCompose.MFASettings {
+	if settings == nil {
+		return identityaccess.MFASettingsWithoutService{}
+	}
+	return mfaSettings{settings: settings}
+}
+
+// mfaSettings resolves the gate's parameters from the school settings.
 type mfaSettings struct {
 	settings settingsCompose.SettingsService
 }
 
 func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error) {
-	if s.settings == nil {
-		return configModel.MFAModeOff, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
 	}
@@ -105,9 +99,6 @@ func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error
 }
 
 func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, error) {
-	if s.settings == nil {
-		return configModel.MFAModeOff, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveStringForTenantInTx(ctx, tenantID, configModel.KeyMFAMode)
 	}
@@ -115,9 +106,6 @@ func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, e
 }
 
 func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
-	if s.settings == nil {
-		return true, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	}
@@ -125,9 +113,6 @@ func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (
 }
 
 func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
 	}
@@ -135,9 +120,6 @@ func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int
 }
 
 func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
 	}
@@ -145,9 +127,6 @@ func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int,
 }
 
 func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.Duration, error) {
-	if s.settings == nil {
-		return 0, nil
-	}
 	var (
 		minutes int
 		err     error
@@ -197,15 +176,13 @@ func (m mfaMailer) DeliverCode(ctx context.Context, message identityaccess.MFACo
 	if message.Operator {
 		deliveryType = "operator_mfa_email_code"
 	}
-	err := m.dispatcher.Deliver(ctx, email.DeliveryRequest{
+	err := m.dispatcher.Deliver(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
 		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
 			identityaccess.MFACodeMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
-		BackoffPolicy: m.backoff,
-		MaxAttempts:   3,
-	})
+	}, m.backoff))
 	if err != nil {
 		m.logger.Warn("mfa challenge delivery failed",
 			slog.Int64("reference_id", message.ReferenceID),
@@ -226,15 +203,13 @@ func (m mfaMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identit
 	if message.Operator {
 		deliveryType = "operator_mfa_trusted_device_added"
 	}
-	m.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	m.dispatcher.Dispatch(ctx, email.WithInteractiveRetry(email.DeliveryRequest{
 		Message: *identityMessage(m.from, email.NewEmail(message.RecipientName, message.Recipient),
 			identityaccess.TrustedDeviceAddedMailContent(message, m.frontendURL)),
 		Metadata: email.DeliveryMetadata{
 			Type: deliveryType, ReferenceID: message.ReferenceID, Recipient: message.Recipient,
 		},
-		BackoffPolicy: m.backoff,
-		MaxAttempts:   3,
-	})
+	}, m.backoff))
 }
 
 // --- the operator action log -------------------------------------------------
@@ -264,14 +239,14 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
-	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
-		// A marshal failure falls through with empty changes: losing the
-		// metadata beats losing the whole audit row.
-		if err := setOperatorAuditChanges(row, changes); err != nil {
-			l.logger.Warn("failed to encode operator mfa audit changes",
-				slog.String("action", entry.Action),
-				slog.String("error", err.Error()))
-		}
+	// A marshal failure falls through with empty changes: losing the
+	// metadata beats losing the whole audit row.
+	if changes, err := entry.MFAAuditChanges(); err != nil {
+		l.logger.Warn("failed to encode operator mfa audit changes",
+			slog.String("action", entry.Action),
+			slog.String("error", err.Error()))
+	} else {
+		row.Changes = changes
 	}
 	go func() {
 		defer func() {
@@ -294,26 +269,4 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 				slog.String("error", err.Error()))
 		}
 	}()
-}
-
-func operatorMFAChanges(evidence *identityaccess.OperatorMFAEvidence) map[string]any {
-	if evidence == nil {
-		return nil
-	}
-	if override := evidence.Override; override != nil {
-		return map[string]any{
-			"action":            override.Action,
-			"scope":             override.Scope,
-			"override":          override.Override,
-			"previous_override": override.PreviousOverride,
-			"reason":            override.Reason,
-		}
-	}
-	switch {
-	case evidence.Reason != "":
-		return map[string]any{"reason": evidence.Reason}
-	case evidence.LockedUntil != nil:
-		return map[string]any{"locked_until": evidence.LockedUntil}
-	}
-	return nil
 }

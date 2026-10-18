@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -59,7 +61,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
 		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
-		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: OptionalClock(clocks),
+		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

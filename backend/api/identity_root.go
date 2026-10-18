@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+
 	"github.com/spf13/viper"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -103,13 +105,13 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, FrontendURL: m.FrontendURL,
 			JwtSecret: cfg.JWTSecret, Logger: authLogger,
 			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: "moto",
+				RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
 				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 			},
 		},
 		Operators:          operators,
 		DemoAccess:         demoAccessWiringFor(strings.ToLower(cfg.AppEnv), m.Dispatcher, m.DefaultFrom, m.FrontendURL, viper.GetInt("demo_max_active_schools"), r.tokens, authLogger),
-		DemoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
+		DemoStandingSchool: organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: m.Dispatcher, defaultFrom: m.DefaultFrom,
 			frontendURL: m.FrontendURL, operatorFrontendURL: operatorFrontendURL,

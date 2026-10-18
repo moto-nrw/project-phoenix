@@ -122,7 +122,7 @@ func (r ReminderSettings) OverdueThresholdMinutes(ctx context.Context) (int, err
 
 func (r ReminderSettings) BinaryPresence(ctx context.Context) (bool, error) {
 	v, err := reminderSettingValue(ctx, configModel.KeyPresenceMode, r.ResolveString)
-	return v == configModel.PresenceModeBinary, err
+	return configModel.IsBinaryPresence(v), err
 }
 
 func reminderSettingValue[T any](ctx context.Context, key string, resolve func(context.Context, string) (T, error)) (T, error) {

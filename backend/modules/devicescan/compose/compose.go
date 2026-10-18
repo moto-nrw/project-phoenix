@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -42,7 +41,7 @@ type Presence interface {
 type Rooms = application.Rooms
 
 // Rosters resolves the day rosters of running blocks. The roots bind it to
-// the Student Presence sessions and the Timetable roster (repositories.SessionRosters).
+// Timetable, which maps the Student Presence sessions to its day rosters.
 type Rosters = ports.Rosters
 
 // PickupReader is the slice of the retained pickup schedule service the
@@ -65,7 +64,7 @@ type Dependencies struct {
 	Users PersonDirectory
 	// Activities is the retained activity catalog the special rooms
 	// provision from.
-	Activities activitiesSvc.ActivityService
+	Activities application.ActivityCatalog
 	// Rosters reads the day rosters of running blocks for the Schulhof
 	// scan rule (#3282).
 	Rosters Rosters
@@ -100,9 +99,9 @@ func New(deps Dependencies) DeviceScan {
 		logger = slog.Default()
 	}
 	clock := clock{now: now}
-	var activities ports.Activities
+	var activities application.ActivityCatalog
 	if deps.Activities != nil {
-		activities = activityCatalog{activities: deps.Activities}
+		activities = deps.Activities
 	}
 	var groups ports.Groups
 	if deps.Education != nil {

@@ -13,11 +13,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -84,9 +84,8 @@ func (a supervisionAccess) FullStudentAccess(ctx context.Context) (bool, error) 
 // group mode is deliberately not consulted here: it describes how the school
 // organises children, not who may open a running module.
 func (a supervisionAccess) Caller(ctx context.Context) (supervisiondashboard.Caller, error) {
-	principal, principalErr := permissions.PrincipalFromContext(ctx)
-	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
-	admin := principalErr == nil && principal.HasAdminScope()
+	assignmentBound := common.IsAssignmentBoundPortal(ctx)
+	admin := common.HasEffectiveAdminScope(ctx)
 	overview, err := securityruntime.CanViewOperationalOverview(ctx, a.settings, a.caller, assignmentBound, admin)
 	if err != nil {
 		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
@@ -98,8 +97,8 @@ func (a supervisionAccess) Caller(ctx context.Context) (supervisiondashboard.Cal
 		TokenAdmin:          claims.IsAdmin,
 		AdminScope:          admin,
 		OperationalOverview: overview,
-		CanReadSchedules:    securityruntime.HasPermission(permissions.SchedulesRead, userPermissions),
-		CanReadStudents:     securityruntime.HasPermission(permissions.UsersRead, userPermissions),
+		CanReadSchedules:    securityruntime.HasPermission(supervisionDashboardHTTP.ScheduleReadPermission, userPermissions),
+		CanReadStudents:     securityruntime.HasPermission(supervisionDashboardHTTP.StudentReadPermission, userPermissions),
 	}, nil
 }
 
@@ -132,21 +131,7 @@ func (s supervisionSettings) StudentPhotosEnabled(ctx context.Context) (bool, er
 }
 
 func (s supervisionSettings) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {
-	enabled, err := s.settings.ResolveBool(ctx, settingsplatform.KeyTrackingIndicatorsEnabled)
-	if err != nil || !enabled {
-		return nil, err
-	}
-	labels := make([]string, 0, 3)
-	for _, key := range []string{settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3} {
-		value, err := s.settings.ResolveString(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if value = strings.TrimSpace(value); value != "" {
-			labels = append(labels, value)
-		}
-	}
-	return labels, nil
+	return settingsplatform.PrefetchedTrackingIndicatorLabels(ctx, s.settings)
 }
 
 func (s supervisionSettings) SpontaneousActivitiesEnabled(ctx context.Context) (bool, error) {
@@ -336,9 +321,7 @@ func (s supervisionSessions) records(ctx context.Context, groups []*studentprese
 		}
 		result = append(result, item)
 	}
-	sort.SliceStable(result, func(i, j int) bool {
-		return s.collate(result[i].RoomName, result[j].RoomName) < 0
-	})
+	supervisiondashboard.SortSessionsByRoom(result, s.collate)
 	return result, nil
 }
 

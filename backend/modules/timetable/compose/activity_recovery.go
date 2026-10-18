@@ -14,30 +14,18 @@ import (
 type ActivityRecoveryRepository struct {
 	store       *postgres.Store
 	assignments application.AssignmentRecovery
-	presence    application.PresenceRecovery
+	application.PresenceRecovery
 }
 
 func NewActivityRecoveryRepository(db *bun.DB, assignments application.AssignmentRecovery, presence application.PresenceRecovery) *ActivityRecoveryRepository {
 	if assignments == nil || presence == nil {
 		panic("activity recovery: timetable assignments and presence are required")
 	}
-	return &ActivityRecoveryRepository{store: postgres.New(databaseRuntime(db)), assignments: assignments, presence: presence}
+	return &ActivityRecoveryRepository{store: postgres.New(databaseRuntime(db)), assignments: assignments, PresenceRecovery: presence}
 }
 
 func (r *ActivityRecoveryRepository) CompletionTimestamp(ctx context.Context) (time.Time, error) {
 	return r.store.TransactionTimestamp(ctx)
-}
-
-func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
-	return r.presence.LockOpenSupervisors(ctx, activeGroupID)
-}
-
-func (r *ActivityRecoveryRepository) LockSupervisors(ctx context.Context, supervisorIDs []int64) error {
-	return r.presence.LockSupervisors(ctx, supervisorIDs)
-}
-
-func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeGroupID int64) error {
-	return r.presence.LockOpenVisits(ctx, activeGroupID)
 }
 
 func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
@@ -51,19 +39,19 @@ func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanc
 // attendance rows and the session exactly as the completion snapshot left
 // them. Every step is an owner command inside the caller's transaction.
 func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int64, snapshot scheduleModel.ActivityCompletionSnapshot, now time.Time) error {
-	if err := r.presence.RestoreGroup(ctx, snapshot.ActiveGroupID, now); err != nil {
+	if err := r.RestoreGroup(ctx, snapshot.ActiveGroupID, now); err != nil {
 		return err
 	}
-	if err := r.presence.RestoreVisits(ctx, snapshot.VisitIDs); err != nil {
+	if err := r.RestoreVisits(ctx, snapshot.VisitIDs); err != nil {
 		return err
 	}
-	if err := r.presence.RestoreSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
+	if err := r.RestoreSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
 		return err
 	}
-	if err := r.presence.RestoreAttendance(ctx, snapshot.Attendance); err != nil {
+	if err := r.RestoreAttendance(ctx, snapshot.Attendance); err != nil {
 		return err
 	}
-	if err := r.presence.ReopenSession(ctx, instanceID, snapshot.ActiveGroupID); err != nil {
+	if err := r.ReopenSession(ctx, instanceID, snapshot.ActiveGroupID); err != nil {
 		return fmt.Errorf("restore instance: %w", err)
 	}
 	return nil

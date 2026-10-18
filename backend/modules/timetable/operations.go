@@ -293,6 +293,9 @@ type ScheduledInstance struct {
 	IsDuty bool `json:"-"`
 }
 
+// IsCancelled reports whether the block was cancelled.
+func (i *ScheduledInstance) IsCancelled() bool { return i.Status == InstanceStatusCancelled }
+
 // OperationQuery reads the operational day: the caller's planned blocks,
 // the running sessions and the rosters.
 type OperationQuery interface {

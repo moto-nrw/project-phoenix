@@ -10,8 +10,7 @@ import (
 )
 
 // phaseResponseRoster feeds the response overview (#3379) with the children
-// the school cares for today. Only active children are asked to re-enroll: a
-// pending child has not started yet and its own enrollment is still running.
+// the school cares for today; Enrollment decides which of them it asks.
 type phaseResponseRoster struct {
 	query peopledirectory.StudentDirectoryQuery
 }
@@ -23,12 +22,9 @@ func (d phaseResponseRoster) ListRunningStudents(ctx context.Context, today time
 	}
 	result := make([]enrollmentOwner.PhaseResponseStudent, 0, len(entries))
 	for _, entry := range entries {
-		if entry.Record.Status != peopledirectory.StudentStatusActive {
-			continue
-		}
 		result = append(result, enrollmentOwner.PhaseResponseStudent{
 			ID: entry.Record.ID, FirstName: entry.FirstName, LastName: entry.LastName,
-			SchoolClass: entry.Record.SchoolClass,
+			SchoolClass: entry.Record.SchoolClass, NotActive: !entry.Record.IsActive(),
 		})
 	}
 	return result, nil

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -182,8 +183,7 @@ func (o enrollmentMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentCo
 }
 
 // enrollmentMailRenderers registers Enrollment's renderers by outbox kind.
-// A mail without a school name keeps the default sender; otherwise it goes
-// out under the school's name from the default address.
+// Delivery chooses the sender from the mail's school name.
 func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
 	render := func(renderer enrollmentOwner.MailRenderer) deliveryCompose.MailRenderer {
 		return deliveryCompose.MailRendererFunc(func(ctx context.Context, intent *deliveryCompose.MailIntent) (*email.Message, error) {
@@ -195,12 +195,8 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 			if err != nil {
 				return nil, err
 			}
-			from := defaultFrom
-			if mail.SenderName != "" {
-				from = email.NewEmail(mail.SenderName, defaultFrom.Address)
-			}
 			return &email.Message{
-				From: from, To: email.NewEmail("", mail.Recipient),
+				From: email.NewEmail(deliveryModule.SchoolSender(mail.SenderName, defaultFrom.Name, defaultFrom.Address)), To: email.NewEmail("", mail.Recipient),
 				Subject: mail.Subject, Template: mail.Template, Content: mail.Content,
 			}, nil
 		})

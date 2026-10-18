@@ -35,10 +35,6 @@ func (e PresenceEvents) log() *slog.Logger {
 	return slog.Default()
 }
 
-func educationTopic(educationGroupID int64) string {
-	return fmt.Sprintf("edu:%d", educationGroupID)
-}
-
 func educationGroupIDs(educationGroupID *int64) []string {
 	if educationGroupID == nil {
 		return nil
@@ -83,7 +79,7 @@ func (e PresenceEvents) publishVisitChange(ctx context.Context, eventType realti
 	}
 	topics := []string{change.ActiveGroupID}
 	if change.EducationGroupID != nil {
-		topics = append(topics, educationTopic(*change.EducationGroupID))
+		topics = append(topics, realtime.EducationGroupTopic(*change.EducationGroupID))
 	}
 	if err := e.publisher.BroadcastToGroups(tenant.FromContext(ctx), topics, visitEvent(eventType, change)); err != nil {
 		e.log().Error(presenceBroadcastFailed,
@@ -111,7 +107,7 @@ func (e PresenceEvents) publishToEducationGroup(ctx context.Context, educationGr
 	if e.publisher == nil || educationGroupID == nil {
 		return
 	}
-	topic := educationTopic(*educationGroupID)
+	topic := realtime.EducationGroupTopic(*educationGroupID)
 	if err := e.publisher.BroadcastToGroup(tenant.FromContext(ctx), topic, event); err != nil {
 		studentID := ""
 		if event.Data.StudentID != nil {

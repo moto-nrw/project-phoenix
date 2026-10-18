@@ -3027,7 +3027,7 @@ func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWit
 	studentID := existing.ID
 	actorID := env.creatorID
 	repo := env.repos.CareWithdrawal
-	require.NoError(t, repo.UpsertPending(ctx, &usersModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &usersModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: calendar.Date(env.sourcePhase.ServiceStartDate),
 		Trigger:               usersModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",

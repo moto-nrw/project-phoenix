@@ -62,14 +62,14 @@ type GroupRepository struct {
 	rooms func() RoomDirectory
 	// supervisionStaff resolves the raw supervision references of a group to
 	// the staff members behind them, through School Membership (#2667).
-	supervisionStaff func(ctx context.Context, pairs GroupMembershipPairs) ([]domain.StaffGroupID, error)
+	supervisionStaff func(ctx context.Context, pairs domain.GroupMembershipPairs) ([]domain.StaffGroupID, error)
 	// assignments resolves education.group_teacher through composition. This
 	// Postgres adapter stays independent of the sibling School Membership owner.
-	assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
+	assignments func(context.Context, []int64, []int64) ([]domain.TeacherGroupID, error)
 }
 
 // NewGroupRepository creates a new GroupRepository on the tenant runtime.
-func NewGroupRepository(runtime Runtime, rooms func() RoomDirectory, assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error), supervisionStaff func(context.Context, GroupMembershipPairs) ([]domain.StaffGroupID, error)) *GroupRepository {
+func NewGroupRepository(runtime Runtime, rooms func() RoomDirectory, assignments func(context.Context, []int64, []int64) ([]domain.TeacherGroupID, error), supervisionStaff func(context.Context, domain.GroupMembershipPairs) ([]domain.StaffGroupID, error)) *GroupRepository {
 	return &GroupRepository{runtime: requireRuntime(runtime), rooms: rooms, assignments: assignments, supervisionStaff: supervisionStaff}
 }
 
@@ -243,29 +243,6 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	return groups, nil
 }
 
-// TeacherGroupID pairs a teacher profile with one education group they are
-// assigned to. The teacher is resolved to a staff member by the composition
-// layer.
-type TeacherGroupID struct {
-	TeacherID int64 `bun:"teacher_id"`
-	GroupID   int64 `bun:"group_id"`
-}
-
-// GroupMembershipPairs are the raw supervision references of a set of
-// education groups: the teacher assignments, unresolved, plus the groups and
-// day the substitutions must be read for. The composition layer turns them
-// into (staff, group) pairs through School Membership and Workforce, dropping
-// references to offboarded teachers and staff (#2667, #2688).
-type GroupMembershipPairs struct {
-	// Assigned pairs a group with the teacher assigned to it.
-	Assigned []TeacherGroupID
-	// GroupIDs and On name the substitutions to add: whoever substitutes in
-	// one of these groups on that day. education.group_substitution belongs
-	// to Workforce, so this repository does not read it.
-	GroupIDs []int64
-	On       calendar.Date
-}
-
 // listGroupMembershipPairs returns the unresolved supervision references of
 // the given groups on the given day.
 //
@@ -273,18 +250,18 @@ type GroupMembershipPairs struct {
 // teacher assignments come from School Membership through the injected query,
 // the substitutions active on the day from Workforce through the supervision
 // resolver installed by the composition root.
-func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on calendar.Date) (GroupMembershipPairs, error) {
-	var pairs GroupMembershipPairs
+func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on calendar.Date) (domain.GroupMembershipPairs, error) {
+	var pairs domain.GroupMembershipPairs
 	if len(groupIDs) == 0 {
 		return pairs, nil
 	}
 
 	if r.assignments == nil {
-		return GroupMembershipPairs{}, errors.New("group repository resolves teacher assignments through School Membership")
+		return domain.GroupMembershipPairs{}, errors.New("group repository resolves teacher assignments through School Membership")
 	}
 	assignments, err := r.assignments(ctx, groupIDs, nil)
 	if err != nil {
-		return GroupMembershipPairs{}, &domain.StoreError{
+		return domain.GroupMembershipPairs{}, &domain.StoreError{
 			Op:  "list staff IDs by education group IDs (assigned)",
 			Err: err,
 		}

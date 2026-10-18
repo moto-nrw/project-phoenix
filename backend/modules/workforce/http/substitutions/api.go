@@ -2,8 +2,8 @@
 // through the Workforce capability: the overview of running group handovers
 // and supervisions, assigning a substitute, and ending an assignment.
 //
-// Authentication, transaction scoping, caller resolution and rendering are
-// supplied by the composition root through Runtime.
+// Authentication, transaction scoping and rendering are supplied by the
+// composition root through Runtime; RequestCaller resolves the caller.
 package substitutions
 
 import (
@@ -20,7 +20,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Registered error codes (error-registry.json) of the substitution routes.
@@ -62,6 +64,20 @@ type Runtime struct {
 	Caller  func(context.Context) (workforce.SubstitutionCaller, error)
 	Success func(http.ResponseWriter, *http.Request, int, any, string)
 	Failure func(http.ResponseWriter, *http.Request, Failure)
+}
+
+// RequestCaller turns the request principal into the capability's caller. A
+// request without a principal, or with one of another tenant than the
+// request's, is ErrSubstitutionForbidden.
+func RequestCaller(ctx context.Context) (workforce.SubstitutionCaller, error) {
+	principal, err := permissions.PrincipalFromContext(ctx)
+	if err != nil || principal.TenantID() != tenant.FromContext(ctx) {
+		return workforce.SubstitutionCaller{}, workforce.ErrSubstitutionForbidden
+	}
+	return workforce.SubstitutionCaller{
+		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(), HasPermission: principal.HasPermission,
+	}, nil
 }
 
 type Resource struct {
