@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -32,7 +31,6 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -40,19 +38,16 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -61,114 +56,6 @@ import (
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
-
-// newWorker starts the Worker over the owners a root built: the server root
-// passes the owners it mounts, the Worker root the owners its jobs need.
-// Each argument is one owner's value or a single-owner bundle; the Worker's
-// own collaborators (lease, tenant runtime, settings snapshots, retention,
-// booking audit, reminder tick, document sweeps) are built here.
-func newWorker(
-	db transactionruntime.Database, logger *slog.Logger, tracer *observability.Tracer, hub *realtime.Hub,
-	settings settingsCompose.BatchSettingsService, audit *auditCompose.Command, fleet devicefleet.Capability,
-	carePlan *carePlanModule.Module, persons peopledirectory.Capability, people PeopleRows,
-	organizations organizationtenancy.Query, identity *identityaccess.Module, rooms facilitiesModule.Capability,
-	timetableRepos timetableCompose.Repositories, workTime workforceModule.Capability, staffAdmin *workforceModule.StaffAdmin,
-	workforce WorkforcePlanning, active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle,
-	days TimetableDays, materialization timetable.MaterializationCapability, schedules CarePlanSchedules,
-	documents carePlanModule.StudentDocuments, services PeopleServices, studentAudit peoplePorts.StudentAuditService,
-	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback *feedbackModule.Module,
-	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
-	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore *filestorageModule.Module,
-) (schedulerPorts.Worker, error) {
-	billing, err := newOperatorBilling(logger)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker billing: %w", err)
-	}
-	lease, err := newWorkerLease(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
-	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
-	}
-	resolver, err := schedulerSettings(settings)
-	if err != nil {
-		return nil, err
-	}
-	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion)
-	if err != nil {
-		return nil, err
-	}
-	bookings, err := schedulerBookingConsistency(db, persons, carePlan)
-	if err != nil {
-		return nil, err
-	}
-	reminderNotifications, err := newPersonalReminderTick(reminders, notifications, people.Staff, identity, workTime, runtime, logger.With("service", "scheduler"))
-	if err != nil {
-		return nil, fmt.Errorf("compose personal reminder notifications: %w", err)
-	}
-	staffDocuments, studentDocuments, err := workerDocumentSweeps(db, logger, services.Users, staffAdmin, workforce.TimeTracking, documents)
-	if err != nil {
-		return nil, err
-	}
-	return schedulerRuntimeCompose.NewWorker(schedulerPorts.WorkerDependencies{
-		Logger:                    logger.With("service", "scheduler"),
-		Getenv:                    os.Getenv,
-		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing},
-		TenantRuntime:             runtime,
-		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
-		Tracer:                    workerTracer(tracer),
-		Settings:                  resolver,
-		Lease:                     lease,
-		RetentionSteps:            retention.steps,
-		RetentionLog:              retention.log,
-		CleanupRuns:               retention.runs,
-		StaffDocumentCleaner:      staffDocuments,
-		StudentDocumentCleaner:    studentDocuments,
-		FileStoreCleaner:          fileStore,
-		Active:                    newSchedulerSessionMaintenance(active),
-		ActiveCleanup:             newSchedulerPresenceCleanup(reports.ActiveCleanup),
-		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
-		InvitationCleanup:         identity,
-		EmailChangeCleanup:        identity,
-		OperatorInvitationCleanup: identity,
-		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
-		WorkSessionCleanup:        workforce.TimeTracking.Jobs,
-		BreakAutoEnder:            workforce.TimeTracking.Jobs,
-		AutoCheckouter:            workforce.TimeTracking.Jobs,
-		FeedbackCleaner:           feedback,
-		Materializer:              newSchedulerMaterializer(materialization),
-		TimetableCleanup:          newSchedulerTimetableCleanup(lifecycle.Cleanup),
-		CalendarFeedCleanup:       calendarApp,
-		TimeTrackingCleanup:       schedulerTimeTrackingCleanupPort(workforce.TimeTrackingCleanup),
-		StudentChangeLogCleanup:   schedulerStudentChangeLogCleanup(services.StudentChangeLogCleanup),
-		PWAUsageCleanup:           pwaUsageCleanup(usage),
-		StaffMessageCleanup:       staffMessageCleanup(staffMessaging),
-		EnrollmentRejectedCleanup: enrollmentRejectedCleanup{cleaner: notices.RejectedCleanup},
-		AutoStart:                 newSchedulerAutoStart(lifecycle.AutoStart),
-		AutoEnd:                   newSchedulerAutoEnd(lifecycle.AutoEnd),
-		TimetableBridge:           days.Bridge,
-		StudentLifecycleAudit:     schedulerStudentAudit(studentAudit),
-		CareExitEffector:          schedules.Lifecycle,
-		OutboxWorker:              outbox,
-		AppointmentReminders:      reminders,
-		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
-		BookingConsistency:        bookings,
-		InstanceRepo:              schedulerDayInstances(timetableRepos),
-		InstanceRoomRepo:          schedulerExistingRooms(rooms),
-		InstanceStudentRepo:       timetableRepos.InstanceStudent,
-		StudentStatusDayRepo:      NewStudentStatusDayRepository(carePlan),
-		OverdueBroadcaster:        newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:      schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:     reminderNotifications,
-	})
-}
 
 // workerRetentionOf builds the nightly cleanup's retention: the student and
 // staff deletions and every owner's retention step.
@@ -455,7 +342,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		},
 		func() (err error) {
 			enrollment = buildEnrollmentRows(bookings, carePlan, persons)
-			delivery, err = buildDeliveryRuntime(db, env, people.GuardianProfiles)
+			delivery, err = buildDeliveryRuntime(db, env, guardian)
 			return
 		},
 		func() (err error) {
@@ -480,17 +367,17 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		},
 		func() (err error) {
 			notifications, err = buildDeliveryNotifications(db, unit, env, transport, deliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging.ParentMessageThread)
+				consent, identity, people, structure, workTime, messaging)
 			return
 		},
 		func() (err error) {
-			emitter = buildParentEventEmitter(db, unit, env, transport, settings.Service, messaging.ParentMessageThread, notifications)
+			emitter = buildParentEventEmitter(db, unit, env, transport, settings.Service, messaging, notifications)
 			purger, err = buildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
 			announcements, err = buildParentAnnouncements(env, settings.Service, delivery.Outbox, deliveryModuleOf(delivery),
-				notifications, messaging.ParentAnnouncement, purger)
+				notifications, messaging, purger)
 			return
 		},
 		func() (err error) {
@@ -503,7 +390,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 				guardian, studentAudit, photoRuntime, NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
 				supervisions, substitutions, structure,
 				arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor}, settings.Service)
-			payroll = payrollStatus(settings.Service, people.Staff)
+			payroll = payrollStatus(settings.Service, people)
 			return nil
 		},
 		func() (err error) {
