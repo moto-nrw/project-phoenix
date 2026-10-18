@@ -237,6 +237,22 @@ func (m *Module) GetAccountRoles(ctx context.Context, accountID int64) ([]Role, 
 	return m.engine.GetAccountRoles(ctx, accountID)
 }
 
+// AccountHoldsRole reports whether the account holds the role of that exact
+// name. A failed lookup counts as not holding it: the answer only ever
+// withholds.
+func (m *Module) AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool {
+	held, err := m.engine.GetAccountRoles(ctx, accountID)
+	if err != nil {
+		return false
+	}
+	for _, role := range held {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Module) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
 	return m.engine.AccountHoldsLehrkraftRole(ctx, accountID)
 }
@@ -339,4 +355,15 @@ func (m *Module) RemovePermissionFromRole(ctx context.Context, roleID, permissio
 
 func (m *Module) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
 	m.engine.GrantStaffDefaultPermission(ctx, accountID, isTeacher, permissionName)
+}
+
+// PlatformSystemRole finds the platform system role with that name,
+// matching case-insensitively; a school's own role never matches.
+func PlatformSystemRole(roles []Role, name string) (Role, bool) {
+	for _, role := range roles {
+		if role.IsSystem && role.TenantID == nil && strings.EqualFold(role.Name, name) {
+			return role, true
+		}
+	}
+	return Role{}, false
 }

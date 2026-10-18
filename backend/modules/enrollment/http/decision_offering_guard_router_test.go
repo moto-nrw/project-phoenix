@@ -239,13 +239,13 @@ func datePointers(from, until calendar.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
+func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
 	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
 }
 
 // newOfferingGuardDecisions composes the decision flow the guard suites
 // drive, the way the root binds it.
-func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) *TestDecisions {
+func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
 	return api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
 		LateInvites: repos.Enrollment(), CareOfferings: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),

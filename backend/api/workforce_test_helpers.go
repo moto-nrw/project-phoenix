@@ -148,10 +148,14 @@ type StaffAdminDependencies struct {
 // NewStaffAdmin composes the personnel-record administration over one flat
 // dependency set.
 func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
+	people, err := NewPeopleDirectory(deps.DB)
+	if err != nil {
+		return nil, err
+	}
 	return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: deps.DB.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
 	}, staffAdminOwners{
-		Staff: deps.Staff, Persons: deps.Persons, Membership: deps.Membership,
+		Staff: deps.Staff, Persons: staffAdminPersons{rows: deps.Persons, details: people}, Membership: deps.Membership,
 		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
 	})
 }

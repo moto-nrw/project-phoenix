@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -41,18 +42,13 @@ var welcomeHelpTopics = map[string]string{
 // collaterals repository.
 const parentInfoPath = "/downloads/moto-elterninfo.pdf"
 
-// staffWelcomeLeadPermission is the permission the frontend's leadsSchool
-// reads next to the admin scope: a school may create its own lead role.
-const staffWelcomeLeadPermission = "config:manage"
-
 // staffHelpRole maps an invited staff role onto the help role the sidebar
 // would pick for the same account once it signs in.
 func staffHelpRole(schoolPortal bool, roleName string, rolePermissions []string) string {
 	if schoolPortal {
 		return welcomeHelpRoleTeacher
 	}
-	if strings.EqualFold(strings.TrimSpace(roleName), "admin") ||
-		securityruntime.HasPermission(staffWelcomeLeadPermission, rolePermissions) {
+	if securityruntime.LeadsSchool(roleName, rolePermissions) {
 		return welcomeHelpRoleLead
 	}
 	return welcomeHelpRoleCaregiver
@@ -113,7 +109,7 @@ func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, se
 			query = append(query, value)
 		}
 	}
-	return portalOrigin(origin) + "/help/" + welcomeHelpTopics[role] + "?" + strings.Join(query, "&"), errors.Join(failures...)
+	return identityaccess.MailOrigin(origin) + "/help/" + welcomeHelpTopics[role] + "?" + strings.Join(query, "&"), errors.Join(failures...)
 }
 
 // welcomeNFCParameter is the help link's nfc_enabled parameter; key names the
@@ -153,16 +149,6 @@ func welcomeGroupParameter(ctx context.Context, settings welcomeHelpSettings) (v
 		group = configModels.GroupModeOpenCare
 	}
 	return "group_mode=" + group, key, nil
-}
-
-// portalOrigin trims the configured portal URL; an unset one points at the
-// local frontend, like the invitation links.
-func portalOrigin(origin string) string {
-	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
-	if origin == "" {
-		return "http://localhost:3000"
-	}
-	return origin
 }
 
 func logWelcomeSettingFailure(logger *slog.Logger, tenantID int64, key string, err error) {

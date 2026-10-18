@@ -3,6 +3,7 @@ package peopledirectory
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // Invited guardians are reached by e-mail and spoken to in German until they
@@ -57,6 +58,13 @@ type AccountLifecycleCommand interface {
 	// the invited address and returns its ID. ErrGuardianEmailTaken reports a
 	// duplicate e-mail.
 	CreateInvitedGuardian(context.Context, InvitedGuardian) (int64, error)
+	// CreateAccountPerson inserts the person of an account that has none,
+	// when its holder first edits their profile. Both names are required.
+	CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error
+	// RenamePerson replaces the given names of a person of the school; a nil
+	// name keeps the stored one. ErrPersonNotFound when the school has no
+	// such person.
+	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 }
 
 // CreateSchoolIdentityPerson trims and requires both names. Unlike
@@ -86,6 +94,100 @@ func (m *Module) CreateInvitedGuardian(ctx context.Context, guardian InvitedGuar
 		FirstName: guardian.FirstName, LastName: guardian.LastName, Email: &email,
 		PreferredContactMethod: invitedGuardianContactMethod, LanguagePreference: invitedGuardianLanguage,
 	})
+}
+
+// CreateAccountPerson stores the names as the profile flow always did:
+// trimmed, but neither capped nor required to keep a character after the
+// trim.
+func (m *Module) CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error {
+	_, err := m.createAsGiven(ctx, CreatePerson{FirstName: firstName, LastName: lastName, AccountID: &accountID})
+	return err
+}
+
+// ChildPerson is the person an enrollment approval creates for the child it
+// admits. Birthday is a calendar date in BirthdayLayout.
+type ChildPerson struct {
+	FirstName string
+	LastName  string
+	Birthday  string
+}
+
+// EnrollmentPersonCommand creates the person behind a child an enrollment
+// approval admits.
+type EnrollmentPersonCommand interface {
+	// CreateChildPerson inserts the person at the school in context and
+	// returns it. Both names are required.
+	CreateChildPerson(context.Context, ChildPerson) (Person, error)
+}
+
+// CreateChildPerson stores the names as the approval always did: trimmed,
+// but neither capped nor required to keep a character after the trim.
+func (m *Module) CreateChildPerson(ctx context.Context, child ChildPerson) (Person, error) {
+	return m.createAsGiven(ctx, CreatePerson{FirstName: child.FirstName, LastName: child.LastName, Birthday: child.Birthday})
+}
+
+// createAsGiven is the create of the flows that predate the directory's name
+// rules: both names must be given, they are trimmed and not capped.
+func (m *Module) createAsGiven(ctx context.Context, person CreatePerson) (Person, error) {
+	if person.FirstName == "" || person.LastName == "" {
+		return Person{}, invalid("first name and last name are required")
+	}
+	person.FirstName, person.LastName = strings.TrimSpace(person.FirstName), strings.TrimSpace(person.LastName)
+	return m.engine.Create(ctx, person)
+}
+
+// RenamePerson refuses an empty name; the stored names are trimmed but not
+// capped, like the profile flow's own.
+func (m *Module) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
+	if firstName != nil && *firstName == "" || lastName != nil && *lastName == "" {
+		return invalid("first name and last name are required")
+	}
+	return m.engine.RenamePerson(ctx, personID, firstName, lastName)
+}
+
+// PersonDetails are the names and the birthday of a person; Birthday is a
+// calendar date in BirthdayLayout, empty when unknown.
+type PersonDetails struct {
+	FirstName string
+	LastName  string
+	Birthday  string
+}
+
+// PersonDetailsCommand writes the details a staff record or an approved
+// Stammdaten request changes on the person behind it.
+type PersonDetailsCommand interface {
+	// SetPersonDetails replaces the names and the birthday of a person of the
+	// school; its tag and account stay. ErrPersonNotFound when the school
+	// has no such person.
+	SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error
+}
+
+// SetPersonDetails requires both names and stores them trimmed but not
+// capped, the way the staff record and the Stammdaten decision always wrote
+// them.
+func (m *Module) SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error {
+	if details.FirstName == "" || details.LastName == "" {
+		return invalid("first name and last name are required")
+	}
+	details.FirstName, details.LastName = strings.TrimSpace(details.FirstName), strings.TrimSpace(details.LastName)
+	return m.engine.SetPersonDetails(ctx, personID, details)
+}
+
+// PersonRemovalCommand removes a person of any school on an operator's
+// request.
+type PersonRemovalCommand interface {
+	// AnonymizeAndSoftDeletePerson replaces the person's names with the
+	// deletion placeholders, clears the birthday and marks the row deleted.
+	// The caller unlinks the card and the account first; a missing person
+	// is no error.
+	AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error
+}
+
+func (m *Module) AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error {
+	if personID <= 0 {
+		return invalid("person ID is required")
+	}
+	return m.engine.AnonymizeAndSoftDeletePerson(ctx, personID)
 }
 
 // GuardianLifecycleCommand are the guardian profile and relationship writes

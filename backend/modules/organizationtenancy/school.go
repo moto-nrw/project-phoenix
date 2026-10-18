@@ -48,6 +48,10 @@ type School struct {
 
 func (s School) IsDeleted() bool { return s.DeletedAt != nil }
 
+// Operational reports a school accounts can work in: switched active and
+// not deleted.
+func (s School) Operational() bool { return s.Active && !s.IsDeleted() }
+
 // ChildQuota returns the school's Kinderkontingent, nil when it has none.
 func (s School) ChildQuota() *ChildQuota {
 	if s.ChildQuotaBundles == nil {

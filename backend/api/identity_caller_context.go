@@ -8,8 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -32,7 +31,7 @@ type CallerSettings interface {
 // parent request review policy reports itself unconfigured.
 type CallerContextWiring struct {
 	Accounts             identityaccess.AccountProfiles
-	Persons              personRows
+	Persons              callerPersons
 	Membership           schoolmembership.Capability
 	StaffGroups          schoolstructure.StaffGroupQuery
 	SupervisedActivities func(context.Context, int64) ([]int64, error)
@@ -85,10 +84,17 @@ func NewCallerRowsFromWiring(wiring CallerContextWiring, sources CallerRowSource
 	return NewCallerRows(caller, sources), nil
 }
 
-type callerPeople struct{ persons personRows }
+// callerPersons reads the caller's person from the retained rows and writes
+// the names of the caller's own profile through the People Directory.
+type callerPersons struct {
+	rows   personRows
+	people peopledirectory.AccountLifecycleCommand
+}
+
+type callerPeople struct{ persons callerPersons }
 
 func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (identityaccess.CallerPerson, bool, error) {
-	person, err := p.persons.FindByAccountID(ctx, accountID)
+	person, err := p.persons.rows.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
 		return identityaccess.CallerPerson{}, false, err
 	}
@@ -99,26 +105,11 @@ func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) 
 }
 
 func (p callerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
-	person := &userModels.Person{AccountID: &accountID, FirstName: firstName, LastName: lastName}
-	person.SetTenantID(peopleCompose.CallerTenantID(ctx))
-	return p.persons.Create(ctx, person)
+	return p.persons.people.CreateAccountPerson(ctx, accountID, firstName, lastName)
 }
 
 func (p callerPeople) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
-	person, err := p.persons.FindByID(ctx, personID)
-	if err != nil {
-		return err
-	}
-	if person == nil {
-		return errors.New("person not found")
-	}
-	if firstName != nil {
-		person.FirstName = *firstName
-	}
-	if lastName != nil {
-		person.LastName = *lastName
-	}
-	return p.persons.Update(ctx, person)
+	return p.persons.people.RenamePerson(ctx, personID, firstName, lastName)
 }
 
 type callerMembership struct{ membership schoolmembership.Capability }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -12,7 +11,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -27,7 +25,7 @@ import (
 type operatorProvisioningOwners struct {
 	DB            transactionruntime.Database
 	Organizations organizationtenancy.Capability
-	Persons       peopledirectory.Query
+	Persons       ProvisioningPersonDirectory
 	Membership    schoolmembership.Query
 	PersonRows    provisioningPersonRows
 	StaffRows     provisioningStaffRows
@@ -73,22 +71,16 @@ func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSou
 	})
 }
 
-// provisioningUsernameSuffixLength is the length of the suffix that keeps
-// generated usernames unique.
-const provisioningUsernameSuffixLength = 6
-
 // provisioningSecrets draws the provisioning secrets from Security Runtime.
 type provisioningSecrets struct{}
 
 // APIKey returns a fresh device API key.
 func (provisioningSecrets) APIKey() (string, error) { return securityruntime.DeviceAPIKey() }
 
-// UsernameSuffix returns six random lowercase letters and digits. A failing
-// random source yields an empty suffix; the username stays unique through
-// the account's other name parts and the registration's conflict check.
+// UsernameSuffix draws the owner's username suffix from Security Runtime's
+// entropy.
 func (provisioningSecrets) UsernameSuffix() string {
-	suffix, _ := securityruntime.RandomLowerAlphanumeric(provisioningUsernameSuffixLength)
-	return suffix
+	return identityaccess.ProvisioningUsernameSuffix(securityruntime.RandomLowerAlphanumeric)
 }
 
 type provisioningRoles interface {
@@ -128,19 +120,17 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 	return result, nil
 }
 
-// FindSystemRole resolves the platform system role with that name,
-// matching case-insensitively; a school's own role never matches.
+// FindSystemRole resolves the owner's platform system role with that name.
 func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (organizationCompose.ProvisioningRole, bool, error) {
-	roles, err := p.ListSystemRoles(ctx)
+	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
 	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
-	for _, role := range roles {
-		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
-			return role, true, nil
-		}
+	role, found := identityaccess.PlatformSystemRole(roles, name)
+	if !found {
+		return organizationCompose.ProvisioningRole{}, false, nil
 	}
-	return organizationCompose.ProvisioningRole{}, false, nil
+	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil
 }
 
 // FindRole reports a missing role as not found rather than as a failure, so

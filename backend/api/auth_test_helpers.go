@@ -301,7 +301,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Outbox: func() MailOutbox {
 				return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 			},
-			WelcomeDelay: StaffWelcomeDelay,
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 	})
 	if err != nil {

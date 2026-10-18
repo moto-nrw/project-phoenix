@@ -58,6 +58,13 @@ type GuardianInvitation struct {
 	CreatedAt                   time.Time
 }
 
+// ApprovalAllowsRedemption reports whether the invitation's approval state
+// lets the guardian redeem it: it needed no approval, or the approval was
+// given. A pending or rejected request is not redeemable.
+func (i GuardianInvitation) ApprovalAllowsRedemption() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalNotRequired || i.ApprovalStatus == GuardianInvitationApprovalApproved
+}
+
 // GuardianInvitationRequest issues an invitation for a guardian contact that
 // has an address on file and no account yet. The school comes from the
 // tenant in context.
