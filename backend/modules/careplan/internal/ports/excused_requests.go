@@ -102,11 +102,11 @@ type DecisionAudience struct {
 // the transaction; every Emit is fire-and-forget after commit.
 type RequestMessenger interface {
 	EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, event RequestEvent) error
-	EmitChildEvent(tenantID, studentID, guardianAccountID int64, event RequestEvent)
+	EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, event RequestEvent) error
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 	GuardianHasChildAccess(ctx context.Context, studentID, guardianAccountID int64) (bool, error)
 	ResolveDecisionAudience(ctx context.Context, studentID, submitterAccountID int64, sharedAccountIDs []int64) (DecisionAudience, error)
-	EmitDecisionAudience(tenantID, studentID int64, audience DecisionAudience, full, neutral RequestEvent)
+	EmitDecisionAudience(ctx context.Context, tenantID, studentID int64, audience DecisionAudience, full, neutral RequestEvent) error
 }
 
 // StaffBroadcaster wakes staff tabs after a request transition committed.

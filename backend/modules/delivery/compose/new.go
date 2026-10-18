@@ -69,7 +69,7 @@ func NewWorker(runtime *Runtime, provider Provider) (*delivery.Worker, error) {
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
-	return delivery.NewWorker(workerEngine{worker: worker, store: runtime.store}), nil
+	return delivery.NewWorker(workerEngine{Worker: worker}), nil
 }
 
 // EmailStatus reports the durable state of an e-mail intent.
@@ -96,9 +96,7 @@ func (a guardianDirectoryAdapter) Resolve(ctx context.Context, ids []int64) (map
 	}
 	result := make(map[int64]domain.GuardianDisplay, len(rows))
 	for _, row := range rows {
-		result[row.GuardianProfileID] = domain.GuardianDisplay{
-			GuardianProfileID: row.GuardianProfileID, FirstName: row.FirstName, LastName: row.LastName,
-		}
+		result[row.GuardianProfileID] = domain.GuardianDisplay(row)
 	}
 	return result, nil
 }
@@ -234,20 +232,20 @@ func (e moduleEngine) ClaimFailedEmailDelivery(ctx context.Context, tenantID, de
 	return e.store.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
 }
 
-type workerEngine struct {
-	worker *application.Worker
-	store  *postgres.Store
-}
+type workerEngine struct{ *application.Worker }
 
 func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
-	stats, err := e.worker.RunOnce(ctx, batchSize, maxAttempts)
-	return delivery.WorkerStats{
-		Claimed: stats.Claimed, Sent: stats.Sent, Cancelled: stats.Cancelled, Retried: stats.Retried,
-		DeadLettered: stats.DeadLettered, LeaseLost: stats.LeaseLost,
-	}, err
+	stats, err := e.Worker.RunOnce(ctx, batchSize, maxAttempts)
+	return delivery.WorkerStats(stats), err
 }
 
-func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.store.Backlog(ctx) }
+func (e workerEngine) DispatchEmail(ctx context.Context, tenantID, id int64) error {
+	err := e.Worker.DispatchEmail(ctx, tenantID, id)
+	if errors.Is(err, domain.ErrCancelled) {
+		return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
+	}
+	return err
+}
 
 type providerAdapter struct{ provider Provider }
 

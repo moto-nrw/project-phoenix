@@ -339,8 +339,7 @@ func (s *Scheduler) registerTask(name, schedule string, runner func(*ScheduledTa
 	s.tasks[task.Name] = task
 	s.mu.Unlock()
 
-	s.wg.Add(1)
-	go runner(task)
+	s.wg.Go(func() { runner(task) })
 }
 
 // --- Settings-aware helpers ---

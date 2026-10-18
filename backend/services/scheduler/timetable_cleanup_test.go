@@ -101,11 +101,10 @@ func TestRunTimetableCleanupTaskPolling_ExitsOnDone(t *testing.T) {
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
 	finished := make(chan struct{})
-	s.wg.Add(1)
-	go func() {
+	s.wg.Go(func() {
 		s.runTimetableCleanupTaskPolling(task)
 		close(finished)
-	}()
+	})
 
 	select {
 	case <-finished:
@@ -127,8 +126,9 @@ func TestRunTimetableCleanupTaskPolling_TickerFires(t *testing.T) {
 
 		task := &ScheduledTask{Name: "timetable-cleanup"}
 
-		s.wg.Add(1)
-		go s.runTimetableCleanupTaskPolling(task)
+		s.wg.Go(func() {
+			s.runTimetableCleanupTaskPolling(task)
+		})
 
 		// Advance the fake clock past waitUntilNextMinute + a couple of ticker
 		// intervals so the ticker.C branch + done-exit branch both execute.

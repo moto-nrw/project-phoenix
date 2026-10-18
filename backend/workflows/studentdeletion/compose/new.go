@@ -39,7 +39,7 @@ type Dependencies struct {
 	LockCareBookingWrites func(context.Context) error
 	// UnlinkPhoto schedules the removal of a stored photo after the outer
 	// transaction commits. Optional: nil keeps the bytes (bare compositions).
-	UnlinkPhoto func(context.Context, string)
+	UnlinkPhoto func(context.Context, string) error
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	// Audit overrides the append command of Owners.
@@ -169,10 +169,11 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		CountGuardianInvitations: owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
 		AppendAudit:              appendDeletionAudit(deps.Audit, owners),
-		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) {
+		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) error {
 			if deps.UnlinkPhoto != nil {
-				deps.UnlinkPhoto(ctx, path)
+				return deps.UnlinkPhoto(ctx, path)
 			}
+			return nil
 		},
 		CompanionsChanged: func(ctx context.Context, actor studentdeletion.Actor, studentID int64) {
 			if deps.Broadcaster == nil {

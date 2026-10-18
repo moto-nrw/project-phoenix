@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func reminderOutboxFixture(t *testing.T, transport func() (bool, error)) (*bun.DB, context.Context, func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error, time.Time, time.Time) {
+func reminderOutboxFixture(t *testing.T, transport func() (bool, error), clocks ...func() time.Time) (*bun.DB, context.Context, func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error, time.Time, time.Time) {
 	t.Helper()
 	testpkg.SetupIsolatedTestDB(t)
 	db, module := setupCalendarModule(t)
@@ -30,6 +30,9 @@ func reminderOutboxFixture(t *testing.T, transport func() (bool, error)) (*bun.D
 	})
 	require.NoError(t, err)
 	effects := module.Calendar.ReminderEffects()
+	if len(clocks) > 0 {
+		effects.Now = clocks[0]
+	}
 	effects.Email = nil
 	effects.FilterPush = func(_ context.Context, ids []int64) ([]int64, error) { return ids, nil }
 	effects.Push = func(context.Context, int64, []int64, []int64, string) (bool, error) {
@@ -141,4 +144,21 @@ func TestReminderOutboxDefersWhenNoTransportWasAttempted(t *testing.T) {
 	var state string
 	require.NoError(t, db.NewRaw(`SELECT status FROM platform.push_outbox WHERE tenant_id = ? AND kind = ?`, testpkg.Tenant(t), "parent_appointment_reminder").Scan(ctx, &state))
 	assert.Equal(t, "sent", state)
+}
+
+func TestReminderOutboxWorkerCancelsExpiredOccurrence(t *testing.T) {
+	t.Parallel()
+	now := berlinInstant(t, portalDate(2026, 9, 4), 17, 55)
+	calls := 0
+	db, ctx, prepare, worker, from, to := reminderOutboxFixture(t, func() (bool, error) { calls++; return true, nil }, func() time.Time { return now })
+	require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, _, err := prepare(txCtx, from, to)
+		return err
+	}))
+	now = berlinInstant(t, portalDate(2026, 9, 4), 18, 0)
+	require.NoError(t, worker(ctx))
+	assert.Zero(t, calls, "a recovered reminder must not announce an occurrence that has started")
+	var state string
+	require.NoError(t, db.NewRaw(`SELECT status FROM platform.push_outbox WHERE tenant_id = ? AND kind = ?`, testpkg.Tenant(t), "parent_appointment_reminder").Scan(ctx, &state))
+	assert.Equal(t, "cancelled", state)
 }

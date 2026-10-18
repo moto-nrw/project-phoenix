@@ -36,8 +36,8 @@ type StudentPhotoService interface {
 	// ApplyConsentTransition reconciles a requested photo consent against the
 	// row the caller holds, mutating it in place; the caller persists it. The
 	// file a withdrawal detaches is removed after the caller's commit.
-	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleValues.StudentState)
-	ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string)
+	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleValues.StudentState) error
+	ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string) error
 }
 
 // StudentConsentRecorder appends the Audit Platform trail entry for an

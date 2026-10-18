@@ -164,6 +164,5 @@ type Runtime interface {
 	WithinAppointmentWrite(context.Context, func(context.Context) error) error
 	WithinTenant(context.Context, int64, func(context.Context) error) error
 	WithinAdmin(context.Context, func(context.Context) error) error
-	AfterCommit(context.Context, func())
 	WithoutTransactionAndHooks(context.Context) context.Context
 }

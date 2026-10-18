@@ -154,8 +154,10 @@ func (s *Service) writeCareException(ctx context.Context, tenantID int64, change
 	}
 	pillBody := CareExceptionEventBody(change.date, change.pickupTime, nil)
 	pillRefTable, pillRefID := s.careExceptionRef(ctx, change.studentID, change.date)
+	if err := s.SelfService.EmitSelfServicePill(ctx, tenantID, change.studentID, change.accountID, "care_exception", pillBody, pillRefTable, pillRefID); err != nil {
+		return nil, err
+	}
 	s.Runtime.RegisterAfterCommit(ctx, func() {
-		s.SelfService.EmitSelfServicePill(tenantID, change.studentID, change.accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 		s.broadcastStudentUpdated(tenantID, change.studentID)
 		// Fan out to EVERY guardian so a co-guardian's open tab reflects the
 		// new override on the "Heute" tile live (#1725 review).
@@ -300,8 +302,10 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 		return err
 	}
 	pillBody := "Korrektur: Abholung " + change.date.Format("02.01.") + " zurückgezogen"
+	if err := s.SelfService.EmitSelfServicePill(ctx, tenantID, change.studentID, change.accountID, "care_exception_correction", pillBody, "", nil); err != nil {
+		return err
+	}
 	s.Runtime.RegisterAfterCommit(ctx, func() {
-		s.SelfService.EmitSelfServicePill(tenantID, change.studentID, change.accountID, "care_exception_correction", pillBody, "", nil)
 		s.broadcastStudentUpdated(tenantID, change.studentID)
 		// Fan out to EVERY guardian so a co-guardian's open tab drops the
 		// removed override on the "Heute" tile live (#1725 review).

@@ -314,31 +314,14 @@ func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int
 	return studentIDs
 }
 
-// notifyGuardianDevices is the push/in-app counterpart of notifyGuardians: same
-// audience, same trigger, different channel. It is called only where the e-mail
-// is also sent, so the per-appointment "Eltern benachrichtigen" opt-in governs
-// both — an organizer who chose not to notify does not get to notify anyway
-// through a second channel.
-//
-// Never fatal. The appointment write is the operation the user asked for; a
-// notification that could not be dispatched is logged and dropped, exactly like
-// SSE broadcasting elsewhere in the codebase.
-func (s *service) notifyGuardianDevices(ctx context.Context, appointment *appointmentcap.Appointment, kind string) {
+// notifyGuardianDevices writes the durable push snapshot in the appointment's
+// transaction. Delivery rechecks the captured relationship scope before sending;
+// the notifier's remaining after-commit work is only the realtime wake-up.
+func (s *service) notifyGuardianDevices(ctx context.Context, appointment *appointmentcap.Appointment, kind string) error {
 	if s.cfg.Notifier == nil {
-		return
+		return nil
 	}
-	appointmentCopy := *appointment
-	postCommitCtx := s.cfg.Runtime.WithoutTransactionAndHooks(ctx)
-	s.cfg.Runtime.AfterCommit(ctx, func() {
-		s.dispatchGuardianDevicesAfterCommit(postCommitCtx, &appointmentCopy, kind)
-	})
-}
 
-// dispatchGuardianDevicesAfterCommit rechecks the relationship-scoped parent
-// permission after the lifecycle write commits, immediately before notification
-// dispatch. Notifications use account IDs on the wire, so retaining an earlier
-// account-only audience would otherwise bypass a just-revoked student link.
-func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appointment *appointmentcap.Appointment, kind string) {
 	var accountIDs []int64
 	err := s.cfg.Runtime.WithinTenant(ctx, appointment.TenantID, func(txCtx context.Context) error {
 		current, err := s.findAppointment(txCtx, appointment.ID)
@@ -369,12 +352,15 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 			slog.Int("recipient_count", len(accountIDs)),
 			slog.String("reason", err.Error()),
 		)
+		return nil
 	} else if err != nil {
 		s.logger().Warn("calendar: queue guardian appointment push failed",
 			slog.Int64("appointment_id", appointment.ID),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("calendar: enqueue guardian appointment push: %w", err)
 	}
+	return nil
 }
 
 func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, appointment *appointmentcap.Appointment, kind string, accountIDs, studentIDs []int64, locale string) (bool, error) {

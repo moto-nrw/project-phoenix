@@ -16,6 +16,7 @@ type CalendarReminderSource interface {
 func CalendarReminderDelivery(source CalendarReminderSource) ports.DeliveryDependencies {
 	effects := source.ReminderEffects()
 	return ports.DeliveryDependencies{
+		Now:          effects.Now,
 		Appointments: effects.Appointments, Email: effects.Email, Push: effects.Push,
 		FilterEmail: effects.FilterEmail, FilterPush: effects.FilterPush, Brand: effects.Brand,
 		WhenText: effects.WhenText, NoDelivery: effects.NoDelivery, ParentsURL: effects.ParentsURL, Logger: effects.Logger,

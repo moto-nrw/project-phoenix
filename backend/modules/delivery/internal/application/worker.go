@@ -224,3 +224,6 @@ func backoff(attempts int) time.Duration {
 	}
 	return retryBackoff[index]
 }
+
+// Backlog exposes the same persistent readiness count as background delivery.
+func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.store.Backlog(ctx) }

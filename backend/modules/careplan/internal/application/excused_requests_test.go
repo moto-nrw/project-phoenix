@@ -212,6 +212,7 @@ func (b *fakeBroadcaster) StudentUpdated(int64) error        { b.studentUpdated+
 func (b *fakeBroadcaster) ChangeRequestsChanged(int64) error { b.queueChanged++; return nil }
 
 type fakeMessenger struct {
+	committedView func(context.Context, func())
 	hasAccess     bool
 	accessErr     error
 	enqueued      []ports.RequestEvent
@@ -226,8 +227,14 @@ func (m *fakeMessenger) EnqueueRequestDecision(_ context.Context, _, _, _ int64,
 	m.enqueued = append(m.enqueued, event)
 	return nil
 }
-func (m *fakeMessenger) EmitChildEvent(_, _, _ int64, event ports.RequestEvent) {
-	m.emitted = append(m.emitted, event)
+func (m *fakeMessenger) EmitChildEvent(ctx context.Context, _, _, _ int64, event ports.RequestEvent) error {
+	appendEvent := func() { m.emitted = append(m.emitted, event) }
+	if m.committedView != nil {
+		m.committedView(ctx, appendEvent)
+	} else {
+		appendEvent()
+	}
+	return nil
 }
 func (m *fakeMessenger) BroadcastChildUpdateToGuardians(_, _ int64) { m.guardianWakes++ }
 func (m *fakeMessenger) GuardianHasChildAccess(context.Context, int64, int64) (bool, error) {
@@ -236,9 +243,14 @@ func (m *fakeMessenger) GuardianHasChildAccess(context.Context, int64, int64) (b
 func (m *fakeMessenger) ResolveDecisionAudience(context.Context, int64, int64, []int64) (ports.DecisionAudience, error) {
 	return m.audience, nil
 }
-func (m *fakeMessenger) EmitDecisionAudience(_, _ int64, _ ports.DecisionAudience, full, _ ports.RequestEvent) {
-	m.audienceCalls++
-	m.audienceFull = append(m.audienceFull, full)
+func (m *fakeMessenger) EmitDecisionAudience(ctx context.Context, _, _ int64, _ ports.DecisionAudience, full, _ ports.RequestEvent) error {
+	appendEvent := func() { m.audienceCalls++; m.audienceFull = append(m.audienceFull, full) }
+	if m.committedView != nil {
+		m.committedView(ctx, appendEvent)
+	} else {
+		appendEvent()
+	}
+	return nil
 }
 
 type fakeNotifier struct{ reports []ports.AbsenceReport }
@@ -275,6 +287,7 @@ func newHarness(t *testing.T, carePlan *fakeCarePlan, students *fakeStudents) *h
 		broadcaster: &fakeBroadcaster{}, messenger: &fakeMessenger{hasAccess: true},
 		notifier: &fakeNotifier{}, ledger: &fakeLedger{}, scope: ports.ReviewScope{SchoolWide: true},
 	}
+	h.messenger.committedView = h.hooks.AfterCommit
 	workflow, err := NewExcusedRequests(ExcusedRequestDependencies{
 		CarePlan: carePlan, Students: students, Hooks: h.hooks, Today: func() careplan.Date { return fakeToday },
 		Scope:     func(context.Context) (ports.ReviewScope, error) { return h.scope, h.scopeErr },

@@ -32,8 +32,8 @@ type CareRequestEffectPorts struct {
 // request transition: the ledger line, the chat pills (#3135), the
 // co-guardian notices (#2267) and the realtime wake-ups. The ledger line and
 // the durable decision intent are written in the ambient transaction, so a
-// rolled-back change leaves neither; pills and wake-ups go out after commit
-// and are best effort.
+// rolled-back change leaves neither. Chat pills join that transaction; only
+// realtime wake-ups and duplicate diagnostic logs run after commit.
 type CareRequestEffects struct {
 	deps  CareRequestEffectPorts
 	hooks ports.TransactionHooks
@@ -123,7 +123,9 @@ func (e *CareRequestEffects) RegisterDecision(ctx context.Context, req *carerequ
 	}
 	// Every other guardian of this child hears about the decision: the full
 	// pill for explicit share recipients, a neutral line for the rest.
-	e.notifyOtherGuardians(ctx, req, decisionPill)
+	if err := e.notifyOtherGuardians(ctx, req, decisionPill); err != nil {
+		return err
+	}
 	e.WakeGuardians(ctx, req)
 	return nil
 }
@@ -209,7 +211,7 @@ func (e *CareRequestEffects) tenantOf(ctx context.Context, rowTenantID int64) in
 }
 
 // emitPill writes the durable decision intent in the ambient transaction,
-// then schedules the best-effort chat pill after commit.
+// and appends the chat pill before commit.
 func (e *CareRequestEffects) emitPill(ctx context.Context, req *carerequests.Request, ev ports.RequestEvent) error {
 	if e.deps.Messenger == nil {
 		return nil
@@ -221,10 +223,7 @@ func (e *CareRequestEffects) emitPill(ctx context.Context, req *carerequests.Req
 	if err := e.deps.Messenger.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
 		return fmt.Errorf("schedule: enqueue care request decision: %w", err)
 	}
-	e.hooks.AfterCommit(ctx, func() {
-		e.deps.Messenger.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
-	})
-	return nil
+	return e.deps.Messenger.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ev)
 }
 
 // broadcastCareScheduleChanges invalidates the staff-side caches an approved
@@ -270,9 +269,9 @@ func (e *CareRequestEffects) warnBroadcast(event string, tenantID, studentID int
 // (#2267, story 47): the full pill to whoever the parent shared the request
 // with, the neutral line to everyone else. The audience is resolved inside
 // the transaction (a tenant-scoped read); only the pills go out after commit.
-func (e *CareRequestEffects) notifyOtherGuardians(ctx context.Context, req *carerequests.Request, ev ports.RequestEvent) {
+func (e *CareRequestEffects) notifyOtherGuardians(ctx context.Context, req *carerequests.Request, ev ports.RequestEvent) error {
 	if e.deps.Messenger == nil {
-		return
+		return nil
 	}
 	audience, err := e.deps.Messenger.ResolveDecisionAudience(ctx, req.StudentID, req.SubmittedBy, e.sharedRecipients(ctx, req))
 	if err != nil {
@@ -281,10 +280,10 @@ func (e *CareRequestEffects) notifyOtherGuardians(ctx context.Context, req *care
 			"student_id", req.StudentID,
 			"error", err.Error(),
 		)
-		return
+		return err
 	}
 	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
-		return
+		return nil
 	}
 	tenantID := e.tenantOf(ctx, req.TenantID)
 	neutral := ev
@@ -293,9 +292,7 @@ func (e *CareRequestEffects) notifyOtherGuardians(ctx context.Context, req *care
 	// no requested time, no previous time (#3135).
 	neutral.Payload = nil
 	studentID := req.StudentID
-	e.hooks.AfterCommit(ctx, func() {
-		e.deps.Messenger.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
-	})
+	return e.deps.Messenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, ev, neutral)
 }
 
 // sharedRecipients resolves the explicit recipients of one request,

@@ -36,29 +36,28 @@ func (UploadFiles) SaveNamed(file io.Reader, targetDir, filename string, private
 	return filepath.Join(dir, filename), nil
 }
 
-func (UploadFiles) RemoveUpload(filePath string) {
+func (u UploadFiles) RemoveUpload(filePath string) {
+	if err := u.RemoveUploadContext(context.Background(), filePath); err != nil {
+		slog.Default().Error("failed to remove file",
+			slog.String("path", filePath),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+func (UploadFiles) RemoveUploadContext(ctx context.Context, filePath string) error {
 	if filePath == "" {
-		return
+		return nil
 	}
 	backend, _, err := fileStore(filepath.Dir(filePath))
 	if err != nil {
-		slog.Default().Error("failed to remove file",
-			slog.String("path", filePath),
-			slog.String("error", err.Error()))
-		return
+		return err
 	}
 	key, err := Key(filepath.Base(filePath))
 	if err != nil {
-		slog.Default().Error("failed to remove file",
-			slog.String("path", filePath),
-			slog.String("error", err.Error()))
-		return
+		return err
 	}
-	if err := backend.RemoveObject(context.Background(), key); err != nil {
-		slog.Default().Error("failed to remove file",
-			slog.String("path", filePath),
-			slog.String("error", err.Error()))
-	}
+	return backend.RemoveObject(ctx, key)
 }
 
 func fileStore(baseDir string) (Backend, string, error) {

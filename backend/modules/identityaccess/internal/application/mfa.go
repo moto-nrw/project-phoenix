@@ -66,12 +66,12 @@ func (c MFAChallengeCodec) ParseChallengeToken(token string) (domain.MFAChalleng
 
 type MFAMail struct{ Source identityPorts.MFAMail }
 
-func (m MFAMail) DeliverCode(ctx context.Context, message domain.MFACodeMail) error {
-	return m.Source.DeliverCode(ctx, identityaccess.MFACodeMail(message))
+func (m MFAMail) EnqueueCode(ctx context.Context, message domain.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error) {
+	return m.Source.EnqueueCode(ctx, identityaccess.MFACodeMail(message), challengeID, expiresAt)
 }
 
-func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail) {
-	m.Source.NotifyTrustedDeviceAdded(ctx, identityaccess.TrustedDeviceMail(message))
+func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail, deviceID int64) error {
+	return m.Source.NotifyTrustedDeviceAdded(ctx, identityaccess.TrustedDeviceMail(message), deviceID)
 }
 
 // mfaAuditTrail routes the account events to the authentication ledger and
@@ -85,8 +85,8 @@ func (t MFAAuditTrail) RecordAuthEvent(ctx context.Context, event domain.AuthEve
 	return t.Events.RecordAuthEvent(ctx, event)
 }
 
-func (t MFAAuditTrail) RecordOperatorActionAsync(entry domain.OperatorAuditEntry) {
-	t.Operator.RecordOperatorActionAsync(publicOperatorAuditEntry(entry))
+func (t MFAAuditTrail) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
+	return t.Operator.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))
 }
 
 type AccountMFARecords struct {

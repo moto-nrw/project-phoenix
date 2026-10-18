@@ -176,3 +176,28 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_PropagatesReferenceCheckError(
 	require.ErrorIs(t, err, expected)
 	assert.Nil(t, cleanup)
 }
+
+func TestPrepareLegalDocumentCleanupQueuesBeforeReturningFastPath(t *testing.T) {
+	t.Parallel()
+	oldURL := legalAGBDocumentPrefix + "42_old.pdf"
+	queued, removed := false, false
+	refusal := errors.New("cleanup outbox unavailable")
+	prepare := func(failure error) (func(), error) {
+		return prepareEnrollmentLegalAGBDocumentCleanup(context.Background(), 42, oldURL, legalAGBDocumentPrefix+"42_new.pdf",
+			func(context.Context, string) (bool, error) { return false, nil },
+			func(string, string, string) (string, error) { return "/tmp/42_old.pdf", nil },
+			func(string) { removed = true },
+			func(_ context.Context, url string) error { assert.Equal(t, oldURL, url); queued = true; return failure })
+	}
+	callback, err := prepare(refusal)
+	require.ErrorIs(t, err, refusal)
+	assert.Nil(t, callback)
+	assert.False(t, removed)
+	callback, err = prepare(nil)
+	require.NoError(t, err)
+	assert.True(t, queued)
+	assert.False(t, removed)
+	require.NotNil(t, callback)
+	callback()
+	assert.True(t, removed)
+}

@@ -43,6 +43,7 @@ type FullService = portal.FullService
 type StaffCalDAVService = portal.StaffCalDAVService
 
 type Config struct {
+	Now                func() time.Time
 	NewFeedToken       func() (string, error)
 	Digest             func([]byte) string
 	MissingRecord      func(error) bool
@@ -337,7 +338,9 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
 			return nil, err
 		}
-		s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentPublished)
+		if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
+			return nil, err
+		}
 	}
 
 	return &AppointmentDetail{
@@ -564,7 +567,9 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
-		s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentUpdated)
+		if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
+			return nil, err
+		}
 	}
 
 	return s.appointmentDetail(ctx, appointment)
@@ -628,7 +633,9 @@ func (s *service) cancelStaffAppointment(ctx context.Context, appointmentID int6
 			if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
 			}
-			s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentCancelled)
+			if err := s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return s.appointmentDetail(ctx, appointment)

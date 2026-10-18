@@ -24,11 +24,12 @@ func (r *consentRecordingUnlinker) UnlinkStored(url string) { r.urls = append(r.
 // reaches: a withdrawal detaches the stored file after the commit.
 type consentPhotoUnlinker struct{ unlinker *consentRecordingUnlinker }
 
-func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) {
+func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) error {
 	if storedURL == "" {
-		return
+		return nil
 	}
 	u.unlinker.UnlinkStored(storedURL)
+	return nil
 }
 
 func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.PeopleRepositorySuiteFactory, *consentRecordingUnlinker) {

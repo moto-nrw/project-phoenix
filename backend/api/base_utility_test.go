@@ -321,7 +321,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 	})
 	require.True(t, ok)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: hub}
+	return &settingsCallbackRoute{router: newSettingsResource(testpkg.NewDatabase(t, db), module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: hub}
 }
 
 func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router {

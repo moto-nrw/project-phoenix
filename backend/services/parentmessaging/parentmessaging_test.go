@@ -44,7 +44,10 @@ func (f *fakeEvents) PortalGuardians(context.Context, int64) ([]PortalGuardian, 
 	return f.guardians, f.guardiansErr
 }
 
-func (f *fakeEvents) EmitChildEvent(_, _, _ int64, ev ChildEvent) { f.emitted = append(f.emitted, ev) }
+func (f *fakeEvents) EmitChildEvent(_ context.Context, _, _, _ int64, ev ChildEvent) error {
+	f.emitted = append(f.emitted, ev)
+	return nil
+}
 
 func (f *fakeEvents) WakeChildGuardians(_, studentID int64) { f.woken = append(f.woken, studentID) }
 
@@ -112,20 +115,20 @@ func TestEmitterShellIsNilSafe(t *testing.T) {
 	t.Parallel()
 
 	var unwired *Emitter
-	unwired.EmitChildEvent(1, 2, 3, ChildEvent{EventType: "sick_note"})
+	_ = unwired.EmitChildEvent(context.Background(), 1, 2, 3, ChildEvent{EventType: "sick_note"})
 	unwired.BroadcastChildUpdateToGuardians(1, 2)
-	unwired.EmitChildEventToGuardians(1, 2, []int64{3}, ChildEvent{})
+	_ = unwired.EmitChildEventToGuardians(context.Background(), 1, 2, []int64{3}, ChildEvent{})
 	assert.True(t, unwired.MessagingEnabledForTenant(context.Background(), 1), "an unwired emitter never blocks a flow")
 	require.NoError(t, unwired.EnqueueRequestDecision(context.Background(), 1, 2, 3, ChildEvent{}))
 
 	bare := &Emitter{}
-	bare.EmitChildEvent(1, 2, 3, ChildEvent{EventType: "sick_note"})
+	_ = bare.EmitChildEvent(context.Background(), 1, 2, 3, ChildEvent{EventType: "sick_note"})
 	bare.BroadcastChildUpdateToGuardians(1, 2)
 
 	events := &fakeEvents{}
 	wired := NewEmitterWithDecisions(events, nil)
-	wired.EmitChildEvent(1, 2, 3, ChildEvent{EventType: "sick_note"})
-	wired.EmitChildEvent(0, 2, 3, ChildEvent{EventType: "sick_note"})
+	_ = wired.EmitChildEvent(context.Background(), 1, 2, 3, ChildEvent{EventType: "sick_note"})
+	_ = wired.EmitChildEvent(context.Background(), 0, 2, 3, ChildEvent{EventType: "sick_note"})
 	wired.BroadcastChildUpdateToGuardians(1, 2)
 	assert.Len(t, events.emitted, 1, "only a fully addressed event reaches the owner")
 	assert.Equal(t, []int64{2}, events.woken)

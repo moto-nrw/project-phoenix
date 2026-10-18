@@ -33,7 +33,7 @@ func TestOperatorActionLogRecoversFromAPanickingLedger(t *testing.T) {
 	ledger := &panickingOperatorAuditLogRepo{}
 	log := operatorActionLog{ledger: ledger, logger: slog.Default()}
 
-	log.RecordOperatorActionAsync(operatorAuditEntry{
+	_ = log.RecordOperatorAction(context.Background(), operatorAuditEntry{
 		OperatorID: 42, Action: "mfa_trusted_device_added",
 		ResourceType: "operator_mfa",
 	})
@@ -50,8 +50,8 @@ func TestOperatorActionLogRecoversFromAPanickingLedger(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// The seam is still usable after the recovered panic: nothing shared was
-	// left corrupted by the unwinding goroutine.
-	log.RecordOperatorActionAsync(operatorAuditEntry{
+	// left corrupted by the unwinding call.
+	_ = log.RecordOperatorAction(context.Background(), operatorAuditEntry{
 		OperatorID: 42, Action: "mfa_verified",
 		ResourceType: "operator_mfa",
 	})

@@ -1,0 +1,470 @@
+{
+  "analytics/analytics.go:newHTTPTracker:go@ae54a69d195145acc122ce75ac4fd259#1": {
+    "fingerprint": "ae54a69d195145acc122ce75ac4fd259",
+    "reason": "Bounded, best-effort product telemetry only; overflow is already dropped. Loss changes analytics, not authorization, audit evidence or canonical school data."
+  },
+  "api/communication_runtime.go:CommunicationEventRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
+  },
+  "api/communication_runtime.go:CommunicationRequestRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
+  },
+  "api/parent_portal_runtime.go:ParentPortalRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Parent Portal transaction-hook forwarder for realtime invalidation only. Timeline pills now append in the triggering transaction; clients recover current state on reconnect/refetch."
+  },
+  "api/server.go:Runtime.startBackground:go@ebc7547aeaeecb1f03f45971a88b2160#1": {
+    "fingerprint": "ebc7547aeaeecb1f03f45971a88b2160",
+    "reason": "Process-local capacity metrics and diagnostic logging only. Restart reconstructs current capacity; no command or durable delivery depends on samples."
+  },
+  "middleware/ratelimit.go:NewRateLimiter:go@2d6c0286e5727fcb055b97c937da5055#1": {
+    "fingerprint": "2d6c0286e5727fcb055b97c937da5055",
+    "reason": "Garbage-collects expired process-local rate-limit cache entries. Losing the loop with its process loses the cache too; no durable state is owned here."
+  },
+  "modules/careplan/compose/excused_requests.go:TenantHooks.AfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.bulkUpsertArrivalSchedules:RegisterAfterCommit@2142bede6047950437325f320c454140#1": {
+    "fingerprint": "2142bede6047950437325f320c454140",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
+    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
+    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
+    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
+    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
+    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
+    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalSchedules:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
+    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.deleteClassArrivalException:RegisterAfterCommit@90f5a59ac4a3f1867d090f3a6fd15ad4#1": {
+    "fingerprint": "90f5a59ac4a3f1867d090f3a6fd15ad4",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.putClassArrivalException:RegisterAfterCommit@90f5a59ac4a3f1867d090f3a6fd15ad4#1": {
+    "fingerprint": "90f5a59ac4a3f1867d090f3a6fd15ad4",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/departure_exception_handlers.go:Resource.announceDepartureChange:RegisterAfterCommit@374faa1647f85a312ba5c4a5150c2e3a#1": {
+    "fingerprint": "374faa1647f85a312ba5c4a5150c2e3a",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/documents_handlers.go:Resource.deleteStudentDocument:RegisterAfterCommit@d71315636305008726de6b38f72b1191#1": {
+    "fingerprint": "d71315636305008726de6b38f72b1191",
+    "reason": "Optional immediate file-cleanup wake after the document deletion/cleanup marker commits. The existing bounded File Storage cleanup worker rescans that durable marker, so losing this wake cannot orphan the cleanup."
+  },
+  "modules/careplan/http/documents_handlers.go:Resource.retryStudentDocumentCleanups:RegisterAfterCommit@82519e57b6dbdba236638b514099298a#1": {
+    "fingerprint": "82519e57b6dbdba236638b514099298a",
+    "reason": "Optional immediate file-cleanup wake after the document deletion/cleanup marker commits. The existing bounded File Storage cleanup worker rescans that durable marker, so losing this wake cannot orphan the cleanup."
+  },
+  "modules/careplan/http/partial_absence_handlers.go:Resource.registerPartialAbsenceBroadcasts:RegisterAfterCommit@5982629ef8e4f79ac11cf4d5fde38e10#1": {
+    "fingerprint": "5982629ef8e4f79ac11cf4d5fde38e10",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_adjustment_handlers.go:Resource.applyStudentPickupAdjustment:RegisterAfterCommit@59cb70050ac1a3b29cb62b0a0273fc4c#1": {
+    "fingerprint": "59cb70050ac1a3b29cb62b0a0273fc4c",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.bulkUpsertPickupSchedules:RegisterAfterCommit@ad1414a5c5973ddfcd648280cd896033#1": {
+    "fingerprint": "ad1414a5c5973ddfcd648280cd896033",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.createStudentPickupException:RegisterAfterCommit@5bc0077d9a489bb3a0eca3948a4910c0#1": {
+    "fingerprint": "5bc0077d9a489bb3a0eca3948a4910c0",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.createStudentPickupNote:RegisterAfterCommit@f366fa397c52d77eb8dbb5b96bac5bcd#1": {
+    "fingerprint": "f366fa397c52d77eb8dbb5b96bac5bcd",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.deleteStudentPickupException:RegisterAfterCommit@5bc0077d9a489bb3a0eca3948a4910c0#1": {
+    "fingerprint": "5bc0077d9a489bb3a0eca3948a4910c0",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.deleteStudentPickupNote:RegisterAfterCommit@f366fa397c52d77eb8dbb5b96bac5bcd#1": {
+    "fingerprint": "f366fa397c52d77eb8dbb5b96bac5bcd",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.replaceStudentWeekdayPickupNotes:RegisterAfterCommit@f366fa397c52d77eb8dbb5b96bac5bcd#1": {
+    "fingerprint": "f366fa397c52d77eb8dbb5b96bac5bcd",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.resetStudentPickupToOffering:RegisterAfterCommit@70fab50f0fad70fc209556120b97959c#1": {
+    "fingerprint": "70fab50f0fad70fc209556120b97959c",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.updateStudentPickupException:RegisterAfterCommit@5bc0077d9a489bb3a0eca3948a4910c0#1": {
+    "fingerprint": "5bc0077d9a489bb3a0eca3948a4910c0",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.updateStudentPickupNote:RegisterAfterCommit@f366fa397c52d77eb8dbb5b96bac5bcd#1": {
+    "fingerprint": "f366fa397c52d77eb8dbb5b96bac5bcd",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/pickup_schedule_handlers.go:Resource.updateStudentPickupSchedules:RegisterAfterCommit@70fab50f0fad70fc209556120b97959c#1": {
+    "fingerprint": "70fab50f0fad70fc209556120b97959c",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/http/student_broadcasts.go:Resource.scheduleStudentUpdateWakes:RegisterAfterCommit@ef79768f8992c1f3904dc789a09a49ec#1": {
+    "fingerprint": "ef79768f8992c1f3904dc789a09a49ec",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.RegisterDecision:AfterCommit@0c21127c735ccb84942dfe18d6210fcd#1": {
+    "fingerprint": "0c21127c735ccb84942dfe18d6210fcd",
+    "reason": "Duplicate structured decision diagnostic only. The request, reviewer, decision and request-ledger event are persisted in the triggering transaction; this callback is not their sole audit evidence."
+  },
+  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.RegisterDecision:AfterCommit@18a7ecd49861260a9c2cbb2b87066d78#1": {
+    "fingerprint": "18a7ecd49861260a9c2cbb2b87066d78",
+    "reason": "Duplicate structured decision diagnostic only. The request, reviewer, decision and request-ledger event are persisted in the triggering transaction; this callback is not their sole audit evidence."
+  },
+  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.WakeGuardians:AfterCommit@ef25aacc8fe8e11fff41f311a6d307b3#1": {
+    "fingerprint": "ef25aacc8fe8e11fff41f311a6d307b3",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.broadcastCareScheduleChanges:AfterCommit@ebb47aca05e7275a279183ba56d2fb3f#1": {
+    "fingerprint": "ebb47aca05e7275a279183ba56d2fb3f",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/excused_requests.go:ExcusedRequests.Decide:AfterCommit@5b783d50751bdb29a57425b8be99a2ac#1": {
+    "fingerprint": "5b783d50751bdb29a57425b8be99a2ac",
+    "reason": "Duplicate structured absence-decision diagnostic only. The decided request and request-ledger event persist atomically with the applied status days; loss removes no decision/audit record."
+  },
+  "modules/careplan/internal/application/excused_requests.go:ExcusedRequests.Decide:AfterCommit@e374a493e0a53ee4651cabfef4d896da#1": {
+    "fingerprint": "e374a493e0a53ee4651cabfef4d896da",
+    "reason": "Duplicate structured absence-decision diagnostic only. The decided request and request-ledger event persist atomically with the applied status days; loss removes no decision/audit record."
+  },
+  "modules/careplan/internal/application/excused_requests.go:ExcusedRequests.broadcastRequestTransition:AfterCommit@3fb8c035cfc1b28b9125f89c692d8c46#1": {
+    "fingerprint": "3fb8c035cfc1b28b9125f89c692d8c46",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/master_data_notices.go:MasterDataDecisions.deferStudentCompanionsChanged:AfterCommit@d3dfd7134e0fbb652cac633cb6dff841#1": {
+    "fingerprint": "d3dfd7134e0fbb652cac633cb6dff841",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/master_data_notices.go:MasterDataDecisions.deferStudentUpdated:AfterCommit@a44943e40382f1aba4b27707ee96d5d2#1": {
+    "fingerprint": "a44943e40382f1aba4b27707ee96d5d2",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/offering_change_notices.go:OfferingChanges.emitPill:AfterCommit@837ac15669131661a170d4e8b3fe1a17#1": {
+    "fingerprint": "837ac15669131661a170d4e8b3fe1a17",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/careplan/internal/application/offering_pickup_announcement.go:AnnounceOfferingPickupChange:AfterCommit@09567d506a83c807d41c83d108946140#1": {
+    "fingerprint": "09567d506a83c807d41c83d108946140",
+    "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
+  },
+  "modules/delivery/application/notifications/service.go:router.Notify:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
+    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
+  },
+  "modules/delivery/application/notifications/service.go:router.NotifyBatch:RegisterAfterCommit@f1b9fa2d446cee417b31e8d11c93a7d2#1": {
+    "fingerprint": "f1b9fa2d446cee417b31e8d11c93a7d2",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
+  },
+  "modules/delivery/application/notifications/service.go:router.NotifyDurably:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
+    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
+  },
+  "modules/delivery/application/realtimeevents/active_supervision.go:QueueActiveSupervisionChanged:RegisterAfterCommit@fa5297417f7b4cae2102f99d24765ae4#1": {
+    "fingerprint": "fa5297417f7b4cae2102f99d24765ae4",
+    "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/delivery/application/realtimeevents/arrival_schedule.go:QueueArrivalScheduleChanged:RegisterAfterCommit@db38e6fbacbf4eee93ba329fc304d0c5#1": {
+    "fingerprint": "db38e6fbacbf4eee93ba329fc304d0c5",
+    "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/delivery/application/realtimeevents/group_access.go:QueueGroupAccessChanged:RegisterAfterCommit@1eb0f1c7c171d67ac47cb872fe9669f5#1": {
+    "fingerprint": "1eb0f1c7c171d67ac47cb872fe9669f5",
+    "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/delivery/application/realtimeevents/instance_started.go:QueueInstanceStarted:RegisterAfterCommit@40c922510f35c65b137d60d4f4e8fa1f#1": {
+    "fingerprint": "40c922510f35c65b137d60d4f4e8fa1f",
+    "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/delivery/application/realtimeevents/staff_time_tracking.go:QueueStaffTimeTrackingChanged:RegisterAfterCommit@10a27cb9d276d6f9d3c11ba14eb054ba#1": {
+    "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
+    "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/enrollment/internal/application/approved_child_sync.go:Decisions.deferStudentPlanBroadcasts:AfterCommit@43b1ffba4f0bdf7bb95b841f1033e9fd#1": {
+    "fingerprint": "43b1ffba4f0bdf7bb95b841f1033e9fd",
+    "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
+  },
+  "modules/filestorage/compose/new.go:transaction.AfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Optional immediate cleanup wake backed by committed soft-delete/cleanup-outbox rows. The existing leased/bounded cleanup sweep independently rescans these rows; no deletion intent exists only in this callback."
+  },
+  "modules/filestorage/internal/application/service.go:Service.scheduleCleanup:AfterCommit@287eaf4c91544268c5c4c124bdbc2751#1": {
+    "fingerprint": "287eaf4c91544268c5c4c124bdbc2751",
+    "reason": "Optional immediate cleanup wake backed by committed soft-delete/cleanup-outbox rows. The existing leased/bounded cleanup sweep independently rescans these rows; no deletion intent exists only in this callback."
+  },
+  "modules/identityaccess/compose/account_authentication.go:tenantRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Transaction-hook forwarder for replayable session/device cleanup wakes only. Revocation markers and token deletion commit first; existing pending-wipe and orphan-subscription reconcilers recover missed wakes."
+  },
+  "modules/identityaccess/internal/application/account_administration.go:AccountAdministration.clearPendingWipe:RegisterAfterCommit@3e43feb5149476fc4fbacac8a094a852#1": {
+    "fingerprint": "3e43feb5149476fc4fbacac8a094a852",
+    "reason": "Optional settlement of a prior durable deactivation-wipe marker after reactivation. The reconciler rechecks account.Active and marks that intent complete without revoking new sessions; losing this fast path is harmless."
+  },
+  "modules/identityaccess/internal/application/operator_account_access.go:OperatorAccountAccess.activateAccount:RegisterAfterCommit@7acfe03a1eafa61dba6dfcf7f10ef621#1": {
+    "fingerprint": "7acfe03a1eafa61dba6dfcf7f10ef621",
+    "reason": "Optional settlement of a prior durable deactivation-wipe marker after reactivation. The reconciler rechecks account.Active and marks that intent complete without revoking new sessions; losing this fast path is harmless."
+  },
+  "modules/identityaccess/internal/application/session_revocation.go:AccountAuthentication.ScheduleAccountWideRevoke:RegisterAfterCommit@e79c39843da813a21d384a25076b8294#1": {
+    "fingerprint": "e79c39843da813a21d384a25076b8294",
+    "reason": "Optional immediate wake for the account-wide revoke intent already recorded in the triggering transaction. The existing pending-wipe reconciler repeats the revocation from that durable marker; no revocation intent is lost."
+  },
+  "modules/identityaccess/internal/application/session_revocation.go:AccountAuthentication.queuePushCleanup:RegisterAfterCommit@2daaf92cab8546825dd44bf978957140#1": {
+    "fingerprint": "2daaf92cab8546825dd44bf978957140",
+    "reason": "Optional immediate stale-device cleanup after durable token revocation. Delivery authorization rechecks live token families and the existing orphan-subscription sweep removes subscriptions with no live token; losing this wake cannot restore access or lose revocation."
+  },
+  "modules/peopledirectory/compose/new.go:transaction.RegisterAfterCommit:RegisterAfterCommit@b3d7d64ed279e9f6bb4db7376b675896#1": {
+    "fingerprint": "b3d7d64ed279e9f6bb4db7376b675896",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.ApplyPhotoConsent:RegisterAfterCommit@86b02080c0e7ec94f91260a174feaed8#1": {
+    "fingerprint": "86b02080c0e7ec94f91260a174feaed8",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.ClearPhoto:RegisterAfterCommit@5783a44290a797005e31b1ec4b48981c#1": {
+    "fingerprint": "5783a44290a797005e31b1ec4b48981c",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.CommitPhoto:RegisterAfterCommit@34f6f155414dd275281c9a454538ec47#1": {
+    "fingerprint": "34f6f155414dd275281c9a454538ec47",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/peopledirectory/internal/application/student_photo.go:StudentPhotoService.ScheduleUnlink:RegisterAfterCommit@86b02080c0e7ec94f91260a174feaed8#1": {
+    "fingerprint": "86b02080c0e7ec94f91260a174feaed8",
+    "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
+  },
+  "modules/schoolstructure/internal/application/groups/substitution_module.go:notifyScheduleChange:AfterCommit@add9a57e9f378aecd4b73f09f9e57b37#1": {
+    "fingerprint": "add9a57e9f378aecd4b73f09f9e57b37",
+    "reason": "Post-commit schedule notification returns only realtime activity/staffing invalidations. Schedule writes are in the transaction; losing the notification delays refetch, not materialization or persistence."
+  },
+  "modules/settings/compose/operator.go:operatorSettingsRuntime.AfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/compose/tenant_settings_runtime.go:TenantSettingsRuntime.AfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/home_layout_service.go:HomeLayoutService.scheduleNotification:AfterCommit@7c0243e4cdf40aee46ddd511eec25b6b#1": {
+    "fingerprint": "7c0243e4cdf40aee46ddd511eec25b6b",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/operator_settings_service.go:operatorSettingsService.ResetValue:AfterCommit@ee834813d2d75f1bcb380859c8986a5f#1": {
+    "fingerprint": "ee834813d2d75f1bcb380859c8986a5f",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/operator_settings_service.go:operatorSettingsService.SetValue:AfterCommit@ee834813d2d75f1bcb380859c8986a5f#1": {
+    "fingerprint": "ee834813d2d75f1bcb380859c8986a5f",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/operator_settings_service.go:operatorSettingsService.scheduleBroadcast:AfterCommit@7c0243e4cdf40aee46ddd511eec25b6b#1": {
+    "fingerprint": "7c0243e4cdf40aee46ddd511eec25b6b",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/tenant_operations.go:TenantOperations.dispatchHook:AfterCommit@01d9fd2811bbea843bcc12c571750839#1": {
+    "fingerprint": "01d9fd2811bbea843bcc12c571750839",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/tenant_operations.go:TenantOperations.prepareLegalDocumentCleanup:AfterCommit@01d9fd2811bbea843bcc12c571750839#1": {
+    "fingerprint": "01d9fd2811bbea843bcc12c571750839",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/settings/internal/application/tenant_operations.go:TenantOperations.scheduleNotification:AfterCommit@5f7c9098ca5537446592af109946b9b3#1": {
+    "fingerprint": "5f7c9098ca5537446592af109946b9b3",
+    "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
+  },
+  "modules/studentpresence/internal/application/presence/active_service.go:service.trackProductEvent:RegisterAfterCommit@2d70b159a73bdd1742d51974fa275ada#1": {
+    "fingerprint": "2d70b159a73bdd1742d51974fa275ada",
+    "reason": "Best-effort bounded product telemetry only. Attendance/session/audit state is committed independently; telemetry loss cannot change the attendance result."
+  },
+  "modules/studentpresence/internal/application/presence/attendance_broadcasts.go:service.registerCheckinBroadcast:RegisterAfterCommit@4e5575d6157faeff1e5a2e6ebebafe80#1": {
+    "fingerprint": "4e5575d6157faeff1e5a2e6ebebafe80",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/attendance_broadcasts.go:service.registerCheckoutBroadcast:RegisterAfterCommit@92869895806433906005a69b3a4ce205#1": {
+    "fingerprint": "92869895806433906005a69b3a4ce205",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/guardian_wake.go:service.wakeGuardiansAfterCommit:RegisterAfterCommit@cee822f2067373a9de5988528e1862c7#1": {
+    "fingerprint": "cee822f2067373a9de5988528e1862c7",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/school_checkin_batch.go:service.registerSchoolCheckinBatchBroadcast:RegisterAfterCommit@ee2b465c7ec84b15d5d76f26cfb637e1#1": {
+    "fingerprint": "ee2b465c7ec84b15d5d76f26cfb637e1",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/session_service.go:service.queueActivitySessionEndBroadcasts:RegisterAfterCommit@59692cec769b83ceafe8f68f314985c2#1": {
+    "fingerprint": "59692cec769b83ceafe8f68f314985c2",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.DeleteByID:AfterCommit@db1bd33bb5159ab13c9851d5b917f661#1": {
+    "fingerprint": "db1bd33bb5159ab13c9851d5b917f661",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.DeleteByID:RegisterAfterCommit@3da4f9a69a8a6df6f874546e65eb1fb7#1": {
+    "fingerprint": "3da4f9a69a8a6df6f874546e65eb1fb7",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.createForDatesLocked:AfterCommit@db1bd33bb5159ab13c9851d5b917f661#1": {
+    "fingerprint": "db1bd33bb5159ab13c9851d5b917f661",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.createForDatesLocked:RegisterAfterCommit@3da4f9a69a8a6df6f874546e65eb1fb7#1": {
+    "fingerprint": "3da4f9a69a8a6df6f874546e65eb1fb7",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.writeBulkStatuses:AfterCommit@db1bd33bb5159ab13c9851d5b917f661#1": {
+    "fingerprint": "db1bd33bb5159ab13c9851d5b917f661",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/student_status_day_write.go:StudentStatusDayService.writeBulkStatuses:RegisterAfterCommit@3da4f9a69a8a6df6f874546e65eb1fb7#1": {
+    "fingerprint": "3da4f9a69a8a6df6f874546e65eb1fb7",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/visit_broadcasts.go:service.broadcastVisitCheckout:RegisterAfterCommit@ee66c96d31f1f204d4337134eaef7275#1": {
+    "fingerprint": "ee66c96d31f1f204d4337134eaef7275",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/studentpresence/internal/application/presence/visit_helpers.go:service.broadcastVisitCreated:RegisterAfterCommit@6eadc9a10ed514a2a7c91459f2ca26f9#1": {
+    "fingerprint": "6eadc9a10ed514a2a7c91459f2ca26f9",
+    "reason": "Realtime attendance/activity/guardian cache invalidation only. Canonical presence and status-day writes have committed; refetch/reconnect recovers the state if the wake is lost."
+  },
+  "modules/timetable/http/substitute.go:Resource.broadcastStaffingDeviationChanged:RegisterAfterCommit@c3f702516884cc651476d08502a9215d#1": {
+    "fingerprint": "c3f702516884cc651476d08502a9215d",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/instance_broadcast.go:InstanceLifecycleService.QueueActivityUpdates:RegisterAfterCommit@f71e52210cead562262b6b2ddd39d361#1": {
+    "fingerprint": "f71e52210cead562262b6b2ddd39d361",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/instance_broadcast.go:InstanceLifecycleService.broadcastInstanceEvent:RegisterAfterCommit@4f35bff7538710a302b0f5237ecb340d#1": {
+    "fingerprint": "4f35bff7538710a302b0f5237ecb340d",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/instance_broadcast.go:InstanceLifecycleService.broadcastPlannedInstanceChanged:RegisterAfterCommit@aaf34bf81f43e9460fba247c8fc9579e#1": {
+    "fingerprint": "aaf34bf81f43e9460fba247c8fc9579e",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/instance_reopen.go:InstanceLifecycleService.broadcastRestoredVisits:RegisterAfterCommit@2bb306985794cef5b77e70f063e69e63#1": {
+    "fingerprint": "2bb306985794cef5b77e70f063e69e63",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/operations_patch.go:operations.broadcastAttendanceChanged:RegisterAfterCommit@eee086e3001c700f96853d7b37296e46#1": {
+    "fingerprint": "eee086e3001c700f96853d7b37296e46",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/staff_deviations.go:staffDeviations.QueueActivityUpdates:RegisterAfterCommit@fdcbae36719c55a7d926d42b1dd0ca37#1": {
+    "fingerprint": "fdcbae36719c55a7d926d42b1dd0ca37",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/timetable/internal/application/template_writes.go:announceStaffingChanged:RegisterAfterCommit@a88a7675249ef93627f35345d1816a03#1": {
+    "fingerprint": "a88a7675249ef93627f35345d1816a03",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "modules/workforce/http/timetracking/staff_admin_documents.go:StaffAdminResource.deleteStaffDocument:RegisterAfterCommit@446f09ad952d679dc15611981fcdb97b#1": {
+    "fingerprint": "446f09ad952d679dc15611981fcdb97b",
+    "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "modules/workforce/http/timetracking/staff_admin_documents.go:StaffAdminResource.listStaffDocuments:RegisterAfterCommit@2460638ba5f13ce8d068a7e9df6f8259#1": {
+    "fingerprint": "2460638ba5f13ce8d068a7e9df6f8259",
+    "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "modules/workforce/http/timetracking/staff_admin_documents.go:StaffAdminResource.retryQueuedStaffDocumentCleanups:RegisterAfterCommit@6382cc2b78026f63eacf8450f6dc294e#1": {
+    "fingerprint": "6382cc2b78026f63eacf8450f6dc294e",
+    "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "modules/workforce/internal/application/staff_document_files.go:staffDocumentFiles.WakeOffboardingDocumentCleanup:RegisterAfterCommit@8f9072b11edc5fa0866e29b077add9a2#1": {
+    "fingerprint": "8f9072b11edc5fa0866e29b077add9a2",
+    "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "modules/workforce/internal/planning/time_tracking_events.go:queueStaffTimeTrackingChanged:RegisterAfterCommit@10a27cb9d276d6f9d3c11ba14eb054ba#1": {
+    "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
+    "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "services/scheduler/tenant_runtime.go:Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1": {
+    "fingerprint": "0669f453e5ef89dcbbf01b3a0022619d",
+    "reason": "Forwarder for process-local scheduler cache updates after durable job/checkpoint commits. Losing a cache hint causes an idempotent rescan; the database leases and persisted cleanup-run/checkpoint records remain authoritative."
+  },
+  "workflows/parentportal/care/absences.go:Service.afterAbsenceCommit:RegisterAfterCommit@eed37765f420745f077b429a315a1847#1": {
+    "fingerprint": "eed37765f420745f077b429a315a1847",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/care_exception_writes.go:Service.withdrawCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
+    "fingerprint": "ff1b15a90c0dc0c250da5d4c1b0cf3ab",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/care_exception_writes.go:Service.writeCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
+    "fingerprint": "ff1b15a90c0dc0c250da5d4c1b0cf3ab",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/guardian_contact_updates.go:Service.broadcastProfileChildrenAfterCommit:RegisterAfterCommit@22a309f750ae681b55b15df7fcecf1ad#1": {
+    "fingerprint": "22a309f750ae681b55b15df7fcecf1ad",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/guardian_contacts.go:Service.createGuardianContactInTx:RegisterAfterCommit@1413c5a1fed2ed669a8be3d7899e137a#1": {
+    "fingerprint": "1413c5a1fed2ed669a8be3d7899e137a",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/guardian_relationships.go:Service.projectEditedRelationship:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
+    "fingerprint": "f816882b890b9609b10d41a071d7161d",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/parent_consent_service.go:Service.writePhotoConsent:RegisterAfterCommit@6184587272843b956a0799c9f676e862#1": {
+    "fingerprint": "6184587272843b956a0799c9f676e862",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/care/parent_master_data_service.go:Service.applyTrackAInTx:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
+    "fingerprint": "f816882b890b9609b10d41a071d7161d",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/messaging/parent_messaging_service.go:Service.GetChildConversation:RegisterAfterCommit@3d982fdc2e971c2002a9f44b815d5198#1": {
+    "fingerprint": "3d982fdc2e971c2002a9f44b815d5198",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/parentportal/messaging/parent_messaging_service.go:Service.PostChildMessage:RegisterAfterCommit@47abd6de1477faef47e16b2cc77ff7d7#1": {
+    "fingerprint": "47abd6de1477faef47e16b2cc77ff7d7",
+    "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
+  },
+  "workflows/sessionend/internal/application/command.go:command.EndSession:AfterCommit@b6d02d84627e86abbe6d43ff323fd0dc#1": {
+    "fingerprint": "b6d02d84627e86abbe6d43ff323fd0dc",
+    "reason": "Realtime session-ended notification only. Session closure and associated domain writes commit before notification; tabs reconstruct the ended state on their next refetch."
+  },
+  "workflows/shiftplansync/internal/application/helpers.go:broadcastStaffingChanged:RegisterAfterCommit@cec6eaf4cb1cd7d932d8c4c0894d1c3e#1": {
+    "fingerprint": "cec6eaf4cb1cd7d932d8c4c0894d1c3e",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "workflows/shiftplansync/internal/application/substitution.go:SubstitutionAdapter.broadcastStaffingChanged:RegisterAfterCommit@0c3c4a5e46089a74c4d127d73d9a49c0#1": {
+    "fingerprint": "0c3c4a5e46089a74c4d127d73d9a49c0",
+    "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "workflows/studentdeletion/compose/new.go:Assemble:RegisterAfterCommit@5925e3b1741c018b1177ebad7e0cad19#1": {
+    "fingerprint": "5925e3b1741c018b1177ebad7e0cad19",
+    "reason": "Realtime companion-list invalidation only after deletion and companion-link changes commit. Losing the wake affects refresh timing, not deletion or relationship cleanup."
+  }
+}

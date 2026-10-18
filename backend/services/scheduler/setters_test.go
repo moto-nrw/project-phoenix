@@ -340,11 +340,10 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 	task := &ScheduledTask{Name: "instance-overdue"}
 
 	finished := make(chan struct{})
-	s.wg.Add(1)
-	go func() {
+	s.wg.Go(func() {
 		s.runInstanceOverdueTaskPolling(task)
 		close(finished)
-	}()
+	})
 
 	select {
 	case <-finished:
@@ -751,8 +750,9 @@ func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
 
 		task := &ScheduledTask{Name: "instance-overdue"}
 
-		s.wg.Add(1)
-		go s.runInstanceOverdueTaskPolling(task)
+		s.wg.Go(func() {
+			s.runInstanceOverdueTaskPolling(task)
+		})
 
 		// Advance the fake clock past 1 min alignment + 2 ticker intervals.
 		time.Sleep(3 * time.Minute)

@@ -37,6 +37,7 @@ type StudentPhotoConsentRecorder interface {
 }
 
 type studentPhotoRuntime struct {
+	cleanup     func(context.Context, string) error
 	settings    peoplePorts.PhotoSettings
 	broadcaster PhotoBroadcaster
 	unlinker    peoplePorts.PhotoUnlinker
@@ -63,6 +64,13 @@ func (r studentPhotoRuntime) ActingAccountID(ctx context.Context) int64 {
 		return 0
 	}
 	return r.actor(ctx)
+}
+
+func (r studentPhotoRuntime) QueueUnlinkStoredPhoto(ctx context.Context, storedURL string) error {
+	if r.cleanup == nil {
+		return nil
+	}
+	return r.cleanup(ctx, storedURL)
 }
 
 func (r studentPhotoRuntime) UnlinkStoredPhoto(storedURL string) {
@@ -123,8 +131,8 @@ type StudentPhotoCapability interface {
 	CommitStudentPhoto(ctx context.Context, studentID int64, storedURL string, consentAck bool) error
 	ClearStudentPhoto(ctx context.Context, studentID int64) (string, error)
 	PurgeStudentPhotos(ctx context.Context) ([]string, error)
-	ApplyStudentPhotoConsent(ctx context.Context, current peopleModule.StudentPhotoState, requestedConsent *bool) peopleModule.StudentPhotoState
-	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string)
+	ApplyStudentPhotoConsent(ctx context.Context, current peopleModule.StudentPhotoState, requestedConsent *bool) (peopleModule.StudentPhotoState, error)
+	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error
 }
 
 func (s studentPhotos) CommitUpload(ctx context.Context, req peoplePorts.CommitUploadRequest) error {
@@ -188,9 +196,9 @@ func (s studentPhotos) afterPhotoFeatureChange(tenantID int64, detached []string
 
 // ApplyConsentTransition reconciles the requested consent on the row the
 // caller holds; the caller persists it with its own write.
-func (s studentPhotos) ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleModule.StudentState) {
+func (s studentPhotos) ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleModule.StudentState) error {
 	if fresh == nil {
-		return
+		return nil
 	}
 	current := peopleModule.StudentPhotoState{
 		StudentID:           fresh.ID,
@@ -198,14 +206,18 @@ func (s studentPhotos) ApplyConsentTransition(ctx context.Context, requestedCons
 		PhotoConsentGivenAt: fresh.PhotoConsentGivenAt,
 		PhotoConsentGivenBy: fresh.PhotoConsentGivenBy,
 	}
-	updated := s.directory.ApplyStudentPhotoConsent(ctx, current, requestedConsent)
+	updated, err := s.directory.ApplyStudentPhotoConsent(ctx, current, requestedConsent)
+	if err != nil {
+		return err
+	}
 	fresh.PhotoPath = updated.PhotoPath
 	fresh.PhotoConsentGivenAt = updated.PhotoConsentGivenAt
 	fresh.PhotoConsentGivenBy = updated.PhotoConsentGivenBy
+	return nil
 }
 
-func (s studentPhotos) ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string) {
-	s.directory.ScheduleStudentPhotoUnlink(ctx, storedURL)
+func (s studentPhotos) ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string) error {
+	return s.directory.ScheduleStudentPhotoUnlink(ctx, storedURL)
 }
 
 // deferTenantSettingsChanged returns a closure that broadcasts
