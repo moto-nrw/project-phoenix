@@ -47,10 +47,11 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	instances := &fakeInstanceRepo{}
 	spy := &recordingOverdue{}
 	const room = 61
-	sched := unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{}),
-		logger: slog.Default()})
+	sched := unitScheduler(func(unit *Scheduler) {
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+	})
 
 	sched.instanceRepo = instances.read
 	sched.instanceRoomRepo = (&fakeOverdueRoomRepo{roomIDs: []int64{room}}).existing
@@ -220,10 +221,11 @@ func spyFilter(r *recordingOverdue, instanceID int64, kind overdueKind) int {
 // Day-rollover is a pure-memory behaviour — test it without the DB.
 func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 	t.Parallel()
-	sched := unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{}),
-		logger: slog.Default()})
+	sched := unitScheduler(func(unit *Scheduler) {
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+	})
 
 	// Seed: mark "yesterday" as the cache day, store one emitted key.
 	yesterday := calendar.NewDate(2026, 4, 19)

@@ -107,12 +107,13 @@ func TestLoadMinuteSnapshotResolvesEverySchoolInOneBatch(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
-		schoolRepo:    dbTenantDirectory{db: db},
-		settings:      settings,
-		tenantRuntime: dbTenantRuntime(t, db),
-		done:          make(chan struct{}),
-		logger:        slog.Default()})
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.schoolRepo = dbTenantDirectory{db: db}
+		unit.settings = settings
+		unit.tenantRuntime = dbTenantRuntime(t, db)
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+	})
 
 	snapshot, err := scheduler.loadMinuteSnapshot(context.Background())
 	require.NoError(t, err)
@@ -129,16 +130,17 @@ func TestForEachTenantSettingsBindsEachSchoolsSnapshot(t *testing.T) {
 	t.Parallel()
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
-		settings: settings,
-		done:     make(chan struct{}),
-		logger:   slog.Default(),
-		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.settings = settings
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+		unit.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 			return &schedulerMinuteSnapshot{
 				tenantIDs: []int64{31, 32},
 				settings:  map[int64]ports.SettingsSnapshot{31: "snapshot-31", 32: "snapshot-32"},
 			}, nil
-		}})
+		}
+	})
 
 	bound := map[int64]any{}
 	scheduler.forEachTenantSettings(context.Background(), "bind-settings", func(ctx context.Context, tenantID int64) error {
@@ -153,16 +155,17 @@ func TestForEachTenantSettingsFailsASchoolWhoseSnapshotCannotBeBound(t *testing.
 	t.Parallel()
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
-		settings: settings,
-		done:     make(chan struct{}),
-		logger:   slog.Default(),
-		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.settings = settings
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+		unit.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 			return &schedulerMinuteSnapshot{
 				tenantIDs: []int64{33, 34},
 				settings:  map[int64]ports.SettingsSnapshot{33: "snapshot-33", 34: 34},
 			}, nil
-		}})
+		}
+	})
 
 	var called []int64
 	completed := scheduler.forEachTenantSettings(context.Background(), "bind-settings", func(_ context.Context, tenantID int64) error {
@@ -181,16 +184,17 @@ func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
-		done:              make(chan struct{}),
-		minuteSnapshotNow: func() time.Time { return fixedNow },
-		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.done = make(chan struct{})
+		unit.minuteSnapshotNow = func() time.Time { return fixedNow }
+		unit.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 			if calls.Add(1) == 1 {
 				close(started)
 			}
 			<-release
 			return &schedulerMinuteSnapshot{tenantIDs: []int64{1, 2}}, nil
-		}})
+		}
+	})
 
 	const callers = 32
 	results := make(chan *schedulerMinuteSnapshot, callers)
@@ -225,13 +229,14 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 	current := time.Date(2026, time.July, 30, 12, 15, 10, 0, time.UTC)
 	loadErr := errors.New("settings unavailable")
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
-		done:              make(chan struct{}),
-		minuteSnapshotNow: func() time.Time { return current },
-		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.done = make(chan struct{})
+		unit.minuteSnapshotNow = func() time.Time { return current }
+		unit.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 			calls.Add(1)
 			return nil, loadErr
-		}})
+		}
+	})
 
 	_, err := scheduler.getMinuteSnapshot(context.Background())
 	require.ErrorIs(t, err, loadErr)
@@ -248,15 +253,15 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 func TestGetMinuteSnapshotBindsTenantRuntimeBeforeLoading(t *testing.T) {
 	t.Parallel()
 	var adminCalled bool
-	scheduler := unitScheduler(&Scheduler{
-		done: make(chan struct{}),
-		minuteSnapshotLoader: func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.done = make(chan struct{})
+		unit.minuteSnapshotLoader = func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
 			err := testpkg.WithinAdminTransaction(ctx, func(context.Context) error {
 				adminCalled = true
 				return nil
 			})
 			return &schedulerMinuteSnapshot{}, err
-		},
+		}
 	})
 
 	_, err := scheduler.getMinuteSnapshot(context.Background())
@@ -272,10 +277,10 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
-		done:              make(chan struct{}),
-		minuteSnapshotNow: func() time.Time { return current },
-		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+	scheduler := unitScheduler(func(unit *Scheduler) {
+		unit.done = make(chan struct{})
+		unit.minuteSnapshotNow = func() time.Time { return current }
+		unit.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 			switch calls.Add(1) {
 			case 1:
 				close(firstStarted)
@@ -286,7 +291,8 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 			default:
 				return nil, errors.New("unexpected extra load")
 			}
-		}})
+		}
+	})
 
 	firstResult := make(chan *schedulerMinuteSnapshot, 1)
 	go func() {

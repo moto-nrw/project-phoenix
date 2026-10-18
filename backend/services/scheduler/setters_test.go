@@ -45,9 +45,10 @@ func TestCheckAndRunBreakAutoEnd_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	ender := &countingBreakAutoEnder{count: 3}
-	s := unitScheduler(&Scheduler{
-		breakAutoEnder: ender,
-		logger:         slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.breakAutoEnder = ender
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "break-auto-end", Schedule: "60s-poll"}
 
@@ -60,9 +61,10 @@ func TestCheckAndRunBreakAutoEnd_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	ender := &countingBreakAutoEnder{err: errors.New("db broke")}
-	s := unitScheduler(&Scheduler{
-		breakAutoEnder: ender,
-		logger:         slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.breakAutoEnder = ender
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "break-auto-end", Schedule: "60s-poll"}
 
@@ -79,9 +81,10 @@ func TestCheckAndRunBreakAutoEnd_AlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	ender := &countingBreakAutoEnder{}
-	s := unitScheduler(&Scheduler{
-		breakAutoEnder: ender,
-		logger:         slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.breakAutoEnder = ender
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "break-auto-end", Running: true}
 
@@ -95,9 +98,10 @@ func TestCheckAndRunBreakAutoEnd_ZeroCount(t *testing.T) {
 
 	// count=0 path: the "if count > 0" branch is skipped, no Info log line.
 	ender := &countingBreakAutoEnder{count: 0}
-	s := unitScheduler(&Scheduler{
-		breakAutoEnder: ender,
-		logger:         slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.breakAutoEnder = ender
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "break-auto-end"}
 
@@ -139,10 +143,11 @@ func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 
 	repo := &fakeInstanceRepo{}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		instanceRepo:       repo.read,
-		overdueBroadcaster: spy,
-		logger:             slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.instanceRepo = repo.read
+		unit.overdueBroadcaster = spy
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "instance-overdue", Running: true}
 
@@ -159,10 +164,11 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	// runs with no instances, which means no broadcasts.
 	repo := &fakeInstanceRepo{instances: nil}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		instanceRepo:       repo.read,
-		overdueBroadcaster: spy,
-		logger:             slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.instanceRepo = repo.read
+		unit.overdueBroadcaster = spy
+		unit.logger = slog.Default()
+	})
 
 	task := &ScheduledTask{Name: "instance-overdue"}
 
@@ -199,11 +205,12 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	repo := &fakeInstanceRepo{instances: []ports.DayInstance{schulhofInstance, normalInstance}}
 	roomRepo := &fakeOverdueRoomRepo{roomIDs: []int64{251, 252}}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo.read,
-		instanceRoomRepo:   roomRepo.existing,
-		overdueBroadcaster: spy})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.instanceRepo = repo.read
+		unit.instanceRoomRepo = roomRepo.existing
+		unit.overdueBroadcaster = spy
+	})
 
 	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
@@ -235,11 +242,12 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spy := &recordingOverdue{}
-			s := unitScheduler(&Scheduler{
-				logger:             slog.Default(),
-				instanceRepo:       (&fakeInstanceRepo{instances: []ports.DayInstance{inst}}).read,
-				instanceRoomRepo:   tt.roomRepo.existing,
-				overdueBroadcaster: spy})
+			s := unitScheduler(func(unit *Scheduler) {
+				unit.logger = slog.Default()
+				unit.instanceRepo = (&fakeInstanceRepo{instances: []ports.DayInstance{inst}}).read
+				unit.instanceRoomRepo = tt.roomRepo.existing
+				unit.overdueBroadcaster = spy
+			})
 
 			s.runOverdueForTenant(
 				context.Background(),
@@ -260,12 +268,12 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{}),
-
-		overdueBroadcaster: &recordingOverdue{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.overdueBroadcaster = &recordingOverdue{}
+	})
 
 	s.scheduleInstanceOverdueTask()
 	assert.Empty(t, s.tasks, "no repo → no task registered")
@@ -274,11 +282,12 @@ func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
 func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		tasks:        make(map[string]*ScheduledTask),
-		done:         make(chan struct{}),
-		instanceRepo: (&fakeInstanceRepo{}).read})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.instanceRepo = (&fakeInstanceRepo{}).read
+	})
 
 	s.scheduleInstanceOverdueTask()
 	assert.Empty(t, s.tasks, "no broadcaster → no task registered")
@@ -287,12 +296,13 @@ func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
 func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		tasks:              make(map[string]*ScheduledTask),
-		done:               make(chan struct{}),
-		instanceRepo:       (&fakeInstanceRepo{}).read,
-		overdueBroadcaster: &recordingOverdue{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.instanceRepo = (&fakeInstanceRepo{}).read
+		unit.overdueBroadcaster = &recordingOverdue{}
+	})
 
 	s.scheduleInstanceOverdueTask()
 	assert.Empty(t, s.tasks, "no room repo → no task registered")
@@ -301,13 +311,14 @@ func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
 func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		tasks:              make(map[string]*ScheduledTask),
-		done:               make(chan struct{}),
-		instanceRepo:       (&fakeInstanceRepo{}).read,
-		instanceRoomRepo:   (&fakeOverdueRoomRepo{}).existing,
-		overdueBroadcaster: &recordingOverdue{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.instanceRepo = (&fakeInstanceRepo{}).read
+		unit.instanceRoomRepo = (&fakeOverdueRoomRepo{}).existing
+		unit.overdueBroadcaster = &recordingOverdue{}
+	})
 
 	s.scheduleInstanceOverdueTask()
 
@@ -329,12 +340,13 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 	// immediately after the startup check.
 	repo := &fakeInstanceRepo{}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		tasks:              make(map[string]*ScheduledTask),
-		done:               make(chan struct{}),
-		instanceRepo:       repo.read,
-		overdueBroadcaster: spy})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.instanceRepo = repo.read
+		unit.overdueBroadcaster = spy
+	})
 
 	close(s.done)
 	task := &ScheduledTask{Name: "instance-overdue"}
@@ -482,10 +494,11 @@ func assertAutoStartFailureOutcomes(t *testing.T, s *Scheduler, observed *autoSt
 func TestScheduleAutoStartTask_MissingService(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{})})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+	})
 
 	s.scheduleAutoStartTask()
 	assert.Empty(t, s.tasks, "no service → no task registered")
@@ -495,11 +508,12 @@ func TestScheduleAutoStartTask_Registers(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoStartService{}
-	s := unitScheduler(&Scheduler{
-		logger:    slog.Default(),
-		tasks:     make(map[string]*ScheduledTask),
-		done:      make(chan struct{}),
-		autoStart: svc})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.autoStart = svc
+	})
 
 	s.scheduleAutoStartTask()
 
@@ -517,10 +531,11 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoStartService{}
-	s := unitScheduler(&Scheduler{
-		autoStart: svc,
-		logger:    slog.Default(),
-		settings:  &stubSettingsResolver{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.autoStart = svc
+		unit.logger = slog.Default()
+		unit.settings = &stubSettingsResolver{}
+	})
 
 	task := &ScheduledTask{Name: "timetable-auto-start"}
 
@@ -535,10 +550,11 @@ func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoStartService{result: &ports.AutoStartRun{Checked: 2, Started: 1}}
-	s := unitScheduler(&Scheduler{
-		autoStart: svc,
-		logger:    slog.Default(),
-		settings:  &stubSettingsResolver{hasOverride: true, boolVal: true}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.autoStart = svc
+		unit.logger = slog.Default()
+		unit.settings = &stubSettingsResolver{hasOverride: true, boolVal: true}
+	})
 
 	task := &ScheduledTask{Name: "timetable-auto-start"}
 
@@ -575,7 +591,11 @@ func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace 
 func TestScheduleAutoEndTask_MissingService(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{logger: slog.Default(), tasks: make(map[string]*ScheduledTask), done: make(chan struct{})})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+	})
 	s.scheduleAutoEndTask()
 	assert.Empty(t, s.tasks)
 }
@@ -583,11 +603,12 @@ func TestScheduleAutoEndTask_MissingService(t *testing.T) {
 func TestScheduleAutoEndTask_Registers(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		logger:  slog.Default(),
-		tasks:   make(map[string]*ScheduledTask),
-		done:    make(chan struct{}),
-		autoEnd: &fakeAutoEndService{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.autoEnd = &fakeAutoEndService{}
+	})
 
 	s.scheduleAutoEndTask()
 
@@ -605,7 +626,11 @@ func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoEndService{}
-	s := unitScheduler(&Scheduler{autoEnd: svc, logger: slog.Default(), settings: &stubSettingsResolver{}})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.autoEnd = svc
+		unit.logger = slog.Default()
+		unit.settings = &stubSettingsResolver{}
+	})
 	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
 	svc.mu.Lock()
@@ -617,14 +642,15 @@ func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoEndService{result: &ports.AutoEndRun{Checked: 1, Completed: 1}}
-	s := unitScheduler(&Scheduler{
-		autoEnd: svc,
-		logger:  slog.Default(),
-		settings: &stubSettingsResolver{
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.autoEnd = svc
+		unit.logger = slog.Default()
+		unit.settings = &stubSettingsResolver{
 			hasOverride: true,
 			boolVal:     true,
 			intVal:      15,
-		}})
+		}
+	})
 
 	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
@@ -638,12 +664,13 @@ func TestCheckAndRunAutoEnd_UsesEnabledTimetableDefault(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeAutoEndService{}
-	s := unitScheduler(&Scheduler{
-		autoEnd: svc,
-		logger:  slog.Default(),
-		settings: &keyedBoolSettingsResolver{values: map[string]bool{
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.autoEnd = svc
+		unit.logger = slog.Default()
+		unit.settings = &keyedBoolSettingsResolver{values: map[string]bool{
 			settingTimetableAutoEndEnabled: true,
-		}}})
+		}}
+	})
 
 	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
@@ -691,11 +718,12 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	repo := &fakeInstanceRepo{instances: []ports.DayInstance{inst}}
 	spy := &recordingOverdue{}
 	spy.err = errors.New("forced failure")
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo.read,
-		instanceRoomRepo:   (&fakeOverdueRoomRepo{roomIDs: []int64{42}}).existing,
-		overdueBroadcaster: spy})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.instanceRepo = repo.read
+		unit.instanceRoomRepo = (&fakeOverdueRoomRepo{roomIDs: []int64{42}}).existing
+		unit.overdueBroadcaster = spy
+	})
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
 	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
@@ -710,10 +738,11 @@ func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 
 	repo := &fakeInstanceRepo{}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo.read,
-		overdueBroadcaster: spy})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.instanceRepo = repo.read
+		unit.overdueBroadcaster = spy
+	})
 
 	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 0, time.Now())
 	assert.Equal(t, 0, repo.calls, "threshold < 1 must skip repo call")
@@ -725,10 +754,11 @@ func TestRunOverdueForTenant_RepoError(t *testing.T) {
 
 	repo := &fakeInstanceRepo{err: errors.New("db down")}
 	spy := &recordingOverdue{}
-	s := unitScheduler(&Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo.read,
-		overdueBroadcaster: spy})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.logger = slog.Default()
+		unit.instanceRepo = repo.read
+		unit.overdueBroadcaster = spy
+	})
 
 	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, time.Now())
 	assert.Empty(t, spy.calls(), "repo error must not result in any broadcast")
@@ -742,12 +772,13 @@ func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		repo := &fakeInstanceRepo{}
 		spy := &recordingOverdue{}
-		s := unitScheduler(&Scheduler{
-			logger:             slog.Default(),
-			tasks:              make(map[string]*ScheduledTask),
-			done:               make(chan struct{}),
-			instanceRepo:       repo.read,
-			overdueBroadcaster: spy})
+		s := unitScheduler(func(unit *Scheduler) {
+			unit.logger = slog.Default()
+			unit.tasks = make(map[string]*ScheduledTask)
+			unit.done = make(chan struct{})
+			unit.instanceRepo = repo.read
+			unit.overdueBroadcaster = spy
+		})
 
 		task := &ScheduledTask{Name: "instance-overdue"}
 
@@ -845,9 +876,10 @@ func (s *stubSettingsResolver) ResolveInt(_ context.Context, _ string) (int, err
 func TestResolveStringSetting_TenantOverride(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, stringVal: "override-value"},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, stringVal: "override-value"}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveStringSetting(context.Background(), "some.key", "SOME_ENV", "default")
 	assert.Equal(t, "override-value", val)
@@ -857,9 +889,10 @@ func TestResolveStringSetting_OverrideCheckError(t *testing.T) {
 	t.Parallel()
 
 	// When HasTenantOverride returns err, fall through to env/default.
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverrideErr: errors.New("db down")}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveStringSetting(context.Background(), "some.key", "SOME_ENV_NEVER_SET_XYZ", "fallback")
 	assert.Equal(t, "fallback", val)
@@ -869,9 +902,10 @@ func TestResolveStringSetting_OverrideEmptyString(t *testing.T) {
 	t.Parallel()
 
 	// Override exists but the resolved value is empty → fall through to default.
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, stringVal: ""},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, stringVal: ""}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveStringSetting(context.Background(), "some.key", "NEVER_SET_YYZ", "fallback")
 	assert.Equal(t, "fallback", val)
@@ -880,9 +914,10 @@ func TestResolveStringSetting_OverrideEmptyString(t *testing.T) {
 func TestResolveBoolSetting_TenantOverride(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, boolVal: true},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, boolVal: true}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveBoolSetting(context.Background(), "some.key", "NEVER_SET_BBB", false)
 	assert.True(t, val)
@@ -891,9 +926,10 @@ func TestResolveBoolSetting_TenantOverride(t *testing.T) {
 func TestResolveBoolSetting_OverrideCheckError(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverrideErr: errors.New("db down")}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveBoolSetting(context.Background(), "some.key", "NEVER_SET_CCC", true)
 	assert.True(t, val)
@@ -902,9 +938,10 @@ func TestResolveBoolSetting_OverrideCheckError(t *testing.T) {
 func TestResolveIntSetting_TenantOverride(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, intVal: 99},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, intVal: 99}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_III", 5)
 	assert.Equal(t, 99, val)
@@ -913,9 +950,10 @@ func TestResolveIntSetting_TenantOverride(t *testing.T) {
 func TestResolveIntSetting_OverrideCheckError(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverrideErr: errors.New("db down")}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_DDD", 7)
 	assert.Equal(t, 7, val)
@@ -926,9 +964,10 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 
 	// When override resolves to 0 (or negative), resolveIntSetting falls
 	// through to env/default — documented invariant.
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, intVal: 0}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_EEE", 11)
 	assert.Equal(t, 11, val)
@@ -939,9 +978,10 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 
 	t.Run("positive value", func(t *testing.T) {
 		t.Parallel()
-		s := unitScheduler(&Scheduler{
-			settings: &stubSettingsResolver{intVal: 30},
-			logger:   slog.Default()})
+		s := unitScheduler(func(unit *Scheduler) {
+			unit.settings = &stubSettingsResolver{intVal: 30}
+			unit.logger = slog.Default()
+		})
 
 		val, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_POSITIVE")
 
@@ -951,9 +991,10 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 
 	t.Run("resolver error", func(t *testing.T) {
 		t.Parallel()
-		s := unitScheduler(&Scheduler{
-			settings: &stubSettingsResolver{intErr: errors.New("db down")},
-			logger:   slog.Default()})
+		s := unitScheduler(func(unit *Scheduler) {
+			unit.settings = &stubSettingsResolver{intErr: errors.New("db down")}
+			unit.logger = slog.Default()
+		})
 
 		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ERROR")
 
@@ -963,9 +1004,10 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 
 	t.Run("zero rejected", func(t *testing.T) {
 		t.Parallel()
-		s := unitScheduler(&Scheduler{
-			settings: &stubSettingsResolver{intVal: 0},
-			logger:   slog.Default()})
+		s := unitScheduler(func(unit *Scheduler) {
+			unit.settings = &stubSettingsResolver{intVal: 0}
+			unit.logger = slog.Default()
+		})
 
 		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ZERO")
 
@@ -979,9 +1021,10 @@ func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
 
 	// Zero is a meaningful value for settings like
 	// tracking.auto_checkout_grace_minutes (checkout exactly at shift end).
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, intVal: 0}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_FFF", 15)
 	assert.Equal(t, 0, val)
@@ -990,9 +1033,10 @@ func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
 func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, intVal: -3},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, intVal: -3}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_GGG", 15)
 	assert.Equal(t, 15, val)
@@ -1001,9 +1045,10 @@ func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
 func TestResolveNonNegativeIntSetting_PositiveOverride(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
-		settings: &stubSettingsResolver{hasOverride: true, intVal: 30},
-		logger:   slog.Default()})
+	s := unitScheduler(func(unit *Scheduler) {
+		unit.settings = &stubSettingsResolver{hasOverride: true, intVal: 30}
+		unit.logger = slog.Default()
+	})
 
 	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_HHH", 15)
 	assert.Equal(t, 30, val)
