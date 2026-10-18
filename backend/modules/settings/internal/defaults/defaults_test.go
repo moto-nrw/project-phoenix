@@ -353,7 +353,7 @@ func TestMealOrderingSettingsDefaultToTheSingleSameDayDeadline(t *testing.T) {
 		def := config.GetDefinition(key)
 		require.NotNil(t, def.Validation)
 		assert.InDelta(t, 0, *def.Validation.Min, 0)
-		assert.InDelta(t, 30, *def.Validation.Max, 0)
+		assert.InDelta(t, 14, *def.Validation.Max, 0)
 	}
 	assert.Equal(t, config.DependsOnEq(config.KeyMealRegistrationModel, config.MealRegistrationModelAnnual), config.GetDefinition(config.KeyMealAnnualRegistrationDeadline).DependsOn)
 	assert.Equal(t, config.DependsOnNeq(config.KeyMealRegistrationModel, config.MealRegistrationModelSingle), config.GetDefinition(config.KeyMealCancellationDeadlineKind).DependsOn)

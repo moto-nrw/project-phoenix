@@ -655,28 +655,39 @@ func TestWeekChangeCancelsOpenDaysAndReportsLockedOnes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	settings := singleDeadlineSettings("09:00")
 	settings.RegistrationLeadDays = 1
-	// Tuesday 2026-09-08, 10:00: Monday is past, Tuesday and Wednesday are
-	// past their deadline (the day before, 09:00), Thursday and Friday open.
-	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
 	student := testpkg.CreateTestStudent(t, db, "Wanda", "Woche", "4b")
 	account := testpkg.CreateTestAccount(t, db, "meal-week")
 	ctx := testpkg.Ctx(t)
+	early := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 3, 10, 0, 0, 0, testBerlin))
+	_, err := early.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Monday, mealplan.Tuesday, mealplan.Wednesday, mealplan.Thursday}})
+	require.NoError(t, err)
 
+	// Tuesday 2026-09-08, 10:00: Monday is past, Tuesday and Wednesday are
+	// past their deadline (the day before, 09:00), Thursday is open and
+	// Friday is no meal day of the child.
+	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
 	change, err := module.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-09", Participating: false})
 	require.NoError(t, err)
-	assert.Equal(t, []mealplan.Date{"2026-09-10", "2026-09-11"}, change.Changed)
+	assert.Equal(t, []mealplan.Date{"2026-09-10"}, change.Changed)
 	assert.Equal(t, []mealplan.Date{"2026-09-08", "2026-09-09"}, change.Locked)
 
 	plan, err := module.Participation(ctx, student.ID, "2026-09-10", "2026-09-11")
 	require.NoError(t, err)
-	for _, day := range plan.Days {
-		assert.Equal(t, mealplan.ParticipationOverride, day.Source)
-		assert.False(t, day.Participating)
-	}
+	assert.Equal(t, mealplan.ParticipationOverride, plan.Days[0].Source)
+	assert.False(t, plan.Days[0].Participating)
+	assert.Equal(t, mealplan.ParticipationNone, plan.Days[1].Source, "a day the child does not eat gets no exception")
 
-	locked := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 10, 10, 0, 0, 0, testBerlin))
-	_, err = locked.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-07", Participating: true})
-	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff, "nothing left to change in the week")
+	again, err := module.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-07", Participating: false})
+	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff, "only locked days are left to cancel")
+	assert.Empty(t, again.Changed)
+
+	nextWeek := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
+	_, err = nextWeek.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: nil})
+	require.NoError(t, err)
+	empty, err := nextWeek.SetParticipationForWeek(ctx, mealplan.SetParticipationWeek{StudentID: student.ID, GuardianAccountID: account.ID, WeekOf: "2026-09-21", Participating: false})
+	require.NoError(t, err, "a week without meals has nothing to cancel")
+	assert.Empty(t, empty.Changed)
+	assert.Empty(t, empty.Locked)
 }
 
 func TestInvalidOrderingSettingsRefuseRegistration(t *testing.T) {
@@ -834,4 +845,58 @@ func TestExcusedAndClassTripCancelTheMealLikeASickNote(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, dailyParticipantIDs(list), student.ID, date)
 	}
+}
+
+func TestDailyListCarriesTheDayDeadlineUnderALeadTime(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	settings := singleDeadlineSettings("12:00")
+	settings.RegistrationLeadDays = 3
+	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+
+	list, err := module.DailyList(testpkg.Ctx(t), "2026-09-14")
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 9, 11, 12, 0, 0, 0, testBerlin).UTC(), list.Deadline.UTC(), "Monday's deadline is Friday noon")
+	assert.Equal(t, "12:00", list.CutoffTime)
+}
+
+// Under the split model an absence keeps cancelling until the later
+// cancellation deadline, even with the default "stays ordered".
+func TestSplitModelCancelsAbsencesUntilTheCancellationDeadline(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModuleWithRules(t, db, splitSettings(), time.Date(2026, 9, 9, 10, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Selma", "Spät", "1e")
+	account := testpkg.CreateTestAccount(t, db, "meal-split-absence")
+	ctx := testpkg.Ctx(t)
+	early := buildModuleWithRules(t, db, splitSettings(), time.Date(2026, 9, 3, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-14", Participating: true}))
+	require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-15", Participating: true}))
+	// Reported after the registration deadline (Thursday 2026-09-10 noon) but
+	// before 08:00 on the Monday: cancelled. Reported at 08:30 on the
+	// Tuesday: past its cancellation deadline, the meal stays ordered.
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-14", time.Date(2026, 9, 14, 7, 30, 0, 0, testBerlin))
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-15", time.Date(2026, 9, 15, 8, 30, 0, 0, testBerlin))
+
+	plan, err := module.Participation(ctx, student.ID, "2026-09-14", "2026-09-15")
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.ParticipationSick, plan.Days[0].Source)
+	assert.True(t, plan.Days[1].Participating)
+}
+
+func TestPreviousWeekDeadlineMovesTheNewPatternToTheWeekAfter(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Pia", "Vorwoche", "2g")
+	account := testpkg.CreateTestAccount(t, db, "meal-previous-week")
+	ctx := testpkg.Ctx(t)
+	before := buildModuleWithRules(t, db, splitSettings(), time.Date(2026, 9, 10, 11, 0, 0, 0, testBerlin))
+	effectiveFrom, err := before.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Monday}})
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.Date("2026-09-14"), effectiveFrom, "before Thursday noon the next week is still open")
+
+	after := buildModuleWithRules(t, db, splitSettings(), time.Date(2026, 9, 10, 13, 0, 0, 0, testBerlin))
+	effectiveFrom, err = after.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Tuesday}})
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.Date("2026-09-21"), effectiveFrom)
 }

@@ -37,8 +37,8 @@ func TestDeadlineAnchorsDaysBeforeAndPreviousWeek(t *testing.T) {
 
 func TestDeadlineValidity(t *testing.T) {
 	t.Parallel()
-	assert.True(t, Deadline{Kind: DeadlineDaysBefore, LeadDays: 30, Clock: "09:00"}.Valid())
-	assert.False(t, Deadline{Kind: DeadlineDaysBefore, LeadDays: 31, Clock: "09:00"}.Valid())
+	assert.True(t, Deadline{Kind: DeadlineDaysBefore, LeadDays: 14, Clock: "09:00"}.Valid())
+	assert.False(t, Deadline{Kind: DeadlineDaysBefore, LeadDays: 15, Clock: "09:00"}.Valid())
 	assert.False(t, Deadline{Kind: DeadlineDaysBefore, LeadDays: -1, Clock: "09:00"}.Valid())
 	assert.False(t, Deadline{Kind: DeadlineDaysBefore, Clock: "9 Uhr"}.Valid())
 	assert.True(t, Deadline{Kind: DeadlinePreviousWeek, Weekday: time.Friday, Clock: "09:00"}.Valid())
@@ -155,4 +155,17 @@ func TestNextEffectiveDateSkipsFrozenDaysAndWeekends(t *testing.T) {
 	rules.Registration = Deadline{Kind: DeadlinePreviousWeek, Weekday: time.Thursday, Clock: "12:00"}
 	assert.Equal(t, monday.AddDays(7), rules.NextEffectiveDate(berlin(thursday, 11, 0)), "next week is still open before Thursday noon")
 	assert.Equal(t, monday.AddDays(14), rules.NextEffectiveDate(berlin(thursday, 13, 0)))
+}
+
+// The clock switches back on Sunday 2026-10-25: a deadline on either side
+// keeps its Berlin wall-clock time.
+func TestDeadlinesKeepTheirClockAcrossTheDaylightSavingSwitch(t *testing.T) {
+	t.Parallel()
+	monday := calendar.NewDate(2026, time.October, 26)
+	previousThursday := Deadline{Kind: DeadlinePreviousWeek, Weekday: time.Thursday, Clock: "12:00"}
+	assert.Equal(t, time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC), previousThursday.At(monday).UTC(), "summer time: 12:00 is 10:00 UTC")
+
+	twoDays := Deadline{Kind: DeadlineDaysBefore, LeadDays: 2, Clock: "09:00"}
+	assert.Equal(t, time.Date(2026, 10, 24, 7, 0, 0, 0, time.UTC), twoDays.At(monday).UTC(), "Saturday before the switch")
+	assert.Equal(t, time.Date(2026, 10, 25, 8, 0, 0, 0, time.UTC), twoDays.At(monday.AddDays(1)).UTC(), "Sunday after the switch: 09:00 is 08:00 UTC")
 }

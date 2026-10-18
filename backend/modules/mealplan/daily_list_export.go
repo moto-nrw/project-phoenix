@@ -1,6 +1,10 @@
 package mealplan
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 // DailyListExport is the kitchen's Tagesliste as an export renders it.
 type DailyListExport struct {
@@ -36,7 +40,7 @@ func (l DailyList) Export() (DailyListExport, error) {
 	return DailyListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den " + date,
-		Filters:  []string{"Änderungsfrist: " + l.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(lines))},
+		Filters:  []string{"Frist: " + l.Deadline.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr", fmt.Sprintf("%d Kinder", len(lines))},
 		Columns:  []DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",

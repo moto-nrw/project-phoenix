@@ -60,8 +60,9 @@ const (
 )
 
 // maxLeadDays bounds the days-before deadline; the settings registry
-// validates the same range.
-const maxLeadDays = 30
+// validates the same range. Parents reach four weeks ahead, so every
+// deadline of a reachable day falls within that reach.
+const maxLeadDays = 14
 
 // Deadline is one deadline of a meal day: either LeadDays before it or on
 // Weekday of the previous week, at Clock (HH:MM, Berlin).

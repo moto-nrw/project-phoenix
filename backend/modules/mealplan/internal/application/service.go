@@ -51,17 +51,9 @@ func (s *Service) Participation(ctx context.Context, studentID int64, from, to d
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		data, stats, findErr := s.store.FindParticipation(txCtx, studentID, from, to)
-		if findErr != nil {
-			return stats, findErr
-		}
-		days, calendarStats, calendarErr := s.calendar.Days(txCtx, from, to)
-		stats = addStats(stats, calendarStats)
-		if calendarErr != nil {
-			return stats, calendarErr
-		}
-		plan = s.resolveParticipation(data, from, to, rules, days)
-		return stats, nil
+		var stats domain.OperationStats
+		plan, stats, err = s.readParticipation(txCtx, studentID, from, to, rules)
+		return stats, err
 	})
 	return plan, err
 }
@@ -105,38 +97,53 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 	})
 }
 
-// SetParticipationWeek registers or cancels every remaining weekday of the
-// week for a parent. Days whose deadline has passed stay as they are and are
-// returned as locked; past and closed days are skipped. Nothing changeable at
-// all is a passed deadline.
+// SetParticipationWeek registers or cancels the remaining weekdays of the
+// week for a parent: only the days that would change, so cancelling never
+// touches a day the child does not eat. A day whose deadline has passed stays
+// as it is and is returned as locked. Nothing left to change but a locked day
+// is a passed deadline; nothing to change at all is no error.
 func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday domain.Date, participating bool) (changed, locked []domain.Date, err error) {
 	err = s.run(ctx, "set_participation_week", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		days, stats, calendarErr := s.calendar.Days(txCtx, monday, monday.AddDays(4))
-		if calendarErr != nil {
-			return stats, calendarErr
+		plan, stats, readErr := s.readParticipation(txCtx, studentID, monday, monday.AddDays(4), rules)
+		if readErr != nil {
+			return stats, readErr
 		}
 		now := s.now()
-		today := domain.DateFromInstant(now)
-		for date := monday; date.Before(monday.AddDays(5)); date = date.AddDays(1) {
+		for _, day := range plan.Days {
 			switch {
-			case date.Before(today), days.Closed[date]:
-			case parentMayChange(rules, now, date, participating):
-				changed = append(changed, date)
+			case day.Source == domain.ParticipationClosed, day.Participating == participating, day.Date.Before(domain.DateFromInstant(now)):
+			case parentMayChange(rules, now, day.Date, participating):
+				changed = append(changed, day.Date)
 			default:
-				locked = append(locked, date)
+				locked = append(locked, day.Date)
 			}
 		}
-		if len(changed) == 0 {
+		if len(changed) == 0 && len(locked) > 0 {
 			return stats, ErrCutoffPassed
 		}
 		writeStats, err := s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
 		return addStats(stats, writeStats), err
 	})
 	return changed, locked, err
+}
+
+// readParticipation resolves the child's days in [from, to] from its
+// registration and the school calendar.
+func (s *Service) readParticipation(ctx context.Context, studentID int64, from, to domain.Date, rules domain.OrderingRules) (domain.ParticipationPlan, domain.OperationStats, error) {
+	data, stats, err := s.store.FindParticipation(ctx, studentID, from, to)
+	if err != nil {
+		return domain.ParticipationPlan{}, stats, err
+	}
+	days, calendarStats, err := s.calendar.Days(ctx, from, to)
+	stats = addStats(stats, calendarStats)
+	if err != nil {
+		return domain.ParticipationPlan{}, stats, err
+	}
+	return s.resolveParticipation(data, from, to, rules, days), stats, nil
 }
 
 // ClearParticipationDay drops a parent's exception for the day, so the
@@ -178,7 +185,8 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		list = domain.DailyList{Date: date, CutoffTime: rules.Registration.Clock, Participants: []domain.DailyParticipant{}}
+		deadline := rules.FreezeAt(date)
+		list = domain.DailyList{Date: date, CutoffTime: deadline.In(calendarZone).Format("15:04"), Deadline: deadline, Participants: []domain.DailyParticipant{}}
 		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
 		if calendarErr != nil || days.Closed[date] {
 			return stats, calendarErr

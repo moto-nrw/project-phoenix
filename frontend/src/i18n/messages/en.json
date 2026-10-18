@@ -255,7 +255,7 @@
     "deadlineBoth": "Can be changed until {date}",
     "deadlineRegister": "Sign up until {date}",
     "deadlineCancel": "Cancel until {date}",
-    "participationSicknessDeadline": "A confirmed sick note before the cancellation deadline cancels your child's lunch. After that, the meal stays ordered.",
+    "participationSicknessDeadline": "A confirmed sick note up to a day's deadline cancels your child's lunch. After that, the meal stays ordered.",
     "participationSicknessDay": "A confirmed sick note up to the day of the meal cancels your child's lunch.",
     "scheduleLocked": "Registration for the school year has closed. Only the school can change the regular days now.",
     "cancelWeek": "Cancel week",
@@ -269,7 +269,7 @@
   "mealParticipantList": {
     "title": "Daily list for the kitchen",
     "description": "The list shows all children registered for lunch on this day.",
-    "cutoff": "Changes for this day are possible until {time}.",
+    "cutoff": "Deadline for this day: {date}.",
     "child": "Child",
     "class": "Class",
     "dateAria": "Date: {date}",

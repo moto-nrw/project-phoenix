@@ -255,7 +255,7 @@
     "deadlineBoth": "Änderbar bis {date}",
     "deadlineRegister": "Anmelden bis {date}",
     "deadlineCancel": "Abmelden bis {date}",
-    "participationSicknessDeadline": "Eine bestätigte Krankmeldung vor der Abmeldefrist meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
+    "participationSicknessDeadline": "Eine bestätigte Krankmeldung bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
     "participationSicknessDay": "Eine bestätigte Krankmeldung bis zum Essenstag meldet Ihr Kind vom Essen ab.",
     "scheduleLocked": "Die Anmeldung für das Schuljahr ist abgeschlossen. Feste Tage ändert jetzt nur die Schule.",
     "cancelWeek": "Woche abmelden",
@@ -269,7 +269,7 @@
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
-    "cutoff": "Änderungen für diesen Tag sind bis {time} Uhr möglich.",
+    "cutoff": "Frist für diesen Tag: {date}.",
     "child": "Kind",
     "class": "Klasse",
     "dateAria": "Datum: {date}",

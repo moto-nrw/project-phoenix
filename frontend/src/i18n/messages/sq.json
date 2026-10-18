@@ -255,7 +255,7 @@
     "deadlineBoth": "Mund të ndryshohet deri më {date}",
     "deadlineRegister": "Regjistrohu deri më {date}",
     "deadlineCancel": "Anulo deri më {date}",
-    "participationSicknessDeadline": "Një njoftim i konfirmuar sëmundjeje para afatit të anulimit e çregjistron fëmijën nga dreka. Pas kësaj, dreka mbetet e porositur.",
+    "participationSicknessDeadline": "Një njoftim i konfirmuar sëmundjeje deri në afatin e ditës e çregjistron fëmijën nga dreka. Pas kësaj, dreka mbetet e porositur.",
     "participationSicknessDay": "Një njoftim i konfirmuar sëmundjeje deri në ditën e drekës e çregjistron fëmijën nga dreka.",
     "scheduleLocked": "Regjistrimi për vitin shkollor është mbyllur. Ditët e rregullta tani i ndryshon vetëm shkolla.",
     "cancelWeek": "Anulo javën",
@@ -269,7 +269,7 @@
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
-    "cutoff": "Ndryshimet për këtë ditë mund të bëhen deri në orën {time}.",
+    "cutoff": "Afati për këtë ditë: {date}.",
     "child": "Fëmija",
     "class": "Klasa",
     "dateAria": "Data: {date}",

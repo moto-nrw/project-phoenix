@@ -244,7 +244,7 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 	if err != nil {
 		return mealplan.DailyList{}, mapError(err)
 	}
-	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
+	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
 	for _, participant := range list.Participants {
 		result.Participants = append(result.Participants, mealplan.DailyParticipant{StudentID: participant.StudentID, FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
 	}

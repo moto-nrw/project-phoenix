@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -79,6 +80,7 @@ type DailyParticipantResponse struct {
 type DailyListResponse struct {
 	Date         string                     `json:"date"`
 	CutoffTime   string                     `json:"cutoff_time"`
+	Deadline     time.Time                  `json:"deadline"`
 	Participants []DailyParticipantResponse `json:"participants"`
 }
 
@@ -165,7 +167,7 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	for _, participant := range list.Participants {
 		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
 	}
-	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Participants: participants}, "Meal participation list retrieved successfully")
+	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Participants: participants}, "Meal participation list retrieved successfully")
 }
 
 func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {

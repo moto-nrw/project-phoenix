@@ -119,7 +119,7 @@ var mealDefinitions = []config.Definition{
 		Tab:             "meals",
 		Category:        "fristen-essen",
 		SortOrder:       2,
-		Validation:      config.Range(0, 30),
+		Validation:      config.Range(0, 14),
 		DependsOn:       config.DependsOnEq(config.KeyMealRegistrationDeadlineKind, config.MealDeadlineDaysBefore),
 	},
 	{
@@ -174,7 +174,7 @@ var mealDefinitions = []config.Definition{
 		Tab:             "meals",
 		Category:        "fristen-essen",
 		SortOrder:       6,
-		Validation:      config.Range(0, 30),
+		Validation:      config.Range(0, 14),
 		DependsOn:       config.DependsOnEq(config.KeyMealCancellationDeadlineKind, config.MealDeadlineDaysBefore),
 	},
 	{
@@ -206,8 +206,8 @@ var mealDefinitions = []config.Definition{
 	},
 	{
 		Key:   config.KeyMealSickAfterDeadline,
-		Label: "Krank nach der Abmeldefrist",
-		Description: "Bleibt bestellt: Das Essen zählt, Eltern sehen das im Elternportal. " +
+		Label: "Krankmeldung nach der Frist",
+		Description: "Bleibt bestellt: Eine spätere Krankmeldung ändert nichts, das Essen zählt. " +
 			"Wird abbestellt: Eine Krankmeldung bis zum Essenstag bestellt das Essen ab. Der Caterer sieht nur „abbestellt“, nie den Grund.",
 		Type:            config.FieldSelect,
 		Default:         config.MealSickStaysOrdered,

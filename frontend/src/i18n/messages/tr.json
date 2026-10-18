@@ -255,7 +255,7 @@
     "deadlineBoth": "{date} tarihine kadar değiştirilebilir",
     "deadlineRegister": "{date} tarihine kadar kayıt",
     "deadlineCancel": "{date} tarihine kadar iptal",
-    "participationSicknessDeadline": "İptal süresinden önce onaylanan bir hastalık bildirimi çocuğunuzu öğle yemeğinden çıkarır. Sonrasında yemek sipariş edilmiş olarak kalır.",
+    "participationSicknessDeadline": "Günün son tarihine kadar onaylanan bir hastalık bildirimi çocuğunuzu öğle yemeğinden çıkarır. Sonrasında yemek sipariş edilmiş olarak kalır.",
     "participationSicknessDay": "Yemek gününe kadar onaylanan bir hastalık bildirimi çocuğunuzu öğle yemeğinden çıkarır.",
     "scheduleLocked": "Okul yılı için kayıt kapandı. Sabit günleri artık yalnızca okul değiştirir.",
     "cancelWeek": "Haftayı iptal et",
@@ -269,7 +269,7 @@
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
-    "cutoff": "Bu gün için değişiklikler saat {time} olana kadar yapılabilir.",
+    "cutoff": "Bu günün son tarihi: {date}.",
     "child": "Çocuk",
     "class": "Sınıf",
     "dateAria": "Tarih: {date}",

@@ -437,7 +437,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByText("mit Salat")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Eine bestätigte Krankmeldung vor der Abmeldefrist meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
+        "Eine bestätigte Krankmeldung bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -1108,6 +1108,60 @@ describe("ParentMealPlanPage", () => {
           name: "Anmeldung ändern: Donnerstag, 13. August",
         }),
       ).not.toBeInTheDocument();
+    });
+
+    it("steps back to next week when the other school has no registration", async () => {
+      mocks.listMyChildren.mockResolvedValue([
+        {
+          student_id: "child-1",
+          tenant_id: "school-1",
+          first_name: "Mia",
+          last_name: "Muster",
+          school_name: "OGS Am Berg",
+        },
+        {
+          student_id: "child-2",
+          tenant_id: "school-2",
+          first_name: "Noah",
+          last_name: "Beispiel",
+          school_name: "OGS Am Park",
+        },
+      ]);
+      mocks.getChildFeatures.mockImplementation(async (studentId: string) => ({
+        meal_plan_enabled: true,
+        meal_registration_enabled: studentId === "child-1",
+      }));
+      mocks.getMealParticipation.mockResolvedValue(plan());
+
+      render(<ParentMealPlanPage />);
+
+      const navigation = await screen.findByRole("navigation", {
+        name: "Kalenderwoche wechseln",
+      });
+      const weekStatus = within(navigation).getByRole("status");
+      const nextWeek = within(navigation).getByRole("button", {
+        name: "Nächste Woche",
+      });
+      for (const label of [/Nächste Woche/, /In 2 Wochen/]) {
+        await waitFor(() => expect(nextWeek).toBeEnabled());
+        fireEvent.click(nextWeek);
+        await waitFor(() => expect(weekStatus).toHaveTextContent(label));
+      }
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Noah Beispiel · OGS Am Park",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(
+          within(
+            screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+          ).getByRole("status"),
+        ).toHaveTextContent(/Nächste Woche/),
+      );
     });
 
     it("reaches four weeks and loads the meal plan only for the first two", async () => {

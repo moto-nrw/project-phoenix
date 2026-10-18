@@ -255,7 +255,7 @@
     "deadlineBoth": "Zmiana możliwa do {date}",
     "deadlineRegister": "Zapisy do {date}",
     "deadlineCancel": "Wypisanie do {date}",
-    "participationSicknessDeadline": "Potwierdzone zgłoszenie choroby przed terminem wypisania wypisuje dziecko z obiadu. Później obiad pozostaje zamówiony.",
+    "participationSicknessDeadline": "Potwierdzone zgłoszenie choroby do terminu danego dnia wypisuje dziecko z obiadu. Później obiad pozostaje zamówiony.",
     "participationSicknessDay": "Potwierdzone zgłoszenie choroby do dnia obiadu wypisuje dziecko z obiadu.",
     "scheduleLocked": "Zapisy na rok szkolny są zamknięte. Stałe dni zmienia teraz tylko szkoła.",
     "cancelWeek": "Wypisz z tygodnia",
@@ -269,7 +269,7 @@
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
     "description": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym dniu.",
-    "cutoff": "Zmiany na ten dzień są możliwe do godziny {time}.",
+    "cutoff": "Termin na ten dzień: {date}.",
     "child": "Dziecko",
     "class": "Klasa",
     "dateAria": "Data: {date}",

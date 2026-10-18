@@ -57,7 +57,7 @@ export function MealParticipantList() {
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
-  const [cutoffTime, setCutoffTime] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
@@ -68,7 +68,7 @@ export function MealParticipantList() {
     try {
       const list = await getDailyMealParticipants(date);
       setParticipants(list.participants);
-      setCutoffTime(list.cutoffTime);
+      setDeadline(list.deadline);
     } catch (cause) {
       logger.error("meal_participant_list_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -145,9 +145,18 @@ export function MealParticipantList() {
               {t("title")}
             </h2>
             <p className="mt-1 text-sm text-gray-600">{t("description")}</p>
-            {cutoffTime ? (
+            {deadline ? (
               <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("cutoff", { time: cutoffTime })}
+                {t("cutoff", {
+                  date: new Date(deadline).toLocaleString(locale, {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Europe/Berlin",
+                  }),
+                })}
               </p>
             ) : null}
           </div>

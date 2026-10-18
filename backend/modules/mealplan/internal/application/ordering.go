@@ -6,7 +6,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// calendarZone is where deadlines are read as wall-clock times.
+var calendarZone = calendar.Berlin
 
 var weekdays = map[string]time.Weekday{
 	"monday": time.Monday, "tuesday": time.Tuesday, "wednesday": time.Wednesday,

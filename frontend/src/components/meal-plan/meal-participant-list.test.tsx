@@ -47,6 +47,7 @@ describe("MealParticipantList", () => {
     mocks.getDailyMealParticipants.mockResolvedValue({
       date: "2026-09-07",
       cutoffTime: "09:00",
+      deadline: "2026-09-04T07:00:00Z",
       participants: [
         {
           studentId: "42",
@@ -130,9 +131,8 @@ describe("MealParticipantList", () => {
     render(<MealParticipantList />);
 
     expect(
-      await screen.findByText(
-        "Änderungen für diesen Tag sind bis 09:00 Uhr möglich.",
-      ),
+      // #3873: the deadline of the day, here the Friday before.
+      await screen.findByText("Frist für diesen Tag: Fr., 04.09., 09:00."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2a").length).toBeGreaterThan(0);
@@ -251,6 +251,7 @@ describe("MealParticipantList", () => {
       .mockResolvedValueOnce({
         date: "2026-09-07",
         cutoffTime: "09:00",
+        deadline: "2026-09-07T07:00:00Z",
         participants: [],
       });
 

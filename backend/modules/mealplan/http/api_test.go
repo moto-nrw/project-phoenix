@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -97,7 +98,7 @@ func (e engine) ClearParticipationDay(context.Context, int64, int64, string) err
 	return nil
 }
 func (e engine) DailyParticipants(context.Context, string) (mealplanModule.DailyList, error) {
-	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}}, nil
+	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}}, nil
 }
 
 func resource(available bool) *mealplanHTTP.Resource {
@@ -125,7 +126,7 @@ func TestStaffDailyListResponseContract(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","deadline":"2026-09-07T07:00:00Z","participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
 }
 
 func TestStaffWeekResponseContract(t *testing.T) {

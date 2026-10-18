@@ -4035,7 +4035,7 @@ function mealOrderingTopic(): HelpTopic {
       "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
       "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
       "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
-      "Wählen Sie bei `Krank nach der Abmeldefrist`, was mit dem Essen passiert.",
+      "Wählen Sie bei `Krankmeldung nach der Frist`, was mit dem Essen passiert.",
     ],
     result:
       "Eltern sehen bei jedem Tag, bis wann sie an- oder abmelden können.",
@@ -4049,7 +4049,6 @@ function mealOrderingTopic(): HelpTopic {
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
-      "Die Schule kann eine Anmeldung auch nach der Frist ändern.",
     ],
     troubleshootingDetails: [
       "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
@@ -6595,7 +6594,7 @@ function parentMealPlanTopic(): HelpTopic {
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
-      "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 12:00`.",
+      "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 17.09., 12:00`.",
       "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Essensplan gibt es für diese und nächste Woche.",
     ],
     differences: [

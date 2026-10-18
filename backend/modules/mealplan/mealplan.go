@@ -135,9 +135,12 @@ type DailyParticipant struct {
 	SchoolClass string
 }
 
+// DailyList is the kitchen's list of a day. Deadline is when the day's
+// order is fixed (#3873); CutoffTime is its Berlin clock time.
 type DailyList struct {
 	Date         Date
 	CutoffTime   string
+	Deadline     time.Time
 	Participants []DailyParticipant
 }
 
