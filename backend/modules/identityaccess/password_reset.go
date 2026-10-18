@@ -82,9 +82,15 @@ type PasswordResets interface {
 	// issued (unknown address or no role of the scope's portal).
 	InitiatePasswordReset(ctx context.Context, email string, scope PasswordResetScope) (*PasswordResetLink, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
-	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	PasswordResetDeliveryRecorder
 	DeleteSpentPasswordResetTokens(ctx context.Context) (int, error)
 	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
+}
+
+// PasswordResetDeliveryRecorder records how the mail of a reset link fared;
+// the root's mail delivery reports through it.
+type PasswordResetDeliveryRecorder interface {
+	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 }
 
 func (m *Module) InitiatePasswordReset(ctx context.Context, email string, scope PasswordResetScope) (*PasswordResetLink, error) {
