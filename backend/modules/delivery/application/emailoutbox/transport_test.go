@@ -48,7 +48,7 @@ func TestTransportRecordsAttemptAfterSendingContextEnds(t *testing.T) {
 	defer cancel()
 	renderer := &recordingMailRenderer{}
 	transport := Transport{Mailer: cancelledMailTransport{cancel: cancel}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default()}
-	err := transport.Send(ctx, &Intent{TenantID: 1}, renderer, email.NewEmail("", "recipient@example.test"))
+	err := transport.Send(ctx, &Intent{TenantID: 42}, renderer, email.NewEmail("", "recipient@example.test"))
 	require.ErrorIs(t, err, context.Canceled)
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
 	require.True(t, renderer.recorded, "the caller must still see the failed transport attempt in its delivery record")

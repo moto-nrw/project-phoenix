@@ -60,9 +60,11 @@ func (s *preparation) PrepareAppointmentReminders(ctx context.Context, from, to 
 	}
 	return queued, func(dispatchCtx context.Context) error {
 		var failures []error
-		for _, id := range ids {
+		for index, id := range ids {
 			if err := s.deps.Outbox.Deliver(dispatchCtx, tenantID, id); err != nil {
-				failures = append(failures, err)
+				// A stored terminal result does not call the provider, so it cannot
+				// release the legacy audience claim acquired by this scan itself.
+				failures = append(failures, errors.Join(err, s.releaseReminderPushDelivery(dispatchCtx, deliveries[index])))
 			}
 		}
 		return errors.Join(failures...)
@@ -398,16 +400,13 @@ func (s *preparation) dispatchReminderPush(ctx context.Context, delivery reminde
 	if releaseErr := s.releaseReminderPushDelivery(ctx, delivery); releaseErr != nil {
 		return errors.Join(err, releaseErr)
 	}
-	if s.deps.NoDelivery(err) {
+	if err == nil || s.deps.NoDelivery(err) {
 		return ports.ErrReminderAudienceUnavailable
 	}
 	s.deps.Logger.Warn("calendar: appointment reminder push failed",
 		slog.Int64("appointment_id", appointment.ID),
 		slog.Int64("guardian_account_id", delivery.accountID))
-	if err != nil {
-		return fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
-	}
-	return errors.New("calendar: appointment reminder push was not accepted")
+	return fmt.Errorf("calendar: dispatch appointment reminder push: %w", err)
 }
 
 // prepareReminderPushDispatch takes a short tenant transaction to ensure the

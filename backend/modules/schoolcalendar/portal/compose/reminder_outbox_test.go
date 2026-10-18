@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func reminderOutboxFixture(t *testing.T, transport func() error) (*bun.DB, context.Context, func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error, time.Time, time.Time) {
+func reminderOutboxFixture(t *testing.T, transport func() (bool, error)) (*bun.DB, context.Context, func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error, time.Time, time.Time) {
 	t.Helper()
 	testpkg.SetupIsolatedTestDB(t)
 	db, module := setupCalendarModule(t)
@@ -33,8 +33,7 @@ func reminderOutboxFixture(t *testing.T, transport func() error) (*bun.DB, conte
 	effects.Email = nil
 	effects.FilterPush = func(_ context.Context, ids []int64) ([]int64, error) { return ids, nil }
 	effects.Push = func(context.Context, int64, []int64, []int64, string) (bool, error) {
-		err := transport()
-		return err == nil, err
+		return transport()
 	}
 	prepare, worker := api.NewCalendarReminderOutboxFixture(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 	starts := berlinInstant(t, date, 18, 0)
@@ -50,7 +49,7 @@ func reminderPushRows(t *testing.T, db bun.IDB, ctx context.Context) int {
 
 func TestReminderOutboxJoinsTriggeringTransaction(t *testing.T) {
 	t.Parallel()
-	db, ctx, preparation, _, from, to := reminderOutboxFixture(t, func() error { t.Fatal("transport before commit"); return nil })
+	db, ctx, preparation, _, from, to := reminderOutboxFixture(t, func() (bool, error) { t.Fatal("transport before commit"); return false, nil })
 	rollback := errors.New("rollback reminder preparation")
 	err := testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		_, _, err := preparation(txCtx, from, to)
@@ -71,7 +70,7 @@ func TestReminderOutboxTransportFailureIsTerminalAndManualRetryDoesNotDuplicate(
 	t.Parallel()
 	failure := errors.New("push transport failed")
 	calls := 0
-	db, ctx, preparation, worker, from, to := reminderOutboxFixture(t, func() error { calls++; return failure })
+	db, ctx, preparation, worker, from, to := reminderOutboxFixture(t, func() (bool, error) { calls++; return false, failure })
 	var send func(context.Context) error
 	prepare := func() {
 		require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
@@ -89,8 +88,10 @@ func TestReminderOutboxTransportFailureIsTerminalAndManualRetryDoesNotDuplicate(
 	err := worker(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, calls, "terminal entries have no automatic retry")
-	prepare()
-	require.Error(t, send(ctx))
+	for range 2 {
+		prepare()
+		require.Error(t, send(ctx))
+	}
 	assert.Equal(t, 1, calls, "the same idempotency key never invokes the transport twice")
 	assert.Equal(t, 1, reminderPushRows(t, db, ctx))
 }
@@ -101,7 +102,7 @@ func TestReminderOutboxWorkerRecoversCrashAfterCommit(t *testing.T) {
 		t.Run(map[bool]string{false: "before_claim", true: "expired_lease"}[claimed], func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			calls := 0
-			db, ctx, preparation, worker, from, to := reminderOutboxFixture(t, func() error { calls++; return nil })
+			db, ctx, preparation, worker, from, to := reminderOutboxFixture(t, func() (bool, error) { calls++; return true, nil })
 			require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				_, _, err := preparation(txCtx, from, to)
 				return err
@@ -119,4 +120,25 @@ func TestReminderOutboxWorkerRecoversCrashAfterCommit(t *testing.T) {
 			assert.Equal(t, "sent", state)
 		})
 	}
+}
+
+func TestReminderOutboxDefersWhenNoTransportWasAttempted(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	db, ctx, preparation, _, from, to := reminderOutboxFixture(t, func() (bool, error) { calls++; return calls > 1, nil })
+	for range 2 {
+		var send func(context.Context) error
+		require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			_, send, err = preparation(txCtx, from, to)
+			return err
+		}))
+		require.NotNil(t, send)
+		require.NoError(t, send(ctx))
+	}
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, 1, reminderPushRows(t, db, ctx))
+	var state string
+	require.NoError(t, db.NewRaw(`SELECT status FROM platform.push_outbox WHERE tenant_id = ? AND kind = ?`, testpkg.Tenant(t), "parent_appointment_reminder").Scan(ctx, &state))
+	assert.Equal(t, "sent", state)
 }
