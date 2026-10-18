@@ -156,6 +156,16 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
 }
 
+// NewGuardianInvitationReads composes the guardian invitation lists over the
+// database alone, for a root that needs them before it composes the module.
+// They run on the caller's ambient transaction like the module's reads.
+func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationReads, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
+	}
+	return application.NewGuardianInvitationReads(newStore(db)), nil
+}
+
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
 	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 }
