@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#4004",
+    "#4076",
+    "#4086"
+  ],
+  "owner_and_capability": "Timetable & Activities: bind Device Scan, Device Fleet and Facilities consumer-owned ports in the root to native Catalog, TemplateCatalog and SessionRecords capabilities using existing wiring and owner values.",
+  "affected_packages": [
+    "api",
+    "modules/devicescan",
+    "modules/devicescan/compose",
+    "modules/devicefleet/compose/legacy",
+    "modules/facilities",
+    "modules/facilities/compose/legacy",
+    "modules/timetable",
+    "modules/timetable/compose",
+    "services/activities (deleted)"
+  ],
+  "affected_tables": [
+    "None: no schema, SQL or table ownership change."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/devicescan/compose|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/devicescan/compose|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/devicescan/compose|github.com/moto-nrw/project-phoenix/services/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy|github.com/moto-nrw/project-phoenix/services/activities"
+  ],
+  "atomic_cutover": "Commit 02136938c4 binds the three production consumers through native Timetable contracts and deletes the alias-only services/activities package and its obsolete rule. Seven production import keys leave legacy.jsonl (56 to 49); no key, rule, grant, alias, exception or root graph field is added. Root composition remains 1644. Care Plan and Student Presence test consumers and their three retained keys stay unchanged. models/activities and models/schedule retain their legacy-model roles and locations. This correction supplies evidence only; it changes no runtime code, policy, baseline or budget.",
+  "tests": [
+    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref caee1cbd5bdff38c55089e25f8832324063038da",
+    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast; changed-package lint.",
+    "Existing behavior assertions, HTTP routes and TestFullProductionRouterGolden remain unchanged by this correction."
+  ],
+  "runtime_evidence": {
+    "source": "PR #4324 CI run 39107666192 passed lint and tests but rejected seven unclaimed debt removals. Local validate-ticket --all against immutable CI base caee1cbd5bdff38c55089e25f8832324063038da reproduced debt retirements: 7; covered: 0. This record covers those removals without changing the underlying refactor.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/actions/runs/39107666192/job/117616938938",
+      "docs/architecture/timetable-contract-cluster.md",
+      "backend/api/device_scan_catalog.go",
+      "backend/api/kiosk_timetable.go",
+      "backend/api/device_fleet_timetable.go",
+      "backend/modules/timetable/session_records.go"
+    ],
+    "workload": "Local migration-evidence validation against the exact immutable CI base using the repository Go toolchain and default Go cache. No runtime benchmark or manual HTTP request is claimed for this evidence-only correction.",
+    "thresholds": "All seven retired production imports have complete non-template evidence. Architecture checks retain 49 keys, root composition 1644 and unchanged pass-through budgets (Device Scan 48, Timetable 491, total 3052). Moved-delegation scan provenance remains intact.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This evidence-only correction writes no application data."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query benchmark was run; this correction changes no SQL or repository operation."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this evidence-only correction."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this evidence-only correction."
+    },
+    "errors": {
+      "state": "not_applicable",
+      "reason": "This correction changes no runtime error handling."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "This correction changes no connection acquisition or pool configuration."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "This correction changes no lock acquisition or transaction scope."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "This correction changes no lock ordering."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "This correction changes no worker execution."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "This correction changes no retry policy."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "This correction changes no queue or scheduling behavior."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "No failure injection was run for this evidence-only correction."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data cutover occurs; reverting this correction removes only its evidence record."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No manual HTTP smoke was run for this evidence-only correction."
+    }
+  },
+  "rollback_and_cleanup": "Revert this evidence file if its claims are incorrect. Reverting the underlying refactor requires restoring the caller bindings, deleted service barrel, policy classification and seven baseline keys together. No data migration or configuration rollback is needed.",
+  "exit_criterion": "Migration evidence validation covers all seven retired import keys against the development base; no new debt, permission, exception or budget increase. The two blocked test consumers remain outside this cutover."
+}
