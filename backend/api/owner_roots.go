@@ -54,22 +54,21 @@ func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).OperatorAuditLog)
 }
 
-// NewParentPortalRepositories builds the retained guardian-portal
-// repositories (built by the Care Plan composition) and the parent-messaging
-// and announcement repositories (built by Communication) over the owners
-// they read through, every one bound at construction (#2743): people answers
-// the student, guardian and person reads that used to join users.students,
-// users.guardian_profiles and users.persons; groups names the groups of the
-// inbox threads; membership resolves the live staff accounts behind the read
-// cursors; identity owns the accounts, their school memberships and role
-// classes; enrollment owns the phases, applications and announcement
-// applicants; now is the announcement clock, nil keeps the store default.
-// The school names are bound by ParentPortalWithSchools.
+// NewParentPortalRepositories builds the retained guardian-portal and
+// messaging repositories over the owners they read through, every one bound
+// at construction (#2743): people answers the student, guardian and person
+// reads that used to join users.students, users.guardian_profiles and
+// users.persons; groups names the groups of the inbox threads; membership
+// resolves the live staff accounts behind the read cursors; identity owns the
+// accounts, their school memberships and role classes; enrollment owns the
+// phases, applications and announcement applicants; now is the announcement
+// clock, nil keeps the store default. The school names are bound by
+// WithSchools.
 func NewParentPortalRepositories(
 	db transactionruntime.Database, people peopledirectory.Capability, groups schoolstructure.Query,
 	membership schoolmembership.Capability, identity *identityaccess.Module, enrollment *enrollmentCapability.Module,
 	now func() time.Time,
-) (carePlanCompose.ParentPortalRepositories, parentStore.MessagingRepositories) {
+) ParentPortalRepositories {
 	pool := db.Pool()
 	members := ParentStaffMembers{Membership: membership}.List
 	// The staff accounts are loaded from the person rows.
@@ -90,19 +89,22 @@ func NewParentPortalRepositories(
 		return out, err
 	}
 	groupNames := parentGroupNames{groups: groups}.list
-	return carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-		DB: pool, Directory: ParentPortalDirectory{People: people},
-		AccountSchools: identity.ListActiveAccountSchoolIDs,
-		Phases:         ParentPortalEnrollments{enrollment: enrollment},
-		Applications:   ParentPortalEnrollments{enrollment: enrollment},
-		Accounts:       IdentityAccountDirectory{Accounts: identity},
-	}), parentStore.MessagingRepositories{
-		ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
-		ParentMessageRead: parentStore.WithInboxGroupNames(
-			parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
-		StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
-			parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
+	return ParentPortalRepositories{
+		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
+			DB: pool, Directory: ParentPortalDirectory{People: people},
+			AccountSchools: identity.ListActiveAccountSchoolIDs,
+			Phases:         ParentPortalEnrollments{enrollment: enrollment},
+			Applications:   ParentPortalEnrollments{enrollment: enrollment},
+			Accounts:       IdentityAccountDirectory{Accounts: identity},
+		}),
+		MessagingRepositories: parentStore.MessagingRepositories{
+			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
+			ParentMessageRead: parentStore.WithInboxGroupNames(
+				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
+				parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
+		},
 	}
 }
 
@@ -201,16 +203,24 @@ func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCom
 	}
 }
 
-// ParentPortalWithSchools returns the guardian-portal and messaging
-// repositories with the school names and the school eligibility resolved
-// through the Organisation & Tenancy owner.
-func ParentPortalWithSchools(
-	portal carePlanCompose.ParentPortalRepositories, messaging parentStore.MessagingRepositories, schools organizationtenancy.Query,
-) (carePlanCompose.ParentPortalRepositories, parentStore.MessagingRepositories) {
+// ParentPortalRepositories are the retained guardian-portal repositories
+// (built by the Care Plan composition) and the parent-messaging and
+// announcement repositories (built by Communication) over their owners.
+type ParentPortalRepositories struct {
+	carePlanCompose.ParentPortalRepositories
+	parentStore.MessagingRepositories
+}
+
+// WithSchools returns the repositories with the school names and the school
+// eligibility resolved through the Organisation & Tenancy owner.
+func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query) ParentPortalRepositories {
 	if schools == nil {
 		panic("parent portal repositories: organization tenancy query is required")
 	}
-	return portal.WithSchools(ParentPortalSchools{Schools: schools}), messaging.WithSchoolNames(ParentPortalSchools{Schools: schools})
+	return ParentPortalRepositories{
+		ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(ParentPortalSchools{Schools: schools}),
+		MessagingRepositories:    r.WithSchoolNames(ParentPortalSchools{Schools: schools}),
+	}
 }
 
 // ParentPortalDirectory serves the guardian portal's People Directory port.

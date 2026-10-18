@@ -458,7 +458,7 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 		b.People.Groups, b.People.Staff, b.identityAccess, b.settingsService,
 		deliveryOnDutyStaff{presence: workforceCompose.WorkPresence(b.WorkTime)})
 	b.staffParentMessages = deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
-		b.Platform.ParentMessaging.ParentMessageThread, b.DB.Pool(), b.Logger.With("producer", "staff_parent_message_notifications"))
+		b.Platform.ParentPortal.ParentMessageThread, b.DB.Pool(), b.Logger.With("producer", "staff_parent_message_notifications"))
 	b.graph.ParentEventEmitter.WithDecisionNotifications(deliveryCompose.NewRequestDecisionNotifier(notifier, preferences))
 	b.graph.AbsenceNotifier = deliveryCompose.NewAbsenceNotifier(notifier, recipients, b.DB.Pool(), b.Logger.With("producer", "absence_notifications"))
 	// The workflow is owned by Care Plan (#3093); this root adapts the
@@ -480,7 +480,7 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 // chat (#2598), which shares the transport but none of its authorization,
 // and the staff and parent calendars.
 func composeMessaging(b graphBuild) (graphBuild, error) {
-	portal := b.Platform.ParentMessaging
+	portal := b.Platform.ParentPortal
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(b.graph.Users), UserContext: StaffStudentReads{Caller: b.callerContext},
@@ -538,7 +538,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.Parent = parentportalcompose.New(b.parentPortalDependencies(profiles))
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: b.Platform.ParentMessaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: OutboxEnqueuer{Outbox: b.late.emailOutbox},
+		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: OutboxEnqueuer{Outbox: b.late.emailOutbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		ReminderNotifier: BindCommunicationDurableNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,
@@ -552,7 +552,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 // parentPortalDependencies are the owners, rows and services the parents
 // portal workflow reads and writes through.
 func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCommands) parentportalcompose.Dependencies {
-	people, portal, messaging := b.People, b.Platform.ParentPortal, b.Platform.ParentMessaging
+	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
 		GuardianChanges: ParentGuardianChanges(),
@@ -573,14 +573,14 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		FamilyProtectionEvents:    BindParentFamilyProtectionReads(peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool())),
 		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(b.DB.Pool())), StudentAudit: NewParentStudentAudit(b.graph.StudentAudit),
-		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
+		MessageThreadRepo: BindParentMessageThreadAccess(portal.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(portal.ParentMessageRead),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
-			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
+			ThreadRepo: portal.ParentMessageThread, MessageRepo: messages, ReadRepo: portal.ParentMessageRead,
 			Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent"),
 		})),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(b.graph.ArrivalSchedule),
 		PickupSchedules: NewParentPickupSchedules(b.graph.PickupSchedule), CareRequests: b.graph.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(b.excusedRequests),
-		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(messaging.ParentAnnouncement),
+		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(portal.ParentAnnouncement),
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool())),
 		StudentConsents: NewParentStudentConsents(b.graph.StudentConsents), StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),

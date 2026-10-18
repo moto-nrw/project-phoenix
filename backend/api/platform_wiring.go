@@ -53,17 +53,18 @@ func NewPlatformWiring(owners PlatformWiringOwners) (PlatformWiring, error) {
 		return PlatformWiring{}, fmt.Errorf("platform wiring: compose device fleet: %w", err)
 	}
 	auditLog := NewOperatorAuditLog(owners.DB)
-	parentPortal, parentMessaging := NewParentPortalRepositories(
+	parentPortal := NewParentPortalRepositories(
 		owners.DB, owners.Persons, owners.Groups, owners.Membership, owners.People.Identity, enrollmentCompose.New(), owners.Now,
-	)
-	parentPortal, parentMessaging = ParentPortalWithSchools(parentPortal, parentMessaging, owners.Organizations)
+	).WithSchools(owners.Organizations)
 	return PlatformWiring{
 		SchoolSettings:   NewSchoolSettingsStore(owners.Organizations),
 		OperatorAuditLog: auditLog,
-		ParentPortal:     parentPortal,
-		ParentMessaging:  parentMessaging,
-		DeviceFleet:      fleet,
-		ListExport:       lists.NewRendererService(),
+		ParentPortal: ParentPortalRepositories{
+			ParentPortalRepositories: parentPortal.ParentPortalRepositories,
+			MessagingRepositories:    parentPortal.MessagingRepositories,
+		},
+		DeviceFleet: fleet,
+		ListExport:  lists.NewRendererService(),
 
 		DataAccessAudit:            NewDataAccessAudit,
 		DeletionAudit:              NewDeletionAudit,
