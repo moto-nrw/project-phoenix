@@ -16,12 +16,12 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -53,11 +53,11 @@ type CarePlanWiring struct {
 	CompanionGraph enrollmentCompose.CompanionGraphCoordinator
 	// The retained care schedule and excused-absence request rows the
 	// parents portal reads.
-	CareScheduleRequests arrivalTimetable.CareScheduleRequestRows
+	CareScheduleRequests timetablePorts.CareScheduleRequestRows
 	ExcusedRequestRows   ExcusedRequestReads
 
 	// Bindings over the values this graph composes.
-	CareParticipation      func(current func() careplan.CareParticipation) peopleCompose.CareParticipationResolver
+	CareParticipation      func(current func() careplan.CareParticipation) peoplePorts.CareParticipationResolver
 	ArrivalBaselines       func(approved careplan.ApprovedBookingReader, bookingsAuthoritative func(context.Context) (bool, error)) (careplan.ArrivalBaselineReader, error)
 	OfferingCatalog        func(CareOfferingCatalogSources) (careplan.CareOfferingCatalogCapability, error)
 	OfferingPhaseGuard     func(careplan.CareOfferingGuards) func(context.Context, int64, *enrollmentOwner.Phase) error
@@ -108,7 +108,7 @@ type CareOfferingCatalogSources struct {
 // booking materialization is composed over.
 type BookingMaterializationSources struct {
 	Catalog                  careplan.CareOfferingCatalogCapability
-	Rosters                  *arrivalTimetable.RosterReconciler
+	Rosters                  timetablePorts.RosterReconciler
 	Enrollment               *enrollmentOwner.BookingProjection
 	Approved                 *enrollmentCompose.ApprovedOfferingProjection
 	Settings                 settingsCompose.SettingsService
@@ -144,7 +144,7 @@ type CareRequestSources struct {
 	Reviews     CarePlanReviewPolicy
 	Permissions func(context.Context) []string
 	Events      ParentRequestEvents
-	Audit       peopleCompose.StudentChangeRecorder
+	Audit       peoplePorts.StudentChangeRecorder
 	Shares      communicationCompose.ParentShareVisibilityResolver
 	Today       func() timezone.Date
 	Logger      *slog.Logger
@@ -158,7 +158,7 @@ type PickupAdjustmentSources struct {
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
 	Settings         settingsCompose.SettingsService
-	Audit            peopleCompose.StudentPickupPlanRecorder
+	Audit            peoplePorts.StudentPickupPlanRecorder
 	Today            func() timezone.Date
 }
 

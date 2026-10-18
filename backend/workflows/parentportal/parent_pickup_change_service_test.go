@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -32,13 +29,20 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled,
@@ -48,6 +52,10 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 			},
 		},
 		Logger: slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -87,7 +95,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.RequestReviewPolicy[*userModels.Student]{UserContext: sf.UserContext}, testpkg.PermissionsFromContext,
+		testpkg.NewRequestReviewPolicy(sf.UserContext, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
 		sf.StudentAudit,
@@ -95,15 +103,22 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	)
 
 	cfg := parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Attendance:     parentAttendance(t, db),
-		CareRequests:   careRequests,
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+		Attendance:      parentAttendance(t, db),
+		CareRequests:    careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentPickupChangeEnabled: true,
@@ -113,6 +128,10 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 			},
 		},
 		Logger: slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}
 	for _, apply := range configure {
 		apply(&cfg)
@@ -136,7 +155,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 	require.NotNil(t, created)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, created.Status)
+	assert.Equal(t, "pending", created.Status)
 
 	listed, err := svc.ListPickupChangeRequests(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -149,8 +168,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	assert.True(t, found, "die eigene Anfrage steht in der Liste")
 
 	// Nothing was applied: only a staff approval may move a pickup time.
-	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
+	applied, err := api.FindParentPickupExceptionFixture(tenant.WithTenantID(ctx, chain.TenantID), repos.CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }

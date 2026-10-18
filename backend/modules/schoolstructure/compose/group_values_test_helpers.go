@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -29,11 +31,11 @@ func retainedGroupError(err error) (error, bool) {
 	switch value := err.(type) {
 	case *schoolstructure.EducationError:
 		return &groups.EducationError{Op: value.Op, Err: legacyGroupError(value.Err)}, true
-	case *groupStoreError:
-		return &domain.StoreError{Op: value.op, Err: legacyGroupError(value.err)}, true
+	case *groups.GroupStoreError:
+		return &domain.StoreError{Op: value.Op, Err: legacyGroupError(value.Err)}, true
 	}
 	switch err {
-	case groupRecordNotFound:
+	case groups.GroupRecordNotFound:
 		return domain.RecordNotFound, true
 	case schoolstructure.ErrEducationGroupNotFound:
 		return groups.ErrGroupNotFound, true
@@ -64,7 +66,7 @@ func retainedGroupError(err error) (error, bool) {
 	case schoolstructure.ErrGroupHasHandover:
 		return groups.ErrGroupHasHandover, true
 	}
-	return mapGroupErrorCauses(err, retainedGroupError)
+	return groups.MapGroupErrorCauses(err, retainedGroupError)
 }
 
 func legacyGroupQuery(query *domain.GroupListQuery) *schoolstructure.GroupListQuery {
@@ -75,7 +77,6 @@ func legacyGroupQuery(query *domain.GroupListQuery) *schoolstructure.GroupListQu
 	return &result
 }
 
-// Legacy storage vocabulary belongs only to the retained suite seam.
 type legacyGroupStorageTestError = domain.StoreError
 
 var legacyGroupRecordTestNotFound = domain.RecordNotFound

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- doubles -----------------------------------------------------------------
@@ -18,22 +19,22 @@ import (
 // queued and here is its id" — the exact link the delivery matrix is built on.
 
 type letterRepo struct {
-	usersModels.ParentAnnouncementRepository
-	announcement *usersModels.ParentAnnouncement
-	recipients   []*usersModels.AnnouncementDeliveryRecipient
-	children     []*usersModels.AnnouncementLetterChildStatus
-	reminders    []*usersModels.AnnouncementPollReminderRecipient
+	ParentAnnouncementRepository
+	announcement *ParentAnnouncement
+	recipients   []*AnnouncementDeliveryRecipient
+	children     []*AnnouncementLetterChildStatus
+	reminders    []*AnnouncementPollReminderRecipient
 }
 
-func (r *letterRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+func (r *letterRepo) FindByID(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 	return r.announcement, nil
 }
 
-func (r *letterRepo) ListTargets(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+func (r *letterRepo) ListTargets(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) {
 	return nil, nil
 }
 
-func (r *letterRepo) ListOptions(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (r *letterRepo) ListOptions(_ context.Context, _ int64) ([]*ParentAnnouncementOption, error) {
 	return nil, nil
 }
 
@@ -51,26 +52,26 @@ func (r *letterRepo) SchoolName(_ context.Context, _ int64) (string, error) {
 	return "OGS Testschule", nil
 }
 
-func (r *letterRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+func (r *letterRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
 	return nil, nil
 }
 
-func (r *letterRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+func (r *letterRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*AnnouncementDeliveryRecipient, error) {
 	return r.recipients, nil
 }
 
 // letterOutbox hands out increasing ids so a delivery row can point at a real
 // outbox entry.
 type letterOutbox struct {
-	requests []emailoutbox.EnqueueRequest
+	requests []recordedMailRequest
 	nextID   int64
 	cancels  int
 }
 
-func (o *letterOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
-	o.requests = append(o.requests, req)
+func (o *letterOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
+	o.requests = append(o.requests, recordMailRequest(req))
 	o.nextID++
-	row := &emailoutbox.Enqueued{}
+	row := &communication.MailEnqueued{}
 	row.ID = o.nextID
 	return row, nil
 }
@@ -121,8 +122,8 @@ func (d *letterDeliveries) ClaimFailedDelivery(_ context.Context, _ int64, deliv
 	return d.claims[deliveryID], nil
 }
 
-func contact(profileID int64, accountID *int64, email string, portal bool) *usersModels.AnnouncementDeliveryRecipient {
-	return &usersModels.AnnouncementDeliveryRecipient{
+func contact(profileID int64, accountID *int64, email string, portal bool) *AnnouncementDeliveryRecipient {
+	return &AnnouncementDeliveryRecipient{
 		GuardianProfileID: profileID,
 		AccountID:         accountID,
 		FirstName:         "Vor",
@@ -134,13 +135,13 @@ func contact(profileID int64, accountID *int64, email string, portal bool) *user
 
 func acct(id int64) *int64 { return &id }
 
-func letterDraft(mode, audience string) *usersModels.ParentAnnouncement {
-	a := &usersModels.ParentAnnouncement{
+func letterDraft(mode, audience string) *ParentAnnouncement {
+	a := &ParentAnnouncement{
 		Title:                   "Ausflug",
 		Body:                    "Liebe Eltern, am Freitag fahren wir in den Zoo.",
-		Priority:                usersModels.ParentAnnouncementPriorityInfo,
+		Priority:                ParentAnnouncementPriorityInfo,
 		SendEmail:               true,
-		RequiresAcknowledgement: mode == usersModels.ParentAnnouncementDeliveryLetter,
+		RequiresAcknowledgement: mode == ParentAnnouncementDeliveryLetter,
 		DeliveryMode:            mode,
 		EmailAudience:           audience,
 		Active:                  true,
@@ -159,7 +160,7 @@ func newLetterService(repo *letterRepo, outbox *letterOutbox, deliveries *letter
 		Deliveries: deliveries,
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // --- tests -------------------------------------------------------------------
@@ -170,8 +171,8 @@ func TestPublishLetterMailCarriesBodyAndAckHint(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		recipients:   []*AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
 	}
 	outbox := &letterOutbox{}
 	svc := newLetterService(repo, outbox, &letterDeliveries{})
@@ -209,8 +210,8 @@ func TestPublishStandardAnnouncementStaysUntracked(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly),
-		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+		announcement: letterDraft(ParentAnnouncementDeliveryStandard, EmailAudiencePortalOnly),
+		recipients:   []*AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
 	}
 	deliveries := &letterDeliveries{}
 	// ResolveAudienceEmails is what the untracked path uses; the embedded nil
@@ -235,8 +236,8 @@ func TestPublishLetterRecordsUnreachableRecipients(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		recipients: []*AnnouncementDeliveryRecipient{
 			contact(1, acct(11), "mama@example.test", true), // ok
 			contact(2, acct(12), "", true),                  // keine Adresse
 			contact(3, nil, "opa@example.test", false),      // kein Portalzugang
@@ -280,8 +281,8 @@ func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
-		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudienceAllContacts),
+		recipients: []*AnnouncementDeliveryRecipient{
 			contact(1, acct(11), "mama@example.test", true),
 			contact(3, nil, "opa@example.test", false),
 		},
@@ -324,8 +325,8 @@ func TestPublishLetterSharedAddressSendsOnce(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		recipients: []*AnnouncementDeliveryRecipient{
 			contact(1, acct(11), "familie@example.test", true),
 			contact(2, acct(12), "  Familie@Example.test ", true),
 		},
@@ -357,8 +358,8 @@ func TestPublishLetterSharedAddressKeepsPortalPromptForAccessibleGuardian(t *tes
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
-		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudienceAllContacts),
+		recipients: []*AnnouncementDeliveryRecipient{
 			contact(1, nil, "familie@example.test", false),
 			contact(2, acct(12), "familie@example.test", true),
 		},
@@ -387,8 +388,8 @@ func TestUnpublishDropsDeliveryRows(t *testing.T) {
 	t.Parallel()
 
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		recipients:   []*AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
 	}
 	deliveries := &letterDeliveries{}
 	svc := newLetterService(repo, &letterOutbox{}, deliveries)
@@ -415,7 +416,7 @@ func TestUnpublishDropsDeliveryRows(t *testing.T) {
 func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
 	t.Parallel()
 
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	first := time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
 	a.PublishedAt = &first
 	keyA := letterIdempotencyKey(a, "mama@example.test")
@@ -434,12 +435,12 @@ func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
 
 // --- PR 3: Statusmatrix -------------------------------------------------------
 
-func (r *letterRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+func (r *letterRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*AnnouncementLetterChildStatus, error) {
 	return r.children, nil
 }
 
-func ackedChild(id int64, name string, at *time.Time, by string) *usersModels.AnnouncementLetterChildStatus {
-	c := &usersModels.AnnouncementLetterChildStatus{
+func ackedChild(id int64, name string, at *time.Time, by string) *AnnouncementLetterChildStatus {
+	c := &AnnouncementLetterChildStatus{
 		StudentID: id, FirstName: name, LastName: "Kind", SchoolClass: "2a",
 		CanConfirm:     true,
 		AcknowledgedAt: at,
@@ -458,8 +459,8 @@ func TestLetterStatusSummaryCountsChildrenNotRecipients(t *testing.T) {
 
 	now := time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC)
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		children: []*usersModels.AnnouncementLetterChildStatus{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		children: []*AnnouncementLetterChildStatus{
 			ackedChild(1, "Anna", &now, "Mama"),
 			ackedChild(2, "Ben", nil, ""),
 			ackedChild(3, "Cem", nil, ""),
@@ -495,7 +496,7 @@ func TestLetterStatusReportsBothChannelsSeparately(t *testing.T) {
 
 	sent := "sent"
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudienceAllContacts),
 	}
 	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
 		{FirstName: "Mama", EmailStatus: sent, Reachability: reachabilityOK},
@@ -539,7 +540,7 @@ func TestLetterStatusNotFound(t *testing.T) {
 
 // --- PR 4: Erinnern und Nachversenden ----------------------------------------
 
-func (r *letterRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (r *letterRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*AnnouncementPollReminderRecipient, error) {
 	return r.reminders, nil
 }
 
@@ -549,11 +550,11 @@ func TestRemindOutstandingLetterMailsUnconfirmedFamilies(t *testing.T) {
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	repo := &letterRepo{
 		announcement: a,
-		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+		reminders: []*AnnouncementPollReminderRecipient{
 			{AccountID: 11, Email: "mama@example.test", FirstName: "Mama", LastName: "Nach"},
 		},
 	}
@@ -587,11 +588,11 @@ func TestRemindOutstandingLetterDoesNotUsePollPush(t *testing.T) {
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	repo := &letterRepo{
 		announcement: a,
-		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+		reminders: []*AnnouncementPollReminderRecipient{
 			{AccountID: 11, Email: "mama@example.test"},
 		},
 	}
@@ -604,7 +605,7 @@ func TestRemindOutstandingLetterDoesNotUsePollPush(t *testing.T) {
 		Deliveries: &letterDeliveries{},
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	if _, err := svc.RemindOutstanding(context.Background(), a.ID); err != nil {
 		t.Fatalf("RemindOutstanding: %v", err)
@@ -618,7 +619,7 @@ func TestRemindOutstandingRefusesAcknowledgementStandardAnnouncement(t *testing.
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryStandard, EmailAudiencePortalOnly)
 	a.RequiresAcknowledgement = true
 	a.PublishedAt = &published
 	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
@@ -633,7 +634,7 @@ func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryStandard, EmailAudiencePortalOnly)
 	a.RequiresAcknowledgement = false
 	a.PublishedAt = &published
 	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
@@ -646,7 +647,7 @@ func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T
 func TestRemindOutstandingRefusesUnpublished(t *testing.T) {
 	t.Parallel()
 
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
 
 	if _, err := svc.RemindOutstanding(context.Background(), 42); err != ErrNotPublished {
@@ -660,7 +661,7 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	bad := "kaputt@example.test"
 	good := "gut@example.test"
@@ -702,7 +703,7 @@ func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	address := "familie@example.test"
 	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
@@ -729,7 +730,7 @@ func TestResendFailedEmailsRefusesExpiredLetter(t *testing.T) {
 
 	published := time.Now().Add(-2 * time.Hour)
 	expired := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	a.ExpiresAt = &expired
 	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
@@ -743,7 +744,7 @@ func TestResendFailedEmailsSkipsDeliveryClaimedByConcurrentRequest(t *testing.T)
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
-	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a := letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	address := "familie@example.test"
 	deliveries := &letterDeliveries{
@@ -770,15 +771,15 @@ func TestLetterStatusSeparatesUnconfirmableChildrenFromOpenOnes(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
-	unreachable := func(id int64, name string) *usersModels.AnnouncementLetterChildStatus {
-		return &usersModels.AnnouncementLetterChildStatus{
+	unreachable := func(id int64, name string) *AnnouncementLetterChildStatus {
+		return &AnnouncementLetterChildStatus{
 			StudentID: id, FirstName: name, LastName: "Kind", SchoolClass: "1a",
 			CanConfirm: false,
 		}
 	}
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		children: []*usersModels.AnnouncementLetterChildStatus{
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		children: []*AnnouncementLetterChildStatus{
 			ackedChild(1, "Anna", &now, "Mama"), // bestätigt
 			ackedChild(2, "Ben", nil, ""),       // offen, bestätigbar
 			unreachable(3, "Cem"),               // kein Portalzugang
@@ -820,8 +821,8 @@ func TestLetterStatusKeepsAcknowledgedChildrenFulfilledAfterAccessRevocation(t *
 	acknowledged := ackedChild(1, "Anna", &now, "Mama")
 	acknowledged.CanConfirm = false
 	repo := &letterRepo{
-		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
-		children:     []*usersModels.AnnouncementLetterChildStatus{acknowledged},
+		announcement: letterDraft(ParentAnnouncementDeliveryLetter, EmailAudiencePortalOnly),
+		children:     []*AnnouncementLetterChildStatus{acknowledged},
 	}
 	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
 
@@ -846,12 +847,12 @@ func TestLetterChildOutstanding(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		name     string
-		child    usersModels.AnnouncementLetterChildStatus
+		child    AnnouncementLetterChildStatus
 		wantOpen bool
 	}{
-		{"bestätigt", usersModels.AnnouncementLetterChildStatus{CanConfirm: true, AcknowledgedAt: &now}, false},
-		{"offen", usersModels.AnnouncementLetterChildStatus{CanConfirm: true}, true},
-		{"kein Portalzugang", usersModels.AnnouncementLetterChildStatus{CanConfirm: false}, false},
+		{"bestätigt", AnnouncementLetterChildStatus{CanConfirm: true, AcknowledgedAt: &now}, false},
+		{"offen", AnnouncementLetterChildStatus{CanConfirm: true}, true},
+		{"kein Portalzugang", AnnouncementLetterChildStatus{CanConfirm: false}, false},
 	}
 	for _, tc := range cases {
 		if got := tc.child.Outstanding(); got != tc.wantOpen {

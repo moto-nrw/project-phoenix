@@ -13,10 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
@@ -46,18 +42,18 @@ type recordingParentAbsenceNotifier struct {
 
 // studentReads is the student surface the portal reads; the test may not name
 // the portal's own port.
-type studentReads interface {
-	FindByID(ctx context.Context, id any) (*userModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+type studentReads[T any] interface {
+	FindByID(ctx context.Context, id int64) (*T, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*T, error)
 }
 
-type pausingStudentRepository struct {
-	studentReads
+type pausingStudentRepository[T any] struct {
+	studentReads[T]
 	locked  chan<- struct{}
 	release <-chan struct{}
 }
 
-func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (r *pausingStudentRepository[T]) FindByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	student, err := r.studentReads.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -73,22 +69,22 @@ func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int
 
 // signalingStudentService takes the staff write's student lock through the
 // People Directory and signals the attempt.
-type signalingStudentService struct {
+type signalingStudentService[T any] struct {
 	directory interface {
-		LockStudent(ctx context.Context, id int64) (*userModels.Student, error)
+		LockStudent(ctx context.Context, id int64) (*T, error)
 	}
 	students interface {
-		Update(ctx context.Context, student *userModels.Student) error
+		Update(ctx context.Context, student *T) error
 	}
 	attempted chan<- struct{}
 }
 
-func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (s *signalingStudentService[T]) GetByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	close(s.attempted)
 	return s.directory.LockStudent(ctx, id)
 }
 
-func (s *signalingStudentService) Update(ctx context.Context, student *userModels.Student) error {
+func (s *signalingStudentService[T]) Update(ctx context.Context, student *T) error {
 	return s.students.Update(ctx, student)
 }
 
@@ -121,22 +117,33 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
 				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
-		MealPlan:    availableMealPlan(false),
-		Broadcaster: bc,
-		Logger:      slog.Default(),
+		MealPlan:       availableMealPlan(false),
+		StudentUpdates: api.BindParentStudentUpdates(bc),
+		Logger:         slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}
 	return cfg, bc, db
 }
@@ -146,29 +153,42 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				parentService.KeyParentSickNoteEnabled: sickEnabled,
-				parentService.KeyParentNotesEnabled:    notesEnabled,
-			},
-			stringValues: map[string]string{
-				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled: sickEnabled,
+			parentService.KeyParentNotesEnabled:    notesEnabled,
 		},
-		Broadcaster:       bc,
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
+		DeparturePolicy:   api.ParentDeparturePolicy(),
+		GuardianPolicy:    api.NewParentGuardianPolicy(),
+		Fingerprints:      api.SecurityFingerprints{},
+		Declarations:      api.ParentDeclarationPolicy(),
+		Locales:           api.ParentPortalLocales(),
+		Runtime:           api.ParentPortalRuntime{},
+		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChildReads(),
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       api.NewParentStudentReads(repos.Student),
+		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
+		Settings:          settings,
+		StudentUpdates:    api.BindParentStudentUpdates(bc),
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, bc, db, repos
 }
@@ -398,18 +418,18 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	date := calendar.NewDate(2026, 8, 24).AddDays(7)
 	from := calendar.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
 	staffID := staff.ID
-	pickup := &scheduleModels.StudentPickupException{
+	pickup := &careplan.PickupException{
 		StudentID:             chain.StudentID,
-		ExceptionDate:         scheduleModels.Date(date),
+		ExceptionDate:         careplan.Date(date),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
 		ExcusedOwnsPickupTime: true,
-		Source:                scheduleModels.ExceptionSourceStaff,
+		Source:                careplan.ExceptionSourceStaff,
 		CreatedBy:             staff.ID,
 	}
-	pickup.SetTenantID(chain.TenantID)
-	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+	pickup.TenantID = chain.TenantID
+	require.NoError(t, api.CreateParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), repos.CarePlan(), pickup))
 
 	_, err := svc.SubmitSickNote(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
@@ -435,17 +455,20 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		CareExceptions: repos.CarePlan(),
-		StudentRepo: &pausingStudentRepository{
-			studentReads: repos.Student,
-			locked:       parentLocked,
-			release:      releaseParent,
-		},
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+		StudentRepo:     newPausingStudentRepository(api.NewParentStudentReads(repos.Student), parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentSickNoteEnabled: true,
@@ -455,16 +478,17 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Logger:      slog.Default(),
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
 	staffAttempted := make(chan struct{})
-	staffStudentSvc := &signalingStudentService{
-		directory: api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		students:  repos.Student, attempted: staffAttempted,
-	}
+	staffStudentSvc := newSignalingStudentService(api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))), repos.Student, staffAttempted)
 	date := calendar.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)
@@ -651,17 +675,16 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-absence-parent")
-	otherProfile := &userModels.GuardianProfile{
+	otherProfile := &testpkg.GuardianProfile{
 		FirstName: "Andere", LastName: "Person", Email: &otherAccount.Email,
 		AccountID: &otherAccount.ID, HasAccount: true,
 		PreferredContactMethod: "email", LanguagePreference: "de",
 	}
-	otherProfile.SetTenantID(chain.TenantID)
+	otherProfile.TenantID = chain.TenantID
 	_, err := db.NewInsert().Model(otherProfile).ModelTableExpr(`users.guardian_profiles`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	link := &testpkg.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
-	link.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRoleLegalGuardian)
-	link.Permissions = authorize.StudentGuardianPermissionSet(link.GuardianRole)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("legal_guardian")
 	link.TenantID = chain.TenantID
 	err = testpkg.InsertTestStudentGuardian(testpkg.Ctx(t), db, link)
 	require.NoError(t, err)
@@ -974,7 +997,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
+	portalAndSick := `{"` + "parent_portal.access" + `": true, "` + "parent_portal.sick_note.submit" + `": true}`
 	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
@@ -989,7 +1012,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	assert.True(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
 
-	portalOnly := `{"` + authorize.GuardianPermissionPortalAccess + `": true}`
+	portalOnly := `{"` + "parent_portal.access" + `": true}`
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
@@ -1020,4 +1043,15 @@ func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	commands, err := api.NewParentPortalCareProfiles(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return commands
+}
+
+func newPausingStudentRepository[T any](source studentReads[T], locked chan<- struct{}, release <-chan struct{}) *pausingStudentRepository[T] {
+	return &pausingStudentRepository[T]{studentReads: source, locked: locked, release: release}
+}
+func newSignalingStudentService[T any](directory interface {
+	LockStudent(context.Context, int64) (*T, error)
+}, students interface {
+	Update(context.Context, *T) error
+}, attempted chan<- struct{}) *signalingStudentService[T] {
+	return &signalingStudentService[T]{directory: directory, students: students, attempted: attempted}
 }

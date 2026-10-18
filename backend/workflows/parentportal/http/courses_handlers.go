@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -56,7 +58,7 @@ type CourseRequestBody struct {
 	Note     string `json:"note"`
 }
 
-func toCoursesResponse(catalog *careplan.CourseCatalog) CoursesResponse {
+func toCoursesResponse(catalog *parentService.CourseCatalogSnapshot) CoursesResponse {
 	resp := CoursesResponse{
 		Enabled:                catalog.Enabled,
 		CanRequest:             catalog.CanRequest,

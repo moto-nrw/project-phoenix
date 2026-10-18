@@ -55,6 +55,9 @@ type OperatorStore interface {
 	// reports whether the row existed.
 	UpdateOperator(ctx context.Context, operator domain.Operator) (bool, domain.OperationStats, error)
 	DeleteOperator(ctx context.Context, id int64) (domain.OperationStats, error)
+	// DeleteDeactivatedOperators removes the accounts whose database-clock
+	// retention window has ended and reports how many went.
+	DeleteDeactivatedOperators(ctx context.Context) (int, domain.OperationStats, error)
 	RecordOperatorLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
 	// IncrementOperatorMFAAttempts bumps the counter and applies the lockout
 	// window in one statement once the threshold is reached.
@@ -490,7 +493,7 @@ type OperatorAudit interface {
 // e-mail change links. The composition binds it to the module's own link
 // operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
-	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
+	RevokeEmailChanges(ctx context.Context, operatorID int64) error
 }
 
 // PasswordHasher hashes a new password and applies the strength policy.

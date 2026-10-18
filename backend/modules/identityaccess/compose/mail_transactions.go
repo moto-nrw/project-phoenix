@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,23 +44,19 @@ func RunMailStep(ctx context.Context, step func(context.Context) error) error {
 	return RunMailStepInSavepoint(ctx, step)
 }
 
-// GuardianEnrollmentBackfill links the enrollment requests a guardian filed
-// before they had an account to that account.
-type GuardianEnrollmentBackfill interface {
-	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
-}
-
 // NewSavepointGuardianEnrollments serves the acceptance's enrollment claim
 // over backfill. The claim runs inside a savepoint: it is best-effort, and a
 // failed statement must not leave the acceptance's transaction aborted. A
 // savepoint that could not be controlled is the exception — the owner aborts
 // the acceptance rather than commit on top of a transaction whose state
 // nobody knows.
-func NewSavepointGuardianEnrollments(backfill GuardianEnrollmentBackfill) GuardianEnrollments {
+func NewSavepointGuardianEnrollments(backfill identityPorts.GuardianEnrollmentBackfill) identityPorts.GuardianEnrollments {
 	return savepointGuardianEnrollments{backfill: backfill}
 }
 
-type savepointGuardianEnrollments struct{ backfill GuardianEnrollmentBackfill }
+type savepointGuardianEnrollments struct {
+	backfill identityPorts.GuardianEnrollmentBackfill
+}
 
 func (e savepointGuardianEnrollments) ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error) {
 	claimed := 0

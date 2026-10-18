@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -221,15 +220,7 @@ func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
 
 	// 2026-08-17 is a Monday.
 	monday := calendar.NewDate(2026, 8, 17)
-	want := []int{
-		scheduleModels.WeekdayMonday,
-		scheduleModels.WeekdayTuesday,
-		scheduleModels.WeekdayWednesday,
-		scheduleModels.WeekdayThursday,
-		scheduleModels.WeekdayFriday,
-		scheduleModels.WeekdaySaturday,
-		scheduleModels.WeekdaySunday,
-	}
+	want := []int{1, 2, 3, 4, 5, 6, 7}
 	for offset, expected := range want {
 		date := monday.AddDays(offset)
 		if got := calendar.ISOWeekday(date); got != expected {

@@ -2,11 +2,11 @@ package care
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // errRequestEventIncomplete refuses a ledger entry that cannot name its
@@ -26,7 +26,27 @@ type RequestLedgerEntry struct {
 	// UpdatedAt is the request row's updated_at AFTER the event; it becomes
 	// the recorded version, so a reader can tell which version was acted on.
 	UpdatedAt time.Time
-	Payload   map[string]any
+	Payload   json.RawMessage
+}
+
+type RequestEvent struct {
+	ID             int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	TenantID       int64
+	StudentID      int64
+	RequestType    string
+	RequestID      int64
+	EventType      string
+	ActorAccountID *int64
+	Version        string
+	Payload        json.RawMessage
+}
+
+// RequestEventWriter appends a request-history entry in the caller's tenant
+// unit of work. The child flows do not read or replace the event ledger.
+type RequestEventWriter interface {
+	Create(context.Context, *RequestEvent) error
 }
 
 // RecordRequestEvent appends one entry to the People Directory ledger inside
@@ -34,19 +54,19 @@ type RequestLedgerEntry struct {
 // survive a rolled-back write. A flow composed without a ledger records
 // nothing; a ledger that IS composed must not fail silently, so its error
 // propagates.
-func RecordRequestEvent(ctx context.Context, ledger usersModels.ParentRequestEventRepository, entry RequestLedgerEntry) error {
+func RecordRequestEvent(ctx context.Context, ledger RequestEventWriter, entry RequestLedgerEntry) error {
 	if ledger == nil {
 		return nil
 	}
 	if entry.StudentID <= 0 || entry.RequestID <= 0 || entry.RequestType == "" || entry.EventType == "" {
 		return errRequestEventIncomplete
 	}
-	event := &usersModels.ParentRequestEvent{
+	event := &RequestEvent{
 		StudentID:   entry.StudentID,
 		RequestType: entry.RequestType,
 		RequestID:   entry.RequestID,
 		EventType:   entry.EventType,
-		Version:     careplan.ParentRequestVersion(entry.UpdatedAt),
+		Version:     excusedrequests.ParentRequestVersion(entry.UpdatedAt),
 		Payload:     entry.Payload,
 	}
 	if entry.ActorAccountID > 0 {
@@ -54,4 +74,11 @@ func RecordRequestEvent(ctx context.Context, ledger usersModels.ParentRequestEve
 		event.ActorAccountID = &actor
 	}
 	return ledger.Create(ctx, event)
+}
+
+// dataRequestEventPayload contains only protocol strings, so encoding cannot
+// fail and produces the same sorted JSON object as the retained ledger.
+func dataRequestEventPayload(target, field string) json.RawMessage {
+	raw, _ := json.Marshal(map[string]string{"target": target, "field": field})
+	return raw
 }

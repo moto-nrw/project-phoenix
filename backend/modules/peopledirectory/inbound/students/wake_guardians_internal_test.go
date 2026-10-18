@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,13 +26,15 @@ func TestResourceWakeChildGuardians(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	emitter := &recordingGuardianWake{}
-	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
+	(&Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentEventEmitter: emitter, Logger: logger}}).
 		wakeChildGuardians(0, 100)
 	assert.Contains(t, buf.String(), "no tenant context")
 	assert.Empty(t, emitter.woken)
 
 	// A valid tenant reaches the Communication port unchanged.
-	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
+	(&Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentEventEmitter: emitter, Logger: logger}}).
 		wakeChildGuardians(42, 100)
 	assert.Equal(t, [][2]int64{{42, 100}}, emitter.woken)
 }

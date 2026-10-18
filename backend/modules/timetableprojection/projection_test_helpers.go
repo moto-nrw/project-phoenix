@@ -1,10 +1,11 @@
+//go:build testhooks
+
 package timetableprojection
 
 import (
 	"context"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/uptrace/bun"
 )
 
@@ -39,16 +40,22 @@ func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (m
 	return result, nil
 }
 
-func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]*activitiesModels.Group, error) {
+// ActivityGroup is one activity group row of ActivityGroupsByID.
+type ActivityGroup struct {
+	ID   int64  `bun:"id"`
+	Name string `bun:"name"`
+}
+
+func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]ActivityGroup, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
 	if len(ids) == 0 {
-		return []*activitiesModels.Group{}, nil
+		return []ActivityGroup{}, nil
 	}
-	var groups []*activitiesModels.Group
-	err := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
-		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id IN (?)`, bun.List(ids)).Scan(ctx)
+	var groups []ActivityGroup
+	err := db.NewSelect().TableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".id, "group".name`).
+		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id IN (?)`, bun.List(ids)).Scan(ctx, &groups)
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: list activity groups: %w", err)
 	}

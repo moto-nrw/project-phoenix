@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -36,7 +37,7 @@ func (s *materializationService) DetectEditedInWindow(
 	includeDeletions bool,
 ) ([]timetable.EditedOccurrence, error) {
 	if to.Before(from) {
-		return nil, &ScheduleError{Op: "detect edited: validate window", Err: errors.New("to must not be before from")}
+		return nil, &ports.ScheduleError{Op: "detect edited: validate window", Err: errors.New("to must not be before from")}
 	}
 	tmpl, err := s.loadDetectionTemplate(ctx, activityGroupID)
 	if err != nil || tmpl == nil {
@@ -58,7 +59,7 @@ func (s *materializationService) DetectEditedInWindow(
 	// — reported only when the caller asks for deletions (#1875 review).
 	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, schedule.Date(from), schedule.Date(to))
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load exceptions", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load exceptions", Err: err}
 	}
 
 	edited := make([]timetable.EditedOccurrence, 0)
@@ -68,7 +69,7 @@ func (s *materializationService) DetectEditedInWindow(
 			return nil, err
 		}
 		if projection.weekendFollowsFriday, err = WeekendFollowsFridayIn(ctx, from, to); err != nil {
-			return nil, &ScheduleError{Op: "detect edited", Err: err}
+			return nil, &ports.ScheduleError{Op: "detect edited", Err: err}
 		}
 		edited = append(edited, projection.editedOccurrences(tmpl, planned, buildExceptionIndex(exceptions))...)
 	}
@@ -94,7 +95,7 @@ func (s *materializationService) loadDetectionTemplate(ctx context.Context, temp
 		if domain.IsRecordNotFound(err) {
 			return nil, nil
 		}
-		return nil, &ScheduleError{Op: "detect edited: load template", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load template", Err: err}
 	}
 	return tmpl, nil
 }
@@ -108,7 +109,7 @@ func (s *materializationService) loadPlannedOccurrences(
 ) ([]*schedule.ActivityInstance, []int64, error) {
 	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, templateID, schedule.Date(from), schedule.Date(to))
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "detect edited: load instances", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "detect edited: load instances", Err: err}
 	}
 	planned := make([]*schedule.ActivityInstance, 0, len(instances))
 	ids := make([]int64, 0, len(instances))
@@ -148,7 +149,7 @@ func (s *materializationService) loadTemplateProjection(
 ) (*templateProjection, error) {
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, tmpl.ID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load schedules", Err: err}
 	}
 	timeframeByID, err := s.loadTimeframes(ctx, "detect edited: load timeframes")
 	if err != nil {
@@ -156,7 +157,7 @@ func (s *materializationService) loadTemplateProjection(
 	}
 	periods, err := s.periodRepo.FindActiveByTenantID(ctx)
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load periods", Err: err}
 	}
 	roster, err := s.loadTemplatePeople(ctx, tmpl.ID, "detect edited")
 	if err != nil {
@@ -287,7 +288,7 @@ func (p *templateProjection) expectedSlotsOn(
 func (s *materializationService) staffRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStaff, error) {
 	rows, err := s.staffRepo.FindByInstanceIDs(ctx, ids)
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load staff rosters", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load staff rosters", Err: err}
 	}
 	byInstance := make(map[int64][]*schedule.InstanceStaff, len(ids))
 	for _, row := range rows {
@@ -302,7 +303,7 @@ func (s *materializationService) staffRosterByInstance(ctx context.Context, ids 
 func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStudent, error) {
 	rows, err := s.studentRepo.FindByInstanceIDs(ctx, ids)
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load student rosters", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect edited: load student rosters", Err: err}
 	}
 	byInstance := make(map[int64][]*schedule.InstanceStudent, len(ids))
 	for _, row := range rows {

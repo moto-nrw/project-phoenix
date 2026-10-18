@@ -11,11 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Stammdaten sentinel errors mapped to stable HTTP codes by the handler.
@@ -45,14 +41,14 @@ var (
 // "target/field". Identity (name, birthday) and permanent departure data are
 // intentionally absent — those require staff approval via Track B.
 var trackAEditableFields = map[string]bool{
-	usersModels.DataChangeTargetStudent + "/health_info":                      true,
-	usersModels.DataChangeTargetGuardianProfile + "/email":                    true,
-	usersModels.DataChangeTargetGuardianProfile + "/address_street":           true,
-	usersModels.DataChangeTargetGuardianProfile + "/address_city":             true,
-	usersModels.DataChangeTargetGuardianProfile + "/address_postal_code":      true,
-	usersModels.DataChangeTargetGuardianProfile + "/preferred_contact_method": true,
-	usersModels.DataChangeTargetGuardianProfile + "/language_preference":      true,
-	usersModels.DataChangeTargetGuardianPhone + "/primary":                    true,
+	DataChangeTargetStudent + "/health_info":                      true,
+	DataChangeTargetGuardianProfile + "/email":                    true,
+	DataChangeTargetGuardianProfile + "/address_street":           true,
+	DataChangeTargetGuardianProfile + "/address_city":             true,
+	DataChangeTargetGuardianProfile + "/address_postal_code":      true,
+	DataChangeTargetGuardianProfile + "/preferred_contact_method": true,
+	DataChangeTargetGuardianProfile + "/language_preference":      true,
+	DataChangeTargetGuardianPhone + "/primary":                    true,
 }
 
 const maxMasterDataHealthInfoLen = 2000
@@ -91,11 +87,11 @@ type ChildMasterData struct {
 	PrimaryPhoneID         *int64
 
 	// Permanent weekday departure config — Track B editable, shown read-only.
-	DepartureDays         usersModels.DepartureDays
-	AllowedDepartureModes usersModels.AllowedDepartureModes
+	DepartureDays         DepartureDays
+	AllowedDepartureModes AllowedDepartureModes
 
 	// PendingChanges are the child's open Track B requests (awaiting staff).
-	PendingChanges []*usersModels.StudentDataChangeRequest
+	PendingChanges []*StudentDataChangeRequest
 }
 
 // GetChildMasterData assembles the Stammdaten view after verifying the account
@@ -107,7 +103,7 @@ func (s *Service) GetChildMasterData(ctx context.Context, accountID, studentID i
 	}
 
 	var out *ChildMasterData
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		data, loadErr := s.loadMasterData(txCtx, accountID, child.GuardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -129,7 +125,7 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		return nil, ErrMasterDataFieldNotEditable
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +148,7 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	edit := trackAEdit{accountID: accountID, studentID: studentID, target: target, fieldKey: fieldKey, value: newStr}
 	var out *ChildMasterData
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		data, applyErr := s.applyTrackAInTx(txCtx, child, edit)
 		out = data
 		return applyErr
@@ -217,7 +213,7 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 	}
 	capturedTenant := child.TenantID
 	if changed {
-		tenant.RegisterAfterCommit(ctx, func() {
+		s.Runtime.RegisterAfterCommit(ctx, func() {
 			s.broadcastStudentUpdated(capturedTenant, edit.studentID)
 		})
 	}
@@ -228,11 +224,11 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 // and new values as JSON (for the audit row) plus the optional target ref id.
 func (s *Service) applyTrackAEdit(ctx context.Context, guardianProfileID, studentID, tenantID, accountID int64, target, fieldKey, newStr string) (oldRaw, newRaw json.RawMessage, targetRef *int64, changed bool, err error) {
 	switch target {
-	case usersModels.DataChangeTargetStudent:
+	case DataChangeTargetStudent:
 		return s.applyStudentEdit(ctx, studentID, accountID, fieldKey, newStr)
-	case usersModels.DataChangeTargetGuardianProfile:
+	case DataChangeTargetGuardianProfile:
 		return s.applyGuardianProfileEdit(ctx, guardianProfileID, fieldKey, newStr)
-	case usersModels.DataChangeTargetGuardianPhone:
+	case DataChangeTargetGuardianPhone:
 		return s.applyGuardianPhoneEdit(ctx, guardianProfileID, tenantID, newStr)
 	default:
 		return nil, nil, nil, false, ErrMasterDataFieldNotEditable
@@ -240,24 +236,24 @@ func (s *Service) applyTrackAEdit(ctx context.Context, guardianProfileID, studen
 }
 
 func isTrackAGuardianTarget(target string) bool {
-	return target == usersModels.DataChangeTargetGuardianProfile || target == usersModels.DataChangeTargetGuardianPhone
+	return target == DataChangeTargetGuardianProfile || target == DataChangeTargetGuardianPhone
 }
 
 func validateTrackAFieldSize(target, fieldKey, value string) error {
 	limit := 0
 	switch target + "/" + fieldKey {
-	case usersModels.DataChangeTargetStudent + "/health_info":
+	case DataChangeTargetStudent + "/health_info":
 		limit = maxMasterDataHealthInfoLen
-	case usersModels.DataChangeTargetGuardianProfile + "/email":
+	case DataChangeTargetGuardianProfile + "/email":
 		limit = maxGuardianEmailLen
-	case usersModels.DataChangeTargetGuardianProfile + "/address_street",
-		usersModels.DataChangeTargetGuardianProfile + "/address_city",
-		usersModels.DataChangeTargetGuardianProfile + "/address_postal_code":
+	case DataChangeTargetGuardianProfile + "/address_street",
+		DataChangeTargetGuardianProfile + "/address_city",
+		DataChangeTargetGuardianProfile + "/address_postal_code":
 		limit = maxGuardianAddrLen
-	case usersModels.DataChangeTargetGuardianProfile + "/preferred_contact_method",
-		usersModels.DataChangeTargetGuardianProfile + "/language_preference":
+	case DataChangeTargetGuardianProfile + "/preferred_contact_method",
+		DataChangeTargetGuardianProfile + "/language_preference":
 		limit = maxGuardianLabelLen
-	case usersModels.DataChangeTargetGuardianPhone + "/primary":
+	case DataChangeTargetGuardianPhone + "/primary":
 		limit = maxGuardianPhoneLen
 	default:
 		return ErrMasterDataFieldNotEditable
@@ -312,10 +308,10 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 	// Validate() trims/lowercases the email and rejects bad emails / contact
 	// methods — turn its failure into the stable invalid-value sentinel.
-	if err := profile.Validate(); err != nil {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
-	newRaw := s.guardianProfileFieldJSON(profile, fieldKey)
+	newRaw := s.guardianProfileFieldJSON(guardianContactRecord(profile), fieldKey)
 	ref := profile.ID
 	if string(oldRaw) == string(newRaw) {
 		return oldRaw, newRaw, &ref, false, nil
@@ -331,7 +327,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 // setGuardianProfileField applies one Track A guardian field to the profile
 // and returns its previous value as JSON.
-func (s *Service) setGuardianProfileField(profile *usersModels.GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
+func (s *Service) setGuardianProfileField(profile *GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
 	var oldRaw json.RawMessage
 	switch fieldKey {
 	case "email":
@@ -375,7 +371,7 @@ func (s *Service) setGuardianProfileField(profile *usersModels.GuardianProfile, 
 
 // guardianProfileFieldJSON returns the post-update value of the named field as
 // JSON for the audit row.
-func (s *Service) guardianProfileFieldJSON(profile *usersModels.GuardianProfile, fieldKey string) json.RawMessage {
+func (s *Service) guardianProfileFieldJSON(profile GuardianContactRecord, fieldKey string) json.RawMessage {
 	switch fieldKey {
 	case "email":
 		return jsonStringPtr(profile.Email)
@@ -405,7 +401,7 @@ func (s *Service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	existing := pickPrimaryPhone(phones)
+	existing := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary })
 
 	oldRaw := json.RawMessage("null")
 	if existing != nil {
@@ -430,9 +426,9 @@ func (s *Service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 }
 
 // changePrimaryPhone rewrites the number of the existing primary phone.
-func (s *Service) changePrimaryPhone(ctx context.Context, existing *usersModels.GuardianPhoneNumber, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
+func (s *Service) changePrimaryPhone(ctx context.Context, existing *GuardianPhoneNumber, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	existing.PhoneNumber = newStr
-	if err := existing.Validate(); err != nil {
+	if err := s.GuardianPhoneRepo.NormalizePhone(existing); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	newRaw := jsonString(existing.PhoneNumber)
@@ -448,15 +444,15 @@ func (s *Service) changePrimaryPhone(ctx context.Context, existing *usersModels.
 
 // addPrimaryPhone creates the guardian's first primary phone.
 func (s *Service) addPrimaryPhone(ctx context.Context, guardianProfileID, tenantID int64, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
-	phone := &usersModels.GuardianPhoneNumber{
+	phone := &GuardianPhoneNumber{
 		GuardianProfileID: guardianProfileID,
 		PhoneNumber:       newStr,
-		PhoneType:         usersModels.PhoneTypeMobile,
+		PhoneType:         s.GuardianPhoneRepo.PhoneTypeOrMobile(""),
 		IsPrimary:         true,
 		Priority:          1,
 	}
-	phone.SetTenantID(tenantID)
-	if err := phone.Validate(); err != nil {
+	phone.TenantID = tenantID
+	if err := s.GuardianPhoneRepo.NormalizePhone(phone); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	id, err := s.Guardians.AddGuardianPhoneRecord(ctx, guardianProfileID, GuardianPhoneRecord{
@@ -474,7 +470,7 @@ func (s *Service) addPrimaryPhone(ctx context.Context, guardianProfileID, tenant
 // recordAutoApplied inserts the Track A audit row for a direct edit.
 func (s *Service) recordAutoApplied(ctx context.Context, tenantID, studentID, accountID int64, target, fieldKey string, oldRaw, newRaw json.RawMessage, targetRef *int64) error {
 	now := time.Now()
-	row := &usersModels.StudentDataChangeRequest{
+	row := &StudentDataChangeRequest{
 		StudentID:   studentID,
 		SubmittedBy: accountID,
 		Target:      target,
@@ -482,10 +478,10 @@ func (s *Service) recordAutoApplied(ctx context.Context, tenantID, studentID, ac
 		FieldKey:    fieldKey,
 		OldValue:    oldRaw,
 		NewValue:    newRaw,
-		Status:      usersModels.DataChangeStatusAutoApplied,
+		Status:      DataChangeStatusAutoApplied,
 		AppliedAt:   &now,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 	return s.createDataRequest(ctx, row)
 }
 
@@ -529,7 +525,7 @@ func (s *Service) loadMasterData(ctx context.Context, accountID, guardianProfile
 	if err != nil {
 		return nil, err
 	}
-	if primary := pickPrimaryPhone(phones); primary != nil {
+	if primary := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {
 		out.PrimaryPhone = &primary.PhoneNumber
 		out.PrimaryPhoneID = &primary.ID
 	}
@@ -542,8 +538,8 @@ func (s *Service) loadMasterData(ctx context.Context, accountID, guardianProfile
 
 // visiblePendingDataRequests returns the child's pending Track B requests the
 // caller may see under the family's sharing choices.
-func (s *Service) visiblePendingDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error) {
-	pending, err := s.ChangeRequestRepo.ListByStudent(ctx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+func (s *Service) visiblePendingDataRequests(ctx context.Context, accountID, studentID int64) ([]*StudentDataChangeRequest, error) {
+	pending, err := s.ChangeRequestRepo.ListByStudent(ctx, studentID, []string{DataChangeStatusPending}, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -551,7 +547,7 @@ func (s *Service) visiblePendingDataRequests(ctx context.Context, accountID, stu
 	if err != nil {
 		return nil, err
 	}
-	visible := make([]*usersModels.StudentDataChangeRequest, 0, len(pending))
+	visible := make([]*StudentDataChangeRequest, 0, len(pending))
 	for _, row := range pending {
 		if row != nil && visibility.Allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
 			visible = append(visible, row)
@@ -560,9 +556,9 @@ func (s *Service) visiblePendingDataRequests(ctx context.Context, accountID, stu
 	return visible, nil
 }
 
-func pickPrimaryPhone(phones []*usersModels.GuardianPhoneNumber) *usersModels.GuardianPhoneNumber {
+func pickPrimaryPhone[T any](phones []*T, isPrimary func(*T) bool) *T {
 	for _, p := range phones {
-		if p.IsPrimary {
+		if isPrimary(p) {
 			return p
 		}
 	}

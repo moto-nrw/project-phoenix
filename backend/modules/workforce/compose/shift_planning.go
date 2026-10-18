@@ -71,7 +71,7 @@ type StaffScheduleOverviewDependencies struct {
 	// Shifts serves the shift rows and the weeks the Dienstplan is in use.
 	// NewShiftPlanning binds the Workforce capability; a caller with a
 	// narrower transaction-scoped read (the plan export) binds its own.
-	Shifts        StaffShiftSource
+	Shifts        planning.StaffShiftSource
 	Instances     ActivityInstanceReader
 	InstanceStaff InstanceStaffReader
 	Rooms         RoomReader
@@ -95,7 +95,7 @@ func newStaffScheduleOverview(deps StaffScheduleOverviewDependencies) (workforce
 }
 
 func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) planning.StaffScheduleOverviewGetter {
-	shifts := NewShiftReadRows(deps.Shifts)
+	shifts := planning.NewShiftReadRows(deps.Shifts)
 	overview := planning.StaffScheduleOverviewDependencies{
 		Shifts:        shifts,
 		ShiftWeeks:    shifts,
@@ -187,9 +187,9 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	}
 
 	logger := deps.Logger
-	shiftRows := NewShiftRows(deps.Workforce)
-	exceptionRows := NewShiftSeriesExceptionRows(deps.Workforce)
-	shiftTypes := planning.NewShiftTypeService(NewShiftTypeRows(deps.Workforce), logger)
+	shiftRows := planning.NewShiftRows(deps.Workforce)
+	exceptionRows := planning.NewShiftSeriesExceptionRows(deps.Workforce)
+	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(deps.Workforce), logger)
 
 	shiftOptions := []planning.StaffShiftOption{
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
@@ -202,7 +202,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	shifts := planning.NewStaffShiftService(shiftRows, deps.Staff, shiftTypes, lockStaffShifts, logger, shiftOptions...)
 
 	series := planning.NewStaffShiftSeriesService(
-		NewShiftSeriesRows(deps.Workforce), exceptionRows, shiftRows, deps.Staff, planning.SchoolCalendarPeriods(deps.CalendarPeriods),
+		planning.NewShiftSeriesRows(deps.Workforce), exceptionRows, shiftRows, deps.Staff, planning.SchoolCalendarPeriods(deps.CalendarPeriods),
 		shiftTypes, lockStaffShifts, logger, shifts, seriesOptions(deps)...,
 	)
 

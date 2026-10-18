@@ -3,6 +3,7 @@ package application
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestAnnounceStaffingChangedSendsOneTenantEvent(t *testing.T) {
 	t.Parallel()
 
 	recorder := &lifecycleEventRecorder{}
-	lifecycle := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{Broadcaster: recorder}}
+	lifecycle := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{Broadcaster: recorder}}
 
 	require.NoError(t, lifecycle.AnnounceStaffingChanged(42, "deviations"))
 
@@ -23,7 +24,7 @@ func TestAnnounceStaffingChangedSendsOneTenantEvent(t *testing.T) {
 	assert.Equal(t, "tenant", calls[0].Method)
 	assert.Equal(t, int64(42), calls[0].TenantID)
 	source := "deviations"
-	assert.Equal(t, LifecycleEvent{Type: LifecycleEventStaffingDeviationChanged, Source: &source}, calls[0].Event)
+	assert.Equal(t, ports.LifecycleEvent{Type: LifecycleEventStaffingDeviationChanged, Source: &source}, calls[0].Event)
 }
 
 func TestAnnounceStaffingChangedWithoutBroadcasterSendsNothing(t *testing.T) {

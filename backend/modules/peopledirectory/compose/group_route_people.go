@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // GroupRoutePeople binds the People Directory port of the group routes
@@ -12,11 +13,11 @@ import (
 // only translates the retained rows into the owner's public types and changes
 // nothing about which reads run.
 type GroupRoutePeople struct {
-	persons *PersonDirectory
+	persons peoplePorts.PersonDirectory
 }
 
 // NewGroupRoutePeople binds the retained person directory.
-func NewGroupRoutePeople(persons *PersonDirectory) GroupRoutePeople {
+func NewGroupRoutePeople(persons peoplePorts.PersonDirectory) GroupRoutePeople {
 	return GroupRoutePeople{persons: persons}
 }
 

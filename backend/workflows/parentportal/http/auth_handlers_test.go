@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +102,7 @@ func postLogin(t *testing.T, rs *parent.Resource, body map[string]string) *httpt
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	rs.Router().ServeHTTP(rr, req)
+	rs.Router(rootAPI.ParentSessionChain).ServeHTTP(rr, req)
 	return rr
 }
 
@@ -112,7 +114,7 @@ func postPasswordReset(t *testing.T, rs *parent.Resource, body map[string]string
 	req := httptest.NewRequest(http.MethodPost, "/auth/password-reset", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	rs.Router().ServeHTTP(rr, req)
+	rs.Router(rootAPI.ParentSessionChain).ServeHTTP(rr, req)
 	return rr
 }
 
@@ -124,7 +126,7 @@ func postPasswordResetConfirm(t *testing.T, rs *parent.Resource, body map[string
 	req := httptest.NewRequest(http.MethodPost, "/auth/password-reset/confirm", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	rs.Router().ServeHTTP(rr, req)
+	rs.Router(rootAPI.ParentSessionChain).ServeHTTP(rr, req)
 	return rr
 }
 
@@ -505,7 +507,7 @@ func TestRouterWithAuthRateLimiter_ThrottlesOnlyPublicAuthRoutes(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := newTestResource(&stubParentAuthService{}).RouterWithAuthRateLimiter(limiter)
+	router := newTestResource(&stubParentAuthService{}).RouterWithAuthRateLimiter(limiter, rootAPI.ParentSessionChain)
 
 	for _, path := range []string{"/auth/login", "/auth/password-reset", "/auth/password-reset/confirm"} {
 		rr := httptest.NewRecorder()

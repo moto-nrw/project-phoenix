@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // staleResetWindowAge keeps a rate-limit window for a day before cleanup
@@ -230,4 +233,12 @@ func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (in
 	r.logger.Info("password reset rate limit cleanup completed",
 		slog.Int("records_deleted", deleted))
 	return deleted, nil
+}
+
+type PasswordResetDelivery struct {
+	Source identityPorts.PasswordResetDelivery
+}
+
+func (d PasswordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) {
+	d.Source.DispatchPasswordReset(ctx, PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)
 }

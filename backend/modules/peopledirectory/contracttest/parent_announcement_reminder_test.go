@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -16,49 +15,6 @@ import (
 
 // reminderAnnouncement creates an announcement carrying a reminder at
 // reminderAt. published decides whether it is live; expiresAt is optional.
-func reminderAnnouncement(
-	t *testing.T,
-	ctx context.Context,
-	db *bun.DB,
-	repo userModels.ParentAnnouncementRepository,
-	createdBy, tenantID int64,
-	title string,
-	reminderAt time.Time,
-	published bool,
-	expiresAt *time.Time,
-) *userModels.ParentAnnouncement {
-	t.Helper()
-	text := "Kurz: " + title
-	a := &userModels.ParentAnnouncement{
-		Title:        title,
-		Body:         "Testtext",
-		Priority:     userModels.ParentAnnouncementPriorityInfo,
-		Active:       true,
-		CreatedBy:    createdBy,
-		ExpiresAt:    expiresAt,
-		ReminderAt:   &reminderAt,
-		ReminderText: &text,
-	}
-	a.SetTenantID(tenantID)
-	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*userModels.ParentAnnouncementTarget{
-		{TargetType: userModels.AnnouncementTargetSchoolAll},
-	}))
-	if published {
-		publishedAt := databaseTimestamp(t, db).Add(-7 * 24 * time.Hour)
-		require.NoError(t, repo.SetPublished(ctx, a.ID, &publishedAt))
-	}
-	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
-	return a
-}
-
-func idsOf(rows []*userModels.ParentAnnouncement) []int64 {
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-	}
-	return ids
-}
 
 // TestParentAnnouncementReminderDueScanAndClaim pins the exactly-once contract
 // of the scheduled reminder (#3162): the due scan sees only live announcements
@@ -75,18 +31,28 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 	now := databaseTimestamp(t, db)
 	window := now.Add(-time.Hour)
 
-	due := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	due := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Fällig", now.Add(-10*time.Minute), true, nil)
-	draft := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	draft := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Entwurf", now.Add(-10*time.Minute), false, nil)
-	tooOld := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	tooOld := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Zu alt", window.Add(-time.Minute), true, nil)
-	future := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	future := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Später", now.Add(2*time.Hour), true, nil)
 	// The expiry CHECK (expires_at > created_at) only accepts a future expiry
 	// on insert; age the row afterwards, the way time itself does.
 	expiresSoon := now.Add(time.Hour)
-	expired := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	expired := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Abgelaufen", now.Add(-10*time.Minute), true, &expiresSoon)
 	_, err := db.NewUpdate().TableExpr("users.parent_announcements").
 		Set("created_at = ?", now.Add(-2*time.Hour)).
@@ -97,7 +63,7 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	rows, err := repo.ListDueReminders(ctx, window, now)
 	require.NoError(t, err)
-	got := idsOf(rows)
+	got := api.ParentStoreAnnouncementIDsOf(rows)
 	assert.Contains(t, got, due.ID)
 	assert.NotContains(t, got, draft.ID, "drafts never fire")
 	assert.NotContains(t, got, tooOld.ID, "a reminder older than the window stays unsent")
@@ -145,7 +111,7 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	rows, err = repo.ListDueReminders(ctx, window, now)
 	require.NoError(t, err)
-	assert.NotContains(t, idsOf(rows), due.ID, "a claimed reminder leaves the due scan")
+	assert.NotContains(t, api.ParentStoreAnnouncementIDsOf(rows), due.ID, "a claimed reminder leaves the due scan")
 
 	applied, err = repo.SetReminder(ctx, due.ID, &moved, nil)
 	require.NoError(t, err)
@@ -202,7 +168,9 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 	now := databaseTimestamp(t, db)
 	window := now.Add(-time.Hour)
 	addDue := func(title string) {
-		reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+		api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+			return databaseTimestamp(t, db)
+		}, repo, chain.AccountID, chain.TenantID,
 			title, now.Add(-10*time.Minute), true, nil)
 	}
 	readDue := func(counter *testpkg.QueryCounter, want int) []string {
@@ -237,10 +205,14 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 	ctx := tenantCtx(t)
 	now := databaseTimestamp(t, db)
 
-	older := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	older := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Älter", now.Add(-10*time.Minute), true, nil)
-	newer := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Neuer", []*userModels.ParentAnnouncementTarget{{TargetType: userModels.AnnouncementTargetSchoolAll}})
+	newer := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
+		"Neuer", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{{TargetType: userModels.AnnouncementTargetSchoolAll}}))
 
 	// The guardian read the older one weeks ago.
 	olderRow, err := repo.FindByID(ctx, older.ID)
@@ -249,7 +221,7 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, live)
 
-	scope := userModels.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}}
+	scope := api.ParentStoreFeedScopeValue(api.ParentStoreFeedScopeInput{TenantIDs: []int64{chain.TenantID}})
 	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, scope)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(feed), 2)
@@ -275,13 +247,15 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 
 	// Another school's due scan must not see this tenant's reminder. The
 	// claim above already consumed it here, so seed a fresh unsent one first.
-	pending := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	pending := api.ParentStoreReminderAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		"Offen", now.Add(-10*time.Minute), true, nil)
 	rows, err := repo.ListDueReminders(ctx, now.Add(-time.Hour), now)
 	require.NoError(t, err)
-	require.Contains(t, idsOf(rows), pending.ID)
+	require.Contains(t, api.ParentStoreAnnouncementIDsOf(rows), pending.ID)
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	rows, err = repo.ListDueReminders(testpkg.TenantContext(otherTenant), now.Add(-time.Hour), now)
 	require.NoError(t, err)
-	assert.NotContains(t, idsOf(rows), pending.ID)
+	assert.NotContains(t, api.ParentStoreAnnouncementIDsOf(rows), pending.ID)
 }

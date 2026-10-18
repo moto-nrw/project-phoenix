@@ -92,7 +92,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments),
-		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(owners.Workforce)),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(owners.Workforce)),
 	)
 
 	f.svc = f.newOverviewService(settings)
@@ -102,7 +102,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 func (f *overviewFixture) newOverviewService(settings wtmIntSettings) timetracking.StaffOverviewService {
 	return timetracking.NewStaffOverviewService(
 		api.OverviewStaff(f.repos.Staff), workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence,
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas, workforceCompose.MonthSnapshotCapability(f.workforce),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas, timetracking.MonthSnapshotCapability(f.workforce),
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 	)
@@ -263,7 +263,7 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
-		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
 
 	overview, err := svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{
@@ -406,7 +406,7 @@ func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
 	}
 	svc := timetracking.NewStaffOverviewService(
 		api.OverviewStaff(f.repos.Staff), workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, absenceRepo,
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas, workforceCompose.MonthSnapshotCapability(f.workforce),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas, timetracking.MonthSnapshotCapability(f.workforce),
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 	)
@@ -662,9 +662,9 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
-		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(workforceCompose.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	_, err := closeSvc.CloseMonth(f.ctx, staffID, prevMonth.Year(), int(prevMonth.Month()), "Abschluss")
@@ -695,9 +695,9 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
-		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(workforceCompose.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")

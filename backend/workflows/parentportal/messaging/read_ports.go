@@ -3,9 +3,6 @@ package messaging
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -16,8 +13,8 @@ import (
 
 // GuardianProfileReads reads the guardian profiles messaging addresses.
 type GuardianProfileReads interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
-	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*care.GuardianProfile, error)
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*care.GuardianProfile, error)
 }
 
 // GuardianProfiles is the guardian-profile surface the child flows and the
@@ -27,9 +24,9 @@ type GuardianProfiles interface {
 	GuardianProfileReads
 }
 
-// CareRequestReads reads one care-schedule change request.
+// CareRequestReads reads the submitting account, child and kind of a request.
 type CareRequestReads interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.CareScheduleChangeRequest, error)
+	FindIdentity(ctx context.Context, id int64) (submittedBy, studentID int64, requestKind string, err error)
 }
 
 // ExcusedRequestReads reads one absence request.
@@ -39,10 +36,17 @@ type ExcusedRequestReads interface {
 
 // OfferingChangeRequestReads reads one offering change request.
 type OfferingChangeRequestReads interface {
-	FindByID(ctx context.Context, id any) (*enrollmentModels.OfferingChangeRequest, error)
+	FindByID(ctx context.Context, id int64) (*OfferingChangeIdentity, error)
 }
 
 // FamilyProtectionReads reads the current family protection of children.
 type FamilyProtectionReads interface {
-	CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*usersModels.FamilyProtectionEvent, error)
+	CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*FamilyProtectionEvent, error)
+}
+
+// OfferingChangeIdentity is the child and submitting account of the request.
+// It is not an authorization result; the sharing flow checks access itself.
+type OfferingChangeIdentity struct {
+	StudentID   int64
+	SubmittedBy int64
 }

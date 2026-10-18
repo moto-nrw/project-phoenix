@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -12,12 +14,13 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -29,21 +32,21 @@ type TimetableOwnerRows = timetableCompose.OwnerRows
 type TimetableTestRepositories struct {
 	enrollment          *enrollmentCapability.Module
 	schoolCalendar      schoolcalendar.Calendar
-	calendarPeriodUsage *timetableCompose.CalendarPeriodUsageRepository
+	calendarPeriodUsage timetablePorts.CalendarPeriodUsageRepository
 	Timetable           timetable.Capability
 	// Repositories are the retained Timetable adapters (#2743).
 	timetableCompose.Repositories
-	StaffShift *timetableCompose.WorkforceShiftRows
-	ShiftType  *timetableCompose.WorkforceShiftTypeRows
+	StaffShift timetablePorts.WorkforceShiftRows
+	ShiftType  timetablePorts.WorkforceShiftTypeRows
 	// CalendarRows are the School Calendar rows and the class arrival
 	// exceptions.
 	timetableCompose.CalendarRows
-	Staff           usersModels.StaffRepository
-	Teacher         usersModels.TeacherRepository
+	Staff           peoplePorts.StaffRepository
+	Teacher         peoplePorts.TeacherRepository
 	ClassTeacher    ClassTeacherRepository
 	GroupTeacher    GroupTeacherRepository
-	Person          usersModels.PersonRepository
-	Student         usersModels.StudentRepository
+	Person          peoplePorts.PersonRepository
+	Student         peoplePorts.StudentRepository
 	Group           EducationGroupRepository
 	ActiveGroup     studentpresence.SessionRecords
 	GroupSupervisor studentpresence.SupervisionRecords
@@ -153,7 +156,7 @@ func (r TimetableTestRepositories) SchoolCalendar() schoolcalendar.Calendar { re
 
 // CalendarPeriodUsage returns the planning owners' per-period reference
 // counts (#3124).
-func (r TimetableTestRepositories) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
+func (r TimetableTestRepositories) CalendarPeriodUsage() timetablePorts.CalendarPeriodUsageRepository {
 	return r.calendarPeriodUsage
 }
 

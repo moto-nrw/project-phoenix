@@ -5,28 +5,30 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
-	ChildConsentStateGranted     = usersModels.StudentConsentStateGranted
-	ChildConsentStateWithdrawn   = usersModels.StudentConsentStateWithdrawn
-	ChildConsentStateNotRecorded = usersModels.StudentConsentStateNotRecorded
+	ChildConsentStateGranted     = "granted"
+	ChildConsentStateWithdrawn   = "withdrawn"
+	ChildConsentStateNotRecorded = "not_recorded"
 )
 
-type ChildConsent = usersModels.StudentConsentState
+type ChildConsent struct {
+	Key         string
+	State       string
+	ChangedAt   *time.Time
+	CanWithdraw bool
+	CanGrant    bool
+}
 
 // StudentConsentService is the consent surface this portal needs: the shared
 // projection People Directory folds together, and the Audit Platform trail
 // every effective change appends to. The composition root binds both (#3349).
 type StudentConsentService interface {
-	CurrentStates(ctx context.Context, student *usersModels.Student, canManagePhoto bool) ([]ChildConsent, error)
+	CurrentStates(ctx context.Context, student *PortalStudent, canManagePhoto bool) ([]ChildConsent, error)
 	RecordTransitions(
 		ctx context.Context,
-		before, after *usersModels.Student,
+		before, after *PortalStudent,
 		source string,
 		actorAccountID *int64,
 		changedAt time.Time,
@@ -46,7 +48,7 @@ const (
 var ErrPhotoConsentNotWithdrawn = errors.New("parent: photo consent was not withdrawn")
 
 func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +57,12 @@ func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int
 	}
 
 	var consents []ChildConsent
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
-		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(authorize.GuardianPermissionConsentManage))
+		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(GuardianPermissionConsentManage))
 		return loadErr
 	})
 	if err != nil {
@@ -84,7 +86,7 @@ func (s *Service) GrantPhotoConsent(ctx context.Context, accountID, studentID in
 }
 
 func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionConsentManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionConsentManage)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +98,7 @@ func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	}
 
 	var consents []ChildConsent
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var txErr error
 		consents, txErr = s.changePhotoConsent(txCtx, child.TenantID, accountID, studentID, action)
 		return txErr
@@ -116,7 +118,7 @@ func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, s
 		accountID,
 		studentID,
 		tenantID,
-		authorize.GuardianPermissionConsentManage,
+		GuardianPermissionConsentManage,
 	)
 	if err != nil {
 		return nil, err
@@ -149,14 +151,14 @@ func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, s
 
 // requirePhotoConsentWithdrawn keeps the re-grant path from becoming a
 // first-time consent: it needs an earlier withdrawal in the consent history.
-func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *usersModels.Student) error {
+func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *PortalStudent) error {
 	currentStates, err := s.StudentConsents.CurrentStates(ctx, student, true)
 	if err != nil {
 		return err
 	}
 	for _, consent := range currentStates {
 		if consent.Key == StudentConsentPhoto {
-			if consent.State == usersModels.StudentConsentStateWithdrawn {
+			if consent.State == "withdrawn" {
 				return nil
 			}
 			break
@@ -167,7 +169,7 @@ func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *use
 
 // writePhotoConsent stores the new consent state through People Directory,
 // appends the consent trail, and removes a withdrawn photo after the commit.
-func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int64, student *usersModels.Student, granting bool) error {
+func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int64, student *PortalStudent, granting bool) error {
 	changedAt := s.now()
 	before := *student
 	storedURL := ""
@@ -209,13 +211,13 @@ func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int
 		}
 		photos.ScheduleUnlinkAfterCommit(ctx, storedURL)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(tenantID, student.ID)
 	})
 	return nil
 }
 
-func (s *Service) loadChildConsents(ctx context.Context, student *usersModels.Student, canManage bool) ([]ChildConsent, error) {
+func (s *Service) loadChildConsents(ctx context.Context, student *PortalStudent, canManage bool) ([]ChildConsent, error) {
 	if s.StudentConsents == nil {
 		return nil, fmt.Errorf("parent: student consent service not wired")
 	}

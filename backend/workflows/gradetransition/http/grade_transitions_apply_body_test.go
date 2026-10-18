@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,7 @@ func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-body-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	// newApplyRequest posts a RAW body so a deliberately broken payload survives

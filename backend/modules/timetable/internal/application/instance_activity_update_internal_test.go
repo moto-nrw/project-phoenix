@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	broadcaster := &lifecycleEventRecorder{}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{Broadcaster: broadcaster}}
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{Broadcaster: broadcaster}}
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	touched := timetable.TouchedActivities{123: {
 		InstanceID: 456,
@@ -48,7 +49,7 @@ func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	broadcaster := &lifecycleEventRecorder{}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{Broadcaster: broadcaster}}
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{Broadcaster: broadcaster}}
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	touched := timetable.TouchedActivities{123: {Date: calendar.NewDate(2026, 7, 15)}}
 	rollback := errors.New("rollback")

@@ -19,6 +19,8 @@ import {
   listOperatorInvitations,
   resendOperatorInvitation,
   revokeOperatorInvitation,
+  deactivateOperator,
+  reactivateOperator,
   type OperatorInvitationsData,
 } from "~/lib/operator/operator-invitation-api";
 import type {
@@ -33,6 +35,7 @@ import {
 } from "~/components/ui/concept-section-header";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
@@ -82,7 +85,10 @@ export default function OperatorOperatorsPage() {
               onMutate={() => void mutate()}
             />
           )}
-          <OperatorsList operators={data.operators} />
+          <OperatorsList
+            operators={data.operators}
+            onMutate={() => void mutate()}
+          />
         </>
       )}
     </div>
@@ -351,7 +357,85 @@ function PendingInvitationsList({
 
 // --- Existing Operators List ---
 
-function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
+const berlinDate: Intl.DateTimeFormatOptions = {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+};
+
+function OperatorsList({
+  operators,
+  onMutate,
+}: {
+  readonly operators: OperatorInfo[];
+  readonly onMutate: () => void;
+}) {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<OperatorInfo | null>(
+    null,
+  );
+  const { success: toastSuccess } = useToast();
+  const { show: showReactivateError } = useApiErrorDisplay();
+  const deactivateErrors = useApiFormError();
+  const { show: showDeactivateError, clear: clearDeactivateError } =
+    deactivateErrors;
+
+  const openDeactivate = useCallback(
+    (operator: OperatorInfo) => {
+      clearDeactivateError();
+      setDeactivateTarget(operator);
+    },
+    [clearDeactivateError],
+  );
+
+  const handleDeactivate = useCallback(async () => {
+    if (!deactivateTarget) return;
+    clearDeactivateError();
+    setActionLoading(deactivateTarget.id);
+    try {
+      await deactivateOperator(deactivateTarget.id);
+      toastSuccess(`${deactivateTarget.displayName} wurde deaktiviert.`);
+      setDeactivateTarget(null);
+      onMutate();
+    } catch (err) {
+      logger.error("deactivate_operator_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showDeactivateError(err, { object: "das Deaktivieren des Kontos" });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [
+    deactivateTarget,
+    onMutate,
+    toastSuccess,
+    showDeactivateError,
+    clearDeactivateError,
+  ]);
+
+  const handleReactivate = useCallback(
+    async (operator: OperatorInfo) => {
+      setActionLoading(operator.id);
+      try {
+        await reactivateOperator(operator.id);
+        toastSuccess(`${operator.displayName} kann sich wieder anmelden.`);
+        onMutate();
+      } catch (err) {
+        logger.error("reactivate_operator_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showReactivateError(err, {
+          object: "das Aktivieren des Kontos",
+          retry: () => void handleReactivate(operator),
+        });
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [onMutate, toastSuccess, showReactivateError],
+  );
+
   return (
     <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
@@ -367,36 +451,97 @@ function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
           {operators.map((op) => (
             <div
               key={op.id}
-              className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+              className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">
                   {op.displayName}
                 </p>
                 <p className="truncate text-xs text-gray-500">{op.email}</p>
+                {op.deactivatedAt && (
+                  <p className="text-xs text-gray-500">
+                    Deaktiviert am{" "}
+                    {new Date(op.deactivatedAt).toLocaleDateString(
+                      "de-DE",
+                      berlinDate,
+                    )}
+                  </p>
+                )}
+                {op.deletionDueAt && (
+                  <p className="text-xs text-gray-500">
+                    Wird ab{" "}
+                    {new Date(op.deletionDueAt).toLocaleDateString(
+                      "de-DE",
+                      berlinDate,
+                    )}{" "}
+                    gelöscht
+                  </p>
+                )}
               </div>
-              <div className="ml-4 text-right">
+              <div className="flex items-center justify-between gap-2 sm:ml-4 sm:block sm:text-right">
                 {op.lastLogin ? (
                   <p className="text-xs text-gray-400">
                     Letzter Login:{" "}
-                    {new Date(op.lastLogin).toLocaleDateString("de-DE", {
-                      timeZone: "Europe/Berlin",
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    {new Date(op.lastLogin).toLocaleDateString(
+                      "de-DE",
+                      berlinDate,
+                    )}
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400">Noch nicht angemeldet</p>
                 )}
-                <div className="mt-1 flex justify-end">
+                <div className="flex items-center justify-end gap-2 sm:mt-1">
                   <DataTableStatusBadge active={op.active} />
+                  {op.isSelf ? (
+                    // Keeps the badge in line with the rows that carry a menu.
+                    <span aria-hidden="true" className="size-6" />
+                  ) : (
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${op.displayName}`}
+                      triggerSize="sm"
+                      items={[
+                        op.active
+                          ? {
+                              label: "Deaktivieren",
+                              destructive: true,
+                              disabled: actionLoading === op.id,
+                              onClick: () => openDeactivate(op),
+                            }
+                          : {
+                              label: "Wieder aktivieren",
+                              disabled: actionLoading === op.id,
+                              onClick: () => void handleReactivate(op),
+                            },
+                      ]}
+                    />
+                  )}
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={deactivateTarget !== null}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={() => void handleDeactivate()}
+        title="Konto deaktivieren"
+        confirmText="Deaktivieren"
+        confirmVariant="danger"
+        isConfirmLoading={actionLoading === deactivateTarget?.id}
+        isConfirmDisabled={actionLoading === deactivateTarget?.id}
+      >
+        <p>
+          Möchtest du das Konto von{" "}
+          <strong>{deactivateTarget?.email ?? ""}</strong> deaktivieren?
+        </p>
+        <p className="mt-2">
+          Die Person kann sich danach nicht mehr anmelden. Ohne erneute
+          Aktivierung löscht moto das Konto nach Ende des nächsten Jahres.
+        </p>
+        <FormErrorAlert message={deactivateErrors.error} className="mt-3" />
+      </ConfirmationModal>
     </div>
   );
 }

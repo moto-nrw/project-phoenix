@@ -3,7 +3,7 @@ package api
 import (
 	"errors"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -11,13 +11,13 @@ import (
 // The staff, teacher, guest and teaching-assignment adapters report their
 // failures in the retained repository error shape (models/users), so callers
 // keep classifying with errors.Is(err, sql.ErrNoRows) and
-// userModels.IsRepositoryNoRows(err) alike. They moved here from the
+// peoplePorts.IsRepositoryNoRows(err) alike. They moved here from the
 // repository composition with the adapters (#2743).
 
 // repositoryNotFound builds the not-found shape every retained repository
 // returns.
 func repositoryNotFound(op string) error {
-	return &userModels.DatabaseError{Op: op, Err: errors.Join(userModels.ErrRepositoryNotFound, transactionruntime.ErrNoRows)}
+	return &peoplePorts.DatabaseError{Op: op, Err: errors.Join(peoplePorts.ErrRepositoryNotFound, transactionruntime.ErrNoRows)}
 }
 
 // repositoryError wraps err in the retained repository error shape,
@@ -26,7 +26,7 @@ func repositoryError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &userModels.DatabaseError{Op: op, Err: err}
+	return &peoplePorts.DatabaseError{Op: op, Err: err}
 }
 
 // calendarDateString renders an optional calendar date as YYYY-MM-DD, empty

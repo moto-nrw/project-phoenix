@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -9,14 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// classArrivalExceptionRepository serves the retained class arrival exception
-// contract from the Timetable persistence adapter (#3220).
+// classArrivalExceptionRepository serves the retained contract over Timetable (#3220).
 type classArrivalExceptionRepository struct {
 	store *postgres.Store
 }
 
-// NewClassArrivalExceptionRepository binds the retained class arrival
-// exception contract. Timetable owns education.class_arrival_exceptions.
+// NewClassArrivalExceptionRepository binds Timetable-owned education.class_arrival_exceptions.
 func NewClassArrivalExceptionRepository(db *bun.DB) schedule.ClassArrivalExceptionRepository {
 	return classArrivalExceptionRepository{store: postgres.New(databaseRuntime(db))}
 }

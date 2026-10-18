@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"time"
 
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -41,6 +42,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -56,7 +58,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -67,8 +68,8 @@ import (
 type WorkforceWiring struct {
 	// ShiftRows and ShiftTypeRows serve the retained Dienstplan rows of the
 	// Timetable composition from Workforce.
-	ShiftRows     *arrivalTimetable.WorkforceShiftRows
-	ShiftTypeRows *arrivalTimetable.WorkforceShiftTypeRows
+	ShiftRows     timetablePorts.WorkforceShiftRows
+	ShiftTypeRows timetablePorts.WorkforceShiftTypeRows
 	// StaffAdmin composes the personnel-record administration.
 	StaffAdmin func(WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error)
 	// TimeTracking composes the time-tracking side of Workforce.
@@ -94,7 +95,7 @@ type WorkforceTimeTrackingSources struct {
 	Supervisions   studentpresence.SupervisionRecords
 	SessionRecords *presenceCompose.SessionRecords
 	Staff          timeTrackingStaffRows
-	People         *peopleCompose.PersonDirectory
+	People         peoplePorts.PersonDirectory
 	Holidays       workforceCompose.HolidayDatesReader
 	Settings       settingsCompose.SettingsService
 	Payroll        settingsCompose.PayrollStatusGetter
@@ -137,7 +138,7 @@ type PeopleWiring struct {
 	ClassTeachers ClassTeacherRepository
 	// CaregiverBindingLock serializes the caregiver capability re-check over
 	// the owners whose tables can retain the capability.
-	CaregiverBindingLock userModels.CaregiverBindingLocker
+	CaregiverBindingLock peoplePorts.CaregiverBindingLocker
 
 	// The directories of the School Structure group and substitution
 	// services.
@@ -168,27 +169,27 @@ type PeopleWiring struct {
 
 	// StudentAudit records the per-child change history through the People
 	// Directory.
-	StudentAudit peopleCompose.StudentAuditRecorder
+	StudentAudit peoplePorts.StudentAuditRecorder
 
 	// Care Plan's schedule rows in Timetable's retained vocabulary.
-	PickupSchedules   arrivalTimetable.CarePickupScheduleRows
-	ArrivalSchedules  arrivalTimetable.CareArrivalScheduleRows
-	PickupExceptions  arrivalTimetable.CarePickupExceptionRows
-	ArrivalExceptions arrivalTimetable.CareArrivalExceptionRows
+	PickupSchedules   timetablePorts.CarePickupScheduleRows
+	ArrivalSchedules  timetablePorts.CareArrivalScheduleRows
+	PickupExceptions  timetablePorts.CarePickupExceptionRows
+	ArrivalExceptions timetablePorts.CareArrivalExceptionRows
 
 	// Constructors over the values this graph composes.
 	SupervisionRecords       func(studentpresence.SupervisionRecords) studentpresence.SupervisionRecords
-	SupervisionBlockers      func(studentpresence.SupervisionRecords) peopleCompose.SupervisionBlockers
-	CaregiverIdentity        func(*identityaccess.Module) peopleCompose.CaregiverIdentity
-	CaregiverCapabilityAudit func(AuthEventAppender) peopleCompose.CaregiverCapabilityAudit
-	GuardianFinancialAudit   func(auditModels.GuardianFinancialChangeCreator) peopleCompose.GuardianFinancialAudit
-	GuardianDataAccessLog    func(DataAccessAppender) peopleCompose.GuardianDataAccessLog
+	SupervisionBlockers      func(studentpresence.SupervisionRecords) peoplePorts.SupervisionBlockers
+	CaregiverIdentity        func(*identityaccess.Module) peoplePorts.CaregiverIdentity
+	CaregiverCapabilityAudit func(AuthEventAppender) peoplePorts.CaregiverCapabilityAudit
+	GuardianFinancialAudit   func(auditModels.GuardianFinancialChangeCreator) peoplePorts.GuardianFinancialAudit
+	GuardianDataAccessLog    func(DataAccessAppender) peoplePorts.GuardianDataAccessLog
 	ClassAssignmentAudit     func(auditModels.StaffMasterDataChangeCreator) education.ClassAssignmentAudit
 	SubstitutionAudit        func(auditModels.SubstitutionChangeCreator) education.SubstitutionAudit
 	StudentConsents          func(StudentConsentAppender) StudentConsentRecords
-	StudentChangeLogCleanup  func(edits peopleCompose.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peopleCompose.StudentChangeLogCleanupService
-	StatusDayPeople          func(*peopleCompose.PersonDirectory) presenceservice.StatusDayOverviewPeople
-	GroupRosterPeople        func(*peopleCompose.PersonDirectory) GroupRoster
+	StudentChangeLogCleanup  func(edits peoplePorts.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peoplePorts.StudentChangeLogCleanupService
+	StatusDayPeople          func(peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople
+	GroupRosterPeople        func(peoplePorts.PersonDirectory) GroupRoster
 	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
 	ParentRequestCoordinator func(ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error)
 	ParentRequestWriteScope  func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
@@ -309,12 +310,12 @@ type EnrollmentCareBookings interface {
 
 // EnrollmentCarePeriods answers the parents portal's care periods.
 type EnrollmentCarePeriods interface {
-	CarePeriods(ctx context.Context, studentID int64) ([]*parentportalcompose.CarePeriod, error)
+	CarePeriods(ctx context.Context, studentID int64) ([]*parentportal.CarePeriod, error)
 }
 
 // EnrollmentOfferingHistory answers the parents portal's booked offerings.
 type EnrollmentOfferingHistory interface {
-	OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportalcompose.OfferingBooking, error)
+	OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportal.OfferingBooking, error)
 }
 
 // EnrollmentSettings is the slice of the settings service the Enrollment
@@ -685,7 +686,7 @@ type MasterDataDecisionWiring struct {
 	Fields      peopledirectory.StudentFieldReviewQuery
 	Students    masterDataStudentRows
 	Persons     masterDataPersonRows
-	Audit       peopleCompose.StudentChangeRecorder
+	Audit       peoplePorts.StudentChangeRecorder
 	Scope       careplanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
@@ -734,7 +735,7 @@ type PresenceWiring struct {
 	RoomService facilitiesCompose.RoomService
 	OpenGroups  facilitiesCompose.OpenGroupCatalog
 	// The running sessions and released rooms of the supervision dashboard.
-	OpenRoomSessions supervisiondashboardCompose.OpenRoomSessions
+	OpenRoomSessions SupervisionOpenRoomSessions
 	OpenRooms        supervisiondashboard.RoomDirectory
 	// StatusDays are the scheduled day statuses over Care Plan.
 	StatusDays studentpresence.StatusDays
@@ -745,7 +746,7 @@ type PresenceWiring struct {
 	// Constructors over the values this graph composes.
 	BindClassListEntries func(auditModels.Command) error
 	SessionDevices       func(devicefleetLegacy.SettingsResolver) presenceservice.SessionDeviceDirectory
-	AttendanceStaffNames func(*peopleCompose.PersonDirectory) presenceservice.AttendanceStaffNames
+	AttendanceStaffNames func(peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames
 	ClassDay             func(ClassDaySources) classday.ClassDay
 	Statistics           func(StatisticsSources) studentpresence.StatisticsReports
 }
@@ -845,7 +846,7 @@ type PlatformWiring struct {
 
 // GuardianDisplayQuery names the guardians of the Delivery recipients.
 type GuardianDisplayQuery interface {
-	GuardianDisplays(context.Context, []int64) ([]peopleCompose.GuardianDisplay, error)
+	GuardianDisplays(context.Context, []int64) ([]peoplePorts.GuardianDisplay, error)
 }
 
 // OperatorProvisioningSources are the values of this graph the root binds
@@ -891,7 +892,7 @@ type TimetableWiring struct {
 	Repositories arrivalTimetable.Repositories
 	// EducationGroupNames names School Structure's education groups for the
 	// Timetable owner rows (#3551).
-	EducationGroupNames arrivalTimetable.EducationGroupNames
+	EducationGroupNames timetablePorts.EducationGroupNames
 	// PlanningTracks is the planning-track administration the template
 	// writes and the plan export read.
 	PlanningTracks timetable.PlanningTrackAdministration
@@ -915,15 +916,15 @@ type TimetableWiring struct {
 	// Constructors over the values this graph composes.
 	AttendanceMirror       func(arrivalTimetable.OwnerRows, *slog.Logger) (studentpresence.AttendanceSyncer, error)
 	EndedSessionCompletion func(arrivalTimetable.OwnerRows, careplan.CareDayQuery) (timetable.EndedSessionCompletion, error)
-	DeviationPorts         func(TimetableDeviationTrail) (arrivalTimetable.DeviationEventReader, arrivalTimetable.DeviationProtocol)
+	DeviationPorts         func(TimetableDeviationTrail) (timetablePorts.DeviationEventReader, timetablePorts.DeviationProtocol)
 	ConflictDetection      func(TimetableConflictReaders) (timetable.ConflictDetectionCapability, error)
-	Lifecycle              func(TimetableLifecycleInputs) (*arrivalTimetable.InstanceLifecycleService, error)
-	StaffDeviations        func(TimetableDeviationInputs) (arrivalTimetable.StaffDeviationDependencies, error)
+	Lifecycle              func(TimetableLifecycleInputs) (timetablePorts.InstanceLifecycle, error)
+	StaffDeviations        func(TimetableDeviationInputs) (timetablePorts.StaffDeviationDependencies, error)
 	Cleanup                TimetableCleanupComposer
 	Operations             func(TimetableOperationInputs) (timetable.OperationCapability, error)
-	Materialization        func(TimetableMaterializationInputs) arrivalTimetable.MaterializationDependencies
+	Materialization        func(TimetableMaterializationInputs) timetablePorts.MaterializationDependencies
 	Data                   func(TimetableDataInputs) (timetable.TimetableDataCapability, error)
-	Templates              func(TimetableTemplateInputs) (arrivalTimetable.TemplateAdministrationDependencies, error)
+	Templates              func(TimetableTemplateInputs) (timetablePorts.TemplateAdministrationDependencies, error)
 	AttendanceCorrections  func(TimetableCorrectionInputs) (timetable.AttendanceCorrections, error)
 	Calendar               func(CalendarDependencies) calendarCompose.Application
 	AppointmentRenderer    func(defaultFrom email.Email) deliveryCompose.MailRenderer
@@ -965,17 +966,17 @@ type TimetableDeviationTrail interface {
 // ArrivalBaselines is optional (the exception-conflict read fails without
 // it); every other reader is required.
 type TimetableConflictReaders struct {
-	Instances         arrivalTimetable.ConflictInstances
-	InstanceStaff     arrivalTimetable.ConflictInstanceStaff
-	InstanceStudents  arrivalTimetable.ConflictInstanceStudents
-	Exceptions        arrivalTimetable.ConflictExceptions
-	Schedules         arrivalTimetable.ConflictSchedules
-	Staff             arrivalTimetable.ConflictStaffDirectory
-	CalendarPeriods   arrivalTimetable.ConflictCalendarPeriods
-	ArrivalExceptions arrivalTimetable.ConflictArrivalExceptions
-	Sessions          arrivalTimetable.ConflictSessions
-	Shifts            arrivalTimetable.ConflictShifts
-	Presence          arrivalTimetable.ConflictPresence
+	Instances         timetablePorts.ConflictInstances
+	InstanceStaff     timetablePorts.ConflictInstanceStaff
+	InstanceStudents  timetablePorts.ConflictInstanceStudents
+	Exceptions        timetablePorts.ConflictExceptions
+	Schedules         timetablePorts.ConflictSchedules
+	Staff             timetablePorts.ConflictStaffDirectory
+	CalendarPeriods   timetablePorts.ConflictCalendarPeriods
+	ArrivalExceptions timetablePorts.ConflictArrivalExceptions
+	Sessions          timetablePorts.ConflictSessions
+	Shifts            timetablePorts.ConflictShifts
+	Presence          timetablePorts.ConflictPresence
 	ArrivalBaselines  careplan.ArrivalBaselineReader
 	Logger            *slog.Logger
 }
@@ -988,14 +989,14 @@ type TimetableConflictReaders struct {
 // is filled from these inputs. Broadcaster and GuardianNotices are optional.
 type TimetableLifecycleInputs struct {
 	Rows                arrivalTimetable.OwnerRows
-	Planning            arrivalTimetable.InstanceLifecycleDependencies
-	Staff               arrivalTimetable.LifecycleStaff
+	Planning            timetablePorts.InstanceLifecycleDependencies
+	Staff               timetablePorts.LifecycleStaff
 	Sessions            studentpresence.SessionRecords
 	Supervisions        studentpresence.SupervisionRecords
-	Presence            arrivalTimetable.LifecyclePresence
-	SessionEnder        arrivalTimetable.SessionEnder
+	Presence            timetablePorts.LifecyclePresence
+	SessionEnder        timetablePorts.SessionEnder
 	CareDays            careplan.CareDayQuery
-	CareDayLocks        arrivalTimetable.CareDayLocks
+	CareDayLocks        timetablePorts.CareDayLocks
 	GuardianNotices     communication.CareCancellationPublisher
 	Settings            TimetableSettings
 	Materialization     timetable.MaterializationCapability
@@ -1015,9 +1016,9 @@ type TimetableLifecycleInputs struct {
 // adds its database handle to the dependencies they bind.
 type TimetableDeviationInputs struct {
 	Rows         arrivalTimetable.OwnerRows
-	Staff        arrivalTimetable.DeviationStaff
+	Staff        timetablePorts.DeviationStaff
 	Supervisions studentpresence.SupervisionRecords
-	Lifecycle    arrivalTimetable.DeviationLifecycle
+	Lifecycle    timetablePorts.DeviationLifecycle
 	Broadcaster  realtime.Broadcaster
 	Logger       *slog.Logger
 	Now          func() time.Time
@@ -1029,7 +1030,7 @@ type TimetableDeviationInputs struct {
 type TimetableCorrectionInputs struct {
 	Rows   arrivalTimetable.OwnerRows
 	Trail  attendanceCorrectionLedger
-	People arrivalTimetable.CorrectionPeople
+	People timetablePorts.CorrectionPeople
 	Logger *slog.Logger
 }
 
@@ -1090,14 +1091,14 @@ type TimetableOperationInputs struct {
 	PlanningTracks timetable.PlanningTrackQuery
 	Sessions       studentpresence.SessionRecords
 	Supervisions   studentpresence.SupervisionRecords
-	Visits         arrivalTimetable.OperationVisits
+	Visits         timetablePorts.OperationVisits
 	Presence       TimetableOperationPresence
-	People         arrivalTimetable.OperationPeople
+	People         timetablePorts.OperationPeople
 	Settings       TimetableSettings
 	CareDays       careplan.CareDayQuery
 	Arrivals       EffectiveArrivalTimes
 	Pickups        EffectivePickupTimes
-	Lifecycle      arrivalTimetable.OperationLifecycle
+	Lifecycle      timetablePorts.OperationLifecycle
 	Broadcaster    realtime.Broadcaster
 	Logger         *slog.Logger
 	Now            func() time.Time
@@ -1112,11 +1113,11 @@ type TimetableDataInputs struct {
 	Rows             arrivalTimetable.OwnerRows
 	ArrivalBaselines careplan.ArrivalBaselineReader
 	PickupBaselines  careplan.PickupBaselineReader
-	Visits           arrivalTimetable.OperationVisits
-	Groups           arrivalTimetable.DataGroups
+	Visits           timetablePorts.OperationVisits
+	Groups           timetablePorts.DataGroups
 	Sessions         studentpresence.SessionRecords
 	ConflictAcks     timetable.ConflictAckCapability
-	BlockMetadata    arrivalTimetable.BlockDisplayMetadata
+	BlockMetadata    timetablePorts.BlockDisplayMetadata
 	Transactional    bool
 	Logger           *slog.Logger
 }
@@ -1128,7 +1129,7 @@ type TimetableDataInputs struct {
 // database handle to the dependencies they bind.
 type TimetableMaterializationInputs struct {
 	Rows           arrivalTimetable.TemplateRows
-	CareBounds     arrivalTimetable.CareBoundReader
+	CareBounds     timetablePorts.CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Broadcaster    realtime.Broadcaster
@@ -1142,9 +1143,9 @@ type TimetableMaterializationInputs struct {
 // dependencies they bind.
 type TimetableTemplateInputs struct {
 	Rows                 arrivalTimetable.TemplateRows
-	PlanningTracks       arrivalTimetable.PlanningTrackAssignments
+	PlanningTracks       timetablePorts.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
-	Deviations           arrivalTimetable.SeriesDeviations
+	Deviations           timetablePorts.SeriesDeviations
 	CareOfferings        careplan.CareOfferingGuards
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
@@ -1220,11 +1221,11 @@ type CalendarFacts struct {
 	StudentGuardianRepo  calendarRelationshipRows
 	ChildRepo            ParentChildLinkSource
 	GroupRepo            EducationGroupRepository
-	InstanceStaffRepo    arrivalTimetable.CalendarAssignmentRows
-	ActivityInstanceRepo arrivalTimetable.CalendarInstanceRows
+	InstanceStaffRepo    timetablePorts.CalendarAssignmentRows
+	ActivityInstanceRepo timetablePorts.CalendarInstanceRows
 	RoomRepo             facilitiesCompose.RoomRows
-	StaffShiftRepo       arrivalTimetable.CalendarShiftRows
-	ShiftTypeRepo        arrivalTimetable.CalendarShiftTypeRows
+	StaffShiftRepo       timetablePorts.CalendarShiftRows
+	ShiftTypeRepo        timetablePorts.CalendarShiftTypeRows
 	SchoolRepo           organizationtenancy.Query
 	AccountRepo          identityaccess.ParentCalendarFeeds
 	StaffFeedRepo        identityaccess.StaffCalendarFeeds

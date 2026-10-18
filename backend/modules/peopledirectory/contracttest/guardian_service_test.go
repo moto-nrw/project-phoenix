@@ -15,6 +15,7 @@ import (
 
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func isProfileLockTimeout(err error) bool {
 }
 
 // setupGuardianService creates a GuardianService with real database connection
-func setupGuardianService(t *testing.T, db *bun.DB) *peopleCompose.GuardianService {
+func setupGuardianService(t *testing.T, db *bun.DB) peoplePorts.GuardianService {
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
@@ -57,7 +58,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian successfully", func(t *testing.T) {
 		// ARRANGE - use unique email to avoid collisions
 		email := fmt.Sprintf("test-guardian-%d@example.com", time.Now().UnixNano())
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Test",
 			LastName:               "Guardian",
 			Email:                  &email,
@@ -83,7 +84,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian with defaults", func(t *testing.T) {
 		// ARRANGE - testing default language and contact method
 		// Note: Phone numbers are now added separately via AddPhoneNumber
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "Default",
 			LastName:  "Guardian",
 		}
@@ -102,7 +103,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian without email", func(t *testing.T) {
 		// ARRANGE - guardian can be created without email
 		// Phone numbers are added separately via AddPhoneNumber
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "NoEmail",
 			LastName:  "Guardian",
 		}
@@ -132,7 +133,7 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	email := fmt.Sprintf("dup-guardian-%d@example.com", time.Now().UnixNano())
-	req := peopleCompose.GuardianCreateRequest{
+	req := peoplePorts.GuardianCreateRequest{
 		FirstName:              "First",
 		LastName:               "Guardian",
 		Email:                  &email,
@@ -153,7 +154,7 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, second)
-	_, isValidation := peopleCompose.ValidationFailure(err)
+	_, isValidation := peoplePorts.ValidationFailure(err)
 	require.True(t, isValidation, "duplicate email must be a ValidationError → 400, not a 500")
 	assert.Contains(t, err.Error(), "bereits vergeben")
 	assert.Contains(t, err.Error(), "Suche")
@@ -215,7 +216,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 		// Use unique email to avoid collisions
 		newEmail := fmt.Sprintf("updated-%d@example.com", time.Now().UnixNano())
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Updated",
 			LastName:               "Name",
 			Email:                  &newEmail,
@@ -238,7 +239,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "NonExistent",
 			LastName:  "Guardian",
 		}
@@ -255,7 +256,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		other := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-other")
 		target := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-target")
 
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Target",
 			LastName:               "Guardian",
 			Email:                  other.Email, // steal the other guardian's email
@@ -268,7 +269,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 		// ASSERT — must be a ValidationError (→ 400), never a raw 500 from 23505.
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation, "duplicate email on update must be a ValidationError → 400")
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
@@ -277,7 +278,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		// ARRANGE — a guardian kept at its own email is NOT a collision with itself.
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update-self")
 
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Renamed",
 			LastName:               "Same-Email",
 			Email:                  profile.Email, // unchanged
@@ -311,7 +312,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-delete")
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Sabine Schneider"),
 		}, 1, ""))
@@ -370,7 +371,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// (the #819 sibling-data-loss bug).
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "restrict-linked")
 		student := testpkg.CreateTestStudent(t, db, "Restrict", "Linked", "1a")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -405,7 +406,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	siblingA := testpkg.CreateTestStudent(t, db, "Sibling", "Aaa", "1a")
 	siblingB := testpkg.CreateTestStudent(t, db, "Sibling", "Bbb", "1a")
 	for _, s := range []int64{siblingA.ID, siblingB.ID} {
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         s,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -462,7 +463,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete-stale")
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Changed", "1a")
 
-	_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+	_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -474,7 +475,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
 	})
 
-	require.ErrorIs(t, err, peopleCompose.ErrGuardianDeletePreviewChanged)
+	require.ErrorIs(t, err, peoplePorts.ErrGuardianDeletePreviewChanged)
 	survivor, err := service.GetGuardianByID(ctx, guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor, "guardian must survive when preview token is stale")
@@ -500,7 +501,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-to-student")
 		student := testpkg.CreateTestStudent(t, db, "Linked", "Student", "1a")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -527,7 +528,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "relink")
 		student := testpkg.CreateTestStudent(t, db, "Relink", "Student", "1c")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -566,7 +567,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "upsert")
 		student := testpkg.CreateTestStudent(t, db, "Upsert", "Student", "1d")
 
-		first, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		first, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -578,7 +579,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		require.NotNil(t, first)
 
 		// ACT — re-link the SAME guardian with DIFFERENT relationship flags.
-		second, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		second, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "guardian",
@@ -616,7 +617,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: 99999999,
 			RelationshipType:  "parent",
@@ -635,7 +636,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "orphan-guardian")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         99999999,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -654,7 +655,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-pickup-only")
 		student := testpkg.CreateTestStudent(t, db, "PickupOnly", "Student", "4a")
 
-		result, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		result, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "relative",
@@ -675,7 +676,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-primary-role")
 		student := testpkg.CreateTestStudent(t, db, "PrimaryRole", "Student", "4a")
 
-		result, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		result, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -710,7 +711,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "HasGuardian", "Student", "2a")
 
 		// Link guardian to student
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -736,7 +737,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
 		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -796,7 +797,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "GuardianChild", "Student", "3a")
 
 		// Link guardian to student
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
@@ -817,7 +818,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "alumnus-child")
 		student := testpkg.CreateTestStudent(t, db, "Former", "Student", "4a")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
@@ -867,7 +868,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RelGet", "Student", "4a")
 
 		// Create relationship
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -912,7 +913,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RelUpdate", "Student", "5a")
 
 		// Create relationship
-		createReq := peopleCompose.StudentGuardianCreateRequest{
+		createReq := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -928,7 +929,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		canPickup := true
 		pickupNotes := "Nur mit Ausweis"
 		emergencyPriority := 2
-		updateReq := peopleCompose.StudentGuardianUpdateRequest{
+		updateReq := peoplePorts.StudentGuardianUpdateRequest{
 			RelationshipType:   &newType,
 			IsPrimary:          &isPrimary,
 			IsEmergencyContact: &isEmergencyContact,
@@ -959,7 +960,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-role")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateRole", "Student", "5b")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -970,7 +971,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		require.True(t, testpkg.GuardianPermissionsGrant(created.Permissions, testpkg.GuardianPermissionPortalAccess))
 
 		role := testpkg.GuardianRoleEmergency
-		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peopleCompose.StudentGuardianUpdateRequest{
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peoplePorts.StudentGuardianUpdateRequest{
 			GuardianRole: &role,
 		})
 		require.NoError(t, err)
@@ -986,7 +987,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-all")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateAll", "Student", "5b")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -1004,7 +1005,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		pickupNotes := "Nur mit Ausweis"
 		emergencyPriority := 3
 
-		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peopleCompose.StudentGuardianUpdateRequest{
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peoplePorts.StudentGuardianUpdateRequest{
 			RelationshipType:   &newType,
 			IsPrimary:          &isPrimary,
 			IsEmergencyContact: &isEmergencyContact,
@@ -1032,7 +1033,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-payer")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdatePayer", "Student", "5c")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1047,7 +1048,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 
 		canPickup := true
 		require.NoError(t, service.UpdateStudentGuardianRelationship(ctx, created.ID,
-			peopleCompose.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
+			peoplePorts.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
 
 		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
 		require.NoError(t, err)
@@ -1059,7 +1060,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		missingID := time.Now().UnixNano()
 		isPrimary := true
 
-		err := service.UpdateStudentGuardianRelationship(ctx, missingID, peopleCompose.StudentGuardianUpdateRequest{
+		err := service.UpdateStudentGuardianRelationship(ctx, missingID, peoplePorts.StudentGuardianUpdateRequest{
 			IsPrimary: &isPrimary,
 		})
 
@@ -1072,16 +1073,16 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 // New Student Guardian Batch Tests
 // =============================================================================
 
-func validNewStudentGuardian(email string) peopleCompose.NewStudentGuardian {
-	return peopleCompose.NewStudentGuardian{
-		Profile: peopleCompose.GuardianCreateRequest{
+func validNewStudentGuardian(email string) peoplePorts.NewStudentGuardian {
+	return peoplePorts.NewStudentGuardian{
+		Profile: peoplePorts.GuardianCreateRequest{
 			FirstName:              "Batch",
 			LastName:               "Guardian",
 			Email:                  &email,
 			PreferredContactMethod: "email",
 			LanguagePreference:     "de",
 		},
-		Relationship: peopleCompose.StudentGuardianRelationship{
+		Relationship: peoplePorts.StudentGuardianRelationship{
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		},
@@ -1103,7 +1104,7 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req.ExistingProfileID = &profile.ID
 		req.Relationship.RelationshipType = "guardian"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.NoError(t, err)
 	})
 
@@ -1112,9 +1113,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		first := validNewStudentGuardian(email)
 		second := validNewStudentGuardian("  " + email + "  ")
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{first, second})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{first, second})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "mehrfach angegeben")
 	})
@@ -1124,9 +1125,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		req := validNewStudentGuardian(*profile.Email)
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
@@ -1138,9 +1139,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req.ExistingProfileID = &profile.ID
 		req.Relationship.RelationshipType = "invalid"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1152,9 +1153,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian("")
 		req.ExistingProfileID = &missingID
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ausgewählte Person nicht gefunden")
 	})
@@ -1164,9 +1165,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian(email)
 		req.Relationship.RelationshipType = "friend"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1176,9 +1177,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian(email)
 		req.Relationship.EmergencyPriority = 0
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Notfall-Priorität")
 	})
@@ -1187,9 +1188,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		email := "not-an-email"
 		req := validNewStudentGuardian(email)
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiges E-Mail-Format")
 	})
@@ -1197,14 +1198,14 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 	t.Run("rejects invalid phone number", func(t *testing.T) {
 		email := fmt.Sprintf("bad-phone-%d@example.com", time.Now().UnixNano())
 		req := validNewStudentGuardian(email)
-		req.PhoneNumbers = []peopleCompose.PhoneNumberCreateRequest{{
+		req.PhoneNumbers = []peoplePorts.PhoneNumberCreateRequest{{
 			PhoneNumber: "12",
 			PhoneType:   "mobile",
 		}}
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := service.ValidateNewGuardians(ctx, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Telefonnummer")
 	})
@@ -1223,13 +1224,13 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 
 		email := fmt.Sprintf("batch-add-%d@example.com", time.Now().UnixNano())
 		req := validNewStudentGuardian(email)
-		req.PhoneNumbers = []peopleCompose.PhoneNumberCreateRequest{{
+		req.PhoneNumbers = []peoplePorts.PhoneNumberCreateRequest{{
 			PhoneNumber: "+49 221 123456",
 			PhoneType:   "mobile",
 			IsPrimary:   true,
 		}}
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{req})
+		err := service.AddGuardiansToStudent(ctx, student.ID, []peoplePorts.NewStudentGuardian{req})
 		require.NoError(t, err)
 
 		guardians, err := service.GetStudentGuardians(ctx, student.ID)
@@ -1249,7 +1250,7 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		second.ExistingProfileID = &profile.ID
 		second.Relationship.IsEmergencyContact = true
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{first, second})
+		err := service.AddGuardiansToStudent(ctx, student.ID, []peoplePorts.NewStudentGuardian{first, second})
 		require.NoError(t, err)
 
 		guardians, err := service.GetStudentGuardians(ctx, student.ID)
@@ -1266,10 +1267,10 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		req := validNewStudentGuardian(fmt.Sprintf("batch-invalid-%d@example.com", time.Now().UnixNano()))
 		req.Relationship.RelationshipType = "friend"
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{req})
+		err := service.AddGuardiansToStudent(ctx, student.ID, []peoplePorts.NewStudentGuardian{req})
 
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1279,7 +1280,7 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		email := fmt.Sprintf("batch-link-missing-%d@example.com", missingStudentID)
 		req := validNewStudentGuardian(email)
 
-		err := service.AddGuardiansToStudent(ctx, missingStudentID, []peopleCompose.NewStudentGuardian{req})
+		err := service.AddGuardiansToStudent(ctx, missingStudentID, []peoplePorts.NewStudentGuardian{req})
 		t.Cleanup(func() {
 			_, _ = db.NewDelete().TableExpr("users.guardian_profiles").
 				Where("email = ?", email).Exec(context.Background())
@@ -1303,7 +1304,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
 		student := testpkg.CreateTestStudent(t, db, "Picker", "Child", "8a")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -1367,7 +1368,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RemoveGuardian", "Student", "6a")
 
 		// Create relationship
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1403,7 +1404,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "payer-keep")
 		student := testpkg.CreateTestStudent(t, db, "KeepPayer", "Student", "6c")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1415,7 +1416,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
 
 		// ASSERT
-		require.ErrorIs(t, err, peopleCompose.ErrPayerRemovalRequiresFinancial)
+		require.ErrorIs(t, err, peoplePorts.ErrPayerRemovalRequiresFinancial)
 		guardians, err := service.GetStudentGuardians(ctx, student.ID)
 		require.NoError(t, err)
 		require.Len(t, guardians, 1, "the relationship must survive the refusal")
@@ -1437,7 +1438,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "not-payer")
 		student := testpkg.CreateTestStudent(t, db, "NotPayer", "Student", "6d")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1608,7 +1609,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "first-phone")
 
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 123 456789",
 			PhoneType:   "mobile",
 		}
@@ -1630,14 +1631,14 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "second-phone")
 
 		// Add first phone
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
 		// Add second phone
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		}
@@ -1658,7 +1659,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "explicit-primary")
 
 		// Add first phone
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
@@ -1666,7 +1667,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 
 		// Add second phone as primary
 		label := "Hauptnummer"
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "home",
 			Label:       &label,
@@ -1695,7 +1696,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-type")
 
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "invalid_type",
 		}
@@ -1719,7 +1720,7 @@ func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 555 555555",
 			PhoneType:   "mobile",
 		}
@@ -1750,7 +1751,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-fields")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 666 666666",
 			PhoneType:   "mobile",
 		})
@@ -1759,7 +1760,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		newNumber := "+49 777 777777"
 		newType := "work"
 		newLabel := "Büro"
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			PhoneNumber: &newNumber,
 			PhoneType:   &newType,
 			Label:       &newLabel,
@@ -1784,13 +1785,13 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
 
 		// Create two phones
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
@@ -1798,7 +1799,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 
 		// Make phone2 primary
 		isPrimary := true
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			IsPrimary: &isPrimary,
 		}
 
@@ -1823,7 +1824,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 888 888888",
 			PhoneType:   "mobile",
 			IsPrimary:   true,
@@ -1831,7 +1832,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		isPrimary := false
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			IsPrimary: &isPrimary,
 		}
 
@@ -1850,14 +1851,14 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-priority")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 999 999999",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
 		newPriority := 5
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			Priority: &newPriority,
 		}
 
@@ -1884,7 +1885,7 @@ func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ARRANGE
 		newNumber := "+49 000 000000"
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			PhoneNumber: &newNumber,
 		}
 
@@ -1913,13 +1914,13 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-non-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
@@ -1945,13 +1946,13 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "work",
 		})
@@ -1980,7 +1981,7 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-last")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 555 555555",
 			PhoneType:   "mobile",
 		})
@@ -2033,13 +2034,13 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
@@ -2098,19 +2099,19 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-phones")
 
 		// Add three phones
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		_, err = service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err = service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
 		require.NoError(t, err)
 
-		_, err = service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err = service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "home",
 		})
@@ -2163,7 +2164,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
 
 		label := "Hauptnummer"
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "mobile",
 			Label:       &label,
@@ -2228,7 +2229,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
 			}()
 
-			_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+			_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
 			})
 			require.NoError(t, err)
@@ -2279,7 +2280,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 	}()
 
 	// Seed one phone so the update/delete writers have a live target.
-	seedPhone, err := service.AddPhoneNumber(ctx, profile.ID, peopleCompose.PhoneNumberCreateRequest{
+	seedPhone, err := service.AddPhoneNumber(ctx, profile.ID, peoplePorts.PhoneNumberCreateRequest{
 		PhoneNumber: "0151 1234567",
 		PhoneType:   "mobile",
 	})
@@ -2292,19 +2293,19 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		run  func(runCtx context.Context) error
 	}{
 		{"UpdateGuardian", func(runCtx context.Context) error {
-			return service.UpdateGuardian(runCtx, profile.ID, peopleCompose.GuardianCreateRequest{
+			return service.UpdateGuardian(runCtx, profile.ID, peoplePorts.GuardianCreateRequest{
 				FirstName: "Locked", LastName: "Name",
 			})
 		}},
 		{"AddPhoneNumber", func(runCtx context.Context) error {
-			_, e := service.AddPhoneNumber(runCtx, profile.ID, peopleCompose.PhoneNumberCreateRequest{
+			_, e := service.AddPhoneNumber(runCtx, profile.ID, peoplePorts.PhoneNumberCreateRequest{
 				PhoneNumber: "0151 7654321", PhoneType: "mobile",
 			})
 			return e
 		}},
 		{"UpdatePhoneNumber", func(runCtx context.Context) error {
 			label := "Aktualisiert"
-			return service.UpdatePhoneNumber(runCtx, seedPhone.ID, peopleCompose.PhoneNumberUpdateRequest{Label: &label})
+			return service.UpdatePhoneNumber(runCtx, seedPhone.ID, peoplePorts.PhoneNumberUpdateRequest{Label: &label})
 		}},
 		{"SetPrimaryPhone", func(runCtx context.Context) error {
 			return service.SetPrimaryPhone(runCtx, seedPhone.ID)
@@ -2369,7 +2370,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	}()
 
 	require.NoError(t, repoFactory.GuardianProfile.LinkAccount(ctx, guardian.ID, account.ID))
-	_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+	_, err := service.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "other",
@@ -2443,18 +2444,18 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	t.Run("new IBAN with the same last four digits", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "same-tail")
 
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN: strPtr("DE89370400440532013000"),
 		}, 1, ""))
 
 		// ACT: valid IBAN, same "3000" tail, different account.
-		err := service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		err := service.UpdateGuardianPayment(ctx, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN: strPtr("DE84120300000000203000"),
 		}, 1, "")
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		stored, err := peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID(ctx, profile.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.IBAN)
@@ -2470,20 +2471,20 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	t.Run("renamed account holder behind the fixed mask", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "holder-rename")
 
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Sabine Schneider"),
 		}, 1, ""))
 
 		// ACT
-		err := service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		err := service.UpdateGuardianPayment(ctx, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Peter Schneider"),
 		}, 1, "")
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		stored, err := peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID(ctx, profile.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.AccountHolder)

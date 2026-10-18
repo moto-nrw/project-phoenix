@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -7,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -140,7 +142,7 @@ func NewServiceGraphForTestsWithConfig(repos *RepositoryTestFactory, db transact
 // CarePlanWiring builds the Care Plan wiring over the test owners, the given
 // Care Plan and People Directory repositories, as the serving root does
 // (#4011).
-func (owners OwnerCapabilities) CarePlanWiring(db transactionruntime.Database, carePlan careplan.Capability, people PeopleWiring, auditActor peopleCompose.RequestAuditActor, logger *slog.Logger) (CarePlanWiring, error) {
+func (owners OwnerCapabilities) CarePlanWiring(db transactionruntime.Database, carePlan careplan.Capability, people PeopleWiring, auditActor peoplePorts.RequestAuditActor, logger *slog.Logger) (CarePlanWiring, error) {
 	root, err := newCarePlanWiring(carePlanWiringOwners{
 		DB: db, Logger: logger, CarePlan: carePlan, Persons: owners.Persons, Membership: owners.Membership,
 		Timetable: owners.Timetable, Calendar: owners.Calendar, People: people, AuditActor: auditActor,

@@ -13,10 +13,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -58,7 +54,7 @@ func (c CareScheduleRequestCapabilities) Any() bool {
 // configured set, matching the diff convention).
 type CareScheduleWeekday struct {
 	Weekday int
-	Status  careplan.CareDayStatus
+	Status  CareDayStatus
 	Arrival string
 	Pickup  string
 	Modes   []string
@@ -106,7 +102,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view := &ChildCareSchedule{}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
 			return err
 		}
@@ -129,7 +125,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view.RequestCapabilities = capabilities
-	view.CanRequest = child.HasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any()
+	view.CanRequest = child.HasPermission(GuardianPermissionRequestSubmit) && capabilities.Any()
 	return view, nil
 }
 
@@ -138,7 +134,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 // parent_portal.request.submit and the field-level school settings. Messaging
 // is independent: notification pills are best-effort when messages are on.
 func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +161,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		return nil, ErrCareRequestFieldDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -262,8 +258,8 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	}
 	hasCarePlan := len(arrivals) > 0 || len(pickups) > 0
 
-	weekdays := make([]CareScheduleWeekday, 0, len(usersModels.PickupDayOrder))
-	for i, abbrev := range usersModels.PickupDayOrder {
+	weekdays := make([]CareScheduleWeekday, 0, len(s.DeparturePolicy.DayOrder()))
+	for i, abbrev := range s.DeparturePolicy.DayOrder() {
 		wd := i + 1
 		status := careDayStatus(hasCarePlan, arrivalCareDays[wd], arrivalByDay[wd], pickupByDay[wd])
 		modes := student.AllowedDepartureModes[abbrev]
@@ -271,11 +267,11 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		for _, m := range modes {
 			keys = append(keys, string(m))
 		}
-		if len(keys) == 0 && status == careplan.CareDayScheduled {
+		if len(keys) == 0 && status == CareDayScheduled {
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
-			keys = []string{string(usersModels.DepartureAlone)}
+			keys = []string{string(DepartureAlone)}
 		}
 		weekdays = append(weekdays, CareScheduleWeekday{
 			Weekday: wd,
@@ -321,14 +317,14 @@ func pendingCareRequest(
 	}
 }
 
-func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) careplan.CareDayStatus {
+func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) CareDayStatus {
 	if hasArrivalDay || arrival != "" || pickup != "" {
-		return careplan.CareDayScheduled
+		return CareDayScheduled
 	}
 	if hasCarePlan {
-		return careplan.CareDayNotScheduled
+		return CareDayNotScheduled
 	}
-	return careplan.CareDayUnknown
+	return CareDayUnknown
 }
 
 // hasActiveAbsenceToday reports whether the child has any active scheduled
@@ -390,7 +386,7 @@ func (s *Service) EditCareScheduleRequest(
 		return nil, ErrInvalidCareRequestPayload
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -425,7 +421,7 @@ func MapCareRequestError(err error, op string) error {
 		return ErrCareRequestAlreadyPending
 	case errors.Is(err, carerequests.ErrInvalidPayload):
 		return ErrInvalidCareRequestPayload
-	case errors.Is(err, careplan.ErrPickupChangeCutoffPassed):
+	case errors.Is(err, carerequests.ErrPickupChangeCutoffPassed):
 		return ErrPickupChangeCutoffPassed
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)

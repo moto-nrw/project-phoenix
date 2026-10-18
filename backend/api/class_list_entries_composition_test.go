@@ -135,6 +135,13 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Klassenlisteneintrag nicht gefunden")
 
+	// A different school may have an audit row with the same historical entry
+	// ID. The trail below belongs only to this test's school.
+	foreignTenantID, _ := testpkg.CreateTestTenant(t, db)
+	_, err := db.NewRaw(`INSERT INTO audit.class_list_entry_changes (tenant_id, entry_id, action, changed_by)
+		VALUES (?, ?, 'assigned', ?)`, foreignTenantID, entryID, claims.ID).Exec(t.Context())
+	require.NoError(t, err)
+
 	// Entries carry children's names, so every write leaves a trace (#2382).
 	// The trail is written by the owner through the shared Audit command, in
 	// the same transaction as the change it describes.
@@ -202,6 +209,7 @@ func classListEntryTrail(t *testing.T, db *testpkg.DB, entryID int64) []classLis
 	require.NoError(t, db.NewSelect().
 		ColumnExpr(`"change".action, "change".old_value, "change".new_value, "change".matched_student_id, "change".changed_by`).
 		TableExpr(`audit.class_list_entry_changes AS "change"`).
+		Where(`"change".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"change".entry_id = ?`, entryID).
 		OrderExpr(`"change".id ASC`).
 		Scan(testpkg.Ctx(t), &rows))

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // Every refusal the Anmeldung screens can meet answers with a registered code,
@@ -192,7 +193,7 @@ func TestDecideErrors_CarryCodes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		w := httptest.NewRecorder()
-		renderDecideError(w, httptest.NewRequest(http.MethodPost, "/x", nil), tc.err)
+		(&Resource{Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}}).renderDecideError(w, httptest.NewRequest(http.MethodPost, "/x", nil), tc.err)
 		assert.Equal(t, tc.status, w.Code)
 		assert.Equal(t, tc.code, readCodedAnswer(t, w).Code)
 	}
@@ -206,7 +207,8 @@ func TestRolloverError_RejectedValueKeepsItsCode(t *testing.T) {
 	}, 1)
 	require.Error(t, err)
 
-	created := &Resource{RolloverService: &mockRolloverService{}}
+	created := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, RolloverService: &mockRolloverService{}}
 	router := chi.NewRouter()
 	router.Post("/admin/phases/{id}/rollover", created.createRollover)
 	createW := httptest.NewRecorder()
@@ -220,7 +222,8 @@ func TestRolloverError_RejectedValueKeepsItsCode(t *testing.T) {
 	require.Len(t, body.Errors, 1)
 	assert.Equal(t, "rollover_deadline", body.Errors[0].Field)
 
-	rs := &Resource{}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}}
 	w := httptest.NewRecorder()
 	wrapped := capability.InvalidInput(capability.CodePhaseNameRequired, "name",
 		fmt.Errorf("%w: name is required", capability.ErrRolloverInvalidRequest))

@@ -7,6 +7,7 @@ package messaging
 import (
 	"testing"
 
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,7 +45,7 @@ func TestMessageEmailCopyCoversEveryLocale(t *testing.T) {
 	for field, pick := range fields {
 		got := map[string]string{}
 		for _, locale := range parentEmailLocales {
-			got[locale] = pick(messageEmailCopy(locale, "Anna", "Nowak", "Grundschule Musterstadt", ""))
+			got[locale] = pick(messageEmailCopy(locale, "Anna", "Nowak", "Grundschule Musterstadt", "", deliveryPolicy.ParentDeliveryPolicy{}))
 		}
 		assertDistinctEmailField(t, field, got)
 	}
@@ -54,7 +55,7 @@ func TestMessageEmailCopyWithoutSchoolUsesNeutralFooter(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range parentEmailLocales {
-		copy := messageEmailCopy(locale, "", "", "", "")
+		copy := messageEmailCopy(locale, "", "", "", "", deliveryPolicy.ParentDeliveryPolicy{})
 		assert.NotEmpty(t, copy.FooterText, "locale %s", locale)
 		assert.NotEmpty(t, copy.Greeting, "locale %s", locale)
 		assert.NotContains(t, copy.Intro, "  ", "locale %s intro has a double space without a school", locale)
@@ -64,5 +65,5 @@ func TestMessageEmailCopyWithoutSchoolUsesNeutralFooter(t *testing.T) {
 func TestMessageEmailCopyFallsBackToGerman(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, messageEmailCopy("de", "", "", "", ""), messageEmailCopy("fr", "", "", "", ""))
+	assert.Equal(t, messageEmailCopy("de", "", "", "", "", deliveryPolicy.ParentDeliveryPolicy{}), messageEmailCopy("fr", "", "", "", "", deliveryPolicy.ParentDeliveryPolicy{}))
 }

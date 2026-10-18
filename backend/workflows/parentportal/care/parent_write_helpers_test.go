@@ -6,25 +6,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
 func TestChildHasPermission(t *testing.T) {
 	t.Parallel()
 
-	child := &parentModels.ChildSummary{
-		GuardianPermissions: map[string]interface{}{
-			authorize.GuardianPermissionPortalAccess: true,
-			authorize.GuardianPermissionNotesWrite:   false,
+	child := &ChildSummary{
+		GuardianPermissions: map[string]bool{
+			GuardianPermissionPortalAccess: true,
+			GuardianPermissionNotesWrite:   false,
 		},
 	}
 
-	assert.True(t, childHasPermission(child, authorize.GuardianPermissionPortalAccess))
-	assert.False(t, childHasPermission(child, authorize.GuardianPermissionNotesWrite))
-	assert.False(t, childHasPermission(child, authorize.GuardianPermissionSickNoteSubmit))
-	assert.False(t, childHasPermission(nil, authorize.GuardianPermissionPortalAccess))
+	assert.True(t, childHasPermission(child, GuardianPermissionPortalAccess))
+	assert.False(t, childHasPermission(child, GuardianPermissionNotesWrite))
+	assert.False(t, childHasPermission(child, GuardianPermissionSickNoteSubmit))
+	assert.False(t, childHasPermission(nil, GuardianPermissionPortalAccess))
 }
 
 func TestResolvePermittedChildRejectsNonPositiveIDs(t *testing.T) {
@@ -44,17 +41,17 @@ func TestResolvePermittedChildRejectsNonPositiveIDs(t *testing.T) {
 func TestParentWritePermissionHelpers(t *testing.T) {
 	t.Parallel()
 
-	permissions := map[string]interface{}{
-		authorize.GuardianPermissionMasterDataEdit: true,
+	permissions := map[string]bool{
+		GuardianPermissionMasterDataEdit: true,
 	}
 
-	child := &parentModels.ChildSummary{GuardianPermissions: permissions}
-	assert.True(t, childHasPermission(child, authorize.GuardianPermissionMasterDataEdit))
-	assert.False(t, childHasPermission(child, authorize.GuardianPermissionNotesWrite))
-	assert.False(t, childHasPermission(nil, authorize.GuardianPermissionMasterDataEdit))
+	child := &ChildSummary{GuardianPermissions: permissions}
+	assert.True(t, childHasPermission(child, GuardianPermissionMasterDataEdit))
+	assert.False(t, childHasPermission(child, GuardianPermissionNotesWrite))
+	assert.False(t, childHasPermission(nil, GuardianPermissionMasterDataEdit))
 
 	resolved := &Child{GuardianPermissions: permissions}
-	assert.True(t, resolved.HasPermission(authorize.GuardianPermissionMasterDataEdit))
-	assert.False(t, resolved.HasPermission(authorize.GuardianPermissionNotesWrite))
-	assert.False(t, (*Child)(nil).HasPermission(authorize.GuardianPermissionMasterDataEdit))
+	assert.True(t, resolved.HasPermission(GuardianPermissionMasterDataEdit))
+	assert.False(t, resolved.HasPermission(GuardianPermissionNotesWrite))
+	assert.False(t, (*Child)(nil).HasPermission(GuardianPermissionMasterDataEdit))
 }

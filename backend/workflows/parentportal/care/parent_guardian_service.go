@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Field length bounds for guardian contact edits. Generous but finite so a
@@ -178,7 +176,7 @@ type CreateGuardianContactInput struct {
 
 // applyContactInput overwrites the profile's editable contact fields from the
 // validated input. Phones are handled separately (replaceGuardianPhones).
-func applyContactInput(profile *usersModels.GuardianProfile, input *GuardianContactInput) {
+func applyContactInput(profile *GuardianProfile, input *GuardianContactInput) {
 	profile.FirstName = strings.TrimSpace(input.FirstName)
 	profile.LastName = strings.TrimSpace(input.LastName)
 	profile.Email = trimGuardianText(input.Email)
@@ -288,12 +286,12 @@ func validateRelationshipInput(input *GuardianRelationshipInput) error {
 	return nil
 }
 
-func validateCreateGuardianContactInput(input *CreateGuardianContactInput) error {
+func validateCreateGuardianContactInput(input *CreateGuardianContactInput, validRelationship func(string) bool) error {
 	if err := validateContactInput(&input.Contact); err != nil {
 		return err
 	}
 	input.RelationshipType = strings.ToLower(strings.TrimSpace(input.RelationshipType))
-	if !usersModels.IsValidRelationshipType(input.RelationshipType) {
+	if !validRelationship(input.RelationshipType) {
 		return fmt.Errorf("%w: invalid relationship type", ErrGuardianRelationshipInvalid)
 	}
 	return validateRelationshipInput(&GuardianRelationshipInput{PickupNotes: input.PickupNotes})

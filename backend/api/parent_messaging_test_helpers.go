@@ -1,10 +1,13 @@
+//go:build testhooks
+
 package api
 
 import (
+	"context"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -17,9 +20,9 @@ func NewMessageableGuardianRepository(db transactionruntime.Database) *peopleCom
 // ParentMessagingTestRepositories is the parent-conversation data layer for
 // repository tests.
 type ParentMessagingTestRepositories struct {
-	Thread  userModels.ParentMessageThreadRepository
-	Message userModels.ParentMessageRepository
-	Read    userModels.ParentMessageReadRepository
+	Thread  parentStore.ParentMessageThreadRepository
+	Message parentStore.ParentMessageRepository
+	Read    parentStore.ParentMessageReadRepository
 }
 
 // NewParentMessagingTestRepositories composes Communication's conversation
@@ -35,11 +38,26 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		return ParentMessagingTestRepositories{}, err
 	}
 	persons := NewPersonRepository(db)
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+		rows, err := persons.FindByIDs(ctx, ids)
+		if rows == nil {
+			return nil, err
+		}
+		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		for id, row := range rows {
+			if row == nil {
+				out[id] = nil
+				continue
+			}
+			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+		}
+		return out, err
+	}
 	return ParentMessagingTestRepositories{
-		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
+		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), newParentGuardianLister(db, NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the service graph binds them.
-		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), ParentStaffMembers{Membership: membership}.List, persons),
+		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), guardianLinkView.NewReader(), ParentStaffMembers{Membership: membership}.List, personAccounts),
 	}, nil
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
 	require.Len(t, events, 1, "exactly one drop event for the vanished slot")
 	ev := events[0]
-	assert.Equal(t, compose.DeviationEventDroppedByReplan, ev.EventType)
+	assert.Equal(t, timetablePorts.DeviationEventDroppedByReplan, ev.EventType)
 	require.NotNil(t, ev.ActivityGroupID)
 	assert.Equal(t, s.template.ID, *ev.ActivityGroupID)
 	assert.Equal(t, date.String(), ev.OccurrenceDate.String())

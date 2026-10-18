@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -51,6 +52,7 @@ func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleD
 	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
 	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
 	directory.GuardianLinkOwners = owners.GuardianLinks
+	directory.GuardianRolePresets = guardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	directory.StudentDirectory = studentDirectoryView.NewReader()
 	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
@@ -154,7 +156,7 @@ type studentOwners struct {
 
 // NewStudentOwners binds the People Directory's student owners port to School
 // Membership and Care Plan.
-func NewStudentOwners(membership schoolmembership.Capability, care careplan.StudentProfileCommands) peopleCompose.StudentOwners {
+func NewStudentOwners(membership schoolmembership.Capability, care careplan.StudentProfileCommands) peoplePorts.StudentOwners {
 	return studentOwners{membership: membership, care: care}
 }
 
@@ -216,23 +218,23 @@ type careplanCompanions struct {
 
 // NewStudentCompanionSeam binds Care Plan's companion slice behind People
 // Directory's write path.
-func NewStudentCompanionSeam(carePlan careplanCompose.CompanionRecords) peopleCompose.StudentCompanions {
+func NewStudentCompanionSeam(carePlan careplanCompose.CompanionRecords) peoplePorts.StudentCompanions {
 	return careplanCompanions{carePlan: carePlan}
 }
 
 func (c careplanCompanions) ListCompanionEdgesForStudent(
 	ctx context.Context,
 	studentID int64,
-) ([]peopleCompose.StudentCompanionEdge, error) {
+) ([]peoplePorts.StudentCompanionEdge, error) {
 	edges, err := c.carePlan.ListCompanionEdges(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]peopleCompose.StudentCompanionEdge, 0, len(edges))
+	result := make([]peoplePorts.StudentCompanionEdge, 0, len(edges))
 	for _, edge := range edges {
 		// Care Plan stores the pair ordered by id; which side is "the student"
 		// is the reader's question, and the owner answers it per edge.
-		result = append(result, peopleCompose.StudentCompanionEdge{
+		result = append(result, peoplePorts.StudentCompanionEdge{
 			ID: edge.ID, StudentID: edge.StudentLowID,
 			CompanionStudentID: edge.StudentHighID, Weekday: edge.Weekday,
 		})

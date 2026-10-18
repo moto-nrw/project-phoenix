@@ -1,6 +1,9 @@
+//go:build testhooks
+
 package api
 
 import (
+	"context"
 	"errors"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -23,6 +26,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // RetentionTestOwners are the retained owners the Worker's nightly retention
@@ -78,7 +83,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
-		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settingsModule.NewParentMessageRetentionValues(settings.Settings)),
 		StaffSickNotes:     workforceCompose.NewSickNoteRetention(settings.Settings),
 		SettledEnrollments: enrollments,
 		Deliveries:         deliveryCompose.NewRetention(),
@@ -117,3 +122,37 @@ func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings 
 		Settings:              settings,
 	}).Cleanup, nil
 }
+
+// NewStudentTestRetention composes the automatic deletion of children
+// (#3962) over the production student deletion composition and the real
+// owners, logging into audit. The Feedback owner is not part of this graph;
+// its count stays zero.
+func NewStudentTestRetention(db transactionruntime.Database, audit *auditCompose.Command, settings settingsCompose.BatchSettingsService) (*studentdeletion.Retention, error) {
+	timetable := NewUnobservedTimetableDependencies(db)
+	carePlan, err := NewUnobservedCarePlan(db, timetable)
+	if err != nil {
+		return nil, err
+	}
+	people, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, err
+	}
+	owners, err := NewStudentDeletionOwners(db)
+	if err != nil {
+		return nil, err
+	}
+	workflow, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: db.Pool(), Owners: owners, Directory: people, CarePlan: carePlan, Timetable: timetable.Capability, Feedback: noFeedback{},
+		IsVerifiedStaff:       func(context.Context) (bool, error) { return false, nil },
+		LockCareBookingWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+		Audit:                 audit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return newStudentRetention(workflow, settings, nil)
+}
+
+type noFeedback struct{}
+
+func (noFeedback) CountForStudent(context.Context, int64) (int, error) { return 0, nil }

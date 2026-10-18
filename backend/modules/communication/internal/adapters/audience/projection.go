@@ -1,5 +1,7 @@
 // Package audience implements the tenant-safe staff-announcement audience
 // projection across Communication, Identity & Access, and Organization data.
+// It answers in its own row types; the owner's composition maps them onto its
+// values (Map).
 package audience
 
 import (
@@ -7,14 +9,58 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
+// Database resolves the caller's ambient transaction.
 type Database func(context.Context) (bun.IDB, error)
 
+// Projection answers the staff-announcement audience reads.
 type Projection struct{ database Database }
+
+// Announcement is one announcement row as the projection reads it.
+type Announcement struct {
+	ID              int64
+	Title           string
+	Content         string
+	Type            string
+	Severity        string
+	Version         *string
+	Active          bool
+	PublishedAt     *time.Time
+	ExpiresAt       *time.Time
+	TargetRoles     []string
+	TargetOrgIDs    []int64
+	TargetTenantIDs []int64
+	CreatedBy       int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// Target is the audience an announcement addresses.
+type Target struct {
+	PublishedAt     *time.Time
+	TargetRoles     []string
+	TargetOrgIDs    []int64
+	TargetTenantIDs []int64
+}
+
+// ViewDetail is the latest view of one account.
+type ViewDetail struct {
+	UserID       int64
+	AccountEmail string
+	UserName     string
+	SeenAt       time.Time
+	Dismissed    bool
+}
+
+// Stats measures the statements one read ran.
+type Stats struct {
+	Queries           int
+	Rows              int64
+	StatementDuration time.Duration
+}
 
 type announcementRow struct {
 	bun.BaseModel   `bun:"table:platform.announcements,alias:announcement"`
@@ -30,7 +76,7 @@ type announcementRow struct {
 	TargetRoles     []string   `bun:"target_roles,array"`
 	TargetOrgIDs    []int64    `bun:"target_org_ids,array"`
 	TargetTenantIDs []int64    `bun:"target_tenant_ids,array"`
-	CreatedBy       int64      `bun:"created_by"`
+	CreatedBy       *int64     `bun:"created_by"`
 	CreatedAt       time.Time  `bun:"created_at"`
 	UpdatedAt       time.Time  `bun:"updated_at"`
 }
@@ -76,13 +122,13 @@ const unreadWhere = `
 			OR (a.target_org_ids != '{}' AND s.organization_id = ANY(a.target_org_ids))
 		)`
 
-func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]domain.Announcement, domain.OperationStats, error) {
+func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]Announcement, Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return nil, domain.OperationStats{}, err
+		return nil, Stats{}, err
 	}
 	var rows []announcementRow
-	stats := domain.OperationStats{Queries: 1}
+	stats := Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT a.*`+unreadFrom+unreadWhere+` ORDER BY a.published_at DESC`, unreadArgs(userID, roles, tenantID, orgID)...).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -90,20 +136,20 @@ func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, t
 		return nil, stats, fmt.Errorf("announcement audience projection: list unread: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.Announcement, 0, len(rows))
+	result := make([]Announcement, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toDomain(row))
+		result = append(result, toAnnouncement(row))
 	}
 	return result, stats, nil
 }
 
-func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (int, domain.OperationStats, error) {
+func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (int, Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return 0, domain.OperationStats{}, err
+		return 0, Stats{}, err
 	}
 	var count int
-	stats := domain.OperationStats{Queries: 1}
+	stats := Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT COUNT(*)`+unreadFrom+unreadWhere, unreadArgs(userID, roles, tenantID, orgID)...).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
@@ -114,13 +160,13 @@ func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []stri
 	return count, stats, nil
 }
 
-func (p *Projection) TargetCount(ctx context.Context, value domain.Announcement) (int, domain.OperationStats, error) {
+func (p *Projection) TargetCount(ctx context.Context, value Target) (int, Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return 0, domain.OperationStats{}, err
+		return 0, Stats{}, err
 	}
 	var count int
-	stats := domain.OperationStats{Queries: 1}
+	stats := Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`
 		SELECT COUNT(DISTINCT at.account_id)
@@ -157,10 +203,10 @@ func (p *Projection) TargetCount(ctx context.Context, value domain.Announcement)
 	return count, stats, nil
 }
 
-func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]domain.AnnouncementViewDetail, domain.OperationStats, error) {
+func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]ViewDetail, Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return nil, domain.OperationStats{}, err
+		return nil, Stats{}, err
 	}
 	var rows []struct {
 		UserID       int64     `bun:"user_id"`
@@ -169,7 +215,7 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]d
 		SeenAt       time.Time `bun:"seen_at"`
 		Dismissed    bool      `bun:"dismissed"`
 	}
-	stats := domain.OperationStats{Queries: 1}
+	stats := Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT user_id, account_email, user_name, seen_at, dismissed
 		FROM (
@@ -185,9 +231,9 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]d
 		return nil, stats, fmt.Errorf("announcement audience projection: get view details: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.AnnouncementViewDetail, 0, len(rows))
+	result := make([]ViewDetail, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.AnnouncementViewDetail{
+		result = append(result, ViewDetail{
 			UserID: row.UserID, AccountEmail: row.AccountEmail, UserName: row.UserName,
 			SeenAt: row.SeenAt, Dismissed: row.Dismissed,
 		})
@@ -195,13 +241,20 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]d
 	return result, stats, nil
 }
 
-func toDomain(row announcementRow) domain.Announcement {
-	return domain.Announcement{
+func toAnnouncement(row announcementRow) Announcement {
+	return Announcement{
 		ID: row.ID, Title: row.Title, Content: row.Content, Type: row.Type,
 		Severity: row.Severity, Version: row.Version, Active: row.Active,
 		PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt,
 		TargetRoles: row.TargetRoles, TargetOrgIDs: row.TargetOrgIDs,
-		TargetTenantIDs: row.TargetTenantIDs, CreatedBy: row.CreatedBy,
+		TargetTenantIDs: row.TargetTenantIDs, CreatedBy: zeroID(row.CreatedBy),
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func zeroID(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }

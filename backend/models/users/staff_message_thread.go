@@ -2,9 +2,6 @@ package users
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 )
 
@@ -21,7 +18,7 @@ type StaffMessageThread struct {
 	Model `bun:"schema:users,table:staff_message_threads"`
 	TenantModel
 	// ParticipantKey identifies the conversation independently of the row's id.
-	// For a direct chat it is DirectParticipantKey(a, b) — the two account ids
+	// For a direct chat it is Communication's direct participant key — the two account ids
 	// sorted ascending, colon-joined. Unique per tenant.
 	ParticipantKey string     `bun:"participant_key,notnull" json:"-"`
 	Kind           string     `bun:"kind,notnull" json:"kind"`
@@ -37,19 +34,6 @@ type StaffMessageThread struct {
 	// LastMessageID: written in the same UPDATE as LastMessageAt.
 	LastMessageBody     string `bun:"last_message_body" json:"last_message_body,omitempty"`
 	LastSenderAccountID *int64 `bun:"last_sender_account_id" json:"last_sender_account_id,omitempty"`
-}
-
-// DirectParticipantKey builds the stable identity of a two-person conversation:
-// the account ids sorted ascending and colon-joined, so (17, 42) and (42, 17)
-// address the same thread regardless of who writes first.
-func DirectParticipantKey(a, b int64) string {
-	ids := []int64{a, b}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	parts := make([]string, 0, len(ids))
-	for _, id := range ids {
-		parts = append(parts, fmt.Sprintf("%d", id))
-	}
-	return strings.Join(parts, ":")
 }
 
 // StaffMessageThreadRepository is the tenant-scoped data-access contract for

@@ -6,11 +6,10 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -39,12 +38,12 @@ func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Se
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := announcement.NewService(announcement.ServiceConfig{
-		Repo:       repos.ParentAnnouncement,
-		Settings:   settings,
-		Notifier:   notifications.NewService(settings, slog.Default()),
+		Repo:       announcement.NewRepository(repos.ParentAnnouncement),
+		Settings:   configModel.NewParentAnnouncementValues(settings),
+		Notifier:   noticeNotificationCallback(api.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return svc, db, repos
 }
 
@@ -69,14 +68,14 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	require.NotNil(t, result)
 	assert.Equal(t, 1, result.RecipientCount, "the one linked guardian is reached")
 
-	var stored *usersModels.ParentAnnouncement
+	var stored *announcement.ParentAnnouncement
 	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		stored, err = repos.ParentAnnouncement.FindByID(txCtx, result.Announcement.ID)
+		stored, err = announcement.NewRepository(repos.ParentAnnouncement).FindByID(txCtx, result.Announcement.ID)
 		if err != nil {
 			return err
 		}
-		targets, err := repos.ParentAnnouncement.ListTargets(txCtx, stored.ID)
+		targets, err := announcement.NewRepository(repos.ParentAnnouncement).ListTargets(txCtx, stored.ID)
 		if err != nil {
 			return err
 		}
@@ -85,12 +84,12 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	}))
 	require.NotNil(t, stored)
 	require.NotNil(t, stored.SystemKind)
-	assert.Equal(t, usersModels.ParentAnnouncementSystemKindCareCancellation, *stored.SystemKind)
+	assert.Equal(t, announcement.ParentAnnouncementSystemKindCareCancellation, *stored.SystemKind)
 	assert.True(t, stored.IsPublished(), "the notice is live immediately")
-	assert.Equal(t, usersModels.ParentAnnouncementPriorityImportant, stored.Priority)
+	assert.Equal(t, announcement.ParentAnnouncementPriorityImportant, stored.Priority)
 	assert.True(t, stored.SendEmail, "the dialog promises App und E-Mail; family opt-outs apply in the outbox")
 	require.Len(t, stored.Targets, 1, "duplicate student ids collapse to one target")
-	assert.Equal(t, usersModels.AnnouncementTargetStudent, stored.Targets[0].TargetType)
+	assert.Equal(t, announcement.AnnouncementTargetStudent, stored.Targets[0].TargetType)
 	require.NotNil(t, stored.Targets[0].TargetRefID)
 	assert.Equal(t, chain.StudentID, *stored.Targets[0].TargetRefID)
 }
@@ -127,4 +126,12 @@ func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 	}))
 	require.NotNil(t, reach)
 	assert.Equal(t, 1, reach.FamilyCount)
+}
+
+// noticeNotificationCallback observes the same real router through its native
+// public event boundary; it does not replace consent or audience policy.
+type noticeNotificationCallback func(context.Context, communication.NotificationEvent) error
+
+func (send noticeNotificationCallback) Notify(ctx context.Context, event communication.NotificationEvent) error {
+	return send(ctx, event)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -100,10 +101,10 @@ func NewPeopleWiring(owners PeopleWiringOwners) (PeopleWiring, error) {
 		SupervisionRecords: func(records studentpresence.SupervisionRecords) studentpresence.SupervisionRecords {
 			return NewGroupSupervisionRecords(records, groups)
 		},
-		SupervisionBlockers: func(records studentpresence.SupervisionRecords) peopleCompose.SupervisionBlockers {
+		SupervisionBlockers: func(records studentpresence.SupervisionRecords) peoplePorts.SupervisionBlockers {
 			return CaregiverSupervisionBlockers{Records: records}
 		},
-		CaregiverIdentity: func(module *identityaccess.Module) peopleCompose.CaregiverIdentity {
+		CaregiverIdentity: func(module *identityaccess.Module) peoplePorts.CaregiverIdentity {
 			return caregiverIdentity{module}
 		},
 		CaregiverCapabilityAudit: newCaregiverCapabilityAudit,
@@ -119,10 +120,10 @@ func NewPeopleWiring(owners PeopleWiringOwners) (PeopleWiring, error) {
 			return NewStudentConsentsFor(persons, trail)
 		},
 		StudentChangeLogCleanup: NewStudentChangeLogCleanup,
-		StatusDayPeople: func(directory *peopleCompose.PersonDirectory) presenceservice.StatusDayOverviewPeople {
+		StatusDayPeople: func(directory peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople {
 			return StatusDayOverviewPeople(directory)
 		},
-		GroupRosterPeople: func(directory *peopleCompose.PersonDirectory) GroupRoster {
+		GroupRosterPeople: func(directory peoplePorts.PersonDirectory) GroupRoster {
 			return GroupRosterPeople(directory)
 		},
 		MasterDataDecisions:      NewMasterDataDecisions,

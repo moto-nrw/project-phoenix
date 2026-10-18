@@ -1,0 +1,205 @@
+package ports
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// OperationInstances reads the blocks of the retained activity instance
+// repository.
+type OperationInstances interface {
+	FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error)
+}
+
+// OperationInstanceStaff reads the staff rows of blocks.
+type OperationInstanceStaff interface {
+	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error)
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error)
+}
+
+// OperationParticipants reads and patches the participant rows of blocks.
+type OperationParticipants interface {
+	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
+	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date scheduleModels.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
+	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
+}
+
+// OperationTemplates reads the templates (activity groups) behind blocks.
+type OperationTemplates interface {
+	FindByID(ctx context.Context, id any) (*activitiesModels.Group, error)
+	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModels.Group, error)
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error)
+}
+
+// OperationSessions reads and touches the Student Presence live sessions.
+type OperationSessions interface {
+	FindSession(ctx context.Context, id int64) (*studentpresence.LiveGroup, error)
+	UpdateLastActivity(ctx context.Context, id int64, at time.Time) error
+}
+
+// OperationSupervisions reads who supervises a live session.
+type OperationSupervisions interface {
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*studentpresence.StaffedSupervision, error)
+}
+
+// OperationVisits reads the Student Presence visits.
+type OperationVisits interface {
+	ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error)
+}
+
+// OperationAttendance writes the visits a check-in or check-out records,
+// attributed to the acting staff member.
+type OperationAttendance interface {
+	CreateVisitAs(ctx context.Context, staffID int64, visit *studentpresence.Visit) error
+	EndVisitAs(ctx context.Context, staffID, tenantID, visitID int64) error
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
+}
+
+// OperationStudents reads the People Directory child rows of a roster.
+type OperationStudents interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error)
+}
+
+// OperationPeople resolves persons and their staff profiles.
+type OperationPeople interface {
+	FindByAccountID(ctx context.Context, accountID int64) (*timetable.Person, error)
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.Person, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*timetable.StaffMember, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
+}
+
+// EducationGroupNames is the consumer-owned port to School Structure's
+// education groups: the names of the given groups, missing ones absent.
+type EducationGroupNames interface {
+	EducationGroupNames(ctx context.Context, ids []int64) (map[int64]string, error)
+}
+
+// RoomNames is the consumer-owned port to the Facilities rooms.
+type RoomNames interface {
+	// AllRoomNames names every room of the tenant.
+	AllRoomNames(ctx context.Context) (map[int64]string, error)
+	// RoomName names one room; ok is false when it does not exist.
+	RoomName(ctx context.Context, id int64) (name string, ok bool, err error)
+}
+
+// ScopedAction is an operational action with its own school scope setting
+// (#3180, #3622).
+type ScopedAction int
+
+const (
+	// ScopedAttendance is operations.attendance_edit_scope.
+	ScopedAttendance ScopedAction = iota + 1
+	// ScopedBlockStart is operations.block_start_scope.
+	ScopedBlockStart
+	// ScopedBlockComplete is operations.block_complete_scope.
+	ScopedBlockComplete
+)
+
+// OperationSettings is the consumer-owned port to the Settings Platform
+// policies of the operational day. ResolveString serves the shared
+// operational-overview gate and the school-wide action scope rule, which
+// OperationCaller evaluates.
+type OperationSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+	// StartLeadMinutes is timetable.start_lead_minutes.
+	StartLeadMinutes(ctx context.Context) (int, error)
+	// EnforcePlannedEnd is timetable.enforce_planned_end.
+	EnforcePlannedEnd(ctx context.Context) (bool, error)
+	// CompleteLeadMinutes is timetable.complete_lead_minutes.
+	CompleteLeadMinutes(ctx context.Context) (int, error)
+	// ActionScopeKey names the action's scope setting.
+	ActionScopeKey(action ScopedAction) (string, error)
+	// StudentAbsenceEditAllStaff reports operations.student_absence_edit_scope
+	// = all_staff.
+	StudentAbsenceEditAllStaff(ctx context.Context) (bool, error)
+}
+
+// ClassArrivalNotice is a class-wide day exception behind an arrival time
+// (#2962).
+type ClassArrivalNotice struct {
+	ArrivalTime string
+	Label       string
+}
+
+// ExpectedArrival is Care Plan's effective arrival of one child on a date.
+type ExpectedArrival struct {
+	ArrivalTime    *time.Time
+	IsException    bool
+	ClassException *ClassArrivalNotice
+}
+
+// EffectiveArrivals is the consumer-owned port to Care Plan's effective
+// arrival times of a date.
+type EffectiveArrivals interface {
+	EffectiveArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*ExpectedArrival, error)
+}
+
+// EffectivePickups is the consumer-owned port to Care Plan's effective
+// pickup times of a date; a child without a time is absent or nil.
+type EffectivePickups interface {
+	EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error)
+}
+
+// AttendanceAnnouncer wakes the tenant's clients after an attendance patch;
+// the event carries no child (#2085).
+type AttendanceAnnouncer interface {
+	AnnounceAttendanceChanged(tenantID, activeGroupID, instanceID int64) error
+}
+
+// OperationLifecycle drives the lifecycle transitions of the retained
+// instance service (#3424 slice S1) for the operational commands.
+type OperationLifecycle interface {
+	CreateSpontaneous(ctx context.Context, in timetable.SpontaneousStart) (instanceID int64, err error)
+	// Start starts the block for the staff member; spontaneous applies the
+	// weekday guard of an ad-hoc start.
+	Start(ctx context.Context, instanceID, staffID int64, spontaneous bool) (*timetable.StartedOperation, error)
+	Complete(ctx context.Context, instanceID, accountID int64) (*timetable.ScheduledInstance, error)
+	Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*timetable.StartedOperation, error)
+}
+
+// AttendanceLocks serializes attendance writes with the completion of the
+// block.
+type AttendanceLocks interface {
+	LockAttendance(ctx context.Context, instanceID int64) error
+}
+
+// OperationDependencies wires the operational day. PlanningTracks and
+// Locks are optional: without tracks day-scope blocks carry no colour,
+// without locks attendance patches skip the completion lock. Announcer is
+// optional too. Every other collaborator is required.
+type OperationDependencies struct {
+	Instances            OperationInstances
+	InstanceStaff        OperationInstanceStaff
+	Participants         OperationParticipants
+	Templates            OperationTemplates
+	PlanningTracks       timetable.PlanningTrackQuery
+	Sessions             OperationSessions
+	Supervisions         OperationSupervisions
+	Visits               OperationVisits
+	Attendance           OperationAttendance
+	Students             OperationStudents
+	People               OperationPeople
+	EducationGroups      EducationGroupNames
+	Rooms                RoomNames
+	Settings             OperationSettings
+	CareDays             CareDays
+	Arrivals             EffectiveArrivals
+	Pickups              EffectivePickups
+	Lifecycle            OperationLifecycle
+	Locks                AttendanceLocks
+	Announcer            AttendanceAnnouncer
+	NormalizeSchoolClass func(string) string
+	Logger               *slog.Logger
+	Now                  func() time.Time
+}

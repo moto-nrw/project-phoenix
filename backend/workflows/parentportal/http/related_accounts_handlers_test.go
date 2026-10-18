@@ -74,19 +74,30 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CareExceptions,
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
-	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
 }
 
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
@@ -183,19 +194,30 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CareExceptions,
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
-	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
 }
 
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {

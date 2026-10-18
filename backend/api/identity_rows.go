@@ -45,21 +45,15 @@ type studentRows interface {
 }
 
 type guardianProfileRows interface {
-	Delete(ctx context.Context, id int64) error
 	FindByID(ctx context.Context, id int64) (*userModels.GuardianProfile, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
 	FindByEmail(ctx context.Context, email string) (*userModels.GuardianProfile, error)
-	LinkAccount(ctx context.Context, profileID int64, accountID int64) error
 }
 
 type studentGuardianRows interface {
-	FindByID(ctx context.Context, id any) (*userModels.StudentGuardian, error)
-	Update(ctx context.Context, relationship *userModels.StudentGuardian) error
-	Delete(ctx context.Context, id any) error
 	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*userModels.StudentGuardian, error)
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*userModels.StudentGuardian, error)
 	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*userModels.StudentGuardian, error)
-	LinkIfNotExists(ctx context.Context, relationship *userModels.StudentGuardian) (bool, error)
 }
 
 type groupRows interface {

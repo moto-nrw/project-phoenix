@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +33,7 @@ func newAccountIsolationEnv(t *testing.T) *accountIsolationEnv {
 	t.Helper()
 	tc := setupAuthRoute(t)
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(rootAPI.TenantSessionChain))
 	tenantID := testpkg.Tenant(t)
 	actor := testpkg.CreateTestAccount(t, tc.db, "account-scope-actor")
 	testpkg.OwnTestAccount(t, tc.db, actor.ID)

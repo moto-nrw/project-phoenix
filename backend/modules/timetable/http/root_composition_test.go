@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -80,7 +80,7 @@ func init() {
 		t.Helper()
 		return api.NewTimetableHTTPTestOfferingSources(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	}
-	root.StaffAccountPeople = func(personID, staffID int64) timetableCompose.OperationPeople {
+	root.StaffAccountPeople = func(personID, staffID int64) timetablePorts.OperationPeople {
 		return api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID}
 	}
 	root.ErrCareOfferingInvalid = api.TimetableHTTPTestCareOfferingInvalid

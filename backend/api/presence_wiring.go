@@ -13,7 +13,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -95,7 +95,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 		BindClassListEntries: func(audit auditModels.Command) error {
 			return BindClassListEntryAdministration(owners.Membership, owners.Persons, audit)
 		},
-		AttendanceStaffNames: func(people *peopleCompose.PersonDirectory) presenceservice.AttendanceStaffNames {
+		AttendanceStaffNames: func(people peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames {
 			return NewAttendanceStaffNames(staff, people)
 		},
 		ClassDay: NewClassDay,

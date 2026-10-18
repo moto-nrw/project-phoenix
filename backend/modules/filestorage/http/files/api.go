@@ -56,9 +56,9 @@ func NewResource(files filestorage.Capability, logger *slog.Logger) *Resource {
 //
 // upload + download skip withTx so a slow body or file stream doesn't pin a
 // bun pool connection; the owner opens its own short transactions.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		manage := common.RequiresPermission(permissions.FilesManage)
 
 		r.With(withTx).Get("/folders", rs.listFolders)

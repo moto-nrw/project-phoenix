@@ -2,9 +2,8 @@ package care
 
 import (
 	"context"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -32,7 +31,7 @@ const attendanceCultureLookbackDays = 14
 // einem 500er: fuer Eltern ist "Status derzeit nicht verfuegbar" die richtige
 // Aussage, ein Serverfehler waere nur verwirrend.
 func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID int64) (*TodayStatus, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 	today := s.todayDate()
 	facts := todayStatusFacts{NowHHMM: berlinHHMM(s.now())}
 
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		absent, absErr := s.hasActiveAbsenceToday(txCtx, studentID, today)
 		if absErr != nil {
 			return absErr
@@ -182,5 +181,5 @@ func planWeekdayOf(ctx context.Context, today calendar.Date) (int, bool, error) 
 	if err != nil {
 		return 0, false, err
 	}
-	return weekday, weekday <= scheduleModels.WeekdayFriday, nil
+	return weekday, weekday <= int(time.Friday), nil
 }

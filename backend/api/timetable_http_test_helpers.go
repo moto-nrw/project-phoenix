@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -12,10 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -97,7 +101,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 	}
 	materialization := options.Materialization
 	if materialization == nil {
-		materialization, err = timetableCompose.NewMaterialization(timetableCompose.MaterializationDependencies{
+		materialization, err = timetableCompose.NewMaterialization(timetablePorts.MaterializationDependencies{
 			GroupRepo: r.ActivityGroup, ScheduleRepo: r.ActivitySchedule,
 			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
@@ -108,7 +112,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			return TimetableHTTPTestModule{}, err
 		}
 	}
-	templates, err := timetableCompose.NewTemplateAdministration(timetableCompose.TemplateAdministrationDependencies{
+	templates, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
 		Groups:               r.ActivityGroup,
 		Categories:           r.ActivityCategory,
 		Schedules:            r.ActivitySchedule,
@@ -124,7 +128,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		CareOfferings:        timetableHTTPTestCareOfferingChecks(options),
 		ResyncOfferingRoster: options.ResyncOfferingRoster,
 		RecurrenceLock:       lock,
-		SchoolClasses: timetableCompose.SchoolClassRules{
+		SchoolClasses: timetablePorts.SchoolClassRules{
 			MinGradeLevel: timetable.MinSchoolGradeLevel, MaxGradeLevel: timetable.MaxSchoolGradeLevel,
 			Normalize: func(class string) string { return strings.ToLower(strings.TrimSpace(class)) },
 		},
@@ -135,7 +139,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		return TimetableHTTPTestModule{}, err
 	}
 	trail := auditCompose.NewFixedRuntime(db.Pool(), auditModels.TenantIDFromContext)
-	corrections, err := timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
+	corrections, err := timetableCompose.NewAttendanceCorrections(timetablePorts.AttendanceCorrectionDependencies{
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
 		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
@@ -186,7 +190,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 	if err != nil {
 		return nil, nil, err
 	}
-	conflicts, err := timetableCompose.NewConflictDetection(timetableCompose.ConflictDetectionDependencies{
+	conflicts, err := timetableCompose.NewConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         r.ActivityInstance,
 		InstanceStaff:     r.InstanceStaff,
 		InstanceStudents:  r.InstanceStudent,
@@ -204,11 +208,11 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 	if err != nil {
 		return nil, nil, err
 	}
-	templates, ok := r.ActivityGroup.(timetableCompose.DataTemplates)
+	templates, ok := r.ActivityGroup.(timetablePorts.DataTemplates)
 	if !ok {
 		return nil, nil, fmt.Errorf("timetable data: %T cannot read the template list", r.ActivityGroup)
 	}
-	data, err := timetableCompose.NewTimetableData(timetableCompose.TimetableDataDependencies{
+	data, err := timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
 		Instances:         r.ActivityInstance,
 		InstanceStaff:     r.InstanceStaff,
 		Participants:      r.InstanceStudent,
@@ -237,8 +241,8 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 // timetableHTTPTestCareOfferingChecks binds the suite's care-offering
 // callbacks; an omitted callback accepts, and an invalid linked offering is
 // the conflict, as the composition root binds the Care Plan catalog.
-func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timetableCompose.CareOfferingChecks {
-	checks := timetableCompose.CareOfferingChecks{
+func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timetablePorts.CareOfferingChecks {
+	checks := timetablePorts.CareOfferingChecks{
 		ValidateSeries:         options.ValidateCareOfferingSeries,
 		ValidateOfferingSource: options.ValidateOfferingSource,
 		IsConflict: func(err error) bool {
@@ -256,12 +260,12 @@ func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timet
 
 // timetableHTTPTestSeriesDeviations binds the split's deviation port to the
 // suite's instance lifecycle, or to one that preserves nothing.
-func timetableHTTPTestSeriesDeviations(instances timetable.InstanceLifecycleCapability) timetableCompose.SeriesDeviations {
+func timetableHTTPTestSeriesDeviations(instances timetable.InstanceLifecycleCapability) timetablePorts.SeriesDeviations {
 	if instances == nil {
 		return timetableHTTPTestNoDeviations{}
 	}
 	lifecycle, ok := instances.(interface {
-		SeriesDeviations() timetableCompose.SeriesDeviations
+		SeriesDeviations() timetablePorts.SeriesDeviations
 	})
 	if !ok {
 		panic(fmt.Sprintf("timetable data: %T cannot preserve series deviations", instances))
@@ -275,7 +279,7 @@ func (timetableHTTPTestNoDeviations) LockDeviationDays(context.Context, int64, c
 	return nil
 }
 
-func (timetableHTTPTestNoDeviations) SnapshotDeviations(context.Context, calendar.Date, calendar.Date, int64) (timetableCompose.PreservedDeviations, error) {
+func (timetableHTTPTestNoDeviations) SnapshotDeviations(context.Context, calendar.Date, calendar.Date, int64) (timetablePorts.PreservedDeviations, error) {
 	return timetableHTTPTestNoPreservedDeviations{}, nil
 }
 
@@ -307,9 +311,9 @@ func NewTimetableHTTPTestPeople(db transactionruntime.Database) (TimetablePeople
 	if err != nil {
 		return TimetablePeople{}, err
 	}
-	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
 }
 

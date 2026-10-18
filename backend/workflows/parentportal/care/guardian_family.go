@@ -3,9 +3,6 @@ package care
 import (
 	"context"
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // callerFamilyStudentSet returns the set of student IDs (in the current tenant)
@@ -25,7 +22,7 @@ func (s *Service) callerFamilyStudentSet(ctx context.Context, accountID int64) (
 		// The caller resolved a permitted child in this tenant, so their profile
 		// exists; treat a missing one defensively as an empty family (fail-safe:
 		// every shared profile then reads as escaping rather than editable).
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return map[int64]bool{}, nil
 		}
 		return nil, err
@@ -91,30 +88,30 @@ func (s *Service) profilesEscapingFamily(ctx context.Context, profileIDs []int64
 // child's pickup/emergency arrangement, not a co-parent's or social worker's
 // contact details. Read and write use the same predicate so the listing never
 // shows data the caller could then blank-overwrite.
-func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf, sharedAcrossFamilies bool) bool {
+func contactProtected(profile *GuardianProfile, link *GuardianRelationship, isSelf, sharedAcrossFamilies bool) bool {
 	if isSelf {
 		return false
 	}
 	return profile.HasPortalAccount() ||
-		link.GuardianRole == authorize.GuardianRoleSocialWorker ||
+		link.GuardianRole == GuardianRoleSocialWorker ||
 		sharedAcrossFamilies
 }
 
 // projectChildGuardian builds the parent-facing projection of one guardian.
 // sharedAcrossFamilies marks a contact-only profile that also serves a child
 // outside the caller's family — editable only by the school, not this caller.
-func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool) *ChildGuardian {
+func projectChildGuardian(profile *GuardianProfile, link *GuardianRelationship, phones []*GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	// "Account holder" derives from has_account OR account_id (HasPortalAccount),
 	// matching every write guard, so a drifted row (account_id set,
 	// has_account=false) is read-redacted and lock-marked exactly as the write
 	// path refuses it — read and write agree (#1667 review).
 	hasAccount := profile.HasPortalAccount()
-	isSocialWorker := link.GuardianRole == authorize.GuardianRoleSocialWorker
+	isSocialWorker := link.GuardianRole == GuardianRoleSocialWorker
 	// A full guardian (primary/legal/co) is a real legal guardian, not a helper.
 	// Self is exempt: the caller's own profile (always a full guardian) stays
 	// editable via the isSelf branches below.
-	isFullGuardian := !isSelf && authorize.IsFullGuardianRole(link.GuardianRole)
+	isFullGuardian := !isSelf && fullGuardianRole(link.GuardianRole)
 	protected := contactProtected(profile, link, isSelf, sharedAcrossFamilies)
 	g := &ChildGuardian{
 		GuardianProfileID:  profile.ID,
@@ -163,7 +160,7 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 
 // applyGuardianContactDetails copies the personal contact identifiers (email,
 // address, phones) of an unprotected guardian into the projection.
-func applyGuardianContactDetails(g *ChildGuardian, profile *usersModels.GuardianProfile, phones []*usersModels.GuardianPhoneNumber) {
+func applyGuardianContactDetails(g *ChildGuardian, profile *GuardianProfile, phones []*GuardianPhoneNumber) {
 	if profile.Email != nil {
 		g.Email = *profile.Email
 	}

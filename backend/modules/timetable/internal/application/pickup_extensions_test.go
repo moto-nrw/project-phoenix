@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type pickupExtensionTargetStore struct {
-	ports.Store
+	internalports.Store
 	targets map[int64][]domain.GroupTarget
 }
 
@@ -20,7 +20,7 @@ func (s pickupExtensionTargetStore) ListGroupTargets(_ context.Context, _ []int6
 }
 
 type pickupExtensionTargetStudents struct {
-	ports.StudentDirectory
+	internalports.StudentDirectory
 	students []domain.TargetStudent
 }
 
@@ -29,7 +29,7 @@ func (d pickupExtensionTargetStudents) ListEnrolledStudents(context.Context) ([]
 }
 
 type pickupExtensionInstanceStore struct {
-	ports.Store
+	internalports.Store
 	instance  domain.ActivityInstance
 	lockedID  int64
 	exclusive bool

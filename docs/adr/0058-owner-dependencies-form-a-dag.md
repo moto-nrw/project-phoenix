@@ -126,6 +126,31 @@ From policy epoch 50 a reviewed epoch may add exactly these rules
    `internal_test` only) may reach what points 2 and 3 admit in production;
    they test unexported functions and move with the code.
 
+5. From policy epoch 57 a domain's `port` role is a source of the same reach.
+   The roots name the dependency types they build an owner's services with;
+   those types live in a non-internal `ports` package instead of being
+   re-exported from the composition as aliases. Admitted are
+   `domain.port-public` (own `public`), per owner the `public` role of
+   `tenant-runtime` or `transaction-runtime`, and per owner another domain's
+   `public` role when the base grants the owner that edge. Two shapes are
+   added for the move:
+   - Per owner, a domain's `port` role into its own `legacy-model` role,
+     production only. It is temporary: Timetable's rule
+     `timetable-activities.port.legacy-model` falls away when #4086
+     dissolves `models/schedule` and `models/activities`.
+   - A narrowing: a source that the base already lets reach another owner's
+     `compose` role may reach that owner's `port` role in the same or fewer
+     scopes. The port is a subset of what the composition exposes.
+   A projection or workflow target, another owner's `legacy-model`, a
+   platform's non-public role and the reverse DAG direction stay rejected.
+
+6. From policy epoch 65 a domain's `postgres` role may reach the same
+   owner's `port` role, per owner and production only: the owner's
+   repositories implement the repository contracts its ports declare
+   (`reviewedPostgresPortRule`). The rule stays inside one owner and adds no
+   edge to the owner graph. People Directory is the first user
+   (`people-directory.postgres.port`, #4084).
+
 A per-owner rule is added in the change that first uses it. The composition's
 rule into the same target goes once the composition no longer needs it.
 Projection, workflow and platform sources, other targets, external classes

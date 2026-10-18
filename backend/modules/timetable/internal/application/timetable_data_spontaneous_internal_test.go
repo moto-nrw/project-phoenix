@@ -11,6 +11,7 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -19,7 +20,7 @@ import (
 // api/timetable handler tests over model-typed fakes before #3554.
 
 type spontaneousTemplates struct {
-	DataTemplates
+	ports.DataTemplates
 	byName  map[string]*activitiesModels.Group
 	created []*activitiesModels.Group
 }
@@ -50,7 +51,7 @@ func (f *spontaneousCategories) Create(_ context.Context, category *activitiesMo
 }
 
 func spontaneousData(templates *spontaneousTemplates, categories *spontaneousCategories) *timetableData {
-	return &timetableData{deps: TimetableDataDependencies{Templates: templates, Categories: categories}}
+	return &timetableData{deps: ports.TimetableDataDependencies{Templates: templates, Categories: categories}}
 }
 
 func TestResolveSpontaneousActivityReusesActivityByName(t *testing.T) {

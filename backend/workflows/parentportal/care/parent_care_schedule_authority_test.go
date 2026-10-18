@@ -4,13 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -18,9 +16,9 @@ import (
 
 func weeklyPlanSettings(bookingsAuthoritative bool) map[string]bool {
 	return map[string]bool{
-		care.KeyEnrollmentBookingsAuthoritative: bookingsAuthoritative,
-		care.KeyParentCarePickupRequestEnabled:  true,
-		care.KeyParentCareModeRequestEnabled:    true,
+		parentportal.KeyEnrollmentBookingsAuthoritative: bookingsAuthoritative,
+		parentportal.KeyParentCarePickupRequestEnabled:  true,
+		parentportal.KeyParentCareModeRequestEnabled:    true,
 	}
 }
 
@@ -34,10 +32,10 @@ func TestGetAndCreateCareScheduleRequest_BookingsAuthoritative(t *testing.T) {
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, view.CanRequest)
-	assert.Equal(t, care.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
+	assert.Equal(t, parentportal.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
 
 	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.ErrorIs(t, err, care.ErrCareRequestBookingsAuthoritative)
+	require.ErrorIs(t, err, parentportal.ErrCareRequestBookingsAuthoritative)
 }
 
 func TestExistingCareScheduleRequestSurvivesBookingAuthorityChange(t *testing.T) {
@@ -87,8 +85,7 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Review")
 	staffCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(staffAccount.ID)})
-	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxPermissions, []string{"admin:*"})
+	staffCtx = testpkg.WithAuthenticatedContext(staffCtx, testpkg.Claims{ID: int(staffAccount.ID)}, []string{"admin:*"})
 	var decided *carerequests.ReviewItem
 	err = testpkg.WithTenantTx(t, staffCtx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var decideErr error
@@ -98,5 +95,5 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 		return decideErr
 	})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)
+	assert.Equal(t, "approved", decided.Request.Status)
 }

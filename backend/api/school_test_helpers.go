@@ -1,10 +1,13 @@
+//go:build testhooks
+
 package api
 
 import (
 	"context"
 	"time"
 
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -59,7 +62,7 @@ func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant
 		return nil, err
 	}
 	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := organizationTenancyCompose.FindSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
+		school, found, err := lookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
 		return found, found && school.IsDeleted(), err
 	}, nil
 }
@@ -85,4 +88,13 @@ func (d deviceSchools) FindSchool(ctx context.Context, id int64) (*deviceauth.Sc
 		return nil, err
 	}
 	return &deviceauth.School{Deleted: deleted}, nil
+}
+
+// SchoolMFAResendResponse is the native response the school router renders.
+type SchoolMFAResendResponse = common.MFAResendResponse
+
+// newSchoolNotificationsForTests binds the native resource from the existing
+// single-owner Delivery fixture, as the production school mount does.
+func newSchoolNotificationsForTests(module DeliveryTestModule) *notificationsHTTP.Resource {
+	return NewNotificationHTTP(module.Notifications, module.PushSubscriptions, module.NotificationPreferences)
 }

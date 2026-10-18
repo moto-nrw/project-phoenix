@@ -2,11 +2,10 @@ package parentstore
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 )
 
@@ -14,7 +13,7 @@ import (
 // Versions and submissions are the store's rows; children and signers are
 // audience reads.
 
-func (r *announcementRepository) LatestDeclarationVersion(ctx context.Context, tenantID, announcementID int64) (*usersModels.DeclarationVersion, error) {
+func (r *announcementRepository) LatestDeclarationVersion(ctx context.Context, tenantID, announcementID int64) (*communication.PortalDeclarationVersion, error) {
 	value, err := r.store.LatestDeclarationVersion(ctx, tenantID, announcementID)
 	if err != nil || value == nil {
 		return nil, err
@@ -22,31 +21,31 @@ func (r *announcementRepository) LatestDeclarationVersion(ctx context.Context, t
 	return declarationVersionModel(value), nil
 }
 
-func (r *announcementRepository) ListDeclarationVersions(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.DeclarationVersion, error) {
+func (r *announcementRepository) ListDeclarationVersions(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalDeclarationVersion, error) {
 	values, err := r.store.ListDeclarationVersions(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*usersModels.DeclarationVersion, 0, len(values))
+	out := make([]*communication.PortalDeclarationVersion, 0, len(values))
 	for _, value := range values {
 		out = append(out, declarationVersionModel(value))
 	}
 	return out, nil
 }
 
-func (r *announcementRepository) LatestDeclarationVersions(ctx context.Context, announcementIDs []int64) (map[int64]*usersModels.DeclarationVersion, error) {
+func (r *announcementRepository) LatestDeclarationVersions(ctx context.Context, announcementIDs []int64) (map[int64]*communication.PortalDeclarationVersion, error) {
 	values, err := r.store.LatestDeclarationVersions(ctx, announcementIDs)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int64]*usersModels.DeclarationVersion, len(values))
+	out := make(map[int64]*communication.PortalDeclarationVersion, len(values))
 	for id, value := range values {
 		out[id] = declarationVersionModel(value)
 	}
 	return out, nil
 }
 
-func (r *announcementRepository) InsertDeclarationVersion(ctx context.Context, version *usersModels.DeclarationVersion) error {
+func (r *announcementRepository) InsertDeclarationVersion(ctx context.Context, version *communication.PortalDeclarationVersion) error {
 	value := &domain.DeclarationVersion{
 		TenantID: version.TenantID, AnnouncementID: version.AnnouncementID, VersionNo: version.VersionNo,
 		Title: version.Title, Body: version.Body, Kind: version.Kind, ContentHash: version.ContentHash,
@@ -56,9 +55,6 @@ func (r *announcementRepository) InsertDeclarationVersion(ctx context.Context, v
 		value.Attachments = append(value.Attachments, domain.DeclarationAttachmentDigest(a))
 	}
 	if err := r.store.InsertDeclarationVersion(ctx, value); err != nil {
-		if errors.Is(err, parentpostgres.ErrDeclarationVersionConflict) {
-			return usersModels.ErrDeclarationVersionConflict
-		}
 		return err
 	}
 	version.ID = value.ID
@@ -66,14 +62,14 @@ func (r *announcementRepository) InsertDeclarationVersion(ctx context.Context, v
 	return nil
 }
 
-func (r *announcementRepository) DeclarationSettings(ctx context.Context, announcementIDs []int64) (map[int64]usersModels.AnnouncementDeclarationSettings, error) {
+func (r *announcementRepository) DeclarationSettings(ctx context.Context, announcementIDs []int64) (map[int64]communication.PortalAnnouncementDeclarationSettings, error) {
 	values, err := r.store.DeclarationSettings(ctx, announcementIDs)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int64]usersModels.AnnouncementDeclarationSettings, len(values))
+	out := make(map[int64]communication.PortalAnnouncementDeclarationSettings, len(values))
 	for id, value := range values {
-		out[id] = usersModels.AnnouncementDeclarationSettings(value)
+		out[id] = communication.PortalAnnouncementDeclarationSettings(value)
 	}
 	return out, nil
 }
@@ -82,12 +78,12 @@ func (r *announcementRepository) CountDeclarationSubmissions(ctx context.Context
 	return r.store.CountDeclarationSubmissions(ctx, tenantID, announcementID)
 }
 
-func (r *announcementRepository) ListDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.DeclarationSubmission, error) {
+func (r *announcementRepository) ListDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalDeclarationSubmission, error) {
 	values, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
 	return declarationSubmissionModels(values), err
 }
 
-func (r *announcementRepository) ListDeclarationSubmissionsForStudents(ctx context.Context, announcementIDs, studentIDs []int64) ([]*usersModels.DeclarationSubmission, error) {
+func (r *announcementRepository) ListDeclarationSubmissionsForStudents(ctx context.Context, announcementIDs, studentIDs []int64) ([]*communication.PortalDeclarationSubmission, error) {
 	values, err := r.store.ListDeclarationSubmissionsForStudents(ctx, announcementIDs, studentIDs)
 	return declarationSubmissionModels(values), err
 }
@@ -96,7 +92,7 @@ func (r *announcementRepository) LockDeclarationChild(ctx context.Context, annou
 	return r.store.LockDeclarationChild(ctx, announcementID, studentID)
 }
 
-func (r *announcementRepository) InsertDeclarationSubmission(ctx context.Context, submission *usersModels.DeclarationSubmission) error {
+func (r *announcementRepository) InsertDeclarationSubmission(ctx context.Context, submission *communication.PortalDeclarationSubmission) error {
 	value := domain.DeclarationSubmission(*submission)
 	if err := r.store.InsertDeclarationSubmission(ctx, &value); err != nil {
 		return err
@@ -106,7 +102,7 @@ func (r *announcementRepository) InsertDeclarationSubmission(ctx context.Context
 	return nil
 }
 
-func (r *announcementRepository) DeclarationChildren(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.DeclarationChild, error) {
+func (r *announcementRepository) DeclarationChildren(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalDeclarationChild, error) {
 	submissions, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
 	if err != nil {
 		return nil, err
@@ -115,12 +111,12 @@ func (r *announcementRepository) DeclarationChildren(ctx context.Context, tenant
 	return declarationChildModels(values), err
 }
 
-func (r *announcementRepository) DeclarationSigners(ctx context.Context, tenantID int64, studentIDs []int64) ([]*usersModels.DeclarationSigner, error) {
+func (r *announcementRepository) DeclarationSigners(ctx context.Context, tenantID int64, studentIDs []int64) ([]*communication.PortalDeclarationSigner, error) {
 	values, err := r.audience.DeclarationSigners(ctx, tenantID, studentIDs)
 	return declarationSignerModels(values), err
 }
 
-func (r *announcementRepository) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.DeclarationChild, error) {
+func (r *announcementRepository) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64) ([]*communication.PortalDeclarationChild, error) {
 	submissions, err := r.store.ListDeclarationSubmissionsForAccountAndAnnouncements(ctx, accountID, announcementIDs)
 	if err != nil {
 		return nil, err
@@ -129,21 +125,21 @@ func (r *announcementRepository) DeclarationChildrenForAccount(ctx context.Conte
 	return declarationChildModels(values), err
 }
 
-func (r *announcementRepository) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*usersModels.DeclarationSigner, error) {
+func (r *announcementRepository) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*communication.PortalDeclarationSigner, error) {
 	values, err := r.audience.DeclarationSignersForStudents(ctx, studentIDs)
 	return declarationSignerModels(values), err
 }
 
-func (r *announcementRepository) HoldDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*usersModels.DeclarationSignerContext, error) {
+func (r *announcementRepository) HoldDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*communication.PortalDeclarationSignerContext, error) {
 	value, err := r.audience.HoldDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
 	if err != nil || value == nil {
 		return nil, err
 	}
-	signer := usersModels.DeclarationSignerContext(*value)
+	signer := communication.PortalDeclarationSignerContext(*value)
 	return &signer, nil
 }
 
-func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*usersModels.DeclarationSignerContext, error) {
+func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*communication.PortalDeclarationSignerContext, error) {
 	submissions, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
 	if err != nil || !hasDeclarationSubmission(submissions, accountID, studentID) {
 		return nil, err
@@ -152,15 +148,15 @@ func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Con
 	if err != nil || value == nil {
 		return nil, err
 	}
-	signer := usersModels.DeclarationSignerContext(*value)
+	signer := communication.PortalDeclarationSignerContext(*value)
 	return &signer, nil
 }
 
-func declarationHistoryLinks(submissions []*domain.DeclarationSubmission) []domain.DeclarationHistoryLink {
-	links := make([]domain.DeclarationHistoryLink, 0, len(submissions))
-	seen := make(map[domain.DeclarationHistoryLink]struct{}, len(submissions))
+func declarationHistoryLinks(submissions []*domain.DeclarationSubmission) []parentaudience.DeclarationHistoryLink {
+	links := make([]parentaudience.DeclarationHistoryLink, 0, len(submissions))
+	seen := make(map[parentaudience.DeclarationHistoryLink]struct{}, len(submissions))
 	for _, submission := range submissions {
-		link := domain.DeclarationHistoryLink{
+		link := parentaudience.DeclarationHistoryLink{
 			TenantID: submission.TenantID, AnnouncementID: submission.AnnouncementID, StudentID: submission.StudentID,
 		}
 		if _, ok := seen[link]; ok {
@@ -185,40 +181,40 @@ func (r *announcementRepository) ReadOpenDeclarations(ctx context.Context, accou
 	return r.store.ReadOpenDeclarations(ctx, accountID, tenantIDs)
 }
 
-func declarationVersionModel(value *domain.DeclarationVersion) *usersModels.DeclarationVersion {
-	version := &usersModels.DeclarationVersion{
+func declarationVersionModel(value *domain.DeclarationVersion) *communication.PortalDeclarationVersion {
+	version := &communication.PortalDeclarationVersion{
 		ID: value.ID, TenantID: value.TenantID, AnnouncementID: value.AnnouncementID, VersionNo: value.VersionNo,
 		Title: value.Title, Body: value.Body, Kind: value.Kind, ContentHash: value.ContentHash,
-		PublishedAt: value.PublishedAt, Attachments: make([]usersModels.DeclarationAttachmentDigest, 0, len(value.Attachments)),
+		PublishedAt: value.PublishedAt, Attachments: make([]communication.PortalDeclarationAttachmentDigest, 0, len(value.Attachments)),
 	}
 	for _, a := range value.Attachments {
-		version.Attachments = append(version.Attachments, usersModels.DeclarationAttachmentDigest(a))
+		version.Attachments = append(version.Attachments, communication.PortalDeclarationAttachmentDigest(a))
 	}
 	return version
 }
 
-func declarationSubmissionModels(values []*domain.DeclarationSubmission) []*usersModels.DeclarationSubmission {
-	out := make([]*usersModels.DeclarationSubmission, 0, len(values))
+func declarationSubmissionModels(values []*domain.DeclarationSubmission) []*communication.PortalDeclarationSubmission {
+	out := make([]*communication.PortalDeclarationSubmission, 0, len(values))
 	for _, value := range values {
-		submission := usersModels.DeclarationSubmission(*value)
+		submission := communication.PortalDeclarationSubmission(*value)
 		out = append(out, &submission)
 	}
 	return out
 }
 
-func declarationChildModels(values []*domain.DeclarationChild) []*usersModels.DeclarationChild {
-	out := make([]*usersModels.DeclarationChild, 0, len(values))
+func declarationChildModels(values []*parentaudience.DeclarationChild) []*communication.PortalDeclarationChild {
+	out := make([]*communication.PortalDeclarationChild, 0, len(values))
 	for _, value := range values {
-		child := usersModels.DeclarationChild(*value)
+		child := communication.PortalDeclarationChild(*value)
 		out = append(out, &child)
 	}
 	return out
 }
 
-func declarationSignerModels(values []*domain.DeclarationSigner) []*usersModels.DeclarationSigner {
-	out := make([]*usersModels.DeclarationSigner, 0, len(values))
+func declarationSignerModels(values []*parentaudience.DeclarationSigner) []*communication.PortalDeclarationSigner {
+	out := make([]*communication.PortalDeclarationSigner, 0, len(values))
 	for _, value := range values {
-		signer := usersModels.DeclarationSigner(*value)
+		signer := communication.PortalDeclarationSigner(*value)
 		out = append(out, &signer)
 	}
 	return out

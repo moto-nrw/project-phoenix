@@ -1763,8 +1763,10 @@ outside `modules/workforce` implements them.
 `modules/workforce/compose.NewTimeTracking` builds every service over the
 capability and the consumer-owned ports the root binds in
 `services/time_tracking_ports.go`. The work-session repository shim, its five
-constructors and their root bindings are deleted; the row mapping is private
-to the composition (`compose/worksession_rows.go`).
+constructors and their root bindings are deleted. #4084 moved the row
+mapping into the time-tracking package (`capability_*_rows.go`) and the
+Dienstplan rows into `internal/planning/capability_shift_rows.go`; both build
+the retained error shape through `transactionruntime.RecordErrors`.
 
 #3996 retired the row vocabulary of `modules/workforce/adapters/timerecords`.
 The rows and their repository contracts are declared in the time-tracking
@@ -3379,15 +3381,13 @@ not import `request-review-view/public`, and neither
 decision under #2580.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
-is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
-permissions for the retained `models/platform` school row, the
-`models/config` setting key, and the `database/sql`/`pgdriver` error
-classification exist only because PR mode cannot record debt for a package
-the candidate creates. They are compatibility permissions for the retained
-school service and settings service, not target dependencies: convert them
-to exact debt with the rule above once the package exists at a base SHA, and
-replace them with an Organisation & Tenancy school query and a Settings
-Platform read when those owners expose them.
+is classified as `device-fleet`/`http`. School lookup and Settings use existing
+consumer ports bound by Root. SQL not-found and transient error classification
+live in Device Fleet's Postgres adapter and reach the authenticator through its
+`SchoolErrors` port, bound by Root's owner composition. No HTTP package receives
+an ORM-class grant. Display credential generation uses the existing token port;
+its byte-identical mint/hash implementation lives in a credential adapter, so
+the cryptographic class grant is limited to production adapters, not HTTP.
 
 PR mode allows a classification when the candidate adds the first Go file in
 that exact package. Rules added with it must be anchored to an owner and role
@@ -3897,6 +3897,202 @@ and history (3,913 LOC) follow, again without a rule. The session token and
 the shared authorization rules stay in the composition behind the
 application's `OperationCaller` port (`compose/operation_caller.go`), so the
 moved code imports neither `auth/authorize` nor the session token adapter.
+
+Epoch 57 replaces the 99 same-owner aliases of the Timetable composition
+(`compose/templates.go`, `instances.go`, `operations.go`) with defined types
+in the non-internal package `modules/timetable/ports` (role `port`). The
+roots, the HTTP tests and the Care Plan contract suite name those types
+directly; the composition only constructs. ADR 0058 addendum point 5 makes
+`port` a source role of the reach (`reviewedInternalReachRule`). The epoch
+adds `domain.port-public` (and deletes `care-plan.port.care-plan.public`,
+which it covers), `timetable-activities.port.student-presence.public`,
+`timetable-activities.port.legacy-model` (temporary until #4086 dissolves
+`models/schedule` and `models/activities`),
+`care-plan.contracttest.timetable-activities.port` (narrowing of the
+contract suite's existing compose reach) and, accepted by the ADR 0053
+composition reach, `root-composition.reach.domain.port`; 902 → 906 rules.
+
+The retained repository adapters that run on the Timetable capability alone,
+the Care Plan and Workforce row adapters, the end-of-session completion, the
+cleanup and the legacy repository vocabulary follow, again without a rule.
+`application.NewCapabilityRepositories` builds the capability-only adapters;
+the composition adds the instance and participant adapters, which also run on
+the database and Student Presence. The data and dependency types the roots
+name go to `modules/timetable/ports`; the composition builds the adapters
+through constructors that return ports interfaces, without aliases. The
+`legacy_*.go` files that move keep their names and budgets under their new
+paths; `legacy_repository_options.go` splits, the pickup exception and student
+status day values the roots name going to the ports package with their own
+entry. `legacy_errors.go` stays in the composition: only its retained activity
+service uses it.
+The same change moves the capability engine (the mapping of the public
+vocabulary onto the domain, `application.Engine`) and the attendance mirror;
+the mirror reports a recovered panic through a port the composition binds to
+Sentry (`compose/attendance_mirror_report.go`). The Timetable composition goes
+from 14,106 to 6,195 LOC.
+
+The retained instance and participant adapters, their transitions and the
+recovery's Timetable and Student Presence halves follow into
+`internal/application`; they read the joined presence projection through the
+application's `PresenceReads` port, which the composition binds over the
+database (`compose/presence_reads.go`), and the filters of those reads are
+ports values. Epoch 60 adds `test-support.to.timetable-port`, the narrowing of
+`test-support.to.timetable-compose` the Timetable test support needs to name
+the filters (ADR 0058 addendum point 5). The legacy School Calendar
+repositories (calendar periods, closing days, date frames) follow; their
+not-found shape keeps `sql.ErrNoRows` through `transactionruntime.ErrNoRows`.
+The composition goes to 4,218 LOC.
+
+People Directory follows the same way. The engine that serves the public
+capability over the application services (the mapping of the public
+vocabulary onto the domain and of the domain errors onto the contract,
+`application.Engine`, `application.MapError`) and the adapter of the Audit
+Platform's change trail move from `modules/peopledirectory/compose` into
+`internal/application`; the composition goes from 8,943 to 7,947 LOC.
+The retention cleanup of the per-child change history and the adapters of
+the root's student seams (Care Plan's companions, the enrollment and care
+owners, Audit's note deletion ledger) follow; the seams and the cleanup's
+dependency types are values of the non-internal `modules/peopledirectory/ports`
+package, so the roots name them without aliases. Epoch 62 adds
+`student-owner-integration.people-directory.port`, the narrowing of
+`student-owner-integration.people-directory.compose` the student
+unit-of-work integration test needs to name the owner seam (ADR 0058
+addendum point 5). The composition goes to 7,627 LOC.
+
+Workforce follows the same way: the engine that serves the public capability
+over the application service and the staff administration's engine and
+adapters (`application.Engine`, `application.StaffAdminEngine`,
+`application.MapError`) move from `modules/workforce/compose` into
+`internal/application`; the composition goes from 7,021 to 5,190 LOC. Epoch
+63 adds `workforce.application.transaction-runtime` (ADR 0058 addendum point
+2): the staff administration keeps its not-found shape through
+`transactionruntime.ErrNoRows` instead of `database/sql`.
+
+Care Plan follows: the engine that serves the capability over the Care Plan
+stores, the exception queries and the offering change reads
+(`application.Engine`, `application.ExceptionQueryService`,
+`application.MapError`) move from `modules/careplan/compose` into
+`internal/application`. The engine reaches the tenant runtime and the
+student and exception-day locks through the `EngineRuntime` port the
+composition binds; the student name projection and the exception query seam
+the roots name are values of `modules/careplan/ports`. Epoch 64 adds
+`own-test-support.domain.port` (ADR 0053 point 7.1, next to
+`own-test-support.domain.compose`): the Care Plan test support names the
+student name projection. The composition goes from 4,333 to 3,147 LOC.
+
+The repository contracts and the query and error vocabulary of the retained
+People Directory repositories move from `database/repositories/users` into
+`modules/peopledirectory/ports` as defined types, together with the port
+declarations of the composition (person writer, staff directory, student
+directory, photo, audit and guardian payment ports). The repositories,
+the composition and the roots name them there; the matching aliases of
+`compose/vocabulary` go (#4085). Epoch 65 adds
+`people-directory.port.legacy-model` (temporary until #4004 dissolves
+`models/users`) and `people-directory.postgres.port`, the first rule of the
+postgres-to-own-port shape of ADR 0058 addendum point 6. The composition goes
+from 7,627 to 7,316 LOC.
+
+The retained guardian service (profiles, relationships, phone numbers,
+invitations, payment data, validation and masking) follows into
+`internal/application` as `application.RetainedGuardianService`. Its request,
+result and dependency types, its errors and the `GuardianService` port the
+roots and the HTTP layer name are values of `modules/peopledirectory/ports`;
+its transactions run through the `GuardianTransactions` port the composition
+binds to the tenant runtime (`compose/guardian_service.go`). The composition
+goes to 5,074 LOC.
+
+The retained person and staff directories follow as
+`application.RetainedPersonDirectory` and the staff directory behind
+`ports.StaffDirectory`; their dependencies, errors and the `PersonDirectory`
+port are values of `modules/peopledirectory/ports`, the staff writes run
+through `ports.TenantTxRunner`, and `MissingStudentError` leaves
+`legacy_composition_support.go` for the ports' error vocabulary. Epoch 66 adds
+`people-directory.application.tenant-runtime`,
+`people-directory.application.transaction-runtime` and
+`people-directory.port.transaction-runtime`. The composition goes to 4,033
+LOC.
+
+The caregiver capability service and the guardian directory provider follow
+(`application.NewCaregiverCapabilityService`, `application.GuardianDirectory`).
+The caregiver service's Bun-transaction check stays in the composition and is
+handed in; the provider's constraint classification moves to the ports'
+error vocabulary (`IsConstraintViolation`). The composition goes to 2,779
+LOC.
+
+Identity & Access follows: the engine that serves the capability over the
+application services, with its error mapping, result mapping and the second
+factor's flow bundle (`application.NewEngine`, `application.EngineParts`,
+`application.MapError`, `application.MFAFlows`, `application.CalendarFeeds`),
+moves from `modules/identityaccess/compose` into `internal/application`; the
+refresh rotation's recovery-proof binding is handed in. Epoch 67 adds
+`identity-access.application.tenant-runtime`,
+`identity-access.application.transaction-runtime` and
+`identity-access.module-internal-test.tenant-runtime`. The composition goes
+from 7,356 to 4,075 LOC.
+
+Care Plan follows with its record adapters: the generic effective-time record
+adapters (`application.EffectiveRecords`, `ExceptionRecords`, `NoteRecords`
+over `RecordFuncs`), the companion edges (`application.CompanionEdges`) and the
+student profile commands (`application.NewStudentProfiles` over
+`ports.StudentProfileStore`) move from `modules/careplan/compose` into
+`internal/application`; the composition binds the store and the record
+functions. Epoch 68 adds `care-plan.application.tenant-runtime`. The
+composition goes from 3,147 to 2,876 LOC.
+
+Student Presence follows: the engine that serves the capability over the
+application service, with its public mapping of attendance, visits, sessions,
+supervisions, live groups and privacy consent (`application.NewEngine`), moves
+from `modules/studentpresence/compose` into `internal/application`; a missing
+attendance or visit row is recognised through the transaction runtime's no-rows
+sentinel. Epoch 69 adds `student-presence.application.transaction-runtime`.
+The composition goes from 1,805 to 621 LOC.
+
+School Structure follows: the engine that serves the capability over the
+application service, with the group, transition and ledger mapping and the
+error mapping (`application.NewEngine`, `application.Engine`,
+`application.MapError`), moves from `modules/schoolstructure/compose` into
+`internal/application`. Epoch 70 adds
+`school-structure.application.tenant-runtime`. The composition goes from 1,573
+to 1,258 LOC.
+
+Device Fleet, Organization & Tenancy and School Membership follow: each
+engine that serves the owner's capability over its application service, with
+the public and error mapping (`application.NewEngine`, `application.Engine`,
+`application.MapError`), moves from the owner's composition into
+`internal/application`. Epoch 71 adds
+`school-membership.application.tenant-runtime` for the staff identity read.
+The compositions go from 701 to 372, 708 to 479 and 869 to 354 LOC.
+
+The Identity & Access session token codec (`application.SessionCodec`,
+`application.NewSessionCodec`, `application.JWTSigner`) and the Enrollment
+decision adapter (`application.PublicDecisions`) move into their owners'
+`internal/application`. With the codec gone, the Identity & Access composition
+no longer imports the token library; epoch 72 removes the stale
+`external.crypto.identity-access.production.compose` grant. The compositions
+go from 1,963 to 1,801 and 823 to 716 LOC.
+
+#4085 starts with a register: `test/module_compose_alias_ratchet_test.go`
+counts, per composition package, the type aliases and value re-exports that
+name a package outside the composition's owner — the vocabulary the
+compositions hand out without the import the architecture ratchet would see.
+It starts at 522 (366 of them in `compose/vocabulary` and `compose/retained`)
+and only falls; #4085 is done when it is empty.
+
+Care Plan's record capabilities the roots bind (`ArrivalBaselineRecords`,
+`PickupBaselineRecords`, `PickupApprovalRecords`, `PickupExcusalRecords`) are
+defined types in `modules/careplan/ports`; the baseline sources, the approval
+exceptions and the excusal rows over them move into `internal/application`
+(`application.NewArrivalBaselines`, `NewPickupBaselines`,
+`NewPickupApprovalExceptions`, `NewPickupExcusalRows`). The composition goes
+from 2,876 to 2,572 LOC.
+
+The School Structure group facade follows: the public group management over
+the group application and the private group reads, with the group value and
+error mapping (`groups.NewManagement`, `groups.PublicGroup`,
+`groups.LegacyGroup`, `groups.PublicGroupError`), moves from
+`modules/schoolstructure/compose` into `internal/application/groups`; the
+retained testhooks adapters keep calling them there. The composition goes from
+1,258 to 904 LOC.
 
 ### Enrollment wiring out of services (#4012)
 
@@ -4504,11 +4700,11 @@ unsupported schema versions, invalid enum values, missing or conflicting table
 owners, unsafe or overlapping projection grants, stale legacy symbols,
 duplicate classifications, stale packages, unknown dependencies, and
 logically overlapping rules. Change
-`schema_version` only when the JSON shape changes. Change `policy_epoch` only
+`schema_version` only when the JSON wire grammar changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
-Policy candidates must use `schema_version: 4`. Schema 4 adds optional
+Policy candidates must use `schema_version: 5`. Schema 4 added optional
 `source_package` and `target_package` rule selectors (ADR 0057 addendum,
 #4078). Each is an exact, classified module-relative package path. An omitted
 selector keeps the owner/role reach; an explicitly empty, null, unknown,
@@ -4521,17 +4717,29 @@ Adding a selector to an otherwise unchanged rule is narrowing. Removing or
 changing it is compared as a possible permission increase, including paths
 whose owner/role pairs are identical. Exact selectors also participate in
 rule-overlap detection, permission memoization and the target owner graph.
-For a #4078 successor, restrict the reclassified source and/or target package
-when owner/role selectors alone would grant reach to unchanged packages.
-The approved transition, deleted-rule/scope checks and non-increasing rule
-count still apply. This schema change grants no owner any permission itself.
+The completed #4078 cutover removed its owner-transition acceptors and
+historical Common fixtures. Ordinary ownership, classification and permission
+strictness applies to every candidate; selectors remain intersections only.
+
+Schema 5 replaces the removed `inbound` kind with the distinct engineering
+kind `tool`. The canonical tooling owners are `architecture-check` and
+`dev-tools`; all six existing package roles and test roles remain unchanged.
+Tools own no writable data and are not nodes of the domain dependency graph.
+No live policy may name `inbound`, including an owner-kind rule selector.
+`own-test.tool.contract` succeeds `own-test.inbound.contract` with identical
+scopes, target and same-owner restriction; no other rule changes.
 
 Only `LoadBasePolicyAndManifest`, reading an immutable Git base, accepts
-schema 2 or 3 during the rollout and normalizes it to 4 before full validation.
-Old schemas cannot carry package selectors. Candidates never use that path.
+schemas 2, 3 or 4. Schema 2/3 still rejects package selectors, and every old
+schema rejects the new `tool` spelling. Full historical validation runs before
+any wire upgrade. The final schema-4 inventory, whose only inbound-kind
+owners are the two canonical tools, uses schema-5 tooling vocabulary in the
+ordinary strictness comparison. Owner IDs, package classifications, scopes
+and permissions do not change. Older histories with actual inbound HTTP
+owners remain historical schema-4 policies, never aliases for tools or an
+ownership-transition exemption. Candidates never use this decoder path.
 Schema 1, future schemas, unknown fields and invalid metadata still fail.
-Remove the older-base allowance once all supported comparison bases use
-schema 4. Evidence and projection schemas remain separate contracts.
+Evidence and projection schemas remain separate contracts.
 
 #3416 leaves `policy_epoch` at the checkout's existing value, 17. Adding issue
 metadata and deleting unused permissions grants no new architectural permission

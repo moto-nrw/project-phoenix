@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -9,6 +11,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,7 +23,7 @@ type SettingsCallbacksTestModule struct {
 	RealtimeHub    *realtime.Hub
 }
 
-func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peopleCompose.PhotoUnlinker) (SettingsCallbacksTestModule, error) {
+func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peoplePorts.PhotoUnlinker) (SettingsCallbacksTestModule, error) {
 	module, err := NewOperatorSettingsTestModule(db, unit)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err

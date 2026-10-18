@@ -29,7 +29,7 @@ func TestCheckRejectsUnsupportedSchemaVersion(t *testing.T) {
 	if err == nil {
 		t.Fatalf("check unexpectedly succeeded:\n%s", output)
 	}
-	if !strings.Contains(output, "schema_version must be 4, got 5") {
+	if !strings.Contains(output, "schema_version must be 5, got 6") {
 		t.Fatalf("check error does not identify the unsupported schema:\n%s", output)
 	}
 }

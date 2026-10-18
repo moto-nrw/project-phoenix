@@ -6,6 +6,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -17,11 +18,11 @@ import (
 // member behind a person. It only translates between the owner's public types
 // and the retained rows.
 type StudentRoutePersons struct {
-	persons *PersonDirectory
+	persons peoplePorts.PersonDirectory
 }
 
 // NewStudentRoutePersons binds the retained person directory.
-func NewStudentRoutePersons(persons *PersonDirectory) StudentRoutePersons {
+func NewStudentRoutePersons(persons peoplePorts.PersonDirectory) StudentRoutePersons {
 	return StudentRoutePersons{persons: persons}
 }
 

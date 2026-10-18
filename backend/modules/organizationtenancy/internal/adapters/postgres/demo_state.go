@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // DemoStateStore is only composed in the isolated demo CLI with its privileged
@@ -15,15 +16,19 @@ import (
 type DemoStateStore struct{ db *bun.DB }
 
 type DemoState struct {
-	TenantID int64  `bun:"tenant_id"`
-	SeedJSON string `bun:"seed_state"`
+	TenantID               int64  `bun:"tenant_id"`
+	SeedJSON               string `bun:"seed_state"`
+	VisitorAccountID       int64  `bun:"visitor_account_id"`
+	VisitorParentAccountID int64  `bun:"visitor_parent_account_id"`
 }
 
 func NewDemoStateStore(db *bun.DB) *DemoStateStore { return &DemoStateStore{db: db} }
 
 func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, error) {
 	var state DemoState
-	err := s.db.NewRaw(`SELECT tenant_id, seed_state FROM platform.demo_school_states WHERE name = ? AND seed_state IS NOT NULL`, name).Scan(ctx, &state)
+	err := s.db.NewRaw(`SELECT tenant_id, seed_state, COALESCE(visitor_account_id, 0) AS visitor_account_id,
+		COALESCE(visitor_parent_account_id, 0) AS visitor_parent_account_id
+		FROM platform.demo_school_states WHERE name = ? AND seed_state IS NOT NULL`, name).Scan(ctx, &state)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -36,10 +41,16 @@ func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, err
 // Reserve records the school as soon as bootstrap created it. The full seed
 // state follows later; retaining this identity lets a final failed seed hide
 // a replacement that did not reach its state write.
-func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID int64) error {
+func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET tenant_id = ?
-		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`, schoolID, name).Exec(ctx)
+		SET tenant_id = ?,
+			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
+			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[?], NULL)
+		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`,
+		schoolID, visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, schoolID, name).Exec(ctx)
 	if err != nil {
 		return errors.New("could not reserve demo school state")
 	}
@@ -53,9 +64,10 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 	// A queued order has its row already and stays preparing until its first
 	// tick; the standing school has no order and is ready with its seed.
 	// Seeded credentials are never overwritten.
-	result, err := s.db.NewRaw(`INSERT INTO platform.demo_school_states AS state (name, tenant_id, seed_state, status) VALUES (?, ?, ?::jsonb, 'ready')
-		ON CONFLICT (name) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, seed_state = EXCLUDED.seed_state
-		WHERE state.seed_state IS NULL`, name, state.TenantID, state.SeedJSON).Exec(ctx)
+	result, err := s.db.NewRaw(`INSERT INTO platform.demo_school_states AS state (name, tenant_id, seed_state, status, visitor_school_ids) VALUES (?, ?, ?::jsonb, 'ready', ARRAY[?])
+		ON CONFLICT (name) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, seed_state = EXCLUDED.seed_state,
+			visitor_school_ids = array_remove(state.visitor_school_ids || ARRAY[EXCLUDED.tenant_id], NULL)
+		WHERE state.seed_state IS NULL`, name, state.TenantID, state.SeedJSON, state.TenantID).Exec(ctx)
 	// Do not include a driver error here: constraint errors may contain the
 	// rejected row, including the seed credentials.
 	if err != nil {
@@ -71,8 +83,14 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 // without allowing a caller to replace another school's state.
 func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoState) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET seed_state = ?::jsonb
-		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, name, state.TenantID).Exec(ctx)
+		SET seed_state = ?::jsonb,
+			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
+			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[?], NULL)
+		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, state.VisitorAccountID, state.VisitorParentAccountID,
+		state.VisitorAccountID, state.VisitorParentAccountID, state.TenantID, name, state.TenantID).Exec(ctx)
 	if err != nil {
 		return errors.New("could not update demo school state")
 	}
@@ -162,6 +180,9 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
 		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[visitor_account_id], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[visitor_parent_account_id], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL),
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
 		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
 			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
@@ -200,8 +221,13 @@ func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 // caregiver and parent account (#3468).
 func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {
 	_, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET status = 'ready', claimed_at = NULL, visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0) WHERE name = ?`,
-		visitorAccountID, visitorParentAccountID, name).Exec(ctx)
+		SET status = 'ready', claimed_at = NULL,
+			visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL)
+		WHERE name = ?`,
+		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("finish demo school order: %w", err)
 	}
@@ -219,14 +245,17 @@ func (s *DemoStateStore) Fail(ctx context.Context, name string, maxAttempts int)
 			WHERE name = ? AND status = 'preparing' FOR UPDATE
 		), changed AS (
 			UPDATE platform.demo_school_states
-			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
+			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END,
+				claimed_at = NULL,
+				tenant_id = CASE WHEN attempts >= ? THEN target.tenant_id ELSE NULL END,
+				seed_state = NULL
 			FROM target WHERE platform.demo_school_states.name = target.name
 			RETURNING target.tenant_id, platform.demo_school_states.status
 		), retired AS (
 			UPDATE platform.schools SET deleted_at = NOW()
 			WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM changed WHERE status = 'failed')
 		)
-		SELECT status = 'failed' FROM changed`, name, maxAttempts).Scan(ctx, &failed)
+		SELECT status = 'failed' FROM changed`, name, maxAttempts, maxAttempts).Scan(ctx, &failed)
 	if err != nil {
 		return false, fmt.Errorf("fail demo school order: %w", err)
 	}
@@ -261,32 +290,19 @@ func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]st
 	return names, nil
 }
 
-// RetireMany hides the schools of the named orders (#3470): the demo process
-// calls it for the schools whose last demo access expired. It returns how
-// many schools it hid; schools hidden before count nothing. An order that
-// still waits for its seed is closed as failed, so it holds no place either;
-// an order being seeded right now is left alone and finishes as a ready
-// school nobody enters.
-func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, error) {
-	if len(names) == 0 {
-		return 0, nil
+// RetireMany hides the schools of the named orders (#3470), then erases the
+// visitors of every order out of use (#4048). The demo process calls it each
+// hour with the schools whose last demo access expired, or with none. It
+// returns how many schools it hid and how many orders it erased.
+func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (hidden, erased int, err error) {
+	var result struct {
+		Hidden int `bun:"hidden"`
+		Erased int `bun:"erased"`
 	}
-	result, err := s.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
-		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND status = 'ready')`,
-		bun.List(names)).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("retire demo schools: %w", err)
+	if err := s.db.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools(?::text[])`, pgdialect.Array(names)).Scan(ctx, &result); err != nil {
+		return 0, 0, fmt.Errorf("retire demo schools: %w", err)
 	}
-	hidden, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("retire demo schools: %w", err)
-	}
-	_, err = s.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed'
-		WHERE name IN (?) AND status = 'preparing' AND claimed_at IS NULL AND tenant_id IS NULL`, bun.List(names)).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("close waiting demo school orders: %w", err)
-	}
-	return int(hidden), nil
+	return result.Hidden, result.Erased, nil
 }
 
 // DemoOrderStore is the serving backend's side of the queue. Its role may
@@ -343,6 +359,9 @@ func (s *DemoOrderStore) Progress(ctx context.Context, name string) (*DemoProgre
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || ?, 0))`, name).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("lock demo school progress: %w", err)
 	}
 	var progress DemoProgress
 	err = db.NewRaw(`SELECT status, COALESCE(tenant_id, 0) AS tenant_id, COALESCE(visitor_account_id, 0) AS visitor_account_id,

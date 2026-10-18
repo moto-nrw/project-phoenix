@@ -18,8 +18,32 @@ type Portal struct {
 	*MessagingFlows
 }
 
-// ChildFlows and MessagingFlows name the two flow services inside Portal.
+// The flow services, their configurations and shared collaborator contracts
+// form the public construction surface of the workflow.
 type (
-	ChildFlows     = care.Service
-	MessagingFlows = messaging.Service
+	ChildFlows             = care.Service
+	MessagingFlows         = messaging.Service
+	ChildConfig            = care.Config
+	MessagingConfig        = messaging.Config
+	ChildResolver          = messaging.ChildResolver
+	RequestShareVisibility = care.RequestShareVisibility
+)
+
+// NewChildFlows builds the child flows from the workflow's read and command
+// ports, retaining the required request-sharing collaborator.
+func NewChildFlows(cfg ChildConfig) *ChildFlows {
+	return care.New(cfg)
+}
+
+// NewMessagingFlows builds the announcement, conversation and request-sharing
+// flows behind the public native response facade. The composition binds
+// their child resolver to the child flows.
+func NewMessagingFlows(cfg MessagingConfig) *Portal {
+	return &Portal{MessagingFlows: messaging.New(cfg)}
+}
+
+const (
+	DayStateNoCare                     = care.DayStateNoCare
+	KeyEnrollmentBookingsAuthoritative = care.KeyEnrollmentBookingsAuthoritative
+	KeyParentNewsEnabled               = care.KeyParentNewsEnabled
 )

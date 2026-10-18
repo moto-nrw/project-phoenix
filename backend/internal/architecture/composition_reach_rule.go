@@ -15,7 +15,7 @@ var (
 	// rootReachTargetKinds and rootReachTargetRoles span the owner points the
 	// typed roots compose (ADR 0053 point 2). Another owner's application,
 	// domain, adapter, postgres or cli role, the legacy composition and the
-	// inbound owners stay outside.
+	// tool owners stay outside.
 	rootReachTargetKinds = map[string]bool{"domain": true, "platform": true, "workflow": true, "projection": true}
 	rootReachTargetRoles = map[string]bool{"compose": true, "public": true, "contract": true, "port": true, "http": true}
 

@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +42,7 @@ func bulkCancelRouter(t *testing.T, stub *bulkCancelStub) chi.Router {
 	t.Helper()
 	_, _ = RootCompositions.Module(t)
 	router := chi.NewRouter()
-	router.Mount("/timetable", NewResource(Dependencies{InstanceService: stub}).Router())
+	router.Mount("/timetable", NewResource(Dependencies{InstanceService: stub}).Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return router
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func (emptyPickupBookings) ListApprovedByStudentIDsInRange(context.Context, []in
 }
 
 type pickupBaselineReadProbe struct {
-	compose.PickupBaselineRecords
+	carePlanPorts.PickupBaselineRecords
 	scheduleReads int
 	offeringReads int
 }

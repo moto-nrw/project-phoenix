@@ -6,36 +6,39 @@ import (
 	"testing"
 	"time"
 
-	care "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/uptrace/bun"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // buildNoticeFeedService wires the parent service with the optional news feed
 // set explicitly. The cancellation notice (#2601) has no school switch since
 // #3731: a sent notice is always visible to the family.
-func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
+		Fingerprints:          api.SecurityFingerprints{},
+		Declarations:          api.ParentDeclarationPolicy(),
+		Runtime:               api.ParentPortalRuntime{},
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
-		AnnouncementRepo:      repos.ParentAnnouncement,
-		StudentRepo:           repos.Student,
+		ChildRepo:             repos.ParentChildReads(),
+		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
+		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
-				care.KeyParentNewsEnabled: newsEnabled,
+				parentportal.KeyParentNewsEnabled: newsEnabled,
 			},
 		},
 		Logger: slog.Default(),
@@ -45,22 +48,22 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service,
 
 // seedCareCancellationNotice publishes a system-authored notice aimed at one
 // child, the shape PublishCareCancellation writes.
-func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo usersModels.ParentAnnouncementRepository, createdBy, tenantID, studentID int64) *usersModels.ParentAnnouncement {
+func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, createdBy, tenantID, studentID int64) *communication.ParentAnnouncementFixture {
 	t.Helper()
-	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
-	a := &usersModels.ParentAnnouncement{
+	kind := "care_cancellation"
+	a := &communication.ParentAnnouncementFixture{
 		Title:      "Betreuung am Dienstag entfällt",
 		Body:       "Die Betreuung am Dienstag von 14:00 bis 15:30 fällt aus.",
-		Priority:   usersModels.ParentAnnouncementPriorityImportant,
+		Priority:   "important",
 		Active:     true,
 		CreatedBy:  createdBy,
 		SystemKind: &kind,
 	}
-	a.SetTenantID(tenantID)
+	a.TenantID = tenantID
 	require.NoError(t, repo.Create(ctx, a))
 	id := studentID
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*usersModels.ParentAnnouncementTarget{
-		{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &id},
+	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{
+		{TargetType: "student", TargetRefID: &id},
 	}))
 	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
@@ -76,8 +79,8 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	handWritten := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
-	notice := seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
+	handWritten := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
+	notice := seedCareCancellationNotice(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, chain.StudentID)
 
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
@@ -85,7 +88,7 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	require.Len(t, feed, 1, "only the notice shows where news is off")
 	assert.Equal(t, notice.ID, feed[0].ID)
 	require.NotNil(t, feed[0].SystemKind)
-	assert.Equal(t, usersModels.ParentAnnouncementSystemKindCareCancellation, *feed[0].SystemKind)
+	assert.Equal(t, "care_cancellation", *feed[0].SystemKind)
 
 	unread, err := svc.UnreadAnnouncementCount(ctx, chain.AccountID)
 	require.NoError(t, err)
@@ -94,7 +97,7 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	// The family can confirm the notice; the hand-written row stays hidden.
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, notice.ID, *notice.PublishedAt))
 	err = svc.MarkAnnouncementRead(ctx, chain.AccountID, handWritten.ID, *handWritten.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 
 	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
 	require.NoError(t, err)
@@ -107,8 +110,8 @@ func TestAnnouncementFeed_NewsOnShowsNoticeAndLetters(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
-	seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
+	seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
+	seedCareCancellationNotice(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, chain.StudentID)
 
 	feed, err := svc.ListAnnouncements(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)

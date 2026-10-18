@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"path/filepath"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -20,7 +22,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 )
 
@@ -167,7 +169,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		// routes register first, then the workforce admin routes from
 		// the Workforce module, both inside one protected tenant group.
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 				staffAdmin.RegisterStaffRoutes(protected, withTx)
 			})
@@ -224,19 +226,19 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 }
 
 func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
-	filePath, err := apiCommon.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	filePath, err := nativeUploads.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
 		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
-	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
+	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400", nativeUploads.UploadFiles{})
 }
 
 // renderStaffWriteFailure classifies the create/update/offboard errors: a
 // foreign-key violation on offboarding keeps its German conflict message,
 // everything else follows the service classification.
 func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) {
-	if apiCommon.IsConstraintViolation(err) {
+	if transactionFailures.IsConstraintViolation(err) {
 		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
 		return
 	}

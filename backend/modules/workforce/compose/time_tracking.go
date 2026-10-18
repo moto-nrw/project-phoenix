@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	timetracking "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
 // The time-tracking side of Workforce (#3413): the stamps, the session
@@ -76,6 +76,11 @@ type AutoCheckIn interface {
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error)
 }
 
+// StaffScheduleBindingLookup resolves the staff record a schedule update is
+// written for: its current work time model and rotation anchor. The root
+// binds it to the People Directory's staff read.
+type StaffScheduleBindingLookup func(ctx context.Context, staffID int64) (StaffScheduleBinding, error)
+
 // TimeTrackingJobs are the sweeps the scheduler runs per tenant: closing the
 // sessions left open overnight, ending breaks past their planned end and the
 // auto-checkout at the planned shift end (#1798).
@@ -127,18 +132,18 @@ func NewTimeTracking(capability workforce.Capability, ports TimeTrackingPorts, s
 		return nil, err
 	}
 	return &TimeTracking{
-		WorkSessions:       WorkSessionCapability(services.Sessions, staff),
-		TimeClock:          TimeClockCapability(services.Sessions),
-		StaffAbsences:      StaffAbsenceCapability(services.Absences),
-		WorkTimeMonths:     WorkTimeMonthCapability(services.Months),
-		BalanceAdjustments: BalanceAdjustmentCapability(services.Ledger),
-		MonthClosing:       MonthClosingCapability(services.Closing),
-		Overview:           StaffOverviewCapability(services.Overview),
-		AuditLog:           TimeTrackingAuditLogCapability(services.AuditLog),
-		TimeExport:         StaffTimeExportCapability(services.Export),
-		VacationTakeovers:  VacationTakeoverCapability(services.Absences),
-		OpeningBalances:    OpeningBalanceBookingCapability(services.Ledger),
-		AutoCheckIn:        AutoCheckInCapability(services.Sessions),
+		WorkSessions:       timetracking.WorkSessionCapability(services.Sessions, staff),
+		TimeClock:          timetracking.TimeClockCapability(services.Sessions),
+		StaffAbsences:      timetracking.StaffAbsenceCapability(services.Absences),
+		WorkTimeMonths:     timetracking.WorkTimeMonthCapability(services.Months),
+		BalanceAdjustments: timetracking.BalanceAdjustmentCapability(services.Ledger),
+		MonthClosing:       timetracking.MonthClosingCapability(services.Closing),
+		Overview:           timetracking.StaffOverviewCapability(services.Overview),
+		AuditLog:           timetracking.TimeTrackingAuditLogCapability(services.AuditLog),
+		TimeExport:         timetracking.StaffTimeExportCapability(services.Export),
+		VacationTakeovers:  timetracking.VacationTakeoverCapability(services.Absences),
+		OpeningBalances:    timetracking.OpeningBalanceBookingCapability(services.Ledger),
+		AutoCheckIn:        timetracking.AutoCheckInCapability(services.Sessions),
 		Jobs:               services.Sessions,
 		StaffDay:           staffDay{WorkSessionService: services.Sessions, StaffAbsenceService: services.Absences},
 	}, nil
@@ -154,13 +159,13 @@ type staffDay struct {
 func timeTrackingRows(capability workforce.Capability) timetracking.Rows {
 	return timetracking.Rows{
 		TargetOverrides:  capability,
-		MonthSnapshots:   MonthSnapshotCapability(capability),
-		AbsenceTypes:     AbsenceTypes(capability),
-		Sessions:         newWorkSessionRows(capability),
-		Breaks:           newWorkSessionBreakRows(capability),
-		Adjustments:      newBalanceAdjustmentRows(capability),
-		VacationQuotas:   newVacationQuotaRows(capability),
-		VacationOpenings: newVacationOpeningRows(capability),
+		MonthSnapshots:   timetracking.MonthSnapshotCapability(capability),
+		AbsenceTypes:     timetracking.AbsenceTypes(capability),
+		Sessions:         timetracking.NewWorkSessionRows(capability),
+		Breaks:           timetracking.NewWorkSessionBreakRows(capability),
+		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability),
+		VacationQuotas:   timetracking.NewVacationQuotaRows(capability),
+		VacationOpenings: timetracking.NewVacationOpeningRows(capability),
 	}
 }
 
@@ -183,6 +188,6 @@ func NewTimeTrackingCleanup(deps TimeTrackingCleanupDependencies) (TimeTrackingC
 		return nil, errors.New("time tracking cleanup: the Workforce capability is required")
 	}
 	return timetracking.NewCleanup(timetracking.CleanupDependencies{
-		Sessions: newWorkSessionRows(deps.Workforce), Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
+		Sessions: timetracking.NewWorkSessionRows(deps.Workforce), Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
 	})
 }

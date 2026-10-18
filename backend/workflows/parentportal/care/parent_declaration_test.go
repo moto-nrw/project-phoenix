@@ -14,40 +14,42 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type declarationSetup struct {
-	svc          *messaging.Service
+	svc          *parentportal.Portal
 	db           *bun.DB
-	repo         usersModels.ParentAnnouncementRepository
+	repo         api.ParentAnnouncementFixtures
 	chain        testpkg.ParentChain
 	seedCtx      context.Context
 	ctx          context.Context
-	announcement *usersModels.ParentAnnouncement
-	version      *usersModels.DeclarationVersion
+	announcement *communication.ParentAnnouncementFixture
+	version      *parentportal.DeclarationVersion
 }
 
-func newDeclarationSetup(t *testing.T, settings usersModels.AnnouncementDeclarationSettings, deadline *time.Time) *declarationSetup {
+func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time) *declarationSetup {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	setup := &declarationSetup{
-		svc: svc, db: db, repo: repos.ParentAnnouncement, chain: chain,
+		svc: svc, db: db, repo: api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain: chain,
 		seedCtx: tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID),
 		ctx:     testpkg.WithTestTenantRuntime(t, context.Background()),
 	}
 	setup.announcement, setup.version = seedDeclaration(t, setup.seedCtx, setup.repo, chain.AccountID, chain.TenantID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &chain.StudentID}},
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &chain.StudentID}},
 		settings, deadline)
 	return setup
 }
@@ -55,21 +57,21 @@ func newDeclarationSetup(t *testing.T, settings usersModels.AnnouncementDeclarat
 // seedDeclaration creates a published Erklärung with its first frozen
 // version, the state the staff publish leaves behind.
 func seedDeclaration(
-	t *testing.T, ctx context.Context, repo usersModels.ParentAnnouncementRepository, createdBy, tenantID int64,
-	targets []*usersModels.ParentAnnouncementTarget, settings usersModels.AnnouncementDeclarationSettings, deadline *time.Time,
-) (*usersModels.ParentAnnouncement, *usersModels.DeclarationVersion) {
+	t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, createdBy, tenantID int64,
+	targets []*communication.ParentAnnouncementTargetFixture, settings communication.ParentDeclarationSettings, deadline *time.Time,
+) (*communication.ParentAnnouncementFixture, *parentportal.DeclarationVersion) {
 	t.Helper()
-	a := &usersModels.ParentAnnouncement{
+	a := &communication.ParentAnnouncementFixture{
 		Title:            "Ausflug in den Zoo",
 		Body:             "Wir fahren am Freitag mit dem Bus in den Zoo.",
-		Priority:         usersModels.ParentAnnouncementPriorityInfo,
-		DeliveryMode:     usersModels.ParentAnnouncementDeliveryDeclaration,
+		Priority:         "info",
+		DeliveryMode:     "declaration",
 		ResponseDeadline: deadline,
 		Declaration:      settings,
 		Active:           true,
 		CreatedBy:        createdBy,
 	}
-	a.SetTenantID(tenantID)
+	a.TenantID = tenantID
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
 	version := freezeTestVersion(t, ctx, repo, a, 1)
@@ -78,30 +80,30 @@ func seedDeclaration(
 	return a, version
 }
 
-func freezeTestVersion(t *testing.T, ctx context.Context, repo usersModels.ParentAnnouncementRepository, a *usersModels.ParentAnnouncement, number int) *usersModels.DeclarationVersion {
+func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnouncementFixtures, a *communication.ParentAnnouncementFixture, number int) *parentportal.DeclarationVersion {
 	t.Helper()
-	version := &usersModels.DeclarationVersion{
-		TenantID: a.GetTenantID(), AnnouncementID: a.ID, VersionNo: number, Title: a.Title,
+	version := &parentportal.DeclarationVersion{
+		TenantID: a.TenantID, AnnouncementID: a.ID, VersionNo: number, Title: a.Title,
 		Body: a.Body + " " + string(rune('A'+number)), Kind: a.Declaration.Kind, PublishedAt: time.Now(),
 	}
-	version.ContentHash = messaging.DeclarationContentHash(version)
+	version.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(version))
 	require.NoError(t, repo.InsertDeclarationVersion(ctx, version))
 	return version
 }
 
-func consent(signers string, revocable, password bool) usersModels.AnnouncementDeclarationSettings {
-	return usersModels.AnnouncementDeclarationSettings{
-		Kind: usersModels.DeclarationKindConsent, Signers: signers, Revocable: revocable, RequiresPassword: password,
+func consent(signers string, revocable, password bool) communication.ParentDeclarationSettings {
+	return communication.ParentDeclarationSettings{
+		Kind: parentportal.DeclarationKindConsent, Signers: signers, Revocable: revocable, RequiresPassword: password,
 	}
 }
 
-func (s *declarationSetup) submit(accountID int64, action string) (*usersModels.DeclarationSubmission, bool, error) {
-	return s.svc.SubmitDeclaration(s.ctx, accountID, s.announcement.ID, messaging.DeclarationInput{
+func (s *declarationSetup) submit(accountID int64, action string) (*parentportal.DeclarationSubmission, bool, error) {
+	return s.svc.SubmitDeclaration(s.ctx, accountID, s.announcement.ID, parentportal.DeclarationInput{
 		StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: action,
 	}, nil)
 }
 
-func (s *declarationSetup) feedDeclaration(t *testing.T, accountID int64) *usersModels.AnnouncementFeedDeclaration {
+func (s *declarationSetup) feedDeclaration(t *testing.T, accountID int64) *parentportal.AnnouncementFeedDeclaration {
 	t.Helper()
 	feed, err := s.svc.ListAnnouncements(s.ctx, accountID)
 	require.NoError(t, err)
@@ -110,7 +112,7 @@ func (s *declarationSetup) feedDeclaration(t *testing.T, accountID int64) *users
 	return item.Declaration
 }
 
-func (s *declarationSetup) history(t *testing.T) []*usersModels.DeclarationSubmission {
+func (s *declarationSetup) history(t *testing.T) []*parentportal.DeclarationSubmission {
 	t.Helper()
 	rows, err := s.repo.ListDeclarationSubmissions(s.seedCtx, s.chain.TenantID, s.announcement.ID)
 	require.NoError(t, err)
@@ -119,25 +121,25 @@ func (s *declarationSetup) history(t *testing.T) []*usersModels.DeclarationSubmi
 
 func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 
 	before := s.feedDeclaration(t, s.chain.AccountID)
 	require.Len(t, before.Children, 1)
 	assert.True(t, before.Children[0].CanSubmit)
-	assert.Equal(t, usersModels.DeclarationStateOpen, before.Children[0].State)
+	assert.Equal(t, communication.DeclarationStateOpen, before.Children[0].State)
 	assert.Equal(t, []string{"agreed", "declined"}, before.Children[0].AllowedActions)
 	require.NotNil(t, before.Version)
 	assert.Equal(t, s.version.ID, before.Version.ID)
 
-	first, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	first, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	assert.True(t, created)
 	assert.Equal(t, 1, first.VersionNo)
 	assert.Equal(t, s.version.ContentHash, first.ContentHash)
-	assert.Equal(t, messaging.DeclarationRecordHash(first), first.RecordHash)
+	assert.Equal(t, api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(first)), first.RecordHash)
 
 	// A double click stores nothing new and answers with the same proof.
-	again, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	again, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, first.ID, again.ID)
@@ -147,20 +149,20 @@ func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	stored := history[0]
 	assert.Equal(t, "Sabine Schneider", stored.SignerName)
 	assert.Equal(t, "primary_guardian", stored.GuardianRole)
-	assert.Equal(t, usersModels.DeclarationMethodSimpleElectronic, stored.Method)
-	assert.Equal(t, stored.RecordHash, messaging.DeclarationRecordHash(stored),
+	assert.Equal(t, "simple_electronic", stored.Method)
+	assert.Equal(t, stored.RecordHash, api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(stored)),
 		"the record hash must survive the database round trip")
 
 	after := s.feedDeclaration(t, s.chain.AccountID)
-	assert.Equal(t, usersModels.DeclarationStateAgreed, after.Children[0].State)
+	assert.Equal(t, communication.DeclarationStateAgreed, after.Children[0].State)
 	require.NotNil(t, after.Children[0].MyAction)
-	assert.Equal(t, usersModels.DeclarationActionAgreed, *after.Children[0].MyAction)
+	assert.Equal(t, parentportal.DeclarationActionAgreed, *after.Children[0].MyAction)
 	assert.Equal(t, []string{"declined"}, after.Children[0].AllowedActions)
 }
 
 func TestDeclaration_ConcurrentSubmissionsStoreOneRow(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 
 	var wg sync.WaitGroup
 	createdCount := 0
@@ -169,7 +171,7 @@ func TestDeclaration_ConcurrentSubmissionsStoreOneRow(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+			_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 			assert.NoError(t, err)
 			if created {
 				mu.Lock()
@@ -185,23 +187,23 @@ func TestDeclaration_ConcurrentSubmissionsStoreOneRow(t *testing.T) {
 
 func TestDeclaration_ChangedVersionIsRefusedAndKeepsOldProof(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
-	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
 	// A correction publishes version 2: the declaration on version 1 stays
 	// stored, but no longer settles the child, and a request for version 1 is
 	// refused so the guardian sees the new wording first.
 	second := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
-	require.ErrorIs(t, err, messaging.ErrDeclarationVersionChanged)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationVersionChanged)
 
 	feed := s.feedDeclaration(t, s.chain.AccountID)
 	assert.Equal(t, second.ID, feed.Version.ID)
-	assert.Equal(t, usersModels.DeclarationStateOpen, feed.Children[0].State)
+	assert.Equal(t, communication.DeclarationStateOpen, feed.Children[0].State)
 
 	s.version = second
-	_, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	assert.True(t, created)
 	history := s.history(t)
@@ -212,88 +214,88 @@ func TestDeclaration_ChangedVersionIsRefusedAndKeepsOldProof(t *testing.T) {
 
 func TestDeclaration_WithdrawnPermissionRefusesTheDeclaration(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
 
-	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
-	require.ErrorIs(t, err, messaging.ErrDeclarationNotPermitted)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationNotPermitted)
 
 	// The guardian still sees the Erklärung, but gets no buttons.
 	feed := s.feedDeclaration(t, s.chain.AccountID)
 	require.Len(t, feed.Children, 1)
 	assert.False(t, feed.Children[0].CanSubmit)
 	assert.Empty(t, feed.Children[0].AllowedActions)
-	assert.Equal(t, usersModels.DeclarationStateNoSigner, feed.Children[0].State)
+	assert.Equal(t, communication.DeclarationStateNoSigner, feed.Children[0].State)
 	assert.Empty(t, s.history(t))
 }
 
 func TestDeclaration_WithdrawnPermissionAllowsOwnRevocation(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
 
-	_, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	require.True(t, created)
 	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
 
-	revoked, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
+	revoked, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
 	require.NoError(t, err)
 	assert.True(t, created)
-	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
+	assert.Equal(t, parentportal.DeclarationActionRevoked, revoked.Action)
 }
 
 func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 
 	// Another family's child in the same school, not reached for this account.
 	other := testpkg.CreateTestParentGuardianChain(t, s.db)
-	_, _, err := s.svc.SubmitDeclaration(s.ctx, other.AccountID, s.announcement.ID, messaging.DeclarationInput{
-		StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: usersModels.DeclarationActionAgreed,
+	_, _, err := s.svc.SubmitDeclaration(s.ctx, other.AccountID, s.announcement.ID, parentportal.DeclarationInput{
+		StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: parentportal.DeclarationActionAgreed,
 	}, nil)
-	require.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 
 	// An Erklärung of another school the account has no child at.
 	foreignTenant, _ := testpkg.CreateTestTenant(t, s.db)
 	foreignCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), foreignTenant)
 	foreign, foreignVersion := seedDeclaration(t, foreignCtx, s.repo, s.chain.AccountID, foreignTenant,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
-		consent(usersModels.DeclarationSignersAny, false, false), nil)
-	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, foreign.ID, messaging.DeclarationInput{
-		StudentID: s.chain.StudentID, VersionID: foreignVersion.ID, Action: usersModels.DeclarationActionAgreed,
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
+		consent(communication.DeclarationSignersAny, false, false), nil)
+	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, foreign.ID, parentportal.DeclarationInput{
+		StudentID: s.chain.StudentID, VersionID: foreignVersion.ID, Action: parentportal.DeclarationActionAgreed,
 	}, nil)
-	require.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 	assert.Empty(t, s.history(t))
 }
 
 func TestDeclaration_DeadlineAllowsOnlyRevocation(t *testing.T) {
 	t.Parallel()
 	deadline := time.Now().Add(time.Hour)
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, true, false), &deadline)
-	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
-	require.ErrorIs(t, err, messaging.ErrDeclarationActionNotAllowed, "nothing to revoke before consenting")
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), &deadline)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed, "nothing to revoke before consenting")
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
 	moveDeclarationDeadline(t, s.db, s.announcement.ID, time.Now().Add(-time.Minute))
 
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionDeclined)
-	require.ErrorIs(t, err, messaging.ErrDeclarationClosed)
-	revoked, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationClosed)
+	revoked, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
 	require.NoError(t, err, "a consent can always be withdrawn")
 	assert.True(t, created)
-	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
+	assert.Equal(t, parentportal.DeclarationActionRevoked, revoked.Action)
 
 	feed := s.feedDeclaration(t, s.chain.AccountID)
 	assert.True(t, feed.Closed)
-	assert.Equal(t, usersModels.DeclarationStateRevoked, feed.Children[0].State)
+	assert.Equal(t, communication.DeclarationStateRevoked, feed.Children[0].State)
 	assert.Len(t, s.history(t), 2, "the consent and its revocation both stay on record")
 }
 
 func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, true, false), nil)
-	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
 	_, err = s.db.NewUpdate().TableExpr("users.parent_announcements").
@@ -302,12 +304,12 @@ func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
 		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionDeclined)
-	require.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
-	revoked, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
+	revoked, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
 	require.NoError(t, err, "a consent can be withdrawn after the declaration expires")
 	assert.True(t, created)
-	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
+	assert.Equal(t, parentportal.DeclarationActionRevoked, revoked.Action)
 	assert.Len(t, s.history(t), 2)
 }
 
@@ -331,11 +333,11 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	announcement, version := seedDeclaration(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID}},
-		consent(usersModels.DeclarationSignersAny, true, false), nil)
-	_, created, err := svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
-		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionAgreed,
+	announcement, version := seedDeclaration(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID,
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "activity_group", TargetRefID: &group.ID}},
+		consent(communication.DeclarationSignersAny, true, false), nil)
+	_, created, err := svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, parentportal.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: parentportal.DeclarationActionAgreed,
 	}, nil)
 	require.NoError(t, err)
 	require.True(t, created)
@@ -358,18 +360,18 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 	item := findFeedItem(t, feed, announcement.ID)
 	require.NotNil(t, item.Declaration)
 	require.Len(t, item.Declaration.Children, 1)
-	persisted, err := repos.ParentAnnouncement.FindByID(seedCtx, announcement.ID)
+	persisted, err := api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).FindByID(seedCtx, announcement.ID)
 	require.NoError(t, err)
 	require.NotNil(t, persisted.PublishedAt)
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, announcement.ID, *persisted.PublishedAt))
 
-	_, _, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
-		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionDeclined,
+	_, _, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, parentportal.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: parentportal.DeclarationActionDeclined,
 	}, nil)
-	require.ErrorIs(t, err, messaging.ErrDeclarationNotPermitted, "a past activity enrollment does not allow another declaration")
+	require.ErrorIs(t, err, parentportal.ErrDeclarationNotPermitted, "a past activity enrollment does not allow another declaration")
 
-	_, created, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
-		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionRevoked,
+	_, created, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, parentportal.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: parentportal.DeclarationActionRevoked,
 	}, nil)
 	require.NoError(t, err)
 	assert.True(t, created, "a recorded agreement remains revocable after enrollment ends")
@@ -386,43 +388,43 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 
 func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAll, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAll, false, false), nil)
 	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
 
-	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	feed := s.feedDeclaration(t, co.AccountID)
 	require.Len(t, feed.Children, 1)
-	assert.Equal(t, usersModels.DeclarationStatePartial, feed.Children[0].State)
+	assert.Equal(t, communication.DeclarationStatePartial, feed.Children[0].State)
 	require.Len(t, feed.Children[0].OtherSigners, 1)
 	require.NotNil(t, feed.Children[0].OtherSigners[0].Action)
-	assert.Equal(t, usersModels.DeclarationActionAgreed, *feed.Children[0].OtherSigners[0].Action)
+	assert.Equal(t, parentportal.DeclarationActionAgreed, *feed.Children[0].OtherSigners[0].Action)
 	assert.NotNil(t, feed.Children[0].OtherSigners[0].SubmittedAt)
 
-	_, _, err = s.submit(co.AccountID, usersModels.DeclarationActionDeclined)
+	_, _, err = s.submit(co.AccountID, parentportal.DeclarationActionDeclined)
 	require.NoError(t, err)
 	feed = s.feedDeclaration(t, s.chain.AccountID)
-	assert.Equal(t, usersModels.DeclarationStateDeclined, feed.Children[0].State,
+	assert.Equal(t, communication.DeclarationStateDeclined, feed.Children[0].State,
 		"one guardian's refusal wins over the other's consent")
 }
 
 func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, true), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, true), nil)
 	const correctSecret, wrongSecret = "richtig", "falsch"
 	confirm := func(_ context.Context, given string) error {
 		if given != correctSecret {
-			return messaging.ErrDeclarationPasswordIncorrect
+			return parentportal.ErrDeclarationPasswordIncorrect
 		}
 		return nil
 	}
-	input := messaging.DeclarationInput{StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: usersModels.DeclarationActionAgreed}
+	input := parentportal.DeclarationInput{StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: parentportal.DeclarationActionAgreed}
 
 	_, _, err := s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, input, confirm)
-	require.ErrorIs(t, err, messaging.ErrDeclarationPasswordRequired)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationPasswordRequired)
 	input.Password = wrongSecret
 	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, input, confirm)
-	require.ErrorIs(t, err, messaging.ErrDeclarationPasswordIncorrect)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationPasswordIncorrect)
 	assert.Empty(t, s.history(t))
 
 	input.Password = correctSecret
@@ -434,7 +436,7 @@ func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 
 func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 	persisted, err := s.repo.FindByID(s.seedCtx, s.announcement.ID)
 	require.NoError(t, err)
 
@@ -447,7 +449,7 @@ func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "reading an Erklärung does not answer it")
 
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionDeclined)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
 	require.NoError(t, err)
 	count, err = s.svc.UnreadAnnouncementCount(s.ctx, s.chain.AccountID)
 	require.NoError(t, err)
@@ -456,15 +458,15 @@ func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 
 func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
 	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
 
 	_, err := s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
-	require.ErrorIs(t, err, messaging.ErrAnnouncementNotFound, "no proof before a declaration")
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "no proof before a declaration")
 
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
-	_, _, err = s.submit(co.AccountID, usersModels.DeclarationActionAgreed)
+	_, _, err = s.submit(co.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
 	proof, err := s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
@@ -480,7 +482,7 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	// validation.
 	tampered := *proof.Submissions[0]
 	tampered.ContentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	tampered.RecordHash = messaging.DeclarationRecordHash(&tampered)
+	tampered.RecordHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(&tampered))
 	_, err = s.db.ExecContext(s.ctx,
 		`UPDATE users.parent_announcement_declaration_submissions SET content_hash = ?, record_hash = ? WHERE id = ?`,
 		tampered.ContentHash, tampered.RecordHash, tampered.ID)
@@ -491,16 +493,16 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 
 	stranger := testpkg.CreateTestParentGuardianChain(t, s.db)
 	_, err = s.svc.DeclarationProof(s.ctx, stranger.AccountID, s.announcement.ID, s.chain.StudentID)
-	require.True(t, errors.Is(err, messaging.ErrAnnouncementNotFound))
+	require.True(t, errors.Is(err, parentportal.ErrAnnouncementNotFound))
 }
 
 func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
-	s.version.Attachments = []usersModels.DeclarationAttachmentDigest{{
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s.version.Attachments = []parentportal.DeclarationAttachmentDigest{{
 		AttachmentID: 91, Filename: "Ausflug.pdf", ContentType: "application/pdf", SizeBytes: 2048,
 	}}
-	s.version.ContentHash = messaging.DeclarationContentHash(s.version)
+	s.version.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(s.version))
 	attachments, err := json.Marshal(s.version.Attachments)
 	require.NoError(t, err)
 	_, err = s.db.ExecContext(s.seedCtx,
@@ -508,7 +510,7 @@ func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.
 		string(attachments), s.version.ContentHash, s.version.ID)
 	require.NoError(t, err)
 
-	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
 	tenantID, err := s.svc.GuardianDeclarationProofAttachmentTenant(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID, 91)
@@ -516,10 +518,10 @@ func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.
 	assert.Equal(t, s.chain.TenantID, tenantID)
 
 	newer := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
-	newer.Attachments = []usersModels.DeclarationAttachmentDigest{{
+	newer.Attachments = []parentportal.DeclarationAttachmentDigest{{
 		AttachmentID: 92, Filename: "Spätere Fassung.pdf", ContentType: "application/pdf", SizeBytes: 1024,
 	}}
-	newer.ContentHash = messaging.DeclarationContentHash(newer)
+	newer.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(newer))
 	attachments, err = json.Marshal(newer.Attachments)
 	require.NoError(t, err)
 	_, err = s.db.ExecContext(s.seedCtx,

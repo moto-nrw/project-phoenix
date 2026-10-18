@@ -38,16 +38,27 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		StudentGuardianRepo: repos.StudentGuardian,
-		StudentConsents:     api.NewStudentConsents(testpkg.NewDatabase(t, db)),
+		ChildRepo:           repos.ParentChildReads(),
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		StudentConsents:     api.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
 		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db, repos, unlinker
 }
 

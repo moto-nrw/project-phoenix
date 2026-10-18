@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -22,14 +24,23 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		return nil, err
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: parents.ParentChild, StudentRepo: repos.Student, PersonRepo: repos.Person,
-		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: parents.GuardianProfile,
-		Settings: BindParentSettings(module.Settings), ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,
-		CareRequests: module.CareRequests, CareRequestRepo: repos.CareScheduleChangeRequest,
-		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
-		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
+		GuardianChanges: ParentGuardianChanges(),
+		DeparturePolicy: ParentDeparturePolicy(),
+		GuardianPolicy:  NewParentGuardianPolicy(),
+		Fingerprints:    SecurityFingerprints{},
+		Declarations:    ParentDeclarationPolicy(),
+		Locales:         ParentPortalLocales(),
+		Runtime:         ParentPortalRuntime{},
+		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
+		StudentGuardianRepo: NewParentStudentGuardianReads(parents.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(parents.GuardianProfile),
+		Settings: BindParentSettings(module.Settings), ArrivalSchedules: NewParentArrivalSchedules(module.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(module.PickupSchedule),
+		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),
+		FamilyProtectionEvents: BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(repos.ParentRequestShare),
+		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo: BindParentMessageReads(repos.ParentMessage),
 		Logger:      slog.Default(),
+
+		CarePlanPolicy: NewParentCarePlanPolicy(),
 	}), nil
 }
 

@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -57,7 +55,7 @@ var (
 // schools, newest-published first, each with the guardian's read/ack state.
 // Schools that have turned the news feature off are excluded so the feed agrees
 // with the unread badge. Cross-tenant.
-func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error) {
+func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -66,10 +64,10 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 		return nil, err
 	}
 	if scope.IsEmpty() {
-		return []*usersModels.AnnouncementFeedItem{}, nil
+		return []*AnnouncementFeedItem{}, nil
 	}
-	var out []*usersModels.AnnouncementFeedItem
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var out []*AnnouncementFeedItem
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
@@ -89,17 +87,17 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 // for the poll items of a feed page, in two batched queries rather than one per
 // item. Plain Mitteilungen are skipped entirely, so a feed without polls costs
 // nothing extra.
-func (s *Service) attachPollData(ctx context.Context, accountID int64, items []*usersModels.AnnouncementFeedItem) error {
+func (s *Service) attachPollData(ctx context.Context, accountID int64, items []*AnnouncementFeedItem) error {
 	pollIDs := make([]int64, 0, len(items))
-	byID := make(map[int64]*usersModels.AnnouncementFeedItem, len(items))
+	byID := make(map[int64]*AnnouncementFeedItem, len(items))
 	for _, item := range items {
 		if !item.IsPoll() {
 			continue
 		}
 		pollIDs = append(pollIDs, item.ID)
 		byID[item.ID] = item
-		item.Options = []*usersModels.ParentAnnouncementOption{}
-		item.Children = []*usersModels.AnnouncementPollChild{}
+		item.Options = []*ParentAnnouncementOption{}
+		item.Children = []*AnnouncementPollChild{}
 	}
 	if len(pollIDs) == 0 {
 		return nil
@@ -139,7 +137,7 @@ func (s *Service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 		return 0, nil
 	}
 	var count int
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		n, err := s.AnnouncementRepo.CountUnreadForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
@@ -191,7 +189,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	var requiresAck bool
 	var announcementPublishedAt time.Time
 	var announcementSystemKind *string
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
@@ -255,7 +253,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// must surface as ErrAnnouncementStale (409) — not a silent 200 that would let
 	// the client mark the retracted wording read/acknowledged locally while the DB
 	// and staff stats stay unchanged.
-	return tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		if ack {
 			applied, err := s.AnnouncementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
 			if err != nil {
@@ -297,7 +295,7 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	var isPoll bool
 	var responseType string
 	var deadline *time.Time
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
@@ -350,8 +348,8 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if deadline != nil && !deadline.After(time.Now()) {
 		return ErrPollClosed
 	}
-	var options []*usersModels.ParentAnnouncementOption
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var options []*ParentAnnouncementOption
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
 		options, err = s.AnnouncementRepo.ListOptions(adminCtx, announcementID)
 		if err != nil {
@@ -367,11 +365,11 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
 	// same statement, so a deadline that passes between here and the write cannot
 	// let a late answer through. A missed guard is a 409, never a silent 200.
-	return tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		// Poll authorization above uses a snapshot. Lock and re-read the student
 		// in this write transaction so a concurrent care exit cannot leave a new
 		// response behind after the child became read-only.
-		studentCtx := tenant.WithTenantID(adminCtx, announcementTenantID)
+		studentCtx := s.Runtime.WithTenantID(adminCtx, announcementTenantID)
 		student, err := s.StudentRepo.FindByIDForUpdate(studentCtx, studentID)
 		if err != nil {
 			return err
@@ -396,9 +394,9 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	})
 }
 
-func validPollSelection(responseType string, options []*usersModels.ParentAnnouncementOption, optionIDs []int64) bool {
-	if responseType != usersModels.ParentAnnouncementResponseSingleChoice &&
-		responseType != usersModels.ParentAnnouncementResponseMultiChoice {
+func validPollSelection(responseType string, options []*ParentAnnouncementOption, optionIDs []int64) bool {
+	if responseType != ParentAnnouncementResponseSingleChoice &&
+		responseType != ParentAnnouncementResponseMultiChoice {
 		return false
 	}
 	if len(optionIDs) == 0 {
@@ -418,7 +416,7 @@ func validPollSelection(responseType string, options []*usersModels.ParentAnnoun
 		}
 		seen[optionID] = struct{}{}
 	}
-	return responseType != usersModels.ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
+	return responseType != ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
 }
 
 // announcementVisibleForTenant is the per-announcement feature gate shared by
@@ -453,8 +451,8 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 // feed is visible (news on) and those that contribute system-authored rows
 // (every school). See newsEnabledTenants for how the candidate set is
 // derived.
-func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (usersModels.AnnouncementFeedScope, error) {
-	var scope usersModels.AnnouncementFeedScope
+func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (AnnouncementFeedScope, error) {
+	var scope AnnouncementFeedScope
 	allTenantIDs, err := s.announcementTenants(ctx, accountID)
 	if err != nil {
 		return scope, err
@@ -511,7 +509,7 @@ func (s *Service) announcementTenants(ctx context.Context, accountID int64) ([]i
 			allTenantIDs = append(allTenantIDs, id)
 		}
 	}
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -538,7 +536,7 @@ func (s *Service) announcementTenants(ctx context.Context, accountID int64) ([]i
 
 // announcementIsLive reports whether an announcement is currently visible to
 // guardians: active, published, publish time reached, not past expiry.
-func announcementIsLive(a *usersModels.ParentAnnouncement) bool {
+func announcementIsLive(a *ParentAnnouncement) bool {
 	if a == nil || !a.Active || a.PublishedAt == nil {
 		return false
 	}

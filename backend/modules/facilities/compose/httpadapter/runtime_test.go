@@ -47,7 +47,7 @@ type RoomsComposition struct {
 // ComposeRooms composes the root's Rooms graph over the package's test
 // database. The root imports this package, so these internal tests cannot
 // import it; root_composition_test.go binds it.
-var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition)
+var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(context.Context, any, ...string) context.Context, func(error) bool)
 
 // setupRoomsRoute initializes the test environment. The router serves the
 // resource through the production middleware chain (Verifier → Authenticator →
@@ -56,7 +56,7 @@ var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition)
 func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := ComposeRooms(t)
+	db, svc, protectedRoutes, prefetch, constraintViolation := ComposeRooms(t)
 
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
@@ -65,7 +65,7 @@ func setupRoomsRoute(t *testing.T) *testContext {
 		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	resource := NewResource(rooms, svc.Dependencies, slog.Default())
+	resource := NewResource(rooms, svc.Dependencies, slog.Default(), protectedRoutes, prefetch, constraintViolation)
 
 	return &testContext{
 		services: svc,

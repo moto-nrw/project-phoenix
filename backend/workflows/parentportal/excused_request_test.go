@@ -71,24 +71,35 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    sickRequiresApproval,
 			excusedRequiresApproval: excusedRequiresApproval,
 		},
 		MealPlan:        availableMealPlan(true),
-		Broadcaster:     bc,
-		ExcusedRequests: excused,
+		StudentUpdates:  api.BindParentStudentUpdates(bc),
+		ExcusedRequests: api.NewParentExcusedAbsenceRequests(excused),
 		Logger:          slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, bc, db
 }

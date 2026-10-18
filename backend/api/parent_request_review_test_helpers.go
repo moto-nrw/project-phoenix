@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"

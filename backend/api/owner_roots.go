@@ -15,6 +15,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -26,10 +27,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The roots below build owners from the database for the CLI roots, the
@@ -61,6 +64,21 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 	members := ParentStaffMembers{Membership: owners.Membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+		rows, err := persons.FindByIDs(ctx, ids)
+		if rows == nil {
+			return nil, err
+		}
+		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		for id, row := range rows {
+			if row == nil {
+				out[id] = nil
+				continue
+			}
+			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+		}
+		return out, err
+	}
 	groupNames := parentGroupNames{groups: owners.Groups}.list
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
@@ -71,12 +89,12 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 			Accounts:       IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, guardianLinkView.NewReader(), identity.FindActiveSchoolMemberships)),
+			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), guardianLinkView.NewReader(), owners.Now),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(pool, members, persons), groupNames),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,
-				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
+				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
+				parentStore.CurrentTenantStaffAccounts(members, personAccounts), StaffMessageIdentity(identity))),
 		},
 	}
 }
@@ -104,7 +122,7 @@ func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(contex
 
 // NewPersonRepository is the person repository with the Identity & Access
 // account lookup FindWithAccount attaches (#2720).
-func NewPersonRepository(db transactionruntime.Database) userModels.PersonRepository {
+func NewPersonRepository(db transactionruntime.Database) peoplePorts.PersonRepository {
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))
@@ -217,44 +235,44 @@ func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query)
 // ParentPortalDirectory serves the guardian portal's People Directory port.
 type ParentPortalDirectory struct{ People peopledirectory.Capability }
 
-func (d ParentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalStudent, error) {
+func (d ParentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]careplan.ParentPortalStudent, error) {
 	students, err := d.People.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalStudent, 0, len(students))
+	result := make([]careplan.ParentPortalStudent, 0, len(students))
 	for _, student := range students {
-		result = append(result, carePlanCompose.ParentPortalStudent{
+		result = append(result, careplan.ParentPortalStudent{
 			ID: student.ID, TenantID: student.TenantID, PersonID: student.PersonID,
 			SchoolClass: student.SchoolClass, Status: student.Status,
-			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
+			EnrolledFrom: calendar.Date(student.EnrolledFrom), EnrolledUntil: calendar.Date(student.EnrolledUntil),
 		})
 	}
 	return result, nil
 }
 
-func (d ParentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]carePlanCompose.ParentPortalGuardianLink, error) {
+func (d ParentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]careplan.ParentPortalGuardianLink, error) {
 	links, err := d.People.ListGuardianLinksByAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalGuardianLink, 0, len(links))
+	result := make([]careplan.ParentPortalGuardianLink, 0, len(links))
 	for _, link := range links {
-		result = append(result, carePlanCompose.ParentPortalGuardianLink{
+		result = append(result, careplan.ParentPortalGuardianLink{
 			TenantID: link.TenantID, StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID, Permissions: link.Permissions,
 		})
 	}
 	return result, nil
 }
 
-func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalPerson, error) {
+func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]careplan.ParentPortalPerson, error) {
 	persons, err := d.People.ListPersonsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalPerson, 0, len(persons))
+	result := make([]careplan.ParentPortalPerson, 0, len(persons))
 	for _, person := range persons {
-		result = append(result, carePlanCompose.ParentPortalPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName})
+		result = append(result, careplan.ParentPortalPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName})
 	}
 	return result, nil
 }
@@ -287,7 +305,7 @@ func (d ParentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (st
 }
 
 func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
-	schools, err := organizationCompose.SchoolsByID(ctx, d.Schools, ids)
+	schools, err := schoolsByID(ctx, d.Schools, ids)
 	if err != nil {
 		return nil, err
 	}

@@ -2,15 +2,13 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -58,7 +56,7 @@ func (s *Service) GetRequestSharingOptions(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		protected, _, loadErr := s.currentFamilyProtection(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -103,7 +101,7 @@ func (s *Service) changeRequestSharing(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var changeErr error
 		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientProfileIDs, write)
 		return changeErr
@@ -186,7 +184,7 @@ func (s *Service) ShareRequestInTx(
 }
 
 func (s *Service) createRequestShare(ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipients []int64) error {
-	event := &userModels.ParentRequestShareEvent{
+	event := &ParentRequestShareEvent{
 		StudentID: studentID, RequestType: requestType, RequestID: requestID,
 		AuthorAccountID: accountID, RecipientAccountIDs: recipients,
 	}
@@ -196,13 +194,15 @@ func (s *Service) createRequestShare(ctx context.Context, accountID, studentID i
 	// The ledger records WHETHER a request was shared and with how many
 	// co-guardians. The recipient account ids stay in the share event itself,
 	// which is the row the visibility rules read.
+	// The count is an integer, so this typed JSON object cannot fail encoding.
+	payload, _ := json.Marshal(map[string]int{"recipient_count": len(recipients)})
 	return care.RecordRequestEvent(ctx, s.ParentRequestEvents, care.RequestLedgerEntry{
 		StudentID:      studentID,
 		RequestType:    requestType,
 		RequestID:      requestID,
-		EventType:      userModels.ParentRequestEventShared,
+		EventType:      ParentRequestEventShared,
 		ActorAccountID: accountID,
-		Payload:        map[string]any{"recipient_count": len(recipients)},
+		Payload:        payload,
 	})
 }
 
@@ -227,7 +227,7 @@ func (s *Service) requestSharingState(
 // and after protection is switched off the guardian must share again. Nothing
 // here revives a voided share.
 // Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
-func effectiveRecipientSet(event *userModels.ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
+func effectiveRecipientSet(event *ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
 	selected := map[int64]bool{}
 	if event == nil || protected || (!protectedAt.IsZero() && !event.CreatedAt.After(protectedAt)) {
 		return selected
@@ -238,15 +238,15 @@ func effectiveRecipientSet(event *userModels.ParentRequestShareEvent, protected 
 	return selected
 }
 
-func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*userModels.ParentRequestShareEvent, error) {
+func (s *Service) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*ParentRequestShareEvent, error) {
 	if s.ParentRequestShares == nil {
-		return map[requestShareKey]*userModels.ParentRequestShareEvent{}, nil
+		return map[requestShareKey]*ParentRequestShareEvent{}, nil
 	}
 	rows, err := s.ParentRequestShares.CurrentForStudent(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[requestShareKey]*userModels.ParentRequestShareEvent, len(rows))
+	result := make(map[requestShareKey]*ParentRequestShareEvent, len(rows))
 	for _, row := range rows {
 		result[requestShareKey{typ: row.RequestType, id: row.RequestID}] = row
 	}
@@ -284,7 +284,7 @@ func (s *Service) shareRecipients(
 	if err != nil {
 		return nil, nil, err
 	}
-	profiles := portalGuardianProfileIDs(links)
+	profiles := portalGuardianProfileIDs(links, s.GuardianPolicy.PermissionGrantedJSON)
 	profileRows, err := s.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, profiles)
 	if err != nil {
 		return nil, nil, err
@@ -301,10 +301,10 @@ func (s *Service) shareRecipients(
 	return recipients, accountIDs, nil
 }
 
-func portalGuardianProfileIDs(links []*userModels.StudentGuardian) []int64 {
+func portalGuardianProfileIDs(links []*care.GuardianRelationship, granted func(json.RawMessage, string) bool) []int64 {
 	profiles := make([]int64, 0, len(links))
 	for _, link := range links {
-		if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+		if link != nil && granted(link.Permissions, care.GuardianPermissionPortalAccess) {
 			profiles = append(profiles, link.GuardianProfileID)
 		}
 	}
@@ -326,7 +326,7 @@ func selectedGuardianProfiles(profileIDs []int64) (map[int64]struct{}, error) {
 }
 
 func buildSharingRecipients(
-	profiles map[int64]*userModels.GuardianProfile, authorAccountID int64, selected map[int64]struct{},
+	profiles map[int64]*care.GuardianProfile, authorAccountID int64, selected map[int64]struct{},
 ) ([]RequestSharingRecipient, []int64) {
 	recipients := make([]RequestSharingRecipient, 0, len(profiles))
 	accountIDs := make([]int64, 0, len(selected))
@@ -378,7 +378,7 @@ func (s *Service) ListRequestEvents(
 		return nil, errors.New("parent: request event ledger is not configured")
 	}
 	var out []ParentRequestEventView
-	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
 			return err
 		}
@@ -442,18 +442,18 @@ func (s *Service) masterDataShareIdentity(ctx context.Context, requestID int64) 
 }
 
 func (s *Service) careRequestShareIdentity(ctx context.Context, requestType string, requestID int64) (int64, int64, string, error) {
-	row, err := s.CareRequestRepo.FindByID(ctx, requestID)
-	if err != nil || row == nil {
-		return 0, 0, "", requestLookupError(err)
+	submittedBy, studentID, kind, err := s.CareRequestRepo.FindIdentity(ctx, requestID)
+	if err != nil {
+		return 0, 0, "", err
 	}
-	expected := scheduleModels.CareRequestKindWeeklySchedule
+	expected := "weekly_schedule"
 	if requestType == RequestSharePickupChange {
-		expected = scheduleModels.CareRequestKindPickupChange
+		expected = "pickup_change"
 	}
-	if row.RequestKind != expected {
+	if kind != expected {
 		return 0, 0, "", ErrRequestSharingNotFound
 	}
-	return row.SubmittedBy, row.StudentID, requestType, nil
+	return submittedBy, studentID, requestType, nil
 }
 
 func (s *Service) offeringShareIdentity(ctx context.Context, requestID int64) (int64, int64, string, error) {
@@ -480,7 +480,7 @@ func requestLookupError(err error) error {
 }
 
 type RequestShareVisibility struct {
-	current     map[requestShareKey]*userModels.ParentRequestShareEvent
+	current     map[requestShareKey]*ParentRequestShareEvent
 	protected   bool
 	protectedAt time.Time
 }

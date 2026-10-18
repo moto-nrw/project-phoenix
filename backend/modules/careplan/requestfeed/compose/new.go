@@ -56,7 +56,7 @@ func New(dependencies Dependencies) (*requestfeed.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return requestfeed.NewModule(engine{service: service}), nil
+	return requestfeed.NewModule(service), nil
 }
 
 type tokenAdapter struct {
@@ -66,21 +66,3 @@ type tokenAdapter struct {
 
 func (a tokenAdapter) New() (string, string, error) { return a.newToken() }
 func (a tokenAdapter) Hash(raw string) string       { return a.hashToken(raw) }
-
-type engine struct{ service *application.Service }
-
-func (e engine) Status(ctx context.Context, tenantID, accountID int64) (requestfeed.Status, error) {
-	return e.service.Status(ctx, tenantID, accountID)
-}
-
-func (e engine) Provision(ctx context.Context, tenantID, accountID int64) (requestfeed.Created, error) {
-	return e.service.Provision(ctx, tenantID, accountID)
-}
-
-func (e engine) Rotate(ctx context.Context, tenantID, accountID int64) (requestfeed.Created, error) {
-	return e.service.Rotate(ctx, tenantID, accountID)
-}
-
-func (e engine) ByToken(ctx context.Context, token string) (requestfeed.Feed, error) {
-	return e.service.ByToken(ctx, token)
-}

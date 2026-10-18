@@ -37,13 +37,20 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		{parentportal.ReasonPolicyBoth, true},
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
-			CarePlan:       repos.CarePlan(),
-			People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-			CareProfiles:   careProfiles(t, db),
-			ChildRepo:      repos.ParentChild,
-			StatusDayRepo:  repos.StudentStatusDay,
-			StudentRepo:    repos.Student,
-			CareExceptions: repos.CarePlan(),
+			GuardianChanges: api.ParentGuardianChanges(),
+			DeparturePolicy: api.ParentDeparturePolicy(),
+			GuardianPolicy:  api.NewParentGuardianPolicy(),
+			Fingerprints:    api.SecurityFingerprints{},
+			Declarations:    api.ParentDeclarationPolicy(),
+			Locales:         api.ParentPortalLocales(),
+			Runtime:         api.ParentPortalRuntime{},
+			CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+			People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+			CareProfiles:    careProfiles(t, db),
+			ChildRepo:       repos.ParentChildReads(),
+			StatusDayRepo:   repos.StudentStatusDay,
+			StudentRepo:     api.NewParentStudentReads(repos.Student),
+			CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
 					parentportal.KeyGuardianParentInviteMode:  parentportal.ParentInviteModeDisabled,
@@ -52,6 +59,10 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			},
 			MealPlan: availableMealPlan(false),
 			Logger:   slog.Default(),
+
+			DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+			CarePlanPolicy: api.NewParentCarePlanPolicy(),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

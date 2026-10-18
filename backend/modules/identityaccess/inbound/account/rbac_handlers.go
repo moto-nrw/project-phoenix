@@ -135,7 +135,7 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.Sessions.DeleteRole(r.Context(), int64(id)); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen"))
 			return
 		}
@@ -402,7 +402,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	if err := rs.withinAdmin(r.Context(), func(ctx context.Context) error {
 		return rs.Sessions.DeletePermission(ctx, int64(id))
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return
 		}

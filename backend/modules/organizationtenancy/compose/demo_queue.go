@@ -131,7 +131,7 @@ func (e demoQueueEngine) ReturnDemoSchoolOrder(ctx context.Context, slug string)
 	return e.store.Return(ctx, slug)
 }
 
-func (e demoQueueEngine) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+func (e demoQueueEngine) RetireDemoSchools(ctx context.Context, slugs []string) (int, int, error) {
 	return e.store.RetireMany(ctx, slugs)
 }
 

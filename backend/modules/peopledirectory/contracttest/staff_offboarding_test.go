@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -72,18 +73,17 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
-	deps := offboardingcompose.Dependencies{
-		DB: db, Access: api.StaffOffboardingAccess(authService),
-		People:     peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
-		Employment: api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
-			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
-			actor.AccountID = actorAccount.ID
-			actor.TenantID = tenant.FromContext(ctx)
-			return actor, nil
-		},
-		Cleanup: func(context.Context, int64) error { return nil },
+	deps, err := api.NewStaffOffboardingOwners(testpkg.NewDatabase(t, db), peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
+		api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))))
+	require.NoError(t, err)
+	deps.Access = api.StaffOffboardingAccess(authService)
+	deps.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
+		actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
+		actor.AccountID = actorAccount.ID
+		actor.TenantID = tenant.FromContext(ctx)
+		return actor, nil
 	}
+	deps.Cleanup = func(context.Context, int64) error { return nil }
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
@@ -115,7 +115,7 @@ func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, acto
 	ctx = context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actorID, Username: username})
 	_, err = workflow.Offboard(ctx, staffID)
 	if errors.Is(err, staffoffboarding.ErrInUse) {
-		return peopleCompose.ErrStaffInUse
+		return peoplePorts.ErrStaffInUse
 	}
 	return err
 }
@@ -650,7 +650,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, peopleCompose.ErrStaffInUse), "active supervision must block offboarding")
+	assert.True(t, errors.Is(err, peoplePorts.ErrStaffInUse), "active supervision must block offboarding")
 
 	var deletedAt *time.Time
 	scanErr := sc.db.NewSelect().
@@ -674,7 +674,7 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	)
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
-	require.ErrorIs(t, err, peopleCompose.ErrStaffInUse)
+	require.ErrorIs(t, err, peoplePorts.ErrStaffInUse)
 
 	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
 	require.NoError(t, err)

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -6,11 +8,14 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -56,9 +61,9 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New())), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New()), guardianLinkView.NewReader()), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
 		Fingerprints: SecurityFingerprints{},
-	})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),
 		Objects:       objects,

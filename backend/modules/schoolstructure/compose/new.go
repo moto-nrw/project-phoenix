@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	application "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type Observation = ports.Observation
@@ -47,57 +47,8 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 		}
 	})
 	service := application.New(store, func(observation Observation) {
-		observation.Err = mapError(observation.Err)
+		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return schoolstructure.NewModule(engine{service: service}), nil
-}
-
-type engine struct{ service *application.Service }
-
-func (e engine) ListGroups(ctx context.Context, limit int) ([]schoolstructure.Group, error) {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	values, err := e.service.List(ctx, tenantID.Int64(), limit)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]schoolstructure.Group, 0, len(values))
-	for _, value := range values {
-		result = append(result, toPublic(value))
-	}
-	return result, nil
-}
-
-func (e engine) FindGroup(ctx context.Context, id int64) (schoolstructure.Group, error) {
-	value, err := e.service.FindByID(ctx, id)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) ListGroupsByID(ctx context.Context, ids []int64) ([]schoolstructure.Group, error) {
-	values, err := e.service.ListByIDs(ctx, ids)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]schoolstructure.Group, 0, len(values))
-	for _, value := range values {
-		result = append(result, toPublic(value))
-	}
-	return result, nil
-}
-
-func toPublic(value domain.Group) schoolstructure.Group {
-	return schoolstructure.Group{
-		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		Name: value.Name, RoomID: value.RoomID,
-	}
-}
-
-func mapError(err error) error {
-	if errors.Is(err, domain.ErrNotFound) {
-		return schoolstructure.ErrGroupNotFound
-	}
-	return err
+	return schoolstructure.NewModule(application.NewEngine(service)), nil
 }

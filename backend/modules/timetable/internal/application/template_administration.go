@@ -3,46 +3,13 @@ package application
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// TemplateAdministrationDependencies wires timetable.TemplateAdministration:
-// the retained template rows, the owner's materialization and recurrence
-// gate, and the ports the composition root binds — the instance lifecycle's
-// deviation preservation, Care Plan's care-offering checks, Enrollment's
-// roster resync (late-bound: the decision service is built after this one),
-// School
-// Structure's education groups and class rules, and the realtime staffing
-// announcement. Staffing, Logger and Today are optional.
-type TemplateAdministrationDependencies struct {
-	Groups               activitiesModel.GroupRepository
-	Categories           activitiesModel.CategoryRepository
-	Schedules            activitiesModel.ScheduleRepository
-	Enrollments          activitiesModel.StudentEnrollmentRepository
-	Supervisors          activitiesModel.SupervisorPlannedRepository
-	Instances            scheduleModel.ActivityInstanceRepository
-	InstanceStaff        scheduleModel.InstanceStaffRepository
-	Participants         scheduleModel.InstanceStudentRepository
-	Timeframes           scheduleModel.TimeframeRepository
-	PlanningTracks       PlanningTrackAssignments
-	EducationGroups      EducationGroupDirectory
-	Materialization      timetable.MaterializationCapability
-	Deviations           SeriesDeviations
-	CareOfferings        CareOfferingChecks
-	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
-	RecurrenceLock       timetable.RecurrenceWriteLock
-	SchoolClasses        SchoolClassRules
-	Staffing             StaffingAnnouncer
-	Logger               *slog.Logger
-	Transactions         TenantTransactions
-	Today                func() calendar.Date
-}
 
 type templateAdministration struct {
 	templates *TemplateService
@@ -52,7 +19,7 @@ type templateAdministration struct {
 var _ timetable.TemplateAdministration = (*templateAdministration)(nil)
 
 // NewTemplateAdministration composes the Timetable owner's template writes.
-func NewTemplateAdministration(deps TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
+func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
 	if deps.Groups == nil || deps.Categories == nil || deps.Schedules == nil || deps.Enrollments == nil ||
 		deps.Supervisors == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil ||
 		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.Transactions == nil {
@@ -158,14 +125,14 @@ func (s *TemplateService) templateAssignmentsOn(
 	periodID int64,
 ) (timetable.TemplateAssignments, error) {
 	if s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil || s.deps.ActivityGroupRepo == nil {
-		return timetable.TemplateAssignments{}, &ScheduleError{
+		return timetable.TemplateAssignments{}, &ports.ScheduleError{
 			Op:  "derive template assignments: validate dependencies",
 			Err: errors.New("required roster repository is nil"),
 		}
 	}
 	planWeekday, err := calendar.PlanWeekday(ctx, date)
 	if err != nil {
-		return timetable.TemplateAssignments{}, &ScheduleError{Op: "derive template assignments: resolve weekend plan", Err: err}
+		return timetable.TemplateAssignments{}, &ports.ScheduleError{Op: "derive template assignments: resolve weekend plan", Err: err}
 	}
 	studentIDs, err := s.templateStudentsOn(ctx, templateID, date, periodID, planWeekday)
 	if err != nil {
@@ -173,7 +140,7 @@ func (s *TemplateService) templateAssignmentsOn(
 	}
 	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return timetable.TemplateAssignments{}, &ScheduleError{Op: "derive template assignments: load supervisors", Err: err}
+		return timetable.TemplateAssignments{}, &ports.ScheduleError{Op: "derive template assignments: load supervisors", Err: err}
 	}
 	staffIDs := make([]int64, 0, len(supervisors))
 	seenStaff := make(map[int64]struct{}, len(supervisors))
@@ -191,7 +158,7 @@ func (s *TemplateService) templateAssignmentsOn(
 func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date calendar.Date, periodID int64, planWeekday int) ([]int64, error) {
 	enrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "derive template assignments: load enrollments", Err: err}
+		return nil, &ports.ScheduleError{Op: "derive template assignments: load enrollments", Err: err}
 	}
 	studentIDs := make([]int64, 0, len(enrollments))
 	seenStudents := make(map[int64]struct{}, len(enrollments))
@@ -207,7 +174,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 	}
 	targetStudentIDs, err := targetRepo.FindTargetStudentIDs(ctx, templateID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "derive template assignments: load target students", Err: err}
+		return nil, &ports.ScheduleError{Op: "derive template assignments: load target students", Err: err}
 	}
 	for _, studentID := range targetStudentIDs {
 		if studentID > 0 {

@@ -45,7 +45,7 @@
       "backend/modules/supervisiondashboard/legacy/legacy.go",
       "backend/modules/grouplive/ports.go",
       "backend/modules/grouplive/legacy/legacy.go",
-      "backend/modules/grouplive/legacy/settings_prepare_internal_test.go"
+      "backend/api/group_live_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, Prefetch issues exactly one batch read, and the architecture check reports no new violation and no stale baseline entry.",

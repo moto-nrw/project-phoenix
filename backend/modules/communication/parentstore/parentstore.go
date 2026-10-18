@@ -1,15 +1,6 @@
-// Package parentstore is Communication's composition seam for the parent
-// conversation stores.
-//
-// It exists next to modules/communication/composition rather than inside it
-// because the repository factory builds these stores, and the full
-// composition package reaches services that in turn build repositories. This
-// package deliberately depends on nothing but the owner's own adapters, so
-// that seam stays acyclic.
-//
-// It preserves the existing repository contracts while the SQL lives with its
-// owner. Once every caller reads Communication through the module facade, the
-// contracts and this package go with them.
+// Package parentstore composes Communication's native parent-conversation
+// stores and audience projections. Consumer-owned ports receive the other
+// owners' public facts from the root; SQL stays in the existing owned adapters.
 package parentstore
 
 import (
@@ -53,6 +44,13 @@ func resolve(ctx context.Context, db *bun.DB) (bun.IDB, int64, error) {
 		}
 	}
 	return db, tenantID, nil
+}
+
+// GuardianLinkRows is the student-guardian relationship row source the
+// inbox and audience projections join in their own statements; the roots
+// bind the guardian-link projection (ADR 0058).
+type GuardianLinkRows interface {
+	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
 }
 
 func postgresDatabase(db *bun.DB) parentpostgres.Database {

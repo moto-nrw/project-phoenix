@@ -14,10 +14,7 @@ import (
 	"log/slog"
 	"time"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MealPlanEntry is the parent-portal view of one planned dish. Keeping this
@@ -187,7 +184,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	profile := &Profile{Locale: s.Locales.Default(), Explicit: false}
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -215,7 +212,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// has that role. Log it so the corruption is observable, then degrade
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			s.Logger.Warn("parent: guardian profile missing for authenticated account",
 				slog.Int64("account_id", accountID),
 			)
@@ -248,7 +245,7 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		// the handler can map it to 409 (a permanent state conflict) instead of
 		// a generic 500. Never swallow it into a fake success — a "saved"
 		// preference that never hit the DB must not masquerade as persisted.
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			s.Logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
 				slog.Int64("account_id", accountID),
 			)
@@ -256,7 +253,7 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		return nil, fmt.Errorf("parent: update portal locale: %w", err)
 	}
 	profile := &Profile{Locale: normalized, Explicit: true}
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -283,7 +280,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 		return errors.New("parent: guardian records are not configured")
 	}
 	var tenantIDs []int64
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var readErr error
 		tenantIDs, readErr = s.Guardians.ListGuardianProfileTenants(adminCtx, accountID)
 		return readErr
@@ -293,7 +290,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 	}
 	var updated int64
 	for _, tenantID := range tenantIDs {
-		err := InTenant(ctx, tenantID, func(txCtx context.Context) error {
+		err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			rows, writeErr := s.Guardians.SetGuardianPortalLocale(txCtx, accountID, locale)
 			updated += rows
 			return writeErr
@@ -303,12 +300,12 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 		}
 	}
 	if updated == 0 {
-		return usersModels.ErrGuardianProfileNotFound
+		return s.GuardianPolicy.MissingProfileError()
 	}
 	return nil
 }
 
-func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -319,8 +316,8 @@ func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 	// has none. Admin role with BYPASSRLS sees every tenant; the
 	// account_tenants WHERE clause in the query keeps the result set
 	// scoped to the caller's own membership.
-	var children []*parentModels.ChildSummary
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var children []*ChildSummary
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -343,13 +340,13 @@ func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 // parent can enroll a new child at. Same admin-tx wrap as the children
 // query — the join crosses tenant_id boundaries scoped by
 // auth.account_tenants membership for the AlreadyLinked flag.
-func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
+func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*EnrollablePhase, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
 
-	var phases []*parentModels.EnrollablePhase
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var phases []*EnrollablePhase
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -376,7 +373,7 @@ func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 
 // filterEnrollmentEnabledPhases keeps the phases whose school has enrollment
 // switched on, resolved in one cross-tenant settings query.
-func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*parentModels.EnrollablePhase) ([]*parentModels.EnrollablePhase, error) {
+func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*EnrollablePhase) ([]*EnrollablePhase, error) {
 	if s.EnrollmentSettings == nil {
 		return nil, errors.New("parent: enrollment settings queries not wired")
 	}
@@ -395,7 +392,7 @@ func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*p
 
 // enrollablePhaseSchoolIDs returns the distinct school IDs of the phases in
 // first-seen order.
-func enrollablePhaseSchoolIDs(phases []*parentModels.EnrollablePhase) []int64 {
+func enrollablePhaseSchoolIDs(phases []*EnrollablePhase) []int64 {
 	tenantIDs := make([]int64, 0, len(phases))
 	seen := make(map[int64]struct{}, len(phases))
 	for _, phase := range phases {
@@ -412,13 +409,13 @@ func enrollablePhaseSchoolIDs(phases []*parentModels.EnrollablePhase) []int64 {
 // facts for the parent enrollment path (#1663). Uses
 // WithAdminTxOrDirect so the parent submit handler's existing admin
 // transaction is reused instead of opening a nested one.
-func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error) {
+func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*GuardianSubmitStatus, error) {
 	if accountID <= 0 || schoolID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
 	}
 
-	var status *parentModels.GuardianSubmitStatus
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var status *GuardianSubmitStatus
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
 		if stErr != nil {
 			return stErr
@@ -435,7 +432,7 @@ func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, scho
 // ListEnrollmentsForAccount returns the parent's enrollment.requests
 // rows joined to phase + school + child summaries. Same admin-tx wrap
 // as the other parent queries — this crosses tenant_id boundaries.
-func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*EnrollmentRequestSummary, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -443,8 +440,8 @@ func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		return nil, fmt.Errorf("parent: enrollment request repo not wired")
 	}
 
-	var requests []*parentModels.EnrollmentRequestSummary
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	var requests []*EnrollmentRequestSummary
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr

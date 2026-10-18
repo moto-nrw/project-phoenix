@@ -8,9 +8,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -21,7 +18,7 @@ func (s *Service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	date calendar.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
 ) (*carerequests.Request, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +32,7 @@ func (s *Service) EditPickupChangeRequest(
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
 	var out *carerequests.Request
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -81,7 +78,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err := validatePickupChangeShape(pickupTime, departureMode, reason); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +91,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	}
 	legs := pickupChangeLegs{pickupTime: !pickupTime.IsZero(), departureMode: departureMode != ""}
 	var result *carerequests.Request
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.lockPickupChangeDay(txCtx, studentID, date, today, legs); err != nil {
 			return err
 		}
@@ -255,7 +252,7 @@ func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, da
 		}
 	}
 	if legs.departureMode {
-		set, checkErr := s.departureExceptionForDate(txCtx, studentID, careplan.Date(date))
+		set, checkErr := s.departureExceptionForDate(txCtx, studentID, calendar.Date(date))
 		if checkErr != nil {
 			return checkErr
 		}

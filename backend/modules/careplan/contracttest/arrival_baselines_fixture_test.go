@@ -7,13 +7,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // newArrivalBaselinesFixture binds native People and Timetable projections to
 // Care Plan without reaching the root composition packages.
-func newArrivalBaselinesFixture(records careplanCompose.ArrivalBaselineRecords, students careplantest.ArrivalStudentRecords, classes timetableModule.ClassArrivalQuery, links careplan.ApprovedBookingReader, bookingMode func(context.Context) (bool, error)) (careplan.ArrivalBaselineReader, error) {
+func newArrivalBaselinesFixture(records carePlanPorts.ArrivalBaselineRecords, students careplantest.ArrivalStudentRecords, classes timetableModule.ClassArrivalQuery, links careplan.ApprovedBookingReader, bookingMode func(context.Context) (bool, error)) (careplan.ArrivalBaselineReader, error) {
 	return careplanCompose.NewArrivalBaselines(careplanCompose.ArrivalBaselineDependencies{
 		Records: records, Bookings: links, BookingMode: bookingMode,
 		StudentClasses: careplantest.ArrivalStudentClasses(students),

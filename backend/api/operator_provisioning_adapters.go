@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -276,7 +277,7 @@ func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
 // context carries no tenant, so the repository's tenant filter is a no-op.
 func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizationCompose.ProvisioningPerson, bool, error) {
 	person, err := p.personRows.FindByID(ctx, id)
-	if userModels.IsRepositoryNoRows(err) {
+	if peoplePorts.IsRepositoryNoRows(err) {
 		return organizationCompose.ProvisioningPerson{}, false, nil
 	}
 	if err != nil {

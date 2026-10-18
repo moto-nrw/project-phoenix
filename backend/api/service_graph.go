@@ -9,8 +9,6 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
@@ -40,7 +38,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -53,6 +51,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -132,19 +131,19 @@ type serviceGraph struct {
 	Materialization         timetable.MaterializationCapability
 	TimetableCleanup        timetable.TimetableCleanup
 	TimeTrackingCleanup     workforceCompose.TimeTrackingCleanupService
-	StudentChangeLogCleanup peopleCompose.StudentChangeLogCleanupService
+	StudentChangeLogCleanup peoplePorts.StudentChangeLogCleanupService
 	Instance                timetable.InstanceLifecycleCapability
 	AutoStart               timetable.InstanceAutoStart
 	AutoEnd                 timetable.InstanceAutoEnd
 	TimetableOperations     timetable.OperationCapability
-	Users                   *peopleCompose.PersonDirectory
+	Users                   peoplePorts.PersonDirectory
 	// StaffDocuments is Workforce's personnel-record administration: the
 	// Dokumente tab, the Stammdaten sections and the payroll number (#3752).
 	StaffDocuments           *workforceModule.StaffAdmin
 	StudentDocuments         careplan.StudentDocuments
 	FileStore                *filestorageModule.Module
-	CaregiverCapability      peopleCompose.CaregiverCapabilityService
-	Guardian                 *peopleCompose.GuardianService
+	CaregiverCapability      peoplePorts.CaregiverCapabilityService
+	Guardian                 peoplePorts.GuardianService
 	PeopleDirectory          peopledirectory.Capability
 	Emergency                emergencysnapshot.Query
 	SlotLists                classday.SlotLists
@@ -166,7 +165,7 @@ type serviceGraph struct {
 	OperatorProvisioning organizationtenancy.Provisioning
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        careplan.CareLifecycle
-	StudentAudit         peopleCompose.StudentAuditService
+	StudentAudit         peoplePorts.StudentAuditService
 	MasterDataReview     masterdatarequests.Decisions
 	CareRequests         carerequests.Service
 	ExcusedRequests      careplan.ExcusedAbsenceRequests
@@ -231,7 +230,7 @@ type serviceGraph struct {
 	SettingsSideEffects *settingsCompose.SideEffectRegistry
 	// StudentPhotos is the photo lifecycle; nil in a graph composed without
 	// the photo slot and the file unlinker.
-	StudentPhotos   peopleCompose.StudentPhotoService
+	StudentPhotos   peoplePorts.StudentPhotoService
 	StudentConsents StudentConsentRecords
 }
 
@@ -388,7 +387,7 @@ type IdentityMaterial struct {
 	// The rows the caller context's retained consumers read.
 	Groups         EducationGroupRepository
 	StaffGroups    schoolstructure.StaffGroupQuery
-	ActivityGroups arrivalTimetable.CallerActivityGroups
+	ActivityGroups timetablePorts.CallerActivityGroups
 	Sessions       *presenceCompose.SessionRecords
 	Presence       *studentpresence.Module
 }
@@ -399,8 +398,8 @@ type IdentityMaterial struct {
 type IdentityComposition struct {
 	Access               *identityaccess.Module
 	Caller               CallerRowReads
-	GroupLiveCaller      groupliveCompose.CallerContext
-	SupervisionCaller    supervisiondashboardCompose.CallerContext
+	GroupLiveCaller      GroupLiveCallerContext
+	SupervisionCaller    SupervisionCallerContext
 	GuardianInvitations  GuardianInvitationReads
 	ParentGuardianAccess parentportal.GuardianAccess
 	// MailRenderers render the Identity & Access mail kinds of the outbox.
@@ -410,7 +409,7 @@ type IdentityComposition struct {
 // GuardianInvitationReads serves the People Directory guardian list and the
 // parents portal over the guardian invitations.
 type GuardianInvitationReads interface {
-	peopleCompose.GuardianInvitations
+	peoplePorts.GuardianInvitations
 	ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error)
 }
 

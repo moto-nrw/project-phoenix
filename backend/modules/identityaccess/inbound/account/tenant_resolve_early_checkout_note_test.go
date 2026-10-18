@@ -9,6 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +31,7 @@ type earlyCheckoutNoteResolveResp struct {
 func resolveEarlyCheckoutNote(t *testing.T, resource *authAPI.Resource, slug string) earlyCheckoutNoteResolveResp {
 	t.Helper()
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -47,7 +50,7 @@ func TestResolveTenant_EarlyCheckoutNote_DefaultOnWithFifteenMinutes(t *testing.
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -65,7 +68,7 @@ func TestResolveTenant_EarlyCheckoutNote_SchoolOverrides(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteEnabled, false, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteToleranceMinutes, 30, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -82,7 +85,7 @@ func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsClosed(t *testing.T
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyEarlyCheckoutNoteToleranceMinutes, json.RawMessage(`"viel"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)

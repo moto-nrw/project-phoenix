@@ -9,7 +9,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -541,8 +541,8 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 		testpkg.CreateTestStudent(t, db, "Count1", "Test", "CountClass")
 		testpkg.CreateTestStudent(t, db, "Count2", "Test", "CountClass")
 
-		options := peopleVocabulary.NewQueryOptions()
-		filter := peopleVocabulary.NewQueryFilter()
+		options := peoplePorts.NewQueryOptions()
+		filter := peoplePorts.NewQueryFilter()
 		filter.ILike("school_class", "%CountClass%")
 		options.Filter = filter
 

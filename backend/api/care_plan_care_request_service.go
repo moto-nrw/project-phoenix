@@ -11,13 +11,13 @@ import (
 	"time"
 
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -30,7 +30,7 @@ type careScheduleRequestService struct {
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
 	userContext       CareRequestStaff
-	studentAudit      peopleCompose.StudentChangeRecorder
+	studentAudit      peoplePorts.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
 	// permissions reads the permissions of the request claims the review
@@ -97,7 +97,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	permissions func(context.Context) []string,
 	events ParentRequestEvents,
 	logger *slog.Logger,
-	studentAudit peopleCompose.StudentChangeRecorder,
+	studentAudit peoplePorts.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
 	if reviewPolicy == nil || permissions == nil {

@@ -5,13 +5,17 @@ import (
 	"log/slog"
 	"strings"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
+
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The time-tracking and staff administration resources live in the Workforce
@@ -74,7 +78,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calendar, db transactionruntime.Database) *timeTrackingHTTP.Resource {
+func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calendar) *timeTrackingHTTP.Resource {
 	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
@@ -82,11 +86,18 @@ func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calend
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
 		StaffShifts:      graph.StaffShifts,
+		ShiftResponses:   timeTrackingShiftResponses,
 		Assignments:      graph.StaffAssignments,
 		Calendar:         PlanningCalendarCapability(calendar),
 		AccountStartDate: timeTrackingAccountStartDate(graph.Settings),
 		Identity:         timeTrackingIdentity,
-		DB:               db.Pool(),
+		WithinTenant: func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
+			id, err := tenant.NewTenantID(tenantID)
+			if err != nil {
+				return err
+			}
+			return tenant.WithinTenant(ctx, id, run)
+		},
 	})
 }
 
@@ -100,6 +111,7 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 		panic(err)
 	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
+		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
@@ -118,4 +130,8 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})
+}
+
+func timeTrackingShiftResponses(shifts []workforceModule.PlannedShift) any {
+	return staffShiftsHTTP.ToShiftResponses(shifts)
 }

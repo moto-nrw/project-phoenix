@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,11 +40,11 @@ func TestResolveTenant_SettingsBatchFailureFailsRequest(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = failingTenantShellSettings{TenantReader: authRoute.SettingsService}
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -57,11 +60,11 @@ func TestResolveTenant_NoEmergencyHealthInfoFlag(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()

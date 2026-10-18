@@ -7,6 +7,7 @@ import (
 	"github.com/uptrace/bun"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 const familyProtectionTable = "users.student_family_protection_events"
@@ -15,7 +16,7 @@ type FamilyProtectionEventRepository struct {
 	runtime Runtime
 }
 
-func NewFamilyProtectionEventRepository(runtime Runtime) userModels.FamilyProtectionEventRepository {
+func NewFamilyProtectionEventRepository(runtime Runtime) ports.FamilyProtectionRecords {
 	return &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}
 }
 
@@ -32,7 +33,7 @@ func (r *FamilyProtectionEventRepository) Create(ctx context.Context, event *use
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &DatabaseError{Op: "create family protection event", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "create family protection event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -53,7 +54,7 @@ func (r *FamilyProtectionEventRepository) CurrentForStudents(ctx context.Context
 		OrderExpr(`"family_protection_event".student_id, "family_protection_event".id DESC`)
 	query = withTenantFilter(ctx, r.runtime, query, "family_protection_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list current family protection", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list current family protection", Err: translateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.StudentID] = row

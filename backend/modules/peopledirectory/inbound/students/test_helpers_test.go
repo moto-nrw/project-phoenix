@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -103,7 +105,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		slog.Default(),
 	)
 
-	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public"))
+	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
 
 	education := svc.Education
 	schoolGroups := fixtureSchoolGroups{
@@ -168,7 +170,9 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	// The shared request-review projection over the same retained queues the
 	// production root binds (#2705).
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, svc.PeopleDirectory, func(requestreviewcompose.DirectoryObservation) {})
+	reviewGroups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(svc.PeopleDirectory, reviewGroups)
 	require.NoError(t, err)
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
 	require.NoError(t, err)
@@ -219,9 +223,11 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 	})
 	require.NoError(t, err)
-	corrections, err := requestreviewcompose.NewCorrectionLog(db, svc.PeopleDirectory, func(ctx context.Context) bool {
+	correctionQueries, err := api.NewUnobservedCorrectionQueries(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, svc.PeopleDirectory, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
-	}, func(requestreviewcompose.AuditObservation) {})
+	})
 	require.NoError(t, err)
 	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
 	require.NoError(t, err)
@@ -237,8 +243,10 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	// The permanent-deletion routes run the owner workflow (#2710) over the
 	// same capabilities the production root binds.
+	deletionOwners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
+		DB: db, Owners: deletionOwners, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
 		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
 		LockCareBookingWrites: mustTimetableRecurrenceLock(t, db).LockRecurrenceWrites,
 		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,
@@ -246,6 +254,8 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	})
 	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		ConstraintViolation:    transactionFailures.IsConstraintViolation,
+		Uploads:                nativeUploads.UploadFiles{},
 		PeopleDirectory:        svc.PeopleDirectory,
 		Persons:                svc.StudentRoutePersons(),
 		StudentDeletion:        studentDeletion,
@@ -385,7 +395,7 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
+	return testutil.ExecuteRequestForTest(t, tc.resource.Router(api.ProtectedTenantRoutes), req)
 }
 
 // callerReviewAccess reports the caller context's review access level, as the

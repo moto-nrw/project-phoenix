@@ -161,23 +161,6 @@ func StudentGuardianPermissionSet(role string) map[string]interface{} {
 	return perms
 }
 
-func ApplyStudentGuardianRole(sg studentGuardianRecord, role string) {
-	if sg == nil {
-		return
-	}
-	normalized := NormalizeGuardianRole(role)
-	sg.SetGuardianAuthorizationData(normalized, StudentGuardianPermissionSet(normalized))
-}
-
-func ApplyDefaultStudentGuardianRole(sg studentGuardianRecord) {
-	if sg == nil {
-		return
-	}
-	relationshipType, _, primary, emergency, pickup, _ := sg.GuardianAuthorizationData()
-	role := DefaultStudentGuardianRole(relationshipType, primary, emergency, pickup)
-	ApplyStudentGuardianRole(sg, role)
-}
-
 // StudentGuardianHasPermission reports whether the student-guardian relationship
 // grants the named permission. A boolean value is returned directly; any other
 // non-nil value is treated as granted, matching the prior model behavior.

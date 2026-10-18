@@ -6,18 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CreateGuardianContact adds an accountless contact to the child.
 func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentID int64, input CreateGuardianContactInput) (*ChildGuardian, error) {
-	if err := validateCreateGuardianContactInput(&input); err != nil {
+	if err := validateCreateGuardianContactInput(&input, s.GuardianPolicy.RelationshipTypeValid); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionGuardianEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +25,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
+	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	if s.Guardians == nil {
@@ -37,7 +33,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	}
 
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		created, err := s.createGuardianContactInTx(txCtx, child, accountID, studentID, input)
 		result = created
 		return err
@@ -68,11 +64,11 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	if err := s.requireGuardianEmailFree(ctx, input.Contact.Email, 0); err != nil {
 		return nil, err
 	}
-	profile := &usersModels.GuardianProfile{
+	profile := &GuardianProfile{
 		PreferredContactMethod: "phone",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(child.TenantID)
+	profile.TenantID = child.TenantID
 	applyContactInput(profile, &input.Contact)
 	if profile.Email != nil {
 		profile.PreferredContactMethod = "email"
@@ -104,9 +100,9 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	}
 
 	result := projectChildGuardian(profile, link, phones, accountID, true,
-		child.HasPermission(authorize.GuardianPermissionPickupManage), false)
+		child.HasPermission(GuardianPermissionPickupManage), false, s.GuardianPolicy.IsFullRole)
 	capturedTenant := child.TenantID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(capturedTenant, studentID)
 	})
 	return result, nil
@@ -126,7 +122,7 @@ func (s *Service) requireGuardianEmailFree(ctx context.Context, email *string, o
 		return nil
 	}
 	existing, err := s.GuardianProfileRepo.FindByEmail(ctx, trimmed)
-	if err != nil && !errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+	if err != nil && !errors.Is(err, ErrGuardianProfileNotFound) {
 		return err
 	}
 	if existing != nil && existing.ID != ownProfileID {
@@ -138,8 +134,8 @@ func (s *Service) requireGuardianEmailFree(ctx context.Context, email *string, o
 // createGuardianProfile validates and normalises the profile the way the
 // directory stores it (trimmed names, lower-case e-mail) and inserts it
 // through People Directory.
-func (s *Service) createGuardianProfile(ctx context.Context, profile *usersModels.GuardianProfile) error {
-	if err := profile.Validate(); err != nil {
+func (s *Service) createGuardianProfile(ctx context.Context, profile *GuardianProfile) error {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	id, err := s.Guardians.CreateGuardianContact(ctx, guardianContactRecord(profile))
@@ -152,14 +148,14 @@ func (s *Service) createGuardianProfile(ctx context.Context, profile *usersModel
 
 // updateGuardianProfile validates the edited profile and rewrites its contact
 // slice through People Directory.
-func (s *Service) updateGuardianProfile(ctx context.Context, profile *usersModels.GuardianProfile) error {
-	if err := profile.Validate(); err != nil {
+func (s *Service) updateGuardianProfile(ctx context.Context, profile *GuardianProfile) error {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	return s.Guardians.UpdateGuardianContact(ctx, profile.ID, guardianContactRecord(profile))
 }
 
-func guardianContactRecord(profile *usersModels.GuardianProfile) GuardianContactRecord {
+func guardianContactRecord(profile *GuardianProfile) GuardianContactRecord {
 	return GuardianContactRecord{
 		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
 		AddressStreet: profile.AddressStreet, AddressCity: profile.AddressCity, AddressPostalCode: profile.AddressPostalCode,
@@ -170,8 +166,8 @@ func guardianContactRecord(profile *usersModels.GuardianProfile) GuardianContact
 // linkGuardianContact links the new profile to the child with the default
 // role of its relationship. A fresh profile that is already linked is a data
 // fault, not a conflict.
-func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, profileID int64, input CreateGuardianContactInput) (*usersModels.StudentGuardian, error) {
-	link := &usersModels.StudentGuardian{
+func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, profileID int64, input CreateGuardianContactInput) (*GuardianRelationship, error) {
+	link := &GuardianRelationship{
 		StudentID:          studentID,
 		GuardianProfileID:  profileID,
 		RelationshipType:   strings.TrimSpace(input.RelationshipType),
@@ -180,9 +176,9 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		PickupNotes:        trimGuardianText(input.PickupNotes),
 		EmergencyPriority:  1,
 	}
-	authorize.ApplyDefaultStudentGuardianRole(link)
-	link.SetTenantID(tenantID)
-	if err := link.Validate(); err != nil {
+	s.applyDefaultGuardianRole(link)
+	link.TenantID = tenantID
+	if err := s.GuardianPolicy.NormalizeRelationship(link); err != nil {
 		return nil, err
 	}
 	record, err := guardianContactLink(link)
@@ -204,12 +200,12 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 // pickup detail and the caller's per-guardian edit capabilities. Authorization
 // only (parent_portal.access).
 func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
-	canEdit := child.HasPermission(authorize.GuardianPermissionGuardianEdit)
-	canManage := child.HasPermission(authorize.GuardianPermissionPickupManage)
+	canEdit := child.HasPermission(GuardianPermissionGuardianEdit)
+	canManage := child.HasPermission(GuardianPermissionPickupManage)
 	// A school can disable the whole feature: when off, the list still shows
 	// guardians (read) but advertises no edit affordances, so the UI hides them.
 	if canEdit || canManage {
@@ -223,7 +219,7 @@ func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		}
 	}
 	var out []*ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var loadErr error
 		out, loadErr = s.loadChildGuardians(txCtx, child.TenantID, accountID, studentID, canEdit, canManage)
 		return loadErr
@@ -279,7 +275,7 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 			)
 			return nil, fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
-		out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID]))
+		out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID], s.GuardianPolicy.IsFullRole))
 	}
 	return out, nil
 }
@@ -287,15 +283,12 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 // replaceGuardianPhones replaces the guardian's entire phone list with the
 // submitted set. A wholesale replace keeps the edit atomic and avoids per-row
 // diffing the portal would otherwise have to drive.
-func (s *Service) replaceGuardianPhones(ctx context.Context, profile *usersModels.GuardianProfile, phones []GuardianPhoneInput) error {
+func (s *Service) replaceGuardianPhones(ctx context.Context, profile *GuardianProfile, phones []GuardianPhoneInput) error {
 	records := make([]GuardianPhoneRecord, 0, len(phones))
 	submittedPrimary := hasSubmittedPrimaryPhone(phones)
 	primarySeen := false
 	for i, p := range phones {
-		phoneType := usersModels.PhoneType(strings.TrimSpace(p.PhoneType))
-		if !usersModels.ValidPhoneTypes[phoneType] {
-			phoneType = usersModels.PhoneTypeMobile
-		}
+		phoneType := s.GuardianPhoneRepo.PhoneTypeOrMobile(strings.TrimSpace(p.PhoneType))
 		isPrimary := p.IsPrimary
 		if i == 0 && !submittedPrimary {
 			isPrimary = true
@@ -307,7 +300,7 @@ func (s *Service) replaceGuardianPhones(ctx context.Context, profile *usersModel
 				primarySeen = true
 			}
 		}
-		entity := &usersModels.GuardianPhoneNumber{
+		entity := &GuardianPhoneNumber{
 			GuardianProfileID: profile.ID,
 			PhoneNumber:       strings.TrimSpace(p.PhoneNumber),
 			PhoneType:         phoneType,
@@ -318,7 +311,7 @@ func (s *Service) replaceGuardianPhones(ctx context.Context, profile *usersModel
 		// The directory stores the phone the way its validator normalises it
 		// (trimmed number, empty label as none); a refused row aborts the whole
 		// replace.
-		if err := entity.Validate(); err != nil {
+		if err := s.GuardianPhoneRepo.NormalizePhone(entity); err != nil {
 			return fmt.Errorf("validation failed: %w", err)
 		}
 		records = append(records, GuardianPhoneRecord{

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -6,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -35,9 +39,9 @@ func NewStaffMessagingTestModule(db transactionruntime.Database, unit tenant.Uni
 	}
 	messaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo: repos.Thread, MessageRepo: repos.Message, ReadRepo: repos.Read,
-		Persons: people.Users, Settings: settings.Settings, Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
-		DB: db.Pool(), Logger: slog.Default(), Notifier: delivery.Notifications,
+		Persons: BindStaffSenderNames(people.Users), Settings: settingsValues.NewStaffMessagingValues(settings.Settings), Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
+		Logger: slog.Default(), Notifier: BindCommunicationNotificationSender(delivery.Notifications),
 		Preferences: delivery.NotificationPreferences, Observe: func(communicationCompose.Observation) {},
-	})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return StaffMessagingTestModule{StaffMessaging: messaging, Settings: settings.Settings}, nil
 }

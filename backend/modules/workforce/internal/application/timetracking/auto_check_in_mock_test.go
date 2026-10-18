@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func (s ensureCheckedInSessions) EnsureCheckedIn(context.Context, int64, string)
 func TestAutoCheckInPassesThePlannedStartRefusalUnchanged(t *testing.T) {
 	t.Parallel()
 	refusal := &timetracking.PlannedStartNotReachedError{PlannedStartTime: "08:00", CurrentTime: "07:30"}
-	autoCheckIn := workforceCompose.AutoCheckInCapability(ensureCheckedInSessions{err: refusal})
+	autoCheckIn := timetracking.AutoCheckInCapability(ensureCheckedInSessions{err: refusal})
 
 	session, err := autoCheckIn.EnsureCheckedIn(context.Background(), 7, workforce.WorkSessionSourceNFC)
 
@@ -49,7 +48,7 @@ func TestAutoCheckInPassesThePlannedStartRefusalUnchanged(t *testing.T) {
 
 func TestAutoCheckInKeepsTheCheckedOutDayNil(t *testing.T) {
 	t.Parallel()
-	autoCheckIn := workforceCompose.AutoCheckInCapability(ensureCheckedInSessions{})
+	autoCheckIn := timetracking.AutoCheckInCapability(ensureCheckedInSessions{})
 
 	session, err := autoCheckIn.EnsureCheckedIn(context.Background(), 7, workforce.WorkSessionSourceNFC)
 
@@ -64,7 +63,7 @@ func TestAutoCheckInReturnsTheOpenedBlock(t *testing.T) {
 		Source: workforce.WorkSessionSourceNFC, CreatedBy: 7,
 	}
 	opened.ID = 11
-	autoCheckIn := workforceCompose.AutoCheckInCapability(ensureCheckedInSessions{session: opened})
+	autoCheckIn := timetracking.AutoCheckInCapability(ensureCheckedInSessions{session: opened})
 
 	session, err := autoCheckIn.EnsureCheckedIn(context.Background(), 7, workforce.WorkSessionSourceNFC)
 

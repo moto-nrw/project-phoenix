@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -5,6 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/uptrace/bun"
+)
+
+type (
+	StaffAbsenceTypeAllowanceRepository       = workforcePostgres.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChangeRepository = workforcePostgres.StaffAbsenceTypeAllowanceChangeRepository
 )
 
 // TimeTrackingTestRows are the time-tracking row contracts over a Workforce
@@ -21,11 +28,11 @@ type TimeTrackingTestRows struct {
 // NewTimeTrackingTestRows binds the row contracts to capability.
 func NewTimeTrackingTestRows(capability workforce.Capability) TimeTrackingTestRows {
 	return TimeTrackingTestRows{
-		Sessions:         newWorkSessionRows(capability),
-		Breaks:           newWorkSessionBreakRows(capability),
-		Adjustments:      newBalanceAdjustmentRows(capability),
-		VacationQuotas:   newVacationQuotaRows(capability),
-		VacationOpenings: newVacationOpeningRows(capability),
+		Sessions:         timetracking.NewWorkSessionRows(capability),
+		Breaks:           timetracking.NewWorkSessionBreakRows(capability),
+		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability),
+		VacationQuotas:   timetracking.NewVacationQuotaRows(capability),
+		VacationOpenings: timetracking.NewVacationOpeningRows(capability),
 	}
 }
 

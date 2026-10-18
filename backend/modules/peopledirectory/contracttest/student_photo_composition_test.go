@@ -11,7 +11,7 @@ import (
 	api "github.com/moto-nrw/project-phoenix/api"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -69,9 +69,9 @@ func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
 	broadcaster api.PhotoBroadcaster,
-	unlinker peopleCompose.PhotoUnlinker,
+	unlinker peoplePorts.PhotoUnlinker,
 	logger *slog.Logger,
-) peopleCompose.StudentPhotoService {
+) peoplePorts.StudentPhotoService {
 	t.Helper()
 	return api.NewStudentPhotos(directory, nil, api.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
@@ -196,7 +196,7 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 	seam := newPhotoSeam(t, &stubPhotoDirectory{}, testpkg.NewRecordingBroadcaster(), nil, slog.Default())
 
 	require.ErrorIs(t,
-		seam.CommitUpload(context.Background(), peopleCompose.CommitUploadRequest{StudentID: 1}),
+		seam.CommitUpload(context.Background(), peoplePorts.CommitUploadRequest{StudentID: 1}),
 		api.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
 	require.ErrorIs(t, err, api.ErrPhotoNoTenant)

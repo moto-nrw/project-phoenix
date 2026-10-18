@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -24,7 +24,7 @@ type blockDisplayMetadata struct {
 // NewBlockDisplayMetadata serves the planner's BlockMetadata port from the
 // block display projection over db, inside the ambient tenant transaction
 // when there is one.
-func NewBlockDisplayMetadata(db *bun.DB, project BlockDisplayProjection) application.BlockDisplayMetadata {
+func NewBlockDisplayMetadata(db *bun.DB, project BlockDisplayProjection) ports.BlockDisplayMetadata {
 	if db == nil {
 		panic("timetable block display metadata: database is required")
 	}

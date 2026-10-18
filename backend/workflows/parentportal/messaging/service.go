@@ -11,9 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -34,22 +31,31 @@ type ChildResolver interface {
 type ConversationCore interface {
 	// AppendMessage serializes the thread, persists the message, and advances
 	// the thread preview off the row's DB-stamped created_at.
-	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
+	AppendMessage(ctx context.Context, msg *ParentMessage) error
 	// MarkReadToNewest advances the reader's cursor to the newest counterpart
 	// message in the snapshot and reports whether it moved.
-	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
+	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*ParentMessage) (bool, error)
 	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
-	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
+	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*ParentMessage)
 	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
 	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
 	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
 	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
 }
 
+// MessagingGate reports the owner's fail-open feature flag for a school.
+// It must be bound for conversation reads and writes, independently of the
+// optional event emitter. It never replaces guardian-child authorization.
+type MessagingGate func(context.Context, int64) bool
+
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	GuardianPolicy PermissionValues
+	Fingerprints   ContentFingerprints
+	Declarations   DeclarationPolicy
+	Runtime        care.Runtime
+	Logger         *slog.Logger
+	Now            func() time.Time
 
 	Children ChildResolver
 
@@ -61,22 +67,23 @@ type Config struct {
 	StudentGuardianRepo care.StudentGuardianReads
 	GuardianProfileRepo GuardianProfileReads
 
-	AnnouncementRepo usersModels.ParentAnnouncementRepository
+	AnnouncementRepo AnnouncementAccess
 
-	MessageThreadRepo     usersModels.ParentMessageThreadRepository
-	MessageRepo           usersModels.ParentMessageRepository
-	MessageReadRepo       usersModels.ParentMessageReadRepository
+	MessageThreadRepo     MessageThreadAccess
+	MessageRepo           MessageReads
+	MessageReadRepo       MessageInboxReads
 	Conversations         ConversationCore
+	MessagingEnabled      MessagingGate
 	ParentMessageNotifier care.StaffParentMessageNotifier
-	Emitter               *parentmessaging.Emitter
+	Emitter               care.ChildEvents
 
 	ChangeRequestRepo         care.DataRequestReads
 	CareRequestRepo           CareRequestReads
 	ExcusedRequestRepo        ExcusedRequestReads
 	OfferingChangeRequestRepo OfferingChangeRequestReads
 	FamilyProtectionEvents    FamilyProtectionReads
-	ParentRequestShares       usersModels.ParentRequestShareEventRepository
-	ParentRequestEvents       usersModels.ParentRequestEventRepository
+	ParentRequestShares       RequestShareRecords
+	ParentRequestEvents       RequestEvents
 }
 
 // Service implements the retained messaging portal operations.
@@ -84,8 +91,20 @@ type Service struct {
 	Config
 }
 
-// New wires the retained messaging portal services.
+// New wires messaging with its required runtime, guardian policy and fingerprints.
 func New(cfg Config) *Service {
+	if cfg.Runtime == nil {
+		panic("messaging: runtime is required")
+	}
+	if cfg.GuardianPolicy == nil {
+		panic("messaging: guardian policy is required")
+	}
+	if cfg.Declarations == nil {
+		panic("messaging: declaration policy is required")
+	}
+	if cfg.Fingerprints == nil {
+		panic("messaging: fingerprints are required")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -107,7 +126,7 @@ func (s *Service) todayDate() calendar.Date {
 }
 
 func (s *Service) resolveOwnedChild(ctx context.Context, accountID, studentID int64) (*Child, error) {
-	return s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	return s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionPortalAccess)
 }
 
 func (s *Service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error) {

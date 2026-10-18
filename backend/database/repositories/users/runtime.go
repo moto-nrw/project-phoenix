@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/uptrace/bun"
+
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Runtime is the tenant transaction runtime the retained People Directory
@@ -55,7 +57,7 @@ func translateNotFound(err error) error {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	return errors.Join(ErrRepositoryNotFound, err)
+	return errors.Join(ports.ErrRepositoryNotFound, err)
 }
 
 // assertRowsAffected checks that a DML statement affected exactly the
@@ -70,7 +72,7 @@ func assertRowsAffected(result sql.Result, expected int64, op string) error {
 
 func assertRowsAffectedCount(actual, expected int64, op string) error {
 	if actual != expected {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  op,
 			Err: fmt.Errorf("expected %d rows affected, got %d", expected, actual),
 		}

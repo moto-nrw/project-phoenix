@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 const (
@@ -205,4 +207,149 @@ func isExpectedLinkageError(err error) bool {
 // isNotStaff reports the two outcomes that mean "the caller is no staff".
 func isNotStaff(err error) bool {
 	return errors.Is(err, domain.ErrCallerNotLinkedToStaff) || errors.Is(err, domain.ErrCallerNotLinkedToPerson)
+}
+
+type ReviewEngine struct {
+	Review *ParentRequestReview
+}
+
+func (e ReviewEngine) ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	schoolWide, groups, err := e.Review.Scope(ctx, permissions)
+	return schoolWide, groups, mapCallerError(err)
+}
+
+func (e ReviewEngine) AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	schoolWide, groups, err := e.Review.AbsenceScope(ctx, permissions)
+	return schoolWide, groups, mapCallerError(err)
+}
+
+func (e ReviewEngine) ReviewAccessLevel(ctx context.Context, permissions []string) (string, error) {
+	level, err := e.Review.AccessLevel(ctx, permissions)
+	return level, mapCallerError(err)
+}
+
+type CallerAccounts struct {
+	Profiles identityaccess.AccountProfiles
+}
+
+func (a CallerAccounts) FindAccountMetadata(ctx context.Context, accountID int64) (domain.AccountMetadata, error) {
+	value, err := a.Profiles.FindAccountMetadata(ctx, accountID)
+	return domain.AccountMetadata(value), err
+}
+
+func (a CallerAccounts) SetAccountUsername(ctx context.Context, accountID int64, username string) error {
+	return a.Profiles.SetAccountUsername(ctx, accountID, username)
+}
+
+func (a CallerAccounts) SetAccountAvatar(ctx context.Context, accountID int64, avatar string) error {
+	return a.Profiles.SetAccountAvatar(ctx, accountID, avatar)
+}
+
+func (a CallerAccounts) FindAccountProfile(ctx context.Context, accountID int64) (domain.AccountProfile, bool, error) {
+	bio, settings, found, err := a.Profiles.FindAccountProfile(ctx, accountID)
+	return domain.AccountProfile{Bio: bio, Settings: settings}, found, err
+}
+
+func (a CallerAccounts) SetAccountBio(ctx context.Context, accountID int64, bio string) error {
+	return a.Profiles.SetAccountBio(ctx, accountID, bio)
+}
+
+type CallerPeople struct{ People identityPorts.CallerPeople }
+
+func (p CallerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {
+	person, found, err := p.People.FindPersonByAccount(ctx, accountID)
+	return domain.CallerPerson(person), found, err
+}
+
+func (p CallerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
+	return p.People.CreatePerson(ctx, accountID, firstName, lastName)
+}
+
+func (p CallerPeople) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
+	return p.People.RenamePerson(ctx, personID, firstName, lastName)
+}
+
+type CallerSessions struct{ identityPorts.CallerSessions }
+
+func (s CallerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]domain.CallerVisit, error) {
+	visits, err := s.CallerSessions.SessionVisits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.CallerVisit, 0, len(visits))
+	for _, visit := range visits {
+		result = append(result, domain.CallerVisit(visit))
+	}
+	return result, nil
+}
+
+type CallerOverview struct{ Overview identityPorts.CallerOverview }
+
+func (o CallerOverview) HasOperationalOverview(ctx context.Context, staff ports.StaffPresence, assignmentBound, admin bool) (bool, error) {
+	return o.Overview.HasOperationalOverview(ctx, staff, assignmentBound, admin)
+}
+
+// mappedCallerError keeps the text of a wrapped caller-context error while
+// its cause is the public error.
+type mappedCallerError struct {
+	text  string
+	cause error
+}
+
+func (e *mappedCallerError) Error() string { return e.text }
+
+func (e *mappedCallerError) Unwrap() error { return e.cause }
+
+var callerSentinels = [][2]error{
+	{domain.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotAuthenticated},
+	{domain.ErrCallerNotFound, identityaccess.ErrCallerNotFound},
+	{domain.ErrCallerNotAuthorized, identityaccess.ErrCallerNotAuthorized},
+	{domain.ErrCallerNotLinkedToPerson, identityaccess.ErrCallerNotLinkedToPerson},
+	{domain.ErrCallerNotLinkedToStaff, identityaccess.ErrCallerNotLinkedToStaff},
+	{domain.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerNotLinkedToTeacher},
+	{domain.ErrCallerGroupNotFound, identityaccess.ErrCallerGroupNotFound},
+}
+
+// mapCallerError turns the application's caller-context errors into the
+// public ones, keeping the failed operation and the wrapped cause.
+// A context a use case wraps around such an error keeps its text, and
+// errors.Is/As reach the public error inside it.
+func mapCallerError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if mapped, ok := mapCallerErrorValue(err); ok {
+		return mapped
+	}
+	inner := errors.Unwrap(err)
+	if inner == nil {
+		return err
+	}
+	mappedInner := mapCallerError(inner)
+	if mappedInner == inner {
+		return err
+	}
+	return &mappedCallerError{text: err.Error(), cause: mappedInner}
+}
+
+// mapCallerErrorValue translates one of the application's caller-context
+// errors itself, not an error wrapping one.
+func mapCallerErrorValue(err error) (error, bool) {
+	switch e := err.(type) {
+	case *domain.CallerError:
+		return &identityaccess.CallerError{Op: e.Op, Err: mapCallerError(e.Err)}, true
+	case *domain.CallerGroupsPartialError:
+		return &identityaccess.CallerGroupsPartialError{
+			Op: e.Op, SuccessCount: e.SuccessCount, FailureCount: e.FailureCount,
+			FailedIDs: e.FailedIDs, LastErr: e.LastErr,
+		}, true
+	case *domain.SSESetupError:
+		return &identityaccess.SSESetupError{Message: e.Message, Status: e.Status}, true
+	}
+	for _, pair := range callerSentinels {
+		if err == pair[0] {
+			return pair[1], true
+		}
+	}
+	return nil, false
 }

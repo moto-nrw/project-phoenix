@@ -16,7 +16,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,9 +36,9 @@ type attachmentContext struct {
 func setupAttachmentRoute(t *testing.T) *attachmentContext {
 	t.Helper()
 	c := setupFileStoreRoute(t)
-	c.router.Mount("/announcement-attachments", filestoreAPI.NewResource(c.files, slog.Default()).AnnouncementAttachmentRouter())
+	c.router.Mount("/announcement-attachments", filestoreAPI.NewResource(c.files, slog.Default()).AnnouncementAttachmentRouter(rootAPI.ProtectedTenantRoutes))
 	t.Cleanup(func() {
-		if pubDir, err := common.ResolvePublicDir(); err == nil {
+		if pubDir, err := nativeUploads.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "announcement-attachments",
 				fmt.Sprint(testpkg.Tenant(t))))
 		}

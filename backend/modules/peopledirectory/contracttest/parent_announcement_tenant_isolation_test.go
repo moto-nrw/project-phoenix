@@ -2,6 +2,7 @@ package contracttest_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,9 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	homeCtx := tenantCtx(t)
 
-	poll, options := pollAnnouncement(t, homeCtx, db, repo, chain.AccountID, chain.TenantID,
+	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), homeCtx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseSingleChoice)
 	live, err := repo.MarkRead(homeCtx, chain.TenantID, poll.ID, chain.AccountID, *poll.PublishedAt)
 	require.NoError(t, err)
@@ -71,7 +74,7 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 	t.Run("audience, poll and read projections are scoped to the owning school", func(t *testing.T) {
 		stats, err := repo.Stats(foreignCtx, otherTenant, poll.ID)
 		require.NoError(t, err)
-		assert.Equal(t, &userModels.AnnouncementStats{}, stats, "another school must not count this audience or its reads")
+		assert.Equal(t, api.ParentStoreEmptyStats(), stats, "another school must not count this audience or its reads")
 
 		recipients, err := repo.AudienceRecipients(foreignCtx, otherTenant, poll.ID)
 		require.NoError(t, err)
@@ -87,7 +90,7 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, children, "another school must not read the children's answers")
 
-		feed, err := repo.ListFeedForAccount(foreignCtx, chain.AccountID, userModels.AnnouncementFeedScope{TenantIDs: []int64{otherTenant}})
+		feed, err := repo.ListFeedForAccount(foreignCtx, chain.AccountID, api.ParentStoreFeedScopeValue(api.ParentStoreFeedScopeInput{TenantIDs: []int64{otherTenant}}))
 		require.NoError(t, err)
 		assert.Empty(t, feed, "a feed scoped to another school must not surface the announcement")
 

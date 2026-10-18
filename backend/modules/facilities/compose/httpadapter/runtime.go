@@ -37,18 +37,17 @@ func NewResource(
 	rooms facilitiesModule.Capability,
 	dependencies Dependencies,
 	logger *slog.Logger,
+	protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware)),
+	prefetch func(context.Context, any, ...string) context.Context,
+	constraintViolation func(error) bool,
 ) *roomsHTTP.Resource {
 	if dependencies.Facilities == nil || dependencies.Settings == nil || dependencies.UserContext == nil ||
 		dependencies.Active == nil || dependencies.Users == nil || dependencies.Education == nil ||
-		dependencies.ListExport == nil || logger == nil {
+		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil || prefetch == nil || constraintViolation == nil {
 		panic("rooms HTTP composition: all dependencies are required")
 	}
-	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger))
-}
-
-func runtime(dependencies Dependencies, logger *slog.Logger) roomsHTTP.Runtime {
-	return roomsHTTP.Runtime{
-		Protected:        protectedRoutes(),
+	return roomsHTTP.NewResource(rooms, roomsHTTP.Runtime{
+		Protected:        protectedTenantRoutes,
 		Permission:       apiCommon.RequiresPermission,
 		ParseID:          apiCommon.ParseID,
 		Pagination:       apiCommon.ParsePagination,
@@ -62,20 +61,14 @@ func runtime(dependencies Dependencies, logger *slog.Logger) roomsHTTP.Runtime {
 		Delete:           permissions.RoomsDelete,
 		Failure:          renderFailure,
 		Occupancy:        occupancyProjection(dependencies.Facilities),
-		HistoryConfig:    historyConfig(dependencies.Settings, logger),
+		HistoryConfig:    historyConfig(dependencies.Settings, logger, prefetch),
 		HistoryAllowed:   historyAllowed(dependencies.UserContext),
 		History:          roomHistory(dependencies.Facilities),
 		TodayBounds:      todayBounds,
 		ExportSnapshot:   snapshotExporter(dependencies),
-		ConstraintFailed: apiCommon.IsConstraintViolation,
+		ConstraintFailed: constraintViolation,
 		Log:              logger,
-	}
-}
-
-func protectedRoutes() func(chi.Router, func(chi.Router, roomsHTTP.Middleware)) {
-	return func(router chi.Router, routes func(chi.Router, roomsHTTP.Middleware)) {
-		apiCommon.ProtectedTenantRoutes(router, routes)
-	}
+	})
 }
 
 func respondPaginated(w http.ResponseWriter, r *http.Request, status int, data any, pagination roomsHTTP.Pagination, message string) {
@@ -141,10 +134,9 @@ func roomView(room facilitiesModule.Room, view facilitiesService.RoomWithOccupan
 	}
 }
 
-func historyConfig(settings configService.SettingsService, logger *slog.Logger) func(context.Context) (context.Context, bool, int) {
+func historyConfig(settings configService.SettingsService, logger *slog.Logger, prefetch func(context.Context, any, ...string) context.Context) func(context.Context) (context.Context, bool, int) {
 	return func(ctx context.Context) (context.Context, bool, int) {
-		ctx = apiCommon.PrefetchSettings(ctx, settings,
-			configModel.KeyAttendanceLogEnabled, configModel.KeyRoomDetailVisibleDays)
+		ctx = prefetch(ctx, settings, configModel.KeyAttendanceLogEnabled, configModel.KeyRoomDetailVisibleDays)
 		enabled := configService.ResolveBoolOrDefault(ctx, settings, configModel.KeyAttendanceLogEnabled, false, logger)
 		days := configService.ResolveIntOrDefault(ctx, settings, configModel.KeyRoomDetailVisibleDays, 7, logger)
 		return ctx, enabled, days

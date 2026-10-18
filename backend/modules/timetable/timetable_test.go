@@ -570,6 +570,11 @@ func (e *recordingEngine) DeleteInstanceStaffByInstance(context.Context, int64) 
 	return nil
 }
 
+func (e *recordingEngine) DeleteRetiredStaffAssignments(context.Context, int64) (timetable.RetiredStaffAssignments, error) {
+	e.calls++
+	return timetable.RetiredStaffAssignments{}, nil
+}
+
 func (e *recordingEngine) DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, error) {
 	e.calls++
 	return 0, nil

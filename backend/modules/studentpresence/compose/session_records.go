@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
+	application "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/uptrace/bun"
 )
 
 // The session records read the display relations of other owners through
@@ -345,7 +346,7 @@ func staffedSupervisions(rows []*ports.GroupSupervisor) []*studentpresence.Staff
 // supervisorRow parses the supervision's dates; a malformed date is invalid
 // data.
 func supervisorRow(row studentpresence.GroupSupervision) (*ports.GroupSupervisor, error) {
-	record, err := supervisionToRecord(row)
+	record, err := application.SupervisionToRecord(row)
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "ParseSupervisionDate", Err: studentpresence.ErrInvalidData}
 	}

@@ -111,7 +111,7 @@ type PlannedStudents interface {
 // commands. The composition root binds the public capability to it; handlers
 // never see kiosk sessions, student moves or maintenance.
 type StudentPresence interface {
-	common.StudentLocationReader
+	studentpresence.StudentLocationReader
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*studentpresence.DailyAttendanceStatus, error)
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)
@@ -131,6 +131,8 @@ var _ StudentPresence = studentpresence.Presence(nil)
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
+	ConstraintViolation func(error) bool
+	Uploads             common.UploadStorage
 	// PeopleDirectory is the owner capability the routes read and write a
 	// child's own row, the persons they render under and the directory list
 	// through (#3349, #2731).
@@ -251,9 +253,11 @@ type ResourceConfig struct {
 	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService careplan.StudentDocuments
-	ListExportService      lists.Renderer
-	Logger                 *slog.Logger
-	Now                    func() time.Time
+	// DocumentStorage creates the native byte coordinator lazily for each request.
+	DocumentStorage   StudentDocumentStorage
+	ListExportService lists.Renderer
+	Logger            *slog.Logger
+	Now               func() time.Time
 	// DeviceAuthenticator guards the RFID routes. The Device Fleet
 	// composition builds it; this resource only mounts it. Without one the
 	// routes reject every request rather than serve unauthenticated kiosks.
@@ -271,6 +275,12 @@ type DeviceIdentity func(context.Context) (deviceID string, ok bool)
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
+	if cfg.StudentDeletion != nil && cfg.ConstraintViolation == nil {
+		panic("student resource: database failure classifier is required with deletion workflow")
+	}
+	if cfg.StudentPhotos != nil && cfg.Uploads == nil {
+		panic("student resource: upload storage is required with photo lifecycle")
+	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
@@ -282,12 +292,12 @@ func (rs *Resource) todayDate() calendar.Date {
 }
 
 // Router returns a configured router for student endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.mountStudentReadRoutes(r, withTx)
 		rs.mountStudentNoteRoutes(r, withTx)
 		rs.mountRequestDecisionRoutes(r, withTx)

@@ -234,7 +234,7 @@ func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (
 		return preparing, nil
 	}
 	if progress != nil && progress.Status != organizationtenancy.DemoSchoolReady {
-		return identityaccess.DemoSchoolEntry{Status: progress.Status}, nil
+		return identityaccess.DemoSchoolEntry{Exists: true, Status: progress.Status}, nil
 	}
 	var school organizationtenancy.School
 	if progress != nil {
@@ -252,7 +252,7 @@ func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (
 	if !school.Active || school.IsDeleted() {
 		return preparing, nil
 	}
-	entry := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
+	entry := identityaccess.DemoSchoolEntry{Exists: true, Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
 	if progress != nil {
 		entry.AccountID, entry.ParentAccountID = progress.VisitorAccountID, progress.VisitorParentAccountID
 	}
@@ -277,7 +277,7 @@ func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (identityacce
 	if d.schools == nil {
 		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, found, err := organizationCompose.FindSchool(ctx, d.schools, id)
+	school, found, err := lookupSchool(ctx, d.schools, id)
 	if err != nil || !found {
 		return identityaccess.School{}, false, err
 	}

@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +68,8 @@ func reviewItem(status string) *masterdatarequests.ReviewItem {
 
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	t.Parallel()
-	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
+	router := (&Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
 	// The decide route gates on users:update (deciding a request is the same
 	// child write as editing the child directly), with per-child scope enforced
 	// in the service. A caller with only users:read cannot reach it.
@@ -85,7 +89,8 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 	t.Parallel()
 
 	svc := &fakeMasterDataReviewService{decided: reviewItem(masterdatarequests.StatusApproved)}
-	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MasterDataReviewService: svc}}
 	req := staffRequest(
 		http.MethodPost,
 		"/students/master-data-change-requests/100/decide",
@@ -109,7 +114,8 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MasterDataReviewService: &fakeMasterDataReviewService{}}}
 
 	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`, "nope")
 	w := httptest.NewRecorder()
@@ -145,7 +151,8 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}}
+			rs := &Resource{ResourceConfig: ResourceConfig{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}}
 			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":false}`, "100")
 			w := httptest.NewRecorder()
 

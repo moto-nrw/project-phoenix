@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
@@ -13,20 +15,25 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // childResolver binds messaging's ChildResolver to the real guardian-child
 // resolution, as the portal composition does in production.
-func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) messaging.ChildResolver {
-	return care.New(care.Config{
-		ChildRepo: repos.ParentChild, StudentRepo: repos.Student,
+func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) parentportal.ChildResolver {
+	return parentportal.NewChildFlows(parentportal.ChildConfig{
+		GuardianPolicy: api.NewParentGuardianPolicy(),
+
+		Runtime:   api.ParentPortalRuntime{},
+		ChildRepo: repos.ParentChildReads(), StudentRepo: api.NewParentStudentReads(repos.Student),
 		RequestSharing: unusedRequestSharer{},
+
+		DeparturePolicy: api.ParentDeparturePolicy(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
-// unusedRequestSharer satisfies care.New for the child resolution these tests
+// unusedRequestSharer satisfies parentportal.NewChildFlows for the child resolution these tests
 // need; child resolution never reaches the sharing ledger.
 type unusedRequestSharer struct{}
 
@@ -34,7 +41,7 @@ func (unusedRequestSharer) ShareRequestInTx(context.Context, int64, int64, strin
 	panic("messaging tests: child resolution must not share requests")
 }
 
-func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (care.RequestShareVisibility, error) {
+func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (parentportal.RequestShareVisibility, error) {
 	panic("messaging tests: child resolution must not read request shares")
 }
 
@@ -42,7 +49,7 @@ func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (c
 // from maps; every other SettingsService method panics via the embedded nil
 // interface. Test-only copy of the workflows/parentportal behaviour-test stub.
 type messagingSettingsStub struct {
-	care.SettingsService
+	parentportal.SettingsService
 	boolValues   map[string]bool
 	stringValues map[string]string
 }
@@ -51,7 +58,7 @@ func (s messagingSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, 
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
 	}
-	if key == care.KeyParentSickReportsEnabled || key == care.KeyParentExcusedReportsEnabled {
+	if key == parentportal.KeyParentSickReportsEnabled || key == parentportal.KeyParentExcusedReportsEnabled {
 		return true, nil
 	}
 	return false, nil

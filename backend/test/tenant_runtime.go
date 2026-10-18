@@ -44,12 +44,6 @@ func ContextWithTenantRuntime(ctx context.Context, runtime tenant.UnitOfWork) co
 	return tenant.WithUnitOfWork(ctx, runtime)
 }
 
-// ContextWithTransaction makes tx the ambient tenant transaction of ctx, so a
-// repository test can hold a lock in one transaction and contend in another.
-func ContextWithTransaction(ctx context.Context, tx any) context.Context {
-	return tenant.WithTransactionForTest(ctx, tx)
-}
-
 // ErrSavepointControl is the tenant runtime's failure to control a savepoint,
 // for doubles that report untrusted transaction state.
 var ErrSavepointControl = tenant.ErrSavepointControl
@@ -419,6 +413,28 @@ func WithTenantRuntime(tb testing.TB, ctx context.Context, db *bun.DB) context.C
 // legacy composition: transactions, the caller's school and the rollback
 // mark come from the shared tenant runtime, like the production binding.
 type TenantTransactionRuntime struct{}
+
+// WithinTenant retains the explicit-school transaction boundary for owner
+// tests that cannot import the production composition root without a cycle.
+func (TenantTransactionRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, id, fn)
+}
+
+func (TenantTransactionRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return WithinAdminTransaction(ctx, fn)
+}
+
+func (TenantTransactionRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
+}
+
+func (TenantTransactionRuntime) WithTenantID(ctx context.Context, tenantID int64) context.Context {
+	return tenant.WithTenantID(ctx, tenantID)
+}
 
 // RunInTx joins the ambient transaction or opens one for the context's
 // tenant.

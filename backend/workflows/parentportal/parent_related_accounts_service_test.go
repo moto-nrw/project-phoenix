@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -78,12 +77,19 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:      repos.CarePlan(),
-		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
@@ -91,9 +97,13 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, invites, db
 }
@@ -126,14 +136,14 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -161,14 +171,14 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	studentID := chain.StudentID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("pending-parent-status-test-%d", time.Now().UnixNano()),
@@ -210,14 +220,14 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	otherStudentID := otherStudent.ID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("sibling-pending-parent-status-test-%d", time.Now().UnixNano()),
@@ -416,18 +426,29 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -488,21 +509,32 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:      repos.CarePlan(),
-		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
 		},
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -556,15 +588,15 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	// Restrictive contact role → empty permission set, no parent_portal.access.
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixtureJSON("emergency_contact")
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -595,15 +627,15 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixtureJSON("emergency_contact")
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	studentID := chain.StudentID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("no-access-pending-%d", time.Now().UnixNano()),

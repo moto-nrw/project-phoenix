@@ -54,17 +54,28 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:           repos.CarePlan(),
+		GuardianChanges:    api.ParentGuardianChanges(),
+		DeparturePolicy:    api.ParentDeparturePolicy(),
+		GuardianPolicy:     api.NewParentGuardianPolicy(),
+		Fingerprints:       api.SecurityFingerprints{},
+		Declarations:       api.ParentDeclarationPolicy(),
+		Locales:            api.ParentPortalLocales(),
+		Runtime:            api.ParentPortalRuntime{},
+		CarePlan:           api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:             api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:       careProfiles(t, db),
-		ChildRepo:          repos.ParentChild,
+		ChildRepo:          repos.ParentChildReads(),
 		StatusDayRepo:      repos.StudentStatusDay,
-		StudentRepo:        repos.Student,
-		CareExceptions:     repos.CarePlan(),
+		StudentRepo:        api.NewParentStudentReads(repos.Student),
+		CareExceptions:     api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:           reasonPolicySettings{policy: policy},
-		ExcusedRequests:    excused,
+		ExcusedRequests:    api.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo: repos.ExcusedAbsenceRequest,
 		Logger:             slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, db
 }

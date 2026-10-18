@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -47,7 +48,7 @@ type MfaWiring struct {
 	// Decorate wraps the record port before the module is composed, so a
 	// behaviour test can make one statement fail and prove the flow refuses
 	// rather than degrades. Nil in production.
-	Decorate func(identityaccessCompose.AccountMFARecords) identityaccessCompose.AccountMFARecords
+	Decorate func(identityPorts.AccountMFARecords) identityPorts.AccountMFARecords
 	// Capability serves the account second factor instead of composing it
 	// over the records. Nil in production.
 	Capability identityaccess.AccountMFA
@@ -56,7 +57,7 @@ type MfaWiring struct {
 	Passkeys *identityaccessCompose.PasskeyDependencies
 }
 
-func mfaDependencies(wiring *MfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
+func mfaDependencies(wiring *MfaWiring, codec identityPorts.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
 	if wiring == nil || wiring.OperatorAuditLog == nil || codec == nil {
 		return nil
 	}

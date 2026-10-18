@@ -1,38 +1,37 @@
 package care
 
 import (
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"errors"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The child-flow results and values the guardian portal HTTP composition
 // renders, named by the flow that returns them. The composition matches them
 // through the workflow port instead of importing the owner models (#3421).
 type (
-	AllowedDepartureModes    = usersModels.AllowedDepartureModes
-	ChildSummary             = parentModels.ChildSummary
-	DepartureDays            = usersModels.DepartureDays
-	DepartureMode            = usersModels.DepartureMode
-	EnrollablePhase          = parentModels.EnrollablePhase
-	EnrollmentRequestSummary = parentModels.EnrollmentRequestSummary
-	GuardianSubmitStatus     = parentModels.GuardianSubmitStatus
-	StudentDataChangeRequest = usersModels.StudentDataChangeRequest
+	AllowedDepartureModes = PortalAllowedDepartureModes
+	DepartureDays         = PortalDepartureDays
+	DepartureMode         = PortalDepartureMode
 )
 
 const (
-	DataChangeStatusPending = usersModels.DataChangeStatusPending
-	DataChangeTargetPerson  = usersModels.DataChangeTargetPerson
-	DataChangeTargetStudent = usersModels.DataChangeTargetStudent
-	DeparturePickup         = usersModels.DeparturePickup
+	DeparturePickup = PortalDepartureMode("pickup")
 )
 
 // ErrGuardianProfileNotFound is the profile flows' answer for an account
 // without a guardian profile.
-var ErrGuardianProfileNotFound = usersModels.ErrGuardianProfileNotFound
+var ErrGuardianProfileNotFound = errors.New("guardian profile not found")
 
 // CanonicalDayToISOWeekday translates a stored care-offering day ("mon")
 // into its ISO weekday number, the mapping the offering flow stores with.
 func CanonicalDayToISOWeekday(day string) (int, bool) {
-	return enrollmentModels.CanonicalDayToISOWeekday(day)
+	return calendar.CanonicalDayToISOWeekday(day)
 }
+
+const (
+	DepartureAlone       PortalDepartureMode = "alone"
+	DepartureAccompanied PortalDepartureMode = "accompanied"
+)
+
+var ErrStudentGuardianNotFound = errors.New("student guardian relationship not found")

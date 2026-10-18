@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,12 +52,13 @@ func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
 func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
 	t.Parallel()
 	router := (&Resource{
+		Failures:          DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		ReportService:     &fakeClassRosterReportService{},
 		ListExportService: newTestDocumentRenderer(),
 		runInTenantTxForTest: func(r *http.Request, fn func(context.Context) error) error {
 			return fn(r.Context())
 		},
-	}).Router()
+	}).Router(scopeTestTenantSession(testpkg.TenantSessionGates()))
 	served := testpkg.SessionVerifier(router)
 	body := `{"format":"xlsx","filters":{"phase_id":42,"school_class":"1a"}}`
 

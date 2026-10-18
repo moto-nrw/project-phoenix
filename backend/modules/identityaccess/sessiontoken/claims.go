@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 type CommonClaims struct {
@@ -38,7 +38,7 @@ type AppClaims struct {
 	// ReadOnly marks an admin staff-view preview token (#2893): the token
 	// carries the TARGET account's identity, roles, and permissions so every
 	// read evaluates exactly as that person, while
-	// common.ReadOnlyPreviewMiddleware blocks every write. Preview tokens are
+	// api.ReadOnlyPreviewMiddleware blocks every write. Preview tokens are
 	// access-only — no refresh token is ever minted in the target's name.
 	ReadOnly bool `json:"read_only,omitempty"`
 	// ActingAdminID is the admin account that started the read-only preview.
@@ -233,7 +233,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		return err
 	}
 
-	c.Sub, err = getRequiredString(claims, jwt.SubjectKey)
+	c.Sub, err = getRequiredString(claims, tokenprimitives.SubjectKey)
 	if err != nil {
 		return err
 	}

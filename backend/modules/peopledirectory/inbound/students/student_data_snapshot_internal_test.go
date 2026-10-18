@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // The list snapshot moved here from api/common with the student routes
@@ -31,7 +31,8 @@ func (p failedSnapshotPeople) ListPersonsByID(context.Context, []int64) ([]peopl
 func TestLoadStudentDataSnapshotPropagatesPersonReadFailure(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("snapshot read unavailable")
-	rs := &Resource{ResourceConfig: ResourceConfig{PeopleDirectory: failedSnapshotPeople{err: injected}}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, PeopleDirectory: failedSnapshotPeople{err: injected}}}
 	snapshot, err := rs.loadStudentDataSnapshot(context.Background(), nil, []int64{123})
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, snapshot, "a failed read must not yield a partial snapshot")
@@ -69,7 +70,7 @@ func TestStudentDataSnapshotResolveLocationWithTime(t *testing.T) {
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &studentDataSnapshot{LocationSnapshot: &common.StudentLocationSnapshot{
+	snapshot := &studentDataSnapshot{LocationSnapshot: &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 		},

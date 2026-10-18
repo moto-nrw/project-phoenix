@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -13,9 +14,8 @@ const (
 	DeviationEventCancellation      = "cancellation"
 	DeviationEventUnderstaffedAck   = "understaffed_ack"
 	DeviationEventUnderstaffedUnack = "understaffed_unack"
-	DeviationEventDroppedByReplan   = "deviation_dropped_by_replan"
-	DeviationEventDroppedByEdit     = "deviation_dropped_by_edit"
-	DeviationEventStaffMoved        = "staff_moved"
+
+	DeviationEventDroppedByEdit = "deviation_dropped_by_edit"
 )
 
 // logDeviationEvent appends one protocol entry of a lifecycle write inside
@@ -37,20 +37,20 @@ func (s *InstanceLifecycleService) logSnapshotDropped(ctx context.Context, snap 
 	}
 	startTime, err := time.Parse("15:04:05", snap.startTime)
 	if err != nil {
-		return &ScheduleError{Op: "log dropped deviation: parse start time", Err: err}
+		return &ports.ScheduleError{Op: "log dropped deviation: parse start time", Err: err}
 	}
-	event := DeviationEventRecord{
+	event := ports.DeviationEventRecord{
 		ActivityGroupID: &activityGroupID,
 		OccurrenceDate:  snap.date,
 		StartTime:       calendar.NormalizeWallClock(startTime),
-		EventType:       DeviationEventDroppedByReplan,
+		EventType:       ports.DeviationEventDroppedByReplan,
 		ActorAccountID:  normalizeActor(actorAccountID),
 	}
 	if event.OldValue, err = marshalDeviationValue(droppedSnapshotValue(snap)); err != nil {
-		return &ScheduleError{Op: "log dropped deviation: marshal", Err: err}
+		return &ports.ScheduleError{Op: "log dropped deviation: marshal", Err: err}
 	}
 	if err := s.deps.Protocol.RecordDeviationEvent(ctx, event); err != nil {
-		return &ScheduleError{Op: "log dropped deviation", Err: err}
+		return &ports.ScheduleError{Op: "log dropped deviation", Err: err}
 	}
 	return nil
 }

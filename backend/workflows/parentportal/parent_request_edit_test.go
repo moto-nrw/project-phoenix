@@ -12,7 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,27 +22,38 @@ import (
 
 // buildEditableMasterDataService is buildRequestService plus the event
 // recorder, so the guardian_edited entry the edit writes is observable.
-func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersModels.ParentRequestEventRepository, *bun.DB) {
+func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		ParentRequestEvents: events,
+		ChildRepo:           repos.ParentChildReads(),
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:          api.NewParentPersonReads(repos.Person),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
+		ParentRequestEvents: api.NewParentRequestEvents(events),
 		Settings:            masterDataSettings(false, true, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
-	return svc, events, db
+	return svc, api.NewParentRequestEventFixtureReads(events), db
 }
 
 // TestEditExcusedRequestReplacesWithdrawal is the core of story 37: the
@@ -69,14 +79,14 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, original.ID, edited.ID, "an edit keeps the request id, so the share survives")
 	require.Len(t, edited.Dates, 1)
-	assert.Equal(t, careplan.Date(corrected), edited.Dates[0])
+	assert.Equal(t, corrected, edited.Dates[0])
 	assert.Equal(t, "Doch einen Tag später", edited.Note)
 	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, edited.Status)
 	assert.NotEqual(t, version, careplan.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")
 
 	rows := listLedger(t, db, events, chain.TenantID, original.ID)
 	require.Len(t, rows, 2)
-	assert.Equal(t, usersModels.ParentRequestEventGuardianEdit, rows[1].EventType)
+	assert.Equal(t, "guardian_edited", rows[1].EventType)
 	require.NotNil(t, rows[1].ActorAccountID)
 	assert.Equal(t, chain.AccountID, *rows[1].ActorAccountID)
 }
@@ -184,7 +194,7 @@ func TestEditMasterDataRequestRewritesProposedValue(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(ctx, chain.AccountID, chain.StudentID,
 		[]parentService.MasterDataFieldChange{
-			{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+			{Target: parentService.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 		}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
@@ -195,18 +205,18 @@ func TestEditMasterDataRequestRewritesProposedValue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rows[0].ID, edited.ID)
 	assert.JSONEq(t, `"Maxi"`, string(edited.NewValue))
-	assert.Equal(t, usersModels.DataChangeStatusPending, edited.Status)
-	assert.Equal(t, usersModels.DataChangeTargetPerson, edited.Target)
+	assert.Equal(t, parentService.DataChangeStatusPending, edited.Status)
+	assert.Equal(t, parentService.DataChangeTargetPerson, edited.Target)
 
-	var ledger []*usersModels.ParentRequestEvent
+	var ledger []*api.ParentRequestEventFixture
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var listErr error
-		ledger, listErr = events.ListForRequest(txCtx, usersModels.ParentRequestTypeMasterData, rows[0].ID)
+		ledger, listErr = events.ListForRequest(txCtx, "master_data", rows[0].ID)
 		return listErr
 	}))
 	require.Len(t, ledger, 2)
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, ledger[0].EventType)
-	assert.Equal(t, usersModels.ParentRequestEventGuardianEdit, ledger[1].EventType)
+	assert.Equal(t, "submitted", ledger[0].EventType)
+	assert.Equal(t, "guardian_edited", ledger[1].EventType)
 }
 
 // TestEditMasterDataRequestRefusesUnchangedValue pins that an edit whose value
@@ -221,7 +231,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(ctx, chain.AccountID, chain.StudentID,
 		[]parentService.MasterDataFieldChange{
-			{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+			{Target: parentService.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 		}, nil)
 	require.NoError(t, err)
 
@@ -250,14 +260,14 @@ func TestListRequestEventsIsSubmitterOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	history, err := svc.ListRequestEvents(ctx, mine.AccountID, mine.StudentID,
-		usersModels.ParentRequestTypeExcusedAbsence, res.PendingRequest.ID)
+		"excused", res.PendingRequest.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, history[0].EventType)
+	assert.Equal(t, "submitted", history[0].EventType)
 	assert.False(t, history[0].CreatedAt.IsZero())
 
 	_, err = svc.ListRequestEvents(ctx, theirs.AccountID, theirs.StudentID,
-		usersModels.ParentRequestTypeExcusedAbsence, res.PendingRequest.ID)
+		"excused", res.PendingRequest.ID)
 	require.Error(t, err)
 	assert.True(t,
 		errors.Is(err, parentService.ErrRequestSharingNotFound) || errors.Is(err, parentService.ErrChildNotLinked),

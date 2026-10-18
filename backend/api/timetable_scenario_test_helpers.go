@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -5,7 +7,7 @@ import (
 	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -16,7 +18,7 @@ import (
 type TimetableScenarioTestModule struct {
 	TimetableTestModule
 	Active           studentpresence.Presence
-	Users            *peopleCompose.PersonDirectory
+	Users            peoplePorts.PersonDirectory
 	UserContext      *CallerRows
 	Settings         settingsCompose.SettingsService
 	TimetableCleanup timetable.TimetableCleanup

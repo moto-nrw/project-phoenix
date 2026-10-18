@@ -11,7 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -115,7 +118,7 @@ func setupCheckinRoute(t *testing.T, db *testpkg.DB) *presence.Resource {
 
 	_, serviceFactory := setupActiveModule(t)
 
-	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), nil)
+	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), nil, settingsFacts.NewDisplaySettings(serviceFactory.Settings))
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint

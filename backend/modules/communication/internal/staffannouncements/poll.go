@@ -2,18 +2,14 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/localization"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement
@@ -47,14 +43,14 @@ const (
 // It normalizes in place (in.ResponseType is set to the canonical "none" and
 // stray options/deadlines on a non-poll are cleared) so the caller can persist
 // the input as-is.
-func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, error) {
+func normalizePollOptions(in *Input) ([]*ParentAnnouncementOption, error) {
 	if strings.TrimSpace(in.ResponseType) == "" {
-		in.ResponseType = usersModels.ParentAnnouncementResponseNone
+		in.ResponseType = ParentAnnouncementResponseNone
 	}
-	if !usersModels.ValidAnnouncementResponseType(in.ResponseType) {
+	if !ValidAnnouncementResponseType(in.ResponseType) {
 		return nil, fmt.Errorf("%w: response_type", ErrValidation)
 	}
-	if in.ResponseType == usersModels.ParentAnnouncementResponseNone {
+	if in.ResponseType == ParentAnnouncementResponseNone {
 		// A Mitteilung with leftover poll fields is a client bug, not something to
 		// silently persist: the DB CHECK rejects a deadline without a response type
 		// anyway, and stored orphan options would resurface if the row later became
@@ -63,7 +59,7 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 			return nil, fmt.Errorf("%w: options require a response_type", ErrValidation)
 		}
 		in.ResponseDeadline = deadlineWithoutPoll(in)
-		return []*usersModels.ParentAnnouncementOption{}, nil
+		return []*ParentAnnouncementOption{}, nil
 	}
 	// A poll response is the parent's explicit confirmation. Requiring a second
 	// acknowledgement for the same announcement only creates an impossible-to-
@@ -71,7 +67,7 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 	in.RequiresAcknowledgement = false
 
 	seen := make(map[string]bool, len(in.Options))
-	out := make([]*usersModels.ParentAnnouncementOption, 0, len(in.Options))
+	out := make([]*ParentAnnouncementOption, 0, len(in.Options))
 	for _, raw := range in.Options {
 		label := strings.TrimSpace(raw)
 		if label == "" {
@@ -87,7 +83,7 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 			return nil, fmt.Errorf("%w: duplicate option %q", ErrValidation, label)
 		}
 		seen[key] = true
-		out = append(out, &usersModels.ParentAnnouncementOption{Label: label, Position: len(out)})
+		out = append(out, &ParentAnnouncementOption{Label: label, Position: len(out)})
 	}
 	if len(out) < minPollOptions {
 		return nil, fmt.Errorf("%w: a poll needs at least %d options", ErrValidation, minPollOptions)
@@ -107,7 +103,7 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 }
 
 // PollResults returns the per-option tally plus reached/answered child counts.
-func (s *service) PollResults(ctx context.Context, id int64) (*usersModels.AnnouncementPollResults, error) {
+func (s *service) PollResults(ctx context.Context, id int64) (*AnnouncementPollResults, error) {
 	a, err := s.loadPoll(ctx, id)
 	if err != nil {
 		return nil, err
@@ -121,7 +117,7 @@ func (s *service) PollResults(ctx context.Context, id int64) (*usersModels.Annou
 
 // PollChildren returns every reached child with the answer given for them, so
 // staff can chase the open ones by name.
-func (s *service) PollChildren(ctx context.Context, id int64) ([]*usersModels.AnnouncementPollChildStatus, error) {
+func (s *service) PollChildren(ctx context.Context, id int64) ([]*AnnouncementPollChildStatus, error) {
 	a, err := s.loadPoll(ctx, id)
 	if err != nil {
 		return nil, err
@@ -134,7 +130,7 @@ func (s *service) PollChildren(ctx context.Context, id int64) ([]*usersModels.An
 }
 
 // loadPoll fetches an announcement and asserts it is a poll.
-func (s *service) loadPoll(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+func (s *service) loadPoll(ctx context.Context, id int64) (*ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load poll: %w", err)
@@ -214,7 +210,7 @@ func (s *service) RemindUnanswered(ctx context.Context, id int64) (int, error) {
 // the guardian's own notification consent. A tenant-level gate (disabled or
 // outside the active window) suppresses it without failing the action — the
 // e-mail still goes out.
-func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*usersModels.AnnouncementPollReminderRecipient) ([]int64, error) {
+func (s *service) pushPollReminder(ctx context.Context, a *ParentAnnouncement, recipients []*AnnouncementPollReminderRecipient) ([]int64, error) {
 	if s.notifier == nil {
 		return nil, nil
 	}
@@ -230,13 +226,13 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 		}
 		seen[r.AccountID] = struct{}{}
 		accountIDs = append(accountIDs, r.AccountID)
-		localeByAccount[r.AccountID] = localization.NormalizeLocale(r.PortalLocale)
+		localeByAccount[r.AccountID] = s.deliveryPolicy.NormalizeLocale(r.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
 	if s.preferences != nil {
-		filtered, err := s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		filtered, err := s.preferences.FilterOptedIn(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 		if err != nil {
 			return nil, fmt.Errorf("announcement: filter opted-in reminder recipients: %w", err)
 		}
@@ -250,22 +246,22 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, notifications.ParentPollReminder)
-		err := s.notifier.Notify(ctx, notifications.Event{
+		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, deliveryPorts.ParentPollReminder)
+		err := s.notifier.Notify(ctx, deliveryPorts.NotificationEvent{
 			Type:           parentAnnouncementNotificationType,
 			IdempotencyKey: fmt.Sprintf("parent-poll-reminder:%d:%d", a.ID, a.UpdatedAt.UTC().UnixNano()),
 			RelatedType:    relatedEntityTypePollReminder, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: "/",
-			Priority: notifications.PriorityNormal,
-			Audience: notifications.Audience{
+			Priority: deliveryPorts.PriorityNormal,
+			Audience: deliveryPorts.NotificationAudience{
 				TenantID:           a.GetTenantID(),
-				Scope:              notifications.ScopeGuardian,
+				Scope:              deliveryPorts.ScopeGuardian,
 				GuardianAccountIDs: group,
 			},
-		})
-		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		}.Public())
+		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 			s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
 				slog.Int64("announcement_id", a.ID),
 				slog.String("reason", err.Error()),
@@ -284,7 +280,7 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 // the request tenant tx, a DB error aborts the action rather than half-sending.
 // The mail carries the poll title and a portal link, never the question's
 // options — the answer belongs in the portal, where it is authenticated.
-func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*usersModels.AnnouncementPollReminderRecipient) ([]int64, error) {
+func (s *service) enqueuePollReminderEmails(ctx context.Context, a *ParentAnnouncement, recipients []*AnnouncementPollReminderRecipient) ([]int64, error) {
 	intro := "für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Sie können sie im Eltern-Portal abgeben."
 	if a.ResponseDeadline != nil {
 		intro = fmt.Sprintf("für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Bitte antworten Sie bis zum %s im Eltern-Portal.",
@@ -298,8 +294,8 @@ func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.
 // consent rule, the address dedupe and the outbox bookkeeping must not.
 func (s *service) enqueueReminderEmails(
 	ctx context.Context,
-	a *usersModels.ParentAnnouncement,
-	recipients []*usersModels.AnnouncementPollReminderRecipient,
+	a *ParentAnnouncement,
+	recipients []*AnnouncementPollReminderRecipient,
 	kicker, intro, portalURL string,
 ) ([]int64, error) {
 	if s.outbox == nil {
@@ -317,7 +313,7 @@ func (s *service) enqueueReminderEmails(
 		}
 		// Mirrors the publish path: honour an explicit opt-out, but do not require
 		// an opt-in (most families have no preference row at all).
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 		if err != nil {
 			return nil, fmt.Errorf("announcement: filter opted-out reminder recipients: %w", err)
 		}
@@ -325,7 +321,7 @@ func (s *service) enqueueReminderEmails(
 		for _, accountID := range remaining {
 			allowed[accountID] = struct{}{}
 		}
-		filtered := make([]*usersModels.AnnouncementPollReminderRecipient, 0, len(recipients))
+		filtered := make([]*AnnouncementPollReminderRecipient, 0, len(recipients))
 		for _, r := range recipients {
 			if _, ok := allowed[r.AccountID]; ok {
 				filtered = append(filtered, r)
@@ -341,7 +337,7 @@ func (s *service) enqueueReminderEmails(
 		return nil, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	queuedAccountIDs := make([]int64, 0, len(recipients))
 	seenEmails := make(map[string]struct{}, len(recipients))
 	for _, r := range recipients {
@@ -353,25 +349,25 @@ func (s *service) enqueueReminderEmails(
 			continue
 		}
 		seenEmails[address] = struct{}{}
-		if _, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:   address,
-				emailPayloadFirstName:   r.FirstName,
-				emailPayloadLastName:    r.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   portalURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
+		if _, err := s.outbox.Enqueue(ctx, deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:   deliveryPorts.JSONString(address),
+				emailPayloadFirstName:   deliveryPorts.JSONString(r.FirstName),
+				emailPayloadLastName:    deliveryPorts.JSONString(r.LastName),
+				emailPayloadTitle:       deliveryPorts.JSONString(a.Title),
+				emailPayloadSchoolName:  deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:   deliveryPorts.JSONString(portalURL),
+				emailPayloadLogoURL:     deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL: deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:      deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:       deliveryPorts.JSONString(intro),
 			},
 			// Reminders have their own related type so cleanup can cancel pending
 			// reminder mail alongside the announcement's publish mail.
 			RelatedEntityType: relatedEntityTypePollReminder,
 			RelatedEntityID:   a.ID,
-		}); err != nil {
+		}.Public()); err != nil {
 			return nil, fmt.Errorf("announcement: enqueue reminder e-mail: %w", err)
 		}
 		queuedAccountIDs = append(queuedAccountIDs, r.AccountID)

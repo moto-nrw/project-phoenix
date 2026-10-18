@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -59,10 +59,10 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
-	cfg.CareExceptions = d.repos.CarePlan()
+	cfg.CareExceptions = api.NewParentCareExceptions(d.repos.CarePlan())
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
-	cfg.Broadcaster = testpkg.NewRecordingBroadcaster()
+	cfg.StudentUpdates = api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())
 	cfg.Now = now
 	return parentportalcompose.New(cfg)
 }
@@ -77,21 +77,21 @@ func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpk
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	guardianID := chain.AccountID
-	exception := &scheduleModels.StudentPickupException{
+	exception := &careplan.PickupException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     scheduleModels.Date(date),
+		ExceptionDate:     careplan.Date(date),
 		PickupTime:        wallClock(14, 30),
-		Source:            scheduleModels.ExceptionSourceGuardian,
+		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
 	exception.SetTenantID(chain.TenantID)
-	require.NoError(t, d.repos.StudentPickupException.Create(ctx, exception))
+	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, d.repos.CarePlan(), exception))
 }
 
 func guardianPickupExists(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date calendar.Date) bool {
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	row, err := d.repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
+	row, err := api.FindParentPickupExceptionFixture(ctx, d.repos.CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	return row != nil
 }

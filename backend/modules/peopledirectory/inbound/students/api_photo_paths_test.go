@@ -13,7 +13,7 @@
 //   - deleteStudent: the photo URL is captured from the locked row and
 //     the file is unlinked after the OUTER tx commits.
 //
-// All tests here go through tc.resource.Router() via authExec so they
+// All tests here go through tc.resource.Router(rootAPI.ProtectedTenantRoutes) via authExec so they
 // reuse the same hermetic plumbing as students_test.go (real DB, real
 // service factory, testpkg.RecordingBroadcaster).
 package students_test
@@ -30,6 +30,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -42,7 +43,7 @@ import (
 func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
 
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
 	require.NoError(t, os.MkdirAll(dir, 0o755), "mkdir student-photos")

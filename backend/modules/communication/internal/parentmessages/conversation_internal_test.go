@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,15 +22,15 @@ import (
 // --- fakes --------------------------------------------------------------
 
 type fakeMsgRepo struct {
-	usersModels.ParentMessageRepository
+	ParentMessageRepository
 	createErr    error
 	nextID       int64
 	stampAt      time.Time
-	created      []*usersModels.ParentMessage
+	created      []*ParentMessage
 	beforeCreate func()
 }
 
-func (f *fakeMsgRepo) Create(_ context.Context, m *usersModels.ParentMessage) error {
+func (f *fakeMsgRepo) Create(_ context.Context, m *ParentMessage) error {
 	if f.beforeCreate != nil {
 		f.beforeCreate()
 	}
@@ -55,7 +54,7 @@ type touchCall struct {
 }
 
 type fakeThreadRepo struct {
-	usersModels.ParentMessageThreadRepository
+	ParentMessageThreadRepository
 	touchErr error
 	touched  *touchCall
 	locked   bool
@@ -81,13 +80,13 @@ type markCall struct {
 }
 
 type fakeReadRepo struct {
-	usersModels.ParentMessageReadRepository
+	ParentMessageReadRepository
 	markAdvanced      bool
 	markErr           error
 	marks             []markCall
-	staffCursor       *usersModels.ReadCursor
+	staffCursor       *ReadCursor
 	staffCursorErr    error
-	guardianCursor    *usersModels.ReadCursor
+	guardianCursor    *ReadCursor
 	guardianCursorErr error
 	handled           []markCall
 	handledErr        error
@@ -103,16 +102,16 @@ func (f *fakeReadRepo) MarkStaffHandledUpTo(_ context.Context, tenantID, threadI
 	return f.handledErr
 }
 
-func (f *fakeReadRepo) LatestReadCursorByOther(context.Context, int64, int64) (*usersModels.ReadCursor, error) {
+func (f *fakeReadRepo) LatestReadCursorByOther(context.Context, int64, int64) (*ReadCursor, error) {
 	return f.staffCursor, f.staffCursorErr
 }
 
-func (f *fakeReadRepo) GuardianReadCursor(context.Context, int64) (*usersModels.ReadCursor, error) {
+func (f *fakeReadRepo) GuardianReadCursor(context.Context, int64) (*ReadCursor, error) {
 	return f.guardianCursor, f.guardianCursorErr
 }
 
-func msg(id, sender int64, kind string) *usersModels.ParentMessage {
-	m := &usersModels.ParentMessage{SenderAccountID: sender, SenderKind: kind, Body: "x"}
+func msg(id, sender int64, kind string) *ParentMessage {
+	m := &ParentMessage{SenderAccountID: sender, SenderKind: kind, Body: "x"}
 	m.ID = id
 	m.CreatedAt = time.Now()
 	return m
@@ -128,7 +127,7 @@ func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
 	mr := &fakeMsgRepo{stampAt: stamp, beforeCreate: func() {
 		assert.True(t, tr.locked, "the thread must be locked before the message insert")
 	}}
-	m := &usersModels.ParentMessage{ThreadID: 42, SenderKind: usersModels.ParentMessageSenderStaff, Body: "Hallo"}
+	m := &ParentMessage{ThreadID: 42, SenderKind: ParentMessageSenderStaff, Body: "Hallo"}
 
 	require.NoError(t, AppendMessage(context.Background(), mr, tr, m))
 	require.Len(t, mr.created, 1)
@@ -137,7 +136,7 @@ func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
 	// NOT a fresh app clock — otherwise the monotonic preview guard desyncs.
 	assert.Equal(t, stamp, tr.touched.at)
 	assert.Equal(t, m.ID, tr.touched.messageID)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, tr.touched.kind)
+	assert.Equal(t, ParentMessageSenderStaff, tr.touched.kind)
 	assert.Equal(t, "Hallo", tr.touched.body)
 }
 
@@ -146,7 +145,7 @@ func TestAppendMessage_LockErrorSkipsInsert(t *testing.T) {
 
 	mr := &fakeMsgRepo{}
 	tr := &fakeThreadRepo{lockErr: errors.New("lock failed")}
-	err := AppendMessage(context.Background(), mr, tr, &usersModels.ParentMessage{ThreadID: 42})
+	err := AppendMessage(context.Background(), mr, tr, &ParentMessage{ThreadID: 42})
 	require.Error(t, err)
 	assert.Empty(t, mr.created)
 }
@@ -156,7 +155,7 @@ func TestAppendMessage_CreateErrorSkipsTouch(t *testing.T) {
 
 	mr := &fakeMsgRepo{createErr: errors.New("insert failed")}
 	tr := &fakeThreadRepo{}
-	err := AppendMessage(context.Background(), mr, tr, &usersModels.ParentMessage{})
+	err := AppendMessage(context.Background(), mr, tr, &ParentMessage{})
 	require.Error(t, err)
 	assert.Nil(t, tr.touched, "a failed insert must not touch the thread preview")
 }
@@ -172,12 +171,12 @@ func TestConversationCore_BindsTheSharedRules(t *testing.T) {
 	rr := &fakeReadRepo{markAdvanced: true}
 	core := NewConversationCore(tr, mr, rr, nil, nil)
 
-	m := &usersModels.ParentMessage{ThreadID: 42, SenderKind: usersModels.ParentMessageSenderGuardian, Body: "Hallo"}
+	m := &ParentMessage{ThreadID: 42, SenderKind: ParentMessageSenderGuardian, Body: "Hallo"}
 	require.NoError(t, core.AppendMessage(context.Background(), m))
 	assert.True(t, tr.locked)
 	require.NotNil(t, tr.touched)
 
-	advanced, err := core.MarkReadToNewest(context.Background(), 1, 42, 100, false, []*usersModels.ParentMessage{msg(1, 300, usersModels.ParentMessageSenderStaff)})
+	advanced, err := core.MarkReadToNewest(context.Background(), 1, 42, 100, false, []*ParentMessage{msg(1, 300, ParentMessageSenderStaff)})
 	require.NoError(t, err)
 	assert.True(t, advanced)
 	require.Len(t, rr.marks, 1)
@@ -196,10 +195,10 @@ func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
 	// Oldest-first snapshot: two counterpart (guardian) messages then the reader's
 	// own just-sent staff message. The cursor must land on the newest COUNTERPART
 	// (id 2), never the reader's own id-3 row.
-	oldestGuardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
-	newestGuardian := msg(2, 200, usersModels.ParentMessageSenderGuardian)
-	readerOwn := msg(3, reader, usersModels.ParentMessageSenderStaff)
-	messages := []*usersModels.ParentMessage{oldestGuardian, newestGuardian, readerOwn}
+	oldestGuardian := msg(1, 200, ParentMessageSenderGuardian)
+	newestGuardian := msg(2, 200, ParentMessageSenderGuardian)
+	readerOwn := msg(3, reader, ParentMessageSenderStaff)
+	messages := []*ParentMessage{oldestGuardian, newestGuardian, readerOwn}
 
 	rr := &fakeReadRepo{markAdvanced: true}
 	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
@@ -219,11 +218,11 @@ func TestMarkReadToNewest_DoesNotAdvancePastCounterpartViaOtherSideRow(t *testin
 	// rows), so the cursor must bound to the guardian message (id 1) — not the later
 	// staff/system rows. Binding past them would skip a guardian message still
 	// committing with an earlier created_at in a concurrent send/read race.
-	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
-	otherStaff := msg(2, 300, usersModels.ParentMessageSenderStaff)
-	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
-	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
-	messages := []*usersModels.ParentMessage{guardian, otherStaff, staffEvent}
+	guardian := msg(1, 200, ParentMessageSenderGuardian)
+	otherStaff := msg(2, 300, ParentMessageSenderStaff)
+	staffEvent := msg(3, 300, ParentMessageSenderSystem)
+	staffEvent.EventActorKind = ParentMessageSenderStaff
+	messages := []*ParentMessage{guardian, otherStaff, staffEvent}
 
 	rr := &fakeReadRepo{markAdvanced: true}
 	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
@@ -241,11 +240,11 @@ func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
 	// A guardian reader: a staff message and a staff-triggered system event are the
 	// counterpart; the reader's own guardian message is not. The cursor must land on
 	// the newest staff-side row (the system event, id 3).
-	staffMsg := msg(1, 300, usersModels.ParentMessageSenderStaff)
-	readerOwn := msg(2, reader, usersModels.ParentMessageSenderGuardian)
-	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
-	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
-	messages := []*usersModels.ParentMessage{staffMsg, readerOwn, staffEvent}
+	staffMsg := msg(1, 300, ParentMessageSenderStaff)
+	readerOwn := msg(2, reader, ParentMessageSenderGuardian)
+	staffEvent := msg(3, 300, ParentMessageSenderSystem)
+	staffEvent.EventActorKind = ParentMessageSenderStaff
+	messages := []*ParentMessage{staffMsg, readerOwn, staffEvent}
 
 	rr := &fakeReadRepo{markAdvanced: true}
 	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
@@ -266,10 +265,10 @@ func TestMarkReadToNewest_DualRoleOwnSystemEventStillAdvances(t *testing.T) {
 	// unread SQL counts it (notReaderAuthored exempts system rows), so the cursor
 	// MUST advance onto it — a bare SenderAccountID == reader skip stranded it as
 	// permanently unread once viewed.
-	guardianOwn := msg(1, reader, usersModels.ParentMessageSenderGuardian)
-	ownStaffEvent := msg(2, reader, usersModels.ParentMessageSenderSystem)
-	ownStaffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
-	messages := []*usersModels.ParentMessage{guardianOwn, ownStaffEvent}
+	guardianOwn := msg(1, reader, ParentMessageSenderGuardian)
+	ownStaffEvent := msg(2, reader, ParentMessageSenderSystem)
+	ownStaffEvent.EventActorKind = ParentMessageSenderStaff
+	messages := []*ParentMessage{guardianOwn, ownStaffEvent}
 
 	rr := &fakeReadRepo{markAdvanced: true}
 	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
@@ -291,11 +290,11 @@ func TestMarkReadToNewest_DoesNotAdvanceOntoRequestCreatedPill(t *testing.T) {
 	// Advancing onto the pill would skip the guardian message when it commits with
 	// an earlier created_at in a concurrent send/read race, and it would never
 	// resurface as unread.
-	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
-	requestCreated := msg(2, 200, usersModels.ParentMessageSenderSystem)
-	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
-	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
-	messages := []*usersModels.ParentMessage{guardian, requestCreated}
+	guardian := msg(1, 200, ParentMessageSenderGuardian)
+	requestCreated := msg(2, 200, ParentMessageSenderSystem)
+	requestCreated.EventActorKind = ParentMessageSenderGuardian
+	requestCreated.EventType = ParentMessageEventRequestCreated
+	messages := []*ParentMessage{guardian, requestCreated}
 
 	rr := &fakeReadRepo{markAdvanced: true}
 	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
@@ -313,12 +312,12 @@ func TestMarkReadToNewest_RequestCreatedOnlyDoesNotMark(t *testing.T) {
 	// The newest (and only counterpart-side) row is a request_created pill. Since
 	// it is excluded from the unread set, there is nothing to mark seen and the
 	// cursor stays untouched — matching a snapshot with no counted counterpart.
-	requestCreated := msg(1, 200, usersModels.ParentMessageSenderSystem)
-	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
-	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
+	requestCreated := msg(1, 200, ParentMessageSenderSystem)
+	requestCreated.EventActorKind = ParentMessageSenderGuardian
+	requestCreated.EventType = ParentMessageEventRequestCreated
 
 	rr := &fakeReadRepo{markAdvanced: true}
-	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, []*usersModels.ParentMessage{requestCreated})
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, []*ParentMessage{requestCreated})
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	assert.Empty(t, rr.marks, "a lone request_created pill is not counted, so no cursor write")
@@ -334,7 +333,7 @@ func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	// Only the reader's own messages → nothing to mark seen.
-	own := []*usersModels.ParentMessage{msg(1, reader, usersModels.ParentMessageSenderStaff)}
+	own := []*ParentMessage{msg(1, reader, ParentMessageSenderStaff)}
 	advanced, err = MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, own)
 	require.NoError(t, err)
 	assert.False(t, advanced)
@@ -345,7 +344,7 @@ func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 	t.Parallel()
 
 	rr := &fakeReadRepo{markErr: errors.New("upsert failed")}
-	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
+	messages := []*ParentMessage{msg(1, 200, ParentMessageSenderGuardian)}
 	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, true, messages)
 	require.Error(t, err)
 }
@@ -353,15 +352,15 @@ func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 func TestMarkStaffHandledToVisible_BoundsToVisibleGuardianActivity(t *testing.T) {
 	t.Parallel()
 
-	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
-	staffReply := msg(2, 100, usersModels.ParentMessageSenderStaff)
-	concurrentGuardian := msg(3, 200, usersModels.ParentMessageSenderGuardian)
-	requestCreated := msg(4, 200, usersModels.ParentMessageSenderSystem)
-	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
-	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
+	guardian := msg(1, 200, ParentMessageSenderGuardian)
+	staffReply := msg(2, 100, ParentMessageSenderStaff)
+	concurrentGuardian := msg(3, 200, ParentMessageSenderGuardian)
+	requestCreated := msg(4, 200, ParentMessageSenderSystem)
+	requestCreated.EventActorKind = ParentMessageSenderGuardian
+	requestCreated.EventType = ParentMessageEventRequestCreated
 
 	rr := &fakeReadRepo{}
-	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, staffReply.ID, []*usersModels.ParentMessage{guardian, staffReply, concurrentGuardian, requestCreated})
+	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, staffReply.ID, []*ParentMessage{guardian, staffReply, concurrentGuardian, requestCreated})
 	require.NoError(t, err)
 	require.Len(t, rr.handled, 1)
 	assert.Equal(t, guardian.ID, rr.handled[0].messageID, "the team boundary must stop at the client snapshot and leave concurrent guardian activity open")
@@ -371,8 +370,8 @@ func TestMarkStaffHandledToVisible_PropagatesRepoError(t *testing.T) {
 	t.Parallel()
 
 	rr := &fakeReadRepo{handledErr: errors.New("update failed")}
-	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, 1, []*usersModels.ParentMessage{
-		msg(1, 200, usersModels.ParentMessageSenderGuardian),
+	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, 1, []*ParentMessage{
+		msg(1, 200, ParentMessageSenderGuardian),
 	})
 	require.Error(t, err)
 }
@@ -382,11 +381,11 @@ func TestMarkStaffHandledToVisible_PropagatesRepoError(t *testing.T) {
 func TestDecorateReadReceipts_StampsGuardianMessagesUpToStaffCursor(t *testing.T) {
 	t.Parallel()
 
-	guardianMsg := msg(1, 200, usersModels.ParentMessageSenderGuardian)
+	guardianMsg := msg(1, 200, ParentMessageSenderGuardian)
 	guardianMsg.CreatedAt = time.Now().Add(-time.Hour)
-	messages := []*usersModels.ParentMessage{guardianMsg}
+	messages := []*ParentMessage{guardianMsg}
 	// Staff has read up to a cursor at/after the message → ReadByStaff stamped.
-	rr := &fakeReadRepo{staffCursor: &usersModels.ReadCursor{LastReadAt: time.Now(), LastReadMessageID: 1}}
+	rr := &fakeReadRepo{staffCursor: &ReadCursor{LastReadAt: time.Now(), LastReadMessageID: 1}}
 	DecorateReadReceipts(context.Background(), rr, nil, 42, 200, messages)
 	assert.True(t, messages[0].ReadByStaff, "guardian message read by staff gets the 'OGS hat gelesen' receipt")
 }
@@ -394,7 +393,7 @@ func TestDecorateReadReceipts_StampsGuardianMessagesUpToStaffCursor(t *testing.T
 func TestDecorateReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 	t.Parallel()
 
-	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
+	messages := []*ParentMessage{msg(1, 200, ParentMessageSenderGuardian)}
 	rr := &fakeReadRepo{staffCursorErr: errors.New("cursor lookup failed")}
 	DecorateReadReceipts(context.Background(), rr, nil, 42, 200, messages)
 	assert.False(t, messages[0].ReadByStaff, "a lookup error must hide the receipt, not blank the chat")
@@ -403,10 +402,10 @@ func TestDecorateReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 func TestDecorateGuardianReadReceipts_StampsStaffMessagesUpToGuardianCursor(t *testing.T) {
 	t.Parallel()
 
-	staffMsg := msg(1, 300, usersModels.ParentMessageSenderStaff)
+	staffMsg := msg(1, 300, ParentMessageSenderStaff)
 	staffMsg.CreatedAt = time.Now().Add(-time.Hour)
-	messages := []*usersModels.ParentMessage{staffMsg}
-	rr := &fakeReadRepo{guardianCursor: &usersModels.ReadCursor{LastReadAt: time.Now(), LastReadMessageID: 1}}
+	messages := []*ParentMessage{staffMsg}
+	rr := &fakeReadRepo{guardianCursor: &ReadCursor{LastReadAt: time.Now(), LastReadMessageID: 1}}
 	DecorateGuardianReadReceipts(context.Background(), rr, nil, 42, messages)
 	assert.True(t, messages[0].ReadByGuardian, "staff message read by the guardian gets the 'von den Eltern gelesen' receipt")
 }
@@ -414,7 +413,7 @@ func TestDecorateGuardianReadReceipts_StampsStaffMessagesUpToGuardianCursor(t *t
 func TestDecorateGuardianReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 	t.Parallel()
 
-	messages := []*usersModels.ParentMessage{msg(1, 300, usersModels.ParentMessageSenderStaff)}
+	messages := []*ParentMessage{msg(1, 300, ParentMessageSenderStaff)}
 	rr := &fakeReadRepo{guardianCursorErr: errors.New("cursor lookup failed")}
 	DecorateGuardianReadReceipts(context.Background(), rr, nil, 42, messages)
 	assert.False(t, messages[0].ReadByGuardian)

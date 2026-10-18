@@ -13,14 +13,16 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -41,14 +43,14 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	db, serviceFactory := setupStaffMessagingModule(t)
 	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter())
-	tenantRouter := staffMessages.Router()
+	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter(rootAPI.ProtectedSchoolRoutes))
+	tenantRouter := staffMessages.Router(rootAPI.ProtectedTenantRoutes)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	// Pin the chat on explicitly so the test does not hang on the registry
 	// default (opt-out since #3254).
 	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
 	unique := time.Now().UnixNano()
@@ -148,7 +150,7 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
 	db, serviceFactory := setupStaffMessagingModule(t)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter())
+	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter(rootAPI.ProtectedSchoolRoutes))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Off", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
@@ -168,7 +170,7 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 
 	// The school switches it off.
 	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, false, nil, nil,
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, false, nil, nil,
 	))
 
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)

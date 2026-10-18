@@ -10,13 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SickNoteResult is the outcome of a parent absence submission. Exactly one of
@@ -24,7 +19,7 @@ import (
 // the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*absencerecords.StudentStatusDay
-	PendingRequest *careplan.ExcusedAbsenceRequest
+	PendingRequest *ExcusedAbsenceRequest
 }
 
 // SubmitSickNote reports the child absent for the given dates with the chosen
@@ -44,7 +39,7 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, ErrInvalidStatus
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionSickNoteSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +132,7 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 		notePtr = &report.note
 	}
 	var result []*absencerecords.StudentStatusDay
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.writeAbsence(txCtx, child.TenantID, report, notePtr)
 		result = rows
 		return err
@@ -178,11 +173,11 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 
 	// Care Plan takes the care-day locks, refuses a day with a manual partial
 	// absence, clears the other statuses and records the reported ones.
-	days, err := s.GuardianAbsences.ReportGuardianAbsence(ctx, careplan.GuardianAbsenceReport{
+	days, err := s.GuardianAbsences.ReportGuardianAbsence(ctx, GuardianAbsenceReport{
 		StudentID: report.studentID, GuardianAccountID: report.accountID,
 		Dates: carePlanDates(report.dates), Status: report.status, Note: note, ReportedAt: now,
 	})
-	if errors.Is(err, careplan.ErrManualPartialAbsenceConflict) {
+	if errors.Is(err, s.CarePlanPolicy.Error(CarePlanManualPartialAbsenceConflict)) {
 		return nil, ErrCareExceptionConflict
 	}
 	if err != nil {
@@ -212,7 +207,7 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*absencerecords.StudentStatusDay) {
 	pillBody := SickNoteEventBody(report.status, report.dates)
 	pillRefID := firstStatusID(rows)
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.SelfService.EmitSelfServicePill(tenantID, report.studentID, report.accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 		s.broadcastStudentUpdated(tenantID, report.studentID)
 		// broadcastStudentUpdated is staff-only and emitSelfServicePill wakes
@@ -224,7 +219,7 @@ func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report
 
 // statusDaysFromCarePlan returns Care Plan's status days in the portal's
 // response shape.
-func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.StudentStatusDay {
+func statusDaysFromCarePlan(days []StudentStatusDay) []*absencerecords.StudentStatusDay {
 	rows := make([]*absencerecords.StudentStatusDay, 0, len(days))
 	for _, day := range days {
 		row := &absencerecords.StudentStatusDay{
@@ -238,7 +233,7 @@ func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.
 	return rows
 }
 
-func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
+func isNewParentReportableAbsence(student *PortalStudent, status string) bool {
 	switch status {
 	case absencerecords.StudentStatusDaySick:
 		return student.Sick == nil || !*student.Sick
@@ -255,8 +250,8 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 	if s.ExcusedRequests == nil {
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
-	var req *careplan.ExcusedAbsenceRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	var req *ExcusedAbsenceRequest
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
 		// absence paths obey the same read-only boundary.
@@ -269,7 +264,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 		}
 		// The note is mandatory only while the school's reason policy asks the
 		// family for one (#2267, story 28).
-		created, err := s.ExcusedRequests.Submit(txCtx, careplan.ExcusedRequestCreateInput{
+		created, err := s.ExcusedRequests.Submit(txCtx, ExcusedRequestCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			Dates:             carePlanDates(dates),
@@ -311,7 +306,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 // (excused) sets NO live flag per issue #1735 — it only clears a stale live sick
 // flag so the row stays consistent with the now-cleared sick status day, and
 // leaves a staff-set excused flag untouched.
-func applyLiveStatusForParentToday(student *usersModels.Student, status string, now time.Time) {
+func applyLiveStatusForParentToday(student *PortalStudent, status string, now time.Time) {
 	trueVal := true
 	falseVal := false
 	switch status {
@@ -327,7 +322,7 @@ func applyLiveStatusForParentToday(student *usersModels.Student, status string, 
 }
 
 // studentLiveAbsence is the child's live absence flags after the change.
-func studentLiveAbsence(student *usersModels.Student) StudentLiveAbsence {
+func studentLiveAbsence(student *PortalStudent) StudentLiveAbsence {
 	return StudentLiveAbsence{
 		StudentID: student.ID, Sick: student.Sick, SickSince: student.SickSince,
 		Excused: student.Excused, ExcusedSince: student.ExcusedSince,

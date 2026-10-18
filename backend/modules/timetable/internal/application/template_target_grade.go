@@ -5,12 +5,13 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // validateTemplateTargetsGradeLimit permits every unchanged legacy grade,
 // including secondary targets that are not represented by the group mirror.
 func validateTemplateTargetsGradeLimit(
-	rules SchoolClassRules,
+	rules ports.SchoolClassRules,
 	gradeLevelMax int,
 	existing *activitiesModel.Group,
 	existingTargets []*activitiesModel.GroupTarget,
@@ -51,7 +52,7 @@ func existingJahrgangGrades(existing *activitiesModel.Group, existingTargets []*
 	return grades
 }
 
-func validateTemplateGradeLevelMax(rules SchoolClassRules, value int) error {
+func validateTemplateGradeLevelMax(rules ports.SchoolClassRules, value int) error {
 	if value >= rules.MinGradeLevel && value <= rules.MaxGradeLevel {
 		return nil
 	}

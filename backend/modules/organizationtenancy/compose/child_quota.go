@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	application "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
+
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -44,7 +46,7 @@ func (childQuotaLimits) ChildQuotaLimit(ctx context.Context) (int, bool, error) 
 	}
 	bundles, bundleSize, err := postgres.ReadChildQuota(ctx, db, tenantID.Int64())
 	if err != nil {
-		return 0, false, mapError(err)
+		return 0, false, application.MapError(err)
 	}
 	if bundles == nil {
 		return 0, false, nil

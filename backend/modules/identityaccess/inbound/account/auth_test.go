@@ -28,6 +28,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -77,7 +78,7 @@ type tenantSettingsWriter interface {
 func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
 	db, svc := setupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = svc.Settings
 	resource.RoleGrants = api.AccountRoleGrantPolicy()
 	return db, resource, svc.Settings
@@ -98,7 +99,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc.db, router
 }
@@ -113,7 +114,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc, router
 }
@@ -128,7 +129,7 @@ func TestLogin(t *testing.T) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	// Create a fresh test account to avoid stale tokens from seed data
 	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
@@ -1977,7 +1978,7 @@ func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 
 	// Use the full public router for refresh/logout
 	// These routes require JWT middleware which we bypass via context
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc, router
 }
@@ -2042,10 +2043,10 @@ func TestListTenants(t *testing.T) {
 	t.Parallel()
 	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 
 	t.Run("returns active tenants without internal IDs", func(t *testing.T) {
 		// EnsureTestTenant (called by SetupTestDB) creates tenant 1 with active=true
@@ -2113,7 +2114,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 
 	return &testContext{
 		db:       db,
@@ -2128,7 +2129,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 	tc := setupAuthRouteWithSchoolRepo(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	// Create a test account to act as the invitation creator
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inv-creator-%d@test.local", time.Now().UnixNano()))
@@ -2211,7 +2212,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 			"confirm_password": "Test1234%",
 		}
 		acceptReq := testutil.NewJSONRequest(t, "POST", "/invitations/"+token+"/accept", acceptBody)
-		acceptRR := testutil.ExecuteRequest(tc.resource.Router(), acceptReq)
+		acceptRR := testutil.ExecuteRequest(tc.resource.Router(api.TenantSessionChain), acceptReq)
 
 		require.Equal(t, http.StatusCreated, acceptRR.Code,
 			"Expected 201 Created, got %d. Body: %s", acceptRR.Code, acceptRR.Body.String())
@@ -2334,10 +2335,10 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 
 	// The subdomain for tenant 9900 is "t9900" (set by EnsureTestTenant).
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9900", nil)

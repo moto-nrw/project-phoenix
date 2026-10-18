@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 const parentRequestEventTable = "users.parent_request_events"
@@ -17,7 +18,7 @@ type ParentRequestEventRepository struct {
 	runtime Runtime
 }
 
-func NewParentRequestEventRepository(runtime Runtime) userModels.ParentRequestEventRepository {
+func NewParentRequestEventRepository(runtime Runtime) ports.ParentRequestEventRecords {
 	return &ParentRequestEventRepository{runtime: requireRuntime(runtime)}
 }
 
@@ -37,7 +38,7 @@ func (r *ParentRequestEventRepository) Create(ctx context.Context, event *userMo
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &DatabaseError{Op: "create parent request event", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "create parent request event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -58,7 +59,7 @@ func (r *ParentRequestEventRepository) ListForRequest(
 		OrderExpr(`"parent_request_event".id`)
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list parent request events", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -81,7 +82,7 @@ func (r *ParentRequestEventRepository) ListForStudent(
 		Limit(int64(limit))
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

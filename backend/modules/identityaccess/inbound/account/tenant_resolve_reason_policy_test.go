@@ -10,6 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +31,7 @@ type reasonPolicyResolveResp struct {
 func resolveReasonPolicy(t *testing.T, slug string, resource *authAPI.Resource) string {
 	t.Helper()
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -46,7 +49,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	db, authRoute, tenantSettings := setupAuthDependenciesRouteWithSettings(t)
 	scope, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
@@ -75,7 +78,7 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyParentRequestReasonPolicy, json.RawMessage(`"irgendwas"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))

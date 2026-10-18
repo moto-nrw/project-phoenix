@@ -13,39 +13,42 @@ import (
 	"testing"
 	"time"
 
-	care "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
-func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
-func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
+		Fingerprints:          api.SecurityFingerprints{},
+		Declarations:          api.ParentDeclarationPolicy(),
+		Runtime:               api.ParentPortalRuntime{},
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
-		AnnouncementRepo:      repos.ParentAnnouncement,
-		StudentRepo:           repos.Student,
+		ChildRepo:             repos.ParentChildReads(),
+		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
+		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
-			boolValues: map[string]bool{care.KeyParentNewsEnabled: newsEnabled},
+			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},
 		},
 		Logger: slog.Default(),
 	})
@@ -58,23 +61,23 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*me
 func seedPublishedAnnouncement(
 	t *testing.T,
 	ctx context.Context,
-	repo usersModels.ParentAnnouncementRepository,
+	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	requiresAck bool,
-) *usersModels.ParentAnnouncement {
+) *communication.ParentAnnouncementFixture {
 	t.Helper()
-	a := &usersModels.ParentAnnouncement{
+	a := &communication.ParentAnnouncementFixture{
 		Title:                   "Sommerfest",
 		Body:                    "Wir feiern am Freitag.",
-		Priority:                usersModels.ParentAnnouncementPriorityInfo,
+		Priority:                "info",
 		RequiresAcknowledgement: requiresAck,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
-	a.SetTenantID(tenantID)
+	a.TenantID = tenantID
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
@@ -97,7 +100,7 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, true)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
@@ -143,14 +146,14 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// A published_at the client never actually saw (wrong version) is rejected as
 	// stale, not silently recorded.
 	stale := ann.PublishedAt.Add(-time.Hour)
 	err := svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, stale)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementStale)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementStale)
 }
 
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
@@ -160,11 +163,11 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	err := svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementAckNotRequired)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementAckNotRequired)
 }
 
 func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
@@ -177,7 +180,7 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// A high id that does not exist collapses to not-found (never leaks existence).
 	err := svc.MarkAnnouncementRead(ctx, chain.AccountID, 999999999, time.Now())
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 }
 
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
@@ -187,7 +190,7 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, true)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// With the school's news feature off, the feed and badge are empty and a
@@ -201,7 +204,7 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	assert.Zero(t, unread)
 
 	err = svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 }
 
 func TestAnnouncementFeed_RejectsNonPositiveAccount(t *testing.T) {

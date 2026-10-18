@@ -191,12 +191,6 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 	return found && credential.ID > 0, nil
 }
 
-// AccountBelongsToTenant reports the school mapping the operator MFA admin
-// endpoints gate on.
-func (f *AccountMFAFlows) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return f.records.AccountBelongsToTenant(ctx, accountID, tenantID)
-}
-
 // ===== Challenge and verification =====
 
 // StartChallenge mails a fresh code for one portal and returns the challenge
@@ -636,13 +630,6 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 	}
 	_ = f.records.TouchTrustedDevice(ctx, device.ID, f.now())
 	return true, nil
-}
-
-// ListTrustedDevices returns the account's active devices at one school.
-// Trust is per (account, school), so the settings page only shows the
-// devices trusted while logged into the school the user is in.
-func (f *AccountMFAFlows) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {
-	return f.records.ListActiveTrustedDevices(ctx, accountID, tenantID)
 }
 
 // RevokeTrustedDevice revokes one device after proving it belongs to the

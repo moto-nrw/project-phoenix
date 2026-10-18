@@ -361,12 +361,6 @@ func (f *OperatorMFAFlows) VerifyTrustedDevice(ctx context.Context, operatorID i
 	return true, nil
 }
 
-// ListTrustedDevices returns the operator's active devices, most recently
-// used first.
-func (f *OperatorMFAFlows) ListTrustedDevices(ctx context.Context, operatorID int64) ([]domain.OperatorTrustedDevice, error) {
-	return f.records.ListActiveTrustedDevices(ctx, operatorID)
-}
-
 // RevokeTrustedDevice revokes one device after proving it belongs to the
 // calling operator, so an id guess cannot revoke someone else's.
 func (f *OperatorMFAFlows) RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error {

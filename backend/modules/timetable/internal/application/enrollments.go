@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 )
 
 func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result domain.StudentEnrollment, err error) {
@@ -69,7 +69,7 @@ func (s *Service) DeleteStudentEnrollment(ctx context.Context, id int64) error {
 
 // BackfillStudentEnrollmentSource links the eligible enrollments to their
 // request child through the provenance store.
-func BackfillStudentEnrollmentSource(ctx context.Context, s *Service, store ports.EnrollmentProvenanceStore, studentID, requestChildID int64, groupIDs []int64) (result int64, err error) {
+func BackfillStudentEnrollmentSource(ctx context.Context, s *Service, store internalports.EnrollmentProvenanceStore, studentID, requestChildID int64, groupIDs []int64) (result int64, err error) {
 	err = s.runWrite(ctx, "backfill_student_enrollment_source", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, writeErr := store.BackfillStudentEnrollmentSource(txCtx, studentID, requestChildID, groupIDs)
 		stats.Add(queryStats)

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -18,15 +20,16 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,7 +44,7 @@ type StudentTestModule struct {
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
 	CareLifecycle      careplan.CareLifecycle
-	StudentAudit       peopleCompose.StudentAuditService
+	StudentAudit       peoplePorts.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollmentOwner.Decisions
 	CareRequests       carerequests.Service
@@ -51,11 +54,11 @@ type StudentTestModule struct {
 	MasterDataReview   masterdatarequests.Decisions
 	ParentRequests     parentrequests.Coordinator
 	OGSGroupLive       grouplive.Query
-	StudentPhotos      peopleCompose.StudentPhotoService
+	StudentPhotos      peoplePorts.StudentPhotoService
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
-	NewStudentPhotos func(PhotoBroadcaster, peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService
+	NewStudentPhotos func(PhotoBroadcaster, peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -146,7 +149,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
-	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
+	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService {
 		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,
@@ -174,11 +177,11 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB:          db.Pool(),
-		Runtime:     unit,
+
+		Runtime:     NewCommunicationEventRuntime(db.Pool() != nil, unit),
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
-		Settings:    settingsService,
+		Settings:    settingsValues.NewParentEventValues(settingsService),
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
@@ -358,7 +361,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		repos.CarePlan.LockExceptionDay,
 		now,
 	)
-	ogsGroupLiveService, err := groupliveCompose.New(groupliveCompose.Sources{
+	ogsGroupLiveService, err := newGroupLive(groupLiveSources{
 		Presence:          NewLoggedStudentPresence(db, logger),
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
@@ -396,6 +399,6 @@ func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOv
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

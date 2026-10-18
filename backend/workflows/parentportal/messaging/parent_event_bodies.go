@@ -1,8 +1,7 @@
 package messaging
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
 // EmitSelfServicePill posts the chat pill mirroring a parent self-service
@@ -14,9 +13,9 @@ func (s *Service) EmitSelfServicePill(tenantID, studentID, accountID int64, even
 	if s.Emitter == nil {
 		return
 	}
-	s.Emitter.EmitChildEvent(tenantID, studentID, accountID, parentmessaging.ChildEvent{
+	s.Emitter.EmitChildEvent(tenantID, studentID, accountID, care.ChildEvent{
 		EventType:      eventType,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorKind:      ParentMessageSenderGuardian,
 		ActorAccountID: accountID,
 		Body:           body,
 		RefTable:       refTable,

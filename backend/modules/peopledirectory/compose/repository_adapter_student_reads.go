@@ -5,8 +5,10 @@ import (
 	"errors"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // This file is the read half of the student translation seam (#3349): People
@@ -41,13 +43,13 @@ func NewStudentReads(directory StudentReadCapability) *StudentReads {
 func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
 	studentID, ok := studentIDOf(id)
 	if !ok {
-		return nil, usersRepo.MissingStudentError("find by id")
+		return nil, peoplePorts.MissingStudentError("find by id")
 	}
 	record, err := r.directory.FindStudentRecord(ctx, studentID)
 	if err != nil {
 		return nil, translateStudentReadError("find by id", err)
 	}
-	return studentRecordToModel(record), nil
+	return usersRepo.RetainedStudentModel(record), nil
 }
 
 func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
@@ -56,9 +58,9 @@ func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*use
 		return nil, translateStudentReadError("find by person id", err)
 	}
 	if len(records) == 0 {
-		return nil, usersRepo.MissingStudentError("find by person id")
+		return nil, peoplePorts.MissingStudentError("find by person id")
 	}
-	return studentRecordToModel(records[0]), nil
+	return usersRepo.RetainedStudentModel(records[0]), nil
 }
 
 func (r *StudentReads) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
@@ -206,7 +208,7 @@ func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userMo
 	if err != nil {
 		return nil, translateStudentReadError("find by id for update", err)
 	}
-	return studentRecordToModel(record), nil
+	return usersRepo.RetainedStudentModel(record), nil
 }
 
 // LockStudentClassWritesShared exposes the owner's shared class-writes gate for
@@ -257,7 +259,7 @@ func (r *StudentReads) roster(
 	}
 	result := make([]*userModels.StudentWithGroupInfo, 0, len(entries))
 	for _, entry := range entries {
-		student := studentRecordToModel(entry.Record)
+		student := usersRepo.RetainedStudentModel(entry.Record)
 		person := &userModels.Person{
 			FirstName: entry.FirstName, LastName: entry.LastName,
 			TagID: entry.TagID, AccountID: entry.AccountID,
@@ -286,7 +288,7 @@ func (r *StudentReads) listRecords(
 	}
 	result := make([]*userModels.Student, 0, len(records))
 	for _, record := range records {
-		result = append(result, studentRecordToModel(record))
+		result = append(result, usersRepo.RetainedStudentModel(record))
 	}
 	return result, nil
 }
@@ -294,7 +296,7 @@ func (r *StudentReads) listRecords(
 func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*userModels.Student {
 	result := make(map[int64]*userModels.Student, len(records))
 	for _, record := range records {
-		result[record.ID] = studentRecordToModel(record)
+		result[record.ID] = usersRepo.RetainedStudentModel(record)
 	}
 	return result
 }
@@ -304,7 +306,7 @@ func translateStudentReadError(op string, err error) error {
 		return nil
 	}
 	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
-		return usersRepo.MissingStudentError(op)
+		return peoplePorts.MissingStudentError(op)
 	}
 	return err
 }

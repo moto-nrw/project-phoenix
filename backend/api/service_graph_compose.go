@@ -32,6 +32,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -43,6 +44,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -95,7 +97,7 @@ type serviceGraphInputs struct {
 	// photo lifecycle's surfaces from, and PhotoUnlinker removes the stored
 	// files; without a slot the graph composes no photo lifecycle.
 	StudentPhotoSlot *peopleCompose.StudentPhotoRuntime
-	PhotoUnlinker    peopleCompose.PhotoUnlinker
+	PhotoUnlinker    peoplePorts.PhotoUnlinker
 
 	Workforce       WorkforceWiring
 	FileStorage     FileStorageWiring
@@ -209,7 +211,7 @@ type graphBuild struct {
 
 	groupSupervisions  studentpresence.SupervisionRecords
 	groupSubstitutions GroupSubstitutionRepository
-	rosterReconciler   *arrivalTimetable.RosterReconciler
+	rosterReconciler   timetablePorts.RosterReconciler
 	templateRows       arrivalTimetable.TemplateRows
 	timetableRows      arrivalTimetable.OwnerRows
 
@@ -225,7 +227,7 @@ type graphBuild struct {
 	vapid             deliveryCompose.VAPIDConfig
 
 	timetableConflicts timetable.ConflictDetectionCapability
-	instances          *arrivalTimetable.InstanceLifecycleService
+	instances          timetablePorts.InstanceLifecycle
 	staffDeviations    timetable.StaffDeviations
 	shiftPlanning      *workforceCompose.ShiftPlanning
 	deviceFleet        *devicefleetModule.Module
@@ -512,13 +514,13 @@ func composePeople(b graphBuild) (graphBuild, error) {
 	// The staff and teacher lookups and the staff writes are School
 	// Membership and Workforce territory (#3752); the person service takes
 	// them through the StaffDirectory port.
-	staffDirectory := peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
+	staffDirectory := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{
 		Runtime: peopleCompose.NewLegacyRepositoryRuntime(b.DB.Pool()), Persons: people.Persons, Staff: people.Staff,
 		Teachers: people.Teachers, LehrkraftRoles: b.identityAccess, MayManageStaff: staffAdministrationPermitted,
 	})
 	// Care Plan is composed later and reads the person directory, so the
 	// directory reaches its participation decision at call time.
-	b.graph.Users = peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	b.graph.Users = peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(b.Persons),
 		StudentDirectory: peopleCompose.NewStudentDirectory(b.Persons),
 		PersonRepo:       people.Persons, RFIDRepo: people.Identity,
@@ -539,18 +541,16 @@ func composePeople(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("staff admin: %w", err)
 	}
 	b.graph.StaffDocuments = staffAdmin
-	b.graph.Guardian = peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
+	b.graph.Guardian = peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: people.GuardianProfiles, GuardianPhoneNumberRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
 		StudentGuardianRepo: people.StudentGuardians, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentRepo: people.Students, PersonRepo: people.Persons,
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(b.DB.Pool()),
 		GuardianFinancialAudit: people.GuardianFinancialAudit(b.audits.GuardianFinancialChange),
 		DataAccessLog:          people.GuardianDataAccessLog(b.audits.DataAccessLog),
-		RolePresets: peopleCompose.GuardianRolePresetFuncs{
+		RolePresets: peoplePorts.GuardianRolePresetFuncs{
 			Default: securityruntime.DefaultStudentGuardianRole, Presets: securityruntime.StudentGuardianRolePreset,
-		},
-		DB: b.DB.Pool(),
-	})
+		}}, b.DB.Pool())
 	b.graph.PeopleDirectory = b.Persons
 	return b, nil
 }

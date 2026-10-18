@@ -34,6 +34,7 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
+  GOFLAGS: -tags=testhooks
 
 jobs:
   plan-backend:
@@ -683,10 +684,10 @@ jobs:
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
-             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim', 'Beispiel' FROM generate_series(1, 3) AS i"
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Zyxwolda', 'Quorbelt' FROM generate_series(1, 3) AS i"
           LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
-          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
+          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Zyxwolda' AND p.last_name = 'Quorbelt'")
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
           test "${not_ready}" = 0
           test "${visitors}" = 3
@@ -696,7 +697,7 @@ jobs:
           parents=$(psql "${DB_DSN}" -At -c "
             SELECT count(*) FROM platform.demo_school_states d
             JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
-            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
+            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Zyxwolda' AND g.last_name = 'Quorbelt'
               AND (SELECT count(*) FROM users.student_guardian_relationships sg WHERE sg.guardian_profile_id = g.id) = 1
               AND (SELECT count(*) FROM users.student_guardian_relationships sg
                    JOIN auth.guardian_student_access sga ON sga.tenant_id = sg.tenant_id AND sga.relationship_id = sg.id
@@ -707,6 +708,47 @@ jobs:
                    WHERE other.account_id = d.visitor_parent_account_id) = 1")
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3
+
+      # Demo visitors are erased (#4048): hide the three schools as the
+      # expiry does 14 days after their last use, let the demo process run its
+      # expiry, and search every text column of the database for the visitor.
+      # A new place the seed copies the visitor's name to fails here; add it
+      # to platform.erase_closed_demo_visitors.
+      - name: Erase the visitors of retired demo schools
+        if: ${{ matrix.scenario == 'queue' }}
+        working-directory: backend
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            "UPDATE platform.schools SET deleted_at = NOW()
+             WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once
+          orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
+          echo "demo orders left after the erasure: ${orders}"
+          test "${orders}" = 0
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c "
+            DO \$\$
+            DECLARE col RECORD; found BIGINT; traces TEXT := '';
+            BEGIN
+              FOR col IN
+                SELECT c.table_schema, c.table_name, c.column_name
+                FROM information_schema.columns AS c
+                JOIN information_schema.tables AS t USING (table_schema, table_name)
+                WHERE t.table_type = 'BASE TABLE' AND c.table_schema NOT IN ('pg_catalog', 'information_schema')
+                  AND c.data_type IN ('text', 'character varying', 'character', 'json', 'jsonb')
+              LOOP
+                EXECUTE format('SELECT count(*) FROM %I.%I WHERE %I::text ILIKE ANY (ARRAY[%L, %L])',
+                  col.table_schema, col.table_name, col.column_name, '%zyxwolda%', '%quorbelt%') INTO found;
+                IF found > 0 THEN
+                  traces := traces || format(' %s.%s.%s (%s rows)', col.table_schema, col.table_name, col.column_name, found);
+                END IF;
+              END LOOP;
+              IF traces <> '' THEN
+                RAISE EXCEPTION 'the erased demo visitor is still in:%', traces;
+              END IF;
+            END
+            \$\$"
 
       - name: Check seed coverage ratchet
         if: ${{ matrix.scenario == 'profiles' }}

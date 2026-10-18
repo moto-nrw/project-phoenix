@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -20,7 +22,7 @@ type CalendarTestModule struct{ Calendar calendarCompose.Application }
 // module's calendar wired, so the calendar end-to-end suite drives the
 // staff-to-parent flow without naming the portal adapter (#2748).
 func (m CalendarTestModule) ParentCalendarRouter() chi.Router {
-	return parentAPI.NewResource(parentAPI.ResourceConfig{Calendar: m.Calendar}).Router()
+	return parentAPI.NewResource(parentAPI.ResourceConfig{Calendar: m.Calendar}).Router(ParentSessionChain)
 }
 
 func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CalendarTestModule, error) {

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -139,9 +140,9 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	t.Cleanup(func() { require.NoError(t, serveDB.Close()) })
 
 	svc := setupAuthModuleOn(t, serveDB)
-	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{})
+	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	authResource.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(serveDB)
-	router.Mount("/auth", authResource.Router())
+	router.Mount("/auth", authResource.Router(api.TenantSessionChain))
 	return router
 }

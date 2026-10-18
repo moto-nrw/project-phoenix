@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -8,6 +10,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -40,7 +43,7 @@ func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Ca
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
-func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
+func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peoplePorts.StudentChangeRecorder) careplan.StudentCompanions {
 	var recorder StudentChangeAudit
 	if audit != nil {
 		recorder = audit
@@ -75,7 +78,7 @@ func NewStudentHTTPTestMembership(db transactionruntime.Database) (schoolmembers
 type StudentHTTPTestCareLifecycle struct {
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() timezone.Date
-	AuditActor            peopleCompose.RequestAuditActor
+	AuditActor            peoplePorts.RequestAuditActor
 }
 
 // NewStudentHTTPTestCareLifecycle composes the native Care Plan lifecycle

@@ -10,6 +10,7 @@ import (
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -206,7 +207,7 @@ func (r groupSubstitutions) attachGroups(ctx context.Context, rows []*educationR
 	}
 	groups, err := r.groups(ctx, groupIDs)
 	if err != nil {
-		return &userModels.DatabaseError{Op: "load substitution groups", Err: err}
+		return &peoplePorts.DatabaseError{Op: "load substitution groups", Err: err}
 	}
 	for _, row := range rows {
 		row.Group = groups[row.GroupID]

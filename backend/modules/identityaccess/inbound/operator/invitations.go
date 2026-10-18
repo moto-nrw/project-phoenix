@@ -129,7 +129,14 @@ type OperatorListItem struct {
 	DisplayName string     `json:"display_name"`
 	Active      bool       `json:"active"`
 	LastLogin   *time.Time `json:"last_login,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	// DeactivatedAt is set while the account is deactivated (#4047);
+	// DeletionDueAt is when the hourly cleanup deletes it.
+	DeactivatedAt *time.Time `json:"deactivated_at,omitempty"`
+	DeletionDueAt *time.Time `json:"deletion_due_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	// IsSelf marks the signed-in operator, whose account the dashboard
+	// offers no deactivation for.
+	IsSelf bool `json:"is_self"`
 }
 
 // --- Handlers ---
@@ -192,16 +199,12 @@ func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Re
 		invitations = append(invitations, inv)
 	}
 
+	signedIn := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	operatorList := make([]*OperatorListItem, 0, len(operators))
 	for _, op := range operators {
-		operatorList = append(operatorList, &OperatorListItem{
-			ID:          op.ID,
-			Email:       op.Email,
-			DisplayName: op.DisplayName,
-			Active:      op.Active,
-			LastLogin:   op.LastLogin,
-			CreatedAt:   op.CreatedAt,
-		})
+		item := operatorListItem(op)
+		item.IsSelf = op.ID == signedIn
+		operatorList = append(operatorList, item)
 	}
 
 	common.Respond(w, r, http.StatusOK, &InvitationsListResponse{

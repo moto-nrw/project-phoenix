@@ -11,7 +11,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +35,7 @@ type payrollScenario struct {
 }
 
 type serializingStaffRepo struct {
-	peopleVocabulary.StaffRepository
+	peoplePorts.StaffRepository
 	calls           atomic.Int32
 	firstLocked     chan struct{}
 	secondAttempted chan struct{}
@@ -71,7 +71,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
 	require.NoError(t, err)
-	dir := peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
+	dir := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{
 		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
 		MayManageStaff: api.StaffAdministrationPermitted,
 	})
@@ -84,7 +84,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
-func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff peopleVocabulary.StaffRepository) api.StaffAdminDependencies {
+func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff peoplePorts.StaffRepository) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
 		DB: testpkg.MustDatabase(db), Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,

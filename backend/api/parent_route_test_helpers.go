@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -6,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -15,10 +17,10 @@ type ParentRouteTestRepositories struct {
 	// ParentPortalRepositories carries the guardian child repository
 	// (ParentChild) without the school names.
 	carePlanCompose.ParentPortalRepositories
-	Student               usersModels.StudentRepository
-	Person                usersModels.PersonRepository
-	GuardianProfile       usersModels.GuardianProfileRepository
-	StudentGuardian       usersModels.StudentGuardianRepository
+	Student               peoplePorts.StudentRepository
+	Person                peoplePorts.PersonRepository
+	GuardianProfile       peoplePorts.GuardianProfileRepository
+	StudentGuardian       peoplePorts.StudentGuardianRepository
 	StudentStatusDay      *StudentStatusDayRepository
 	CareExceptions        careplan.Capability
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository

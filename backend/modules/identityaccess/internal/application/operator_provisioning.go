@@ -9,8 +9,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // OperatorProvisioning runs the operator invitation and e-mail change flows
@@ -206,11 +208,6 @@ func (p *OperatorProvisioning) AcceptOperatorInvitation(ctx context.Context, acc
 	return operator, nil
 }
 
-// ListPendingOperatorInvitations returns the links that can still be spent.
-func (p *OperatorProvisioning) ListPendingOperatorInvitations(ctx context.Context) ([]domain.OperatorInvitation, error) {
-	return p.tokens.ListRedeemableInvitations(ctx)
-}
-
 // RevokeOperatorInvitation spends a redeemable link without redeeming it.
 func (p *OperatorProvisioning) RevokeOperatorInvitation(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
 	if err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {
@@ -246,11 +243,6 @@ func (p *OperatorProvisioning) ResendOperatorInvitation(ctx context.Context, inv
 		ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: &invitationID, IPAddress: ipAddress,
 	}, "invitation resend")
 	return nil
-}
-
-// DeleteExpiredOperatorInvitations removes the links nobody can spend.
-func (p *OperatorProvisioning) DeleteExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	return p.tokens.DeleteExpiredInvitations(ctx)
 }
 
 // inviterName reads the display name the invitation mail shows. A failure is
@@ -442,4 +434,34 @@ func (p *OperatorProvisioning) record(ctx context.Context, entry domain.Operator
 			slog.Any("error", err),
 		)
 	}
+}
+
+type EmailFormat struct{ Source identityPorts.EmailFormat }
+
+func (f EmailFormat) IsRoutable(address string) bool { return f.Source.IsRoutable(address) }
+
+type OperatorInvitationDelivery struct {
+	Source identityPorts.OperatorInvitationDelivery
+	Expiry time.Duration
+}
+
+func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) {
+	d.Source.DispatchOperatorInvitation(ctx, PublicOperatorInvitation(invitation), inviterName, d.Expiry)
+}
+
+type OperatorEmailChangeDelivery struct {
+	Source identityPorts.OperatorEmailChangeDelivery
+	Expiry time.Duration
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) {
+	d.Source.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) {
+	d.Source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
+}
+
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
+	d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
 }

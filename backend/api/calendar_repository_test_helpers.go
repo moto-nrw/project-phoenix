@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -5,7 +7,7 @@ import (
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -39,8 +41,8 @@ type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Profile         identityaccess.AccountProfiles
 	StaffGroups     schoolstructure.StaffGroupQuery
-	GuardianProfile userModels.GuardianProfileRepository
-	StudentGuardian userModels.StudentGuardianRepository
+	GuardianProfile peoplePorts.GuardianProfileRepository
+	StudentGuardian peoplePorts.StudentGuardianRepository
 	// ParentPortalRepositories carries the guardian child repository
 	// (ParentChild) without the school names.
 	carePlanCompose.ParentPortalRepositories

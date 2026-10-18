@@ -52,7 +52,7 @@
       "backend/modules/communication/internal/parentmessages/events_decision_test.go",
       "backend/modules/schoolstructure/internal/application/groups/substitution_module_test.go",
       "backend/modules/peopledirectory/inbound/students/status_day_internal_test.go",
-      "backend/modules/schoolportal/school_notifications_test.go",
+      "backend/api/school_portal_school_notifications_test.go",
       "backend/modules/delivery/application/notifications/settings_keys_test.go",
       "backend/modules/delivery/application/pwa/settings_keys_test.go"
     ],

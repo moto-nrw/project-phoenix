@@ -11,6 +11,13 @@ import (
 )
 
 type (
+	EnrollmentRequestChildSummary   = care.EnrollmentRequestChildSummary
+	EnrollmentRequestReads          = care.EnrollmentRequestReads
+	EnrollablePhaseReads            = care.EnrollablePhaseReads
+	ChildReads                      = care.ChildReads
+	ChildEvent                      = care.ChildEvent
+	ChildEvents                     = care.ChildEvents
+	MessagingGate                   = messaging.MessagingGate
 	AttendanceReader                = care.AttendanceReader
 	Attendance                      = care.Attendance
 	AttendanceFilter                = care.AttendanceFilter
@@ -19,13 +26,11 @@ type (
 	StaffParentMessageReport        = care.StaffParentMessageReport
 	StaffParentMessageNotifier      = care.StaffParentMessageNotifier
 	CareException                   = care.CareException
-	CareExceptions                  = care.CareExceptions
 	CareOfferingSelection           = care.CareOfferingSelection
 	PickupChangeRequest             = care.PickupChangeRequest
 	CareRequestDiffEntry            = care.CareRequestDiffEntry
 	CareScheduleRequestCapabilities = care.CareScheduleRequestCapabilities
 	CareScheduleWeekday             = care.CareScheduleWeekday
-	ChildCareOfferings              = care.ChildCareOfferings
 	ChildCareSchedule               = care.ChildCareSchedule
 	ChildConsent                    = care.ChildConsent
 	ChildFeatureFlags               = care.ChildFeatureFlags
@@ -46,15 +51,12 @@ type (
 	MealParticipationPlan           = care.MealParticipationPlan
 	MealPlanEntry                   = care.MealPlanEntry
 	MealWeekday                     = care.MealWeekday
-	MessageThreadView               = messaging.MessageThreadView
 	ParentRequestEventView          = messaging.ParentRequestEventView
-	PendingOfferingChange           = care.PendingOfferingChange
 	Profile                         = care.Profile
 	RelatedAccount                  = care.RelatedAccount
 	RequestSharingRecipient         = messaging.RequestSharingRecipient
 	RequestSharingService           = messaging.RequestSharingService
 	RequestSharingState             = messaging.RequestSharingState
-	SickNoteResult                  = care.SickNoteResult
 	StudentPhotoUnlinker            = care.StudentPhotoUnlinker
 	TodayStatus                     = care.TodayStatus
 )
@@ -148,27 +150,18 @@ var (
 // The owner values the child and messaging flows hand back unchanged, under
 // the names those flows give them (#3421).
 type (
-	AllowedDepartureModes            = care.AllowedDepartureModes
-	AnnouncementFeedDeclaration      = messaging.AnnouncementFeedDeclaration
-	AnnouncementFeedDeclarationChild = messaging.AnnouncementFeedDeclarationChild
-	AnnouncementFeedItem             = messaging.AnnouncementFeedItem
-	ChildSummary                     = care.ChildSummary
-	DeclarationAttachmentDigest      = messaging.DeclarationAttachmentDigest
-	DeclarationSignerState           = messaging.DeclarationSignerState
-	DeclarationSubmission            = messaging.DeclarationSubmission
-	DeclarationVersion               = messaging.DeclarationVersion
-	DepartureDays                    = care.DepartureDays
-	DepartureMode                    = care.DepartureMode
-	EnrollablePhase                  = care.EnrollablePhase
-	EnrollmentRequestSummary         = care.EnrollmentRequestSummary
-	GuardianSubmitStatus             = care.GuardianSubmitStatus
-	InboxThread                      = messaging.InboxThread
-	ParentMessage                    = messaging.ParentMessage
-	RequestReasonPolicy              = care.RequestReasonPolicy
-	SettingsService                  = care.SettingsService
-	SettingsSnapshot                 = care.SettingsSnapshot
-	BatchSettingsService             = care.BatchSettingsService
-	StudentDataChangeRequest         = care.StudentDataChangeRequest
+	AllowedDepartureModes    = care.AllowedDepartureModes
+	ChildSummary             = care.ChildSummary
+	DepartureDays            = care.DepartureDays
+	DepartureMode            = care.DepartureMode
+	EnrollablePhase          = care.EnrollablePhase
+	EnrollmentRequestSummary = care.EnrollmentRequestSummary
+	GuardianSubmitStatus     = care.GuardianSubmitStatus
+	RequestReasonPolicy      = care.RequestReasonPolicy
+	SettingsService          = care.SettingsService
+	SettingsSnapshot         = care.SettingsSnapshot
+	BatchSettingsService     = care.BatchSettingsService
+	StudentDataChangeRequest = care.StudentDataChangeRequest
 )
 
 const (
@@ -216,4 +209,12 @@ const (
 	ReasonPolicyGuardians              = care.ReasonPolicyGuardians
 	ReasonPolicyNobody                 = care.ReasonPolicyNobody
 	ReasonPolicyStaff                  = care.ReasonPolicyStaff
+)
+
+// Consumer-owned catalog and request-identity read contracts.
+type (
+	CareOffering               = care.CareOffering
+	CareOfferingReads          = care.CareOfferingReads
+	OfferingChangeIdentity     = messaging.OfferingChangeIdentity
+	OfferingChangeRequestReads = messaging.OfferingChangeRequestReads
 )

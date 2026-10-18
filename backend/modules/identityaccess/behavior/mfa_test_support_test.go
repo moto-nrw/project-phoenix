@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -113,7 +113,7 @@ type gatedAuthService struct {
 // port and leaves the rest untouched, which is the situation a fail-open bug
 // needs to show itself: everything around the failing read still works.
 type failingMFARecords struct {
-	identityaccessCompose.AccountMFARecords
+	identityPorts.AccountMFARecords
 	countChallengesSince func(ctx context.Context, accountID int64, since time.Time) (int, error)
 	consumeChallenge     func(ctx context.Context, id int64, consumedAt time.Time) error
 	findCredential       func(ctx context.Context, accountID int64) (identityaccess.AccountMFACredential, bool, error)
@@ -150,7 +150,7 @@ func (r failingMFARecords) FindGlobalOverride(ctx context.Context, accountID int
 
 // withFailingMFARecords composes the module with one statement replaced.
 func withFailingMFARecords(replace failingMFARecords) api.AuthTestOption {
-	return api.WithAuthTestMFARecords(func(records identityaccessCompose.AccountMFARecords) identityaccessCompose.AccountMFARecords {
+	return api.WithAuthTestMFARecords(func(records identityPorts.AccountMFARecords) identityPorts.AccountMFARecords {
 		replace.AccountMFARecords = records
 		return replace
 	})

@@ -38,7 +38,7 @@ func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(claims, guardianProfileData(profile)), "Profile retrieved")
+	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(common.GuardianProfileDefaults{FirstName: claims.FirstName, LastName: claims.LastName, Email: claims.Sub}, guardianProfileData(profile)), "Profile retrieved")
 }
 
 // guardianProfileData maps the already-authorized profile to the shared

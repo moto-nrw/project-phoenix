@@ -90,6 +90,47 @@ func TestCommandLogsRetentionWithoutSubject(t *testing.T) {
 	require.ErrorContains(t, command.LogRetention(context.Background(), "manual", 1, 1), "unknown data kind")
 }
 
+// The access log and the operator ledger keep a row until the end of the
+// year after it (#3956, #4047): the cutoff is 1 January of last year
+// (Berlin), read a minute early so a lagging database clock agrees.
+func TestFollowingYearCutoffIsNewYearOfLastYear(t *testing.T) {
+	t.Parallel()
+	newYear := func(year int) time.Time { return time.Date(year, time.January, 1, 0, 0, 0, 0, calendar.Berlin) }
+	at := func(year int, month time.Month, day, hour, minute, second int) time.Time {
+		return time.Date(year, month, day, hour, minute, second, 0, calendar.Berlin)
+	}
+	assert.Equal(t, newYear(2025), followingYearCutoff(at(2026, time.October, 15, 12, 0, 0)))
+	assert.Equal(t, newYear(2025), followingYearCutoff(at(2027, time.January, 1, 0, 0, 30)), "within the margin")
+	assert.Equal(t, newYear(2026), followingYearCutoff(at(2027, time.January, 1, 0, 1, 30)))
+}
+
+type operatorLedgerStore struct {
+	commandStore
+	called bool
+}
+
+func (s *operatorLedgerStore) DeleteExpiredOperatorAuditLog(context.Context) (int64, error) {
+	s.called = true
+	return 4, nil
+}
+
+func TestCommandDeletesTheOperatorLedgerAtTheFollowingYearCutoff(t *testing.T) {
+	t.Parallel()
+	store := &operatorLedgerStore{}
+	command, err := NewCommand(store, func(AppendObservation) {})
+	require.NoError(t, err)
+
+	deleted, err := command.DeleteExpiredOperatorAuditLog(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 4, deleted)
+	assert.True(t, store.called)
+
+	plain, err := NewCommand(&commandStore{}, func(AppendObservation) {})
+	require.NoError(t, err)
+	_, err = plain.DeleteExpiredOperatorAuditLog(context.Background())
+	require.ErrorContains(t, err, "operator ledger retention store")
+}
+
 func TestCommandDeletesTheProtocolsInsideTheirFixedWindows(t *testing.T) {
 	t.Parallel()
 	store := &ledgerStore{}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -14,7 +13,7 @@ import (
 // operations.meal_plan_enabled toggle: if the school does not run a meal plan
 // the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
 func (s *Service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart calendar.Date) ([]MealPlanEntry, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +33,7 @@ func (s *Service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 		return nil, errors.New("parent: meal plan capability is required")
 	}
 	var out []MealPlanEntry
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, findErr := s.MealPlan.Week(txCtx, monday)
 		if findErr != nil {
 			return findErr
@@ -57,7 +56,7 @@ func (s *Service) mealPlanAvailableForTenant(ctx context.Context, tenantID int64
 		return false, errors.New("parent: meal plan capability is required")
 	}
 	var available bool
-	err := InTenant(ctx, tenantID, func(txCtx context.Context) error {
+	err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var resolveErr error
 		available, resolveErr = s.MealPlan.Available(txCtx)
 		return resolveErr
@@ -70,7 +69,7 @@ func (s *Service) mealRegistrationAvailableForTenant(ctx context.Context, tenant
 		return false, errors.New("parent: meal plan capability is required")
 	}
 	var available bool
-	err := InTenant(ctx, tenantID, func(txCtx context.Context) error {
+	err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var resolveErr error
 		available, resolveErr = s.MealPlan.RegistrationAvailable(txCtx)
 		return resolveErr
@@ -82,7 +81,7 @@ func (s *Service) mealRegistrationAvailableForTenant(ctx context.Context, tenant
 }
 
 func (s *Service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to calendar.Date) (MealParticipationPlan, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return MealParticipationPlan{}, err
 	}
@@ -91,7 +90,7 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 		return MealParticipationPlan{}, ErrMealParticipationOutOfRange
 	}
 	var plan MealParticipationPlan
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var readErr error
 		plan, readErr = s.MealPlan.Participation(txCtx, studentID, from, to)
 		return readErr
@@ -103,7 +102,7 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 }
 
 func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
 	if err != nil {
 		return "", err
 	}
@@ -111,7 +110,7 @@ func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 		return "", err
 	}
 	var effectiveFrom string
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -138,7 +137,7 @@ func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, stud
 }
 
 func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, change func(context.Context) error) error {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
 	if err != nil {
 		return err
 	}
@@ -149,7 +148,7 @@ func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, stu
 	if date.Before(today) || date.After(today.StartOfISOWeek().AddDays(11)) {
 		return ErrMealParticipationOutOfRange
 	}
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}

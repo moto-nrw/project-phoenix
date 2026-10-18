@@ -1,10 +1,12 @@
+//go:build testhooks
+
 package api
 
 import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -16,9 +18,9 @@ type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
 	School organizationtenancy.Capability
 
-	StudentGuardian     usersModels.StudentGuardianRepository
-	GuardianProfile     usersModels.GuardianProfileRepository
-	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
+	StudentGuardian     peoplePorts.StudentGuardianRepository
+	GuardianProfile     peoplePorts.GuardianProfileRepository
+	GuardianPhoneNumber peoplePorts.GuardianPhoneNumberRepository
 	Membership          schoolmembership.Capability
 	DataAccessLog       auditModels.DataAccessLogRepository
 }

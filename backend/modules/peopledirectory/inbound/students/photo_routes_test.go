@@ -1,7 +1,7 @@
 // Package students_test exercises the three HTTP handlers in
 // api/students/photo.go (uploadStudentPhoto, deleteStudentPhoto,
 // serveStudentPhoto) end-to-end through the production
-// Resource.Router(). The tests use the same hermetic pattern as
+// Resource.Router(rootAPI.ProtectedTenantRoutes). The tests use the same hermetic pattern as
 // usercontext_test.go: real database fixtures, real service factory,
 // real signed JWT minted via testutil.MintTestJWT so the full
 // middleware chain (Verifier → Authenticator → TenantMiddleware →
@@ -38,6 +38,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -195,7 +198,7 @@ func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string
 // the file is removed after a successful delete.
 func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
@@ -251,7 +254,7 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 	if filename == "" {
 		return
 	}
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	if err != nil {
 		return
 	}
@@ -284,7 +287,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -321,7 +324,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -353,7 +356,7 @@ func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -374,7 +377,7 @@ func TestUploadStudentPhoto_NoFile(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -396,7 +399,7 @@ func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -418,7 +421,7 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Einwilligung",
 		"German error message must surface so the OGS UI can display it verbatim")
@@ -445,7 +448,7 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "nicht aktiviert",
 		"feature-disabled response must use the canonical German message")
@@ -476,7 +479,7 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -498,7 +501,7 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -515,7 +518,7 @@ func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	assert.Empty(t, readStudentPhotoPath(t, tc, student.ID))
@@ -540,7 +543,7 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 	t.Cleanup(func() { _ = os.Remove(oldDisk) })
 
@@ -571,7 +574,7 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Foto entfernt")
@@ -594,7 +597,7 @@ func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Kein Foto vorhanden")
@@ -615,7 +618,7 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -640,7 +643,7 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
@@ -657,7 +660,7 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/9999998/photo", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -675,7 +678,7 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, storedURL, readStudentPhotoPath(t, tc, student.ID))
@@ -701,7 +704,7 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, "private, no-cache", rr.Header().Get("Cache-Control"),
@@ -718,7 +721,7 @@ func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/abc/photo/foo.jpg", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -741,7 +744,7 @@ func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -759,7 +762,7 @@ func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/anything.jpg", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -780,7 +783,7 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/wrong-filename.jpg", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "gehört nicht zu diesem Kind",
@@ -818,7 +821,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -851,7 +854,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -867,7 +870,7 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/9999997/photo/anything.jpg", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -885,7 +888,7 @@ func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", common.BuildStudentPhotoServeURL(student.ID, storedURL), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }

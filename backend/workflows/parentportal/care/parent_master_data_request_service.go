@@ -8,14 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MasterDataFieldChange is one proposed Track B change submitted by a parent.
@@ -29,17 +25,17 @@ type MasterDataFieldChange struct {
 // fields. These are the high-stakes / OGS-coupled fields a parent may only
 // propose, not apply directly.
 var trackBRequestableFields = map[string]bool{
-	usersModels.DataChangeTargetPerson + "/first_name":                 true,
-	usersModels.DataChangeTargetPerson + "/last_name":                  true,
-	usersModels.DataChangeTargetPerson + "/birthday":                   true,
-	usersModels.DataChangeTargetStudent + "/school_class":              true,
-	usersModels.DataChangeTargetDeparture + "/allowed_departure_modes": true,
+	DataChangeTargetPerson + "/first_name":                 true,
+	DataChangeTargetPerson + "/last_name":                  true,
+	DataChangeTargetPerson + "/birthday":                   true,
+	DataChangeTargetStudent + "/school_class":              true,
+	DataChangeTargetDeparture + "/allowed_departure_modes": true,
 }
 
 // SubmitMasterDataChangeRequest records one or more pending Track B change
 // requests for staff approval. Fields whose proposed value equals the current
 // value are skipped; a field with an already-pending request is rejected.
-func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*usersModels.StudentDataChangeRequest, error) {
+func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*StudentDataChangeRequest, error) {
 	if len(changes) == 0 {
 		return nil, ErrMasterDataNoChanges
 	}
@@ -49,7 +45,7 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		}
 	}
 
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataRequest)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +64,8 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	}
 
 	submission := masterDataSubmission{accountID: accountID, studentID: studentID, tenantID: child.TenantID, recipients: recipientGuardianProfileIDs}
-	var created []*usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	var created []*StudentDataChangeRequest
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, submitErr := s.submitMasterDataInTx(txCtx, submission, changes)
 		created = rows
 		return submitErr
@@ -99,7 +95,7 @@ type masterDataSubmission struct {
 }
 
 // submitMasterDataInTx records one pending request per changed field.
-func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDataSubmission, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error) {
+func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDataSubmission, changes []MasterDataFieldChange) ([]*StudentDataChangeRequest, error) {
 	// The permission check above used a snapshot. Acquire the same student
 	// row lock as a care exit and re-check its interval before inserting any
 	// pending request, so an exit cannot commit in the gap before this write.
@@ -115,9 +111,9 @@ func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDat
 		return nil, err
 	}
 
-	var created []*usersModels.StudentDataChangeRequest
+	var created []*StudentDataChangeRequest
 	for _, c := range changes {
-		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, person, student, c.Value)
+		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, MasterDataPersonValues(person), MasterDataStudentValues(student), c.Value, s.DeparturePolicy)
 		if fieldErr != nil {
 			return nil, fieldErr
 		}
@@ -139,7 +135,7 @@ func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDat
 // submitMasterDataField records one pending field request through Care Plan,
 // its ledger event and the family's share choice, in the caller's unit of
 // work.
-func (s *Service) submitMasterDataField(ctx context.Context, submission masterDataSubmission, c MasterDataFieldChange, oldRaw, newRaw json.RawMessage) (*usersModels.StudentDataChangeRequest, error) {
+func (s *Service) submitMasterDataField(ctx context.Context, submission masterDataSubmission, c MasterDataFieldChange, oldRaw, newRaw json.RawMessage) (*StudentDataChangeRequest, error) {
 	has, err := s.ChangeRequestRepo.HasPendingForField(ctx, submission.studentID, c.Target, c.FieldKey)
 	if err != nil {
 		return nil, err
@@ -147,30 +143,30 @@ func (s *Service) submitMasterDataField(ctx context.Context, submission masterDa
 	if has {
 		return nil, ErrMasterDataDuplicatePending
 	}
-	row := &usersModels.StudentDataChangeRequest{
+	row := &StudentDataChangeRequest{
 		StudentID:   submission.studentID,
 		SubmittedBy: submission.accountID,
 		Target:      c.Target,
 		FieldKey:    c.FieldKey,
 		OldValue:    oldRaw,
 		NewValue:    newRaw,
-		Status:      usersModels.DataChangeStatusPending,
+		Status:      DataChangeStatusPending,
 	}
-	row.SetTenantID(submission.tenantID)
+	row.TenantID = submission.tenantID
 	if err := s.createDataRequest(ctx, row); err != nil {
-		if isPendingChangeRequestUniqueViolation(err) {
+		if s.isPendingChangeRequestUniqueViolation(err) {
 			return nil, ErrMasterDataDuplicatePending
 		}
 		return nil, err
 	}
 	if err := RecordRequestEvent(ctx, s.ParentRequestEvents, RequestLedgerEntry{
 		StudentID:      submission.studentID,
-		RequestType:    usersModels.ParentRequestTypeMasterData,
+		RequestType:    ParentRequestTypeMasterData,
 		RequestID:      row.ID,
-		EventType:      usersModels.ParentRequestEventSubmitted,
+		EventType:      ParentRequestEventSubmitted,
 		ActorAccountID: submission.accountID,
 		UpdatedAt:      row.UpdatedAt,
-		Payload:        map[string]any{"target": c.Target, "field": c.FieldKey},
+		Payload:        dataRequestEventPayload(c.Target, c.FieldKey),
 	}); err != nil {
 		return nil, err
 	}
@@ -193,24 +189,24 @@ func (s *Service) submitMasterDataField(ctx context.Context, submission masterDa
 // created↔decision ref paired: the thread timeline and the deep-link into the
 // Änderungsanfragen queue resolve the exact row for any field, not just
 // created[0]. Best-effort, after commit.
-func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission masterDataSubmission, created []*usersModels.StudentDataChangeRequest) {
+func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission masterDataSubmission, created []*StudentDataChangeRequest) {
 	refIDs := make([]int64, len(created))
 	for i, row := range created {
 		refIDs[i] = row.ID
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		if s.Emitter == nil {
 			return
 		}
 		for i := range refIDs {
 			refID := refIDs[i]
-			s.Emitter.EmitChildEvent(submission.tenantID, submission.studentID, submission.accountID, parentmessaging.ChildEvent{
+			s.Emitter.EmitChildEvent(submission.tenantID, submission.studentID, submission.accountID, ChildEvent{
 				EventType:      "request_created",
-				ActorKind:      usersModels.ParentMessageSenderGuardian,
+				ActorKind:      ParentMessageSenderGuardian,
 				ActorAccountID: submission.accountID,
 				Body:           "Anfrage: Stammdaten ändern",
-				RequestType:    usersModels.ParentMessageRequestMasterData,
-				RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+				RequestType:    ParentMessageRequestMasterData,
+				RequestStatus:  ParentMessageRequestStatusOpen,
 				RefTable:       "users.student_data_change_requests",
 				RefID:          &refID,
 			})
@@ -222,13 +218,13 @@ func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission mas
 // newest-first. It deliberately excludes Track A guardian contact audit rows so
 // one linked parent cannot read another guardian's private email/phone/address
 // old/new values.
-func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error) {
+func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*StudentDataChangeRequest, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
-	var out []*usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	var out []*StudentDataChangeRequest
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
 			return listErr
@@ -237,7 +233,7 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		if visibilityErr != nil {
 			return visibilityErr
 		}
-		out = make([]*usersModels.StudentDataChangeRequest, 0, len(rows))
+		out = make([]*StudentDataChangeRequest, 0, len(rows))
 		for _, row := range rows {
 			if row != nil && visibility.Allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
 				out = append(out, row)
@@ -259,16 +255,16 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 // field stay fixed — changing those is a different request.
 func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
-) (*usersModels.StudentDataChangeRequest, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataRequest)
+) (*StudentDataChangeRequest, error) {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
 	if err != nil {
 		return nil, err
 	}
 	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
-	var out *usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	var out *StudentDataChangeRequest
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr
@@ -284,7 +280,7 @@ func (s *Service) EditMasterDataRequest(
 
 func (s *Service) editMasterDataRequestInTx(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
-) (*usersModels.StudentDataChangeRequest, error) {
+) (*StudentDataChangeRequest, error) {
 	req, err := s.ChangeRequestRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
 		return nil, err
@@ -292,12 +288,12 @@ func (s *Service) editMasterDataRequestInTx(
 	// A request that is not the caller's own is reported as missing, never as
 	// forbidden: a stranger must not learn that the id exists.
 	if req.SubmittedBy != accountID || req.StudentID != studentID {
-		return nil, usersModels.ErrChangeRequestNotFound
+		return nil, s.ChangeRequestRepo.NotFoundError()
 	}
-	if req.Status != usersModels.DataChangeStatusPending {
-		return nil, usersModels.ErrChangeRequestNotPending
+	if req.Status != DataChangeStatusPending {
+		return nil, s.ChangeRequestRepo.NotPendingError()
 	}
-	if expectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+	if expectedVersion != "" && excusedrequests.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
 		return nil, parentrequests.ErrStale
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
@@ -314,7 +310,7 @@ func (s *Service) editMasterDataRequestInTx(
 	// Same validator the create path runs, against the CURRENT record: an edit
 	// may not propose a value the submit path would have refused, and one that
 	// meanwhile equals the live value is no request at all.
-	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, person, student, newValue)
+	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, MasterDataPersonValues(person), MasterDataStudentValues(student), newValue, s.DeparturePolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -330,35 +326,35 @@ func (s *Service) editMasterDataRequestInTx(
 	}
 	if err := RecordRequestEvent(ctx, s.ParentRequestEvents, RequestLedgerEntry{
 		StudentID:      row.StudentID,
-		RequestType:    usersModels.ParentRequestTypeMasterData,
+		RequestType:    ParentRequestTypeMasterData,
 		RequestID:      row.ID,
-		EventType:      usersModels.ParentRequestEventGuardianEdit,
+		EventType:      ParentRequestEventGuardianEdit,
 		ActorAccountID: accountID,
 		UpdatedAt:      row.UpdatedAt,
-		Payload:        map[string]any{"target": row.Target, "field": row.FieldKey},
+		Payload:        dataRequestEventPayload(row.Target, row.FieldKey),
 	}); err != nil {
 		return nil, err
 	}
 	return row, nil
 }
 
-func trackBFieldState(target, field string, person *usersModels.Person, student *usersModels.Student, value json.RawMessage) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
+func trackBFieldState(target, field string, person *MasterDataPerson, student *MasterDataStudent, value json.RawMessage, policy DeparturePolicy) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
 	switch target {
-	case usersModels.DataChangeTargetPerson:
+	case DataChangeTargetPerson:
 		return trackBPersonFieldState(field, person, value)
-	case usersModels.DataChangeTargetStudent:
+	case DataChangeTargetStudent:
 		return trackBStudentFieldState(field, student, value)
-	case usersModels.DataChangeTargetDeparture:
+	case DataChangeTargetDeparture:
 		if field != "allowed_departure_modes" {
 			return nil, nil, false, ErrMasterDataFieldNotEditable
 		}
-		return trackBDepartureState(student, value)
+		return trackBDepartureState(student, value, policy)
 	default:
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
 }
 
-func trackBStudentFieldState(field string, student *usersModels.Student, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBStudentFieldState(field string, student *MasterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	if field != "school_class" {
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
@@ -369,7 +365,7 @@ func trackBStudentFieldState(field string, student *usersModels.Student, value j
 	return jsonString(student.SchoolClass), jsonString(newClass), newClass != student.SchoolClass, nil
 }
 
-func trackBPersonFieldState(field string, person *usersModels.Person, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBPersonFieldState(field string, person *MasterDataPerson, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	newStr, decErr := decodeStringValue(value)
 	if decErr != nil {
 		return nil, nil, false, decErr
@@ -401,7 +397,7 @@ func trackBPersonFieldState(field string, person *usersModels.Person, value json
 	}
 }
 
-func birthdayPtr(person *usersModels.Person) *string {
+func birthdayPtr(person *MasterDataPerson) *string {
 	if person.Birthday == nil {
 		return nil
 	}
@@ -409,28 +405,28 @@ func birthdayPtr(person *usersModels.Person) *string {
 	return &s
 }
 
-func trackBDepartureState(student *usersModels.Student, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
-	var modes usersModels.AllowedDepartureModes
-	if err := json.Unmarshal(value, &modes); err != nil {
+func trackBDepartureState(student *MasterDataStudent, value json.RawMessage, policy DeparturePolicy) (json.RawMessage, json.RawMessage, bool, error) {
+	next, err := policy.Inspect(value, true)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	if err := modes.Validate(); err != nil {
+	currentRaw, err := json.Marshal(student.AllowedDepartureModes)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	if modes.HasMode(usersModels.DepartureAccompanied) ||
-		student.AllowedDepartureModes.HasMode(usersModels.DepartureAccompanied) {
+	current, err := policy.Inspect(currentRaw, false)
+	if err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
-	normalized := modes.Normalize()
-	current := student.AllowedDepartureModes.Normalize()
-	newRaw, _ := json.Marshal(normalized)
-	oldRaw, _ := json.Marshal(current)
-	return oldRaw, newRaw, !bytes.Equal(newRaw, oldRaw), nil
+	if next.Accompanied || current.Accompanied {
+		return nil, nil, false, ErrMasterDataInvalidValue
+	}
+	return current.Normalized, next.Normalized, !bytes.Equal(next.Normalized, current.Normalized), nil
 }
 
 // isPendingChangeRequestUniqueViolation reports Care Plan's refusal of a
 // second pending request for the same field (the partial unique index on
 // users.student_data_change_requests).
-func isPendingChangeRequestUniqueViolation(err error) bool {
-	return errors.Is(err, careplan.ErrStudentDataRequestFieldPending)
+func (s *Service) isPendingChangeRequestUniqueViolation(err error) bool {
+	return errors.Is(err, s.CarePlanPolicy.Error(CarePlanStudentDataRequestFieldPending))
 }

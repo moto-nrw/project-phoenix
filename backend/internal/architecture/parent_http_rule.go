@@ -2,8 +2,8 @@ package architecture
 
 // reviewedParentHTTPRule is the finite standing reach of the guardian portal
 // HTTP composition (parent-portal), approved in ADR 0051 for #3421. It grants
-// the three runtime points every other HTTP adapter reaches through a standing
-// rule: the shared HTTP runtime, the session adapter and the tenant runtime,
+// the two runtime points every other HTTP adapter reaches through a standing
+// rule: the session adapter and the tenant runtime,
 // and the session adapter to the handler suites for token construction. It
 // never permits application, ORM, model or composition imports. The session
 // token runtime carries Identity's http role (ADR 0057 point 3).
@@ -20,7 +20,7 @@ func reviewedParentHTTPRule(rule Rule) bool {
 		return false
 	}
 	switch rule.TargetOwner + "/" + rule.TargetRole {
-	case "inbound-common/http", "identity-access/http", "tenant-runtime/public":
+	case "identity-access/http", "tenant-runtime/public":
 		return true
 	default:
 		return false

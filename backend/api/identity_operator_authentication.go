@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -155,14 +156,14 @@ func (d tenancyDirectory) ListSchools(ctx context.Context, ids []int64) ([]ident
 	return result, nil
 }
 
-func (d tenancyDirectory) ListOrganizationNames(ctx context.Context, ids []int64) ([]identityaccessCompose.OrganizationName, error) {
+func (d tenancyDirectory) ListOrganizationNames(ctx context.Context, ids []int64) ([]identityPorts.OrganizationName, error) {
 	organizations, err := d.query.ListOrganizationsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]identityaccessCompose.OrganizationName, 0, len(organizations))
+	result := make([]identityPorts.OrganizationName, 0, len(organizations))
 	for _, organization := range organizations {
-		result = append(result, identityaccessCompose.OrganizationName{ID: organization.ID, Name: organization.Name})
+		result = append(result, identityPorts.OrganizationName{ID: organization.ID, Name: organization.Name})
 	}
 	return result, nil
 }
@@ -189,17 +190,17 @@ func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, ac
 	return person != nil && person.DeletedAt == nil, nil
 }
 
-func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]identityaccessCompose.AccountPersonIdentity, error) {
+func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]identityPorts.AccountPersonIdentity, error) {
 	persons, err := p.persons.List(ctx, map[string]interface{}{"account_id": accountID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]identityaccessCompose.AccountPersonIdentity, 0, len(persons))
+	result := make([]identityPorts.AccountPersonIdentity, 0, len(persons))
 	for _, person := range persons {
 		if person == nil {
 			continue
 		}
-		identity := identityaccessCompose.AccountPersonIdentity{
+		identity := identityPorts.AccountPersonIdentity{
 			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName, Deleted: person.DeletedAt != nil,
 		}
 		if !identity.Deleted {
@@ -232,7 +233,7 @@ func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, 
 	return p.caregivers.hasLive(ctx, accountID)
 }
 
-func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityaccessCompose.SchoolIdentityRequest) error {
+func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityPorts.SchoolIdentityRequest) error {
 	// Production compositions bind the module's account-lifecycle chain
 	// (#3225). This fallback only runs when that chain was not composed.
 	return errors.New("school identity provisioning is not composed")
@@ -241,14 +242,14 @@ func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identit
 // ListAccountIdentityFacts resolves, per school, whether a person and a
 // live staff record back the account: the most recently updated person per
 // school counts, and its staff record only at that same school.
-func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]identityaccessCompose.AccountIdentityFact, error) {
+func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]identityPorts.AccountIdentityFact, error) {
 	persons, err := p.directory.ListPersonsByAccount(ctx, []int64{accountID})
 	if err != nil {
 		return nil, fmt.Errorf("load persons by account: %w", err)
 	}
 	personByTenant := latestPersonPerSchool(persons, accountID)
 	if len(personByTenant) == 0 {
-		return []identityaccessCompose.AccountIdentityFact{}, nil
+		return []identityPorts.AccountIdentityFact{}, nil
 	}
 	personIDs := make([]int64, 0, len(personByTenant))
 	for _, person := range personByTenant {
@@ -264,10 +265,10 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 			staffTenantByPerson[member.PersonID] = member.TenantID
 		}
 	}
-	facts := make([]identityaccessCompose.AccountIdentityFact, 0, len(personByTenant))
+	facts := make([]identityPorts.AccountIdentityFact, 0, len(personByTenant))
 	for tenantID, person := range personByTenant {
 		staffTenant, hasStaff := staffTenantByPerson[person.ID]
-		facts = append(facts, identityaccessCompose.AccountIdentityFact{TenantID: tenantID, HasPerson: true, HasStaff: hasStaff && staffTenant == tenantID})
+		facts = append(facts, identityPorts.AccountIdentityFact{TenantID: tenantID, HasPerson: true, HasStaff: hasStaff && staffTenant == tenantID})
 	}
 	return facts, nil
 }

@@ -12,8 +12,10 @@ import (
 )
 
 type DemoSchoolRecord struct {
-	SchoolID int64
-	SeedJSON []byte
+	SchoolID               int64
+	SeedJSON               []byte
+	VisitorAccountID       int64
+	VisitorParentAccountID int64
 }
 
 type DemoVisit struct {
@@ -25,7 +27,7 @@ type DemoVisit struct {
 // demoSchoolStore is the part of the owner's demo-state capability whose
 // signatures carry no owner type.
 type demoSchoolStore interface {
-	ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error
+	ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error
 	WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error
 }
 
@@ -40,7 +42,7 @@ type demoSchoolQueue interface {
 	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
 	ReadyDemoSchools(context.Context) ([]string, error)
 	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
-	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
+	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 }
 
 type demoAccessExpiry interface {
@@ -90,13 +92,13 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 			if state == nil || err != nil {
 				return nil, err
 			}
-			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
+			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON, VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID}, nil
 		},
 		storeSchool: func(ctx context.Context, name string, record DemoSchoolRecord, update bool) error {
 			if update {
-				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON, record.VisitorAccountID, record.VisitorParentAccountID)
 			}
-			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON, record.VisitorAccountID, record.VisitorParentAccountID)
 		},
 		claimOrder: func(ctx context.Context) (*DemoSchoolOrder, error) {
 			order, err := queue.ClaimDemoSchoolOrder(ctx)
@@ -129,8 +131,10 @@ func (d *DemoRuntime) ExpireDemoAccesses(ctx context.Context) (int, []string, er
 	return d.expiry.ExpireDemoAccesses(ctx)
 }
 
-// RetireDemoSchools hides the named demo schools and returns how many it hid.
-func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+// RetireDemoSchools hides the named demo schools, then erases the visitors
+// of the demo schools out of use (#4048). It returns how many schools it hid
+// and how many orders it erased.
+func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, int, error) {
 	return d.queue.RetireDemoSchools(ctx, slugs)
 }
 
@@ -190,8 +194,8 @@ func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 
 // ReserveDemoSchool remembers a newly bootstrapped school before its full
 // seed contract is available for persistence.
-func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
-	return d.schools.ReserveDemoSchool(ctx, name, schoolID)
+func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
+	return d.schools.ReserveDemoSchool(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)
 }
 
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {

@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
@@ -24,30 +24,34 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
-	request := &userModels.StudentDataChangeRequest{
+	request := &parentportal.StudentDataChangeRequest{
 		StudentID: author.StudentID, SubmittedBy: author.AccountID,
-		Target: userModels.DataChangeTargetPerson, FieldKey: "first_name",
+		Target: parentportal.DataChangeTargetPerson, FieldKey: "first_name",
 		OldValue: json.RawMessage(`"Felix"`), NewValue: json.RawMessage(`"Feli"`),
-		Status: userModels.DataChangeStatusPending,
+		Status: parentportal.DataChangeStatusPending,
 	}
-	request.SetTenantID(author.TenantID)
-	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
-	svc := messaging.New(messaging.Config{
-		Children:  childResolver(db, repos),
-		ChildRepo: repos.ParentChild, GuardianProfileRepo: repos.GuardianProfile,
-		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
-		ChangeRequestRepo:      repos.StudentDataChangeRequest,
-		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
+	request.TenantID = author.TenantID
+	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		GuardianPolicy: api.NewParentGuardianPolicy(),
+		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
+		Runtime:        api.ParentPortalRuntime{},
+		Children:       childResolver(db, repos),
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
+		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		Logger: slog.Default(),
 	})
-	sharing := messaging.RequestSharingService(svc)
+	sharing := parentportal.RequestSharingService(svc)
 
-	_, err := sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{other.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID, author.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, other.AccountID, other.StudentID, messaging.RequestShareMasterData, request.ID, nil)
+	_, err := sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{other.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID, author.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, other.AccountID, other.StudentID, parentportal.RequestShareMasterData, request.ID, nil)
 	assert.Error(t, err)
 }

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -78,7 +81,7 @@ func NewInvitationTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 // AccountMFARecords is the account MFA record port the composed module
 // consumes, named here so a behaviour test can decorate it without reaching
 // into the module's composition package.
-type AccountMFARecords = identityaccessCompose.AccountMFARecords
+type AccountMFARecords = identityPorts.AccountMFARecords
 
 // AuthTestOption overrides a default of the composed test module.
 type AuthTestOption func(*authTestSettings)

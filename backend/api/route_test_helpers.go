@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -5,10 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
@@ -29,17 +33,18 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 		return nil, err
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		CareRequestService:  module.CareRequests, UserContextService: module.UserContext,
 		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
-	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router())
-	router.Mount("/api/students", students.Router())
+	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router(ParentSessionChain))
+	router.Mount("/api/students", students.Router(ProtectedTenantRoutes))
 	return router, nil
 }
 
-func newStudentPhotoTestUnlinker() peopleCompose.PhotoUnlinker {
-	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public")
+func newStudentPhotoTestUnlinker() peoplePorts.PhotoUnlinker {
+	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
 }
 
 func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {

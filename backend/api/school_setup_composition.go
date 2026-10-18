@@ -47,9 +47,9 @@ func newStaffOnboardingRoute() (moduleRoute, error) {
 func schoolSetupRuntime() schoolSetupHTTP.Runtime {
 	return schoolSetupHTTP.Runtime{
 		Protected: func(r chi.Router, fn func(chi.Router, schoolSetupHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(r, fn)
+			ProtectedTenantRoutes(r, fn)
 		},
-		RequireWrite: apiCommon.RequireConfigWrite(),
+		RequireWrite: RequireConfigWrite(),
 		Actor: func(ctx context.Context) (int64, int64) {
 			principal, err := apiCommon.CurrentPrincipal(ctx)
 			if err != nil {

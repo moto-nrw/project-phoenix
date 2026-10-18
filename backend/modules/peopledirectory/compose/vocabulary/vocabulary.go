@@ -5,7 +5,6 @@
 package vocabulary
 
 import (
-	repository "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	upstream "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -21,55 +20,36 @@ type (
 	CareWithdrawalCompletion           = upstream.CareWithdrawalCompletion
 	CareWithdrawalCompletionFilter     = upstream.CareWithdrawalCompletionFilter
 	CareWithdrawalCompletionRepository = upstream.CareWithdrawalCompletionRepository
-	CaregiverBindingLocker             = repository.CaregiverBindingLocker
 	CompanionChangeRecorder            = upstream.CompanionChangeRecorder
 	CompanionLink                      = upstream.CompanionLink
-	DatabaseError                      = repository.DatabaseError
 	DepartureMode                      = upstream.DepartureMode
 	DeparturePlanSnapshot              = upstream.DeparturePlanSnapshot
 	FamilyProtectionEventRepository    = upstream.FamilyProtectionEventRepository
 	GuardianEmergencyContactRow        = upstream.GuardianEmergencyContactRow
 	GuardianFinancialDataRepository    = upstream.GuardianFinancialDataRepository
 	GuardianPhoneNumber                = upstream.GuardianPhoneNumber
-	GuardianPhoneNumberRepository      = repository.GuardianPhoneNumberRepository
 	GuardianProfile                    = upstream.GuardianProfile
-	GuardianProfileRepository          = repository.GuardianProfileRepository
 	Guest                              = upstream.Guest
-	GuestRepository                    = repository.GuestRepository
 	MonthDay                           = upstream.MonthDay
-	ParentAnnouncementRepository       = upstream.ParentAnnouncementRepository
-	ParentMessageReadRepository        = upstream.ParentMessageReadRepository
-	ParentMessageRepository            = upstream.ParentMessageRepository
-	ParentMessageThreadRepository      = upstream.ParentMessageThreadRepository
 	ParentRequestEvent                 = upstream.ParentRequestEvent
 	ParentRequestEventRepository       = upstream.ParentRequestEventRepository
 	ParentRequestShareEventRepository  = upstream.ParentRequestShareEventRepository
 	Person                             = upstream.Person
 	PersonAccount                      = upstream.PersonAccount
-	PersonRepository                   = repository.PersonRepository
 	PhoneType                          = upstream.PhoneType
-	QueryFilter                        = repository.QueryFilter
-	QueryOptions                       = repository.QueryOptions
-	RequestQueueFilters                = repository.RequestQueueFilters
 	Staff                              = upstream.Staff
 	StaffMessageReadRepository         = upstream.StaffMessageReadRepository
 	StaffMessageRepository             = upstream.StaffMessageRepository
 	StaffMessageThreadRepository       = upstream.StaffMessageThreadRepository
-	StaffRepository                    = repository.StaffRepository
 	StaffWithRoleInfo                  = upstream.StaffWithRoleInfo
 	Student                            = upstream.Student
 	StudentCompanion                   = upstream.StudentCompanion
-	StudentCompanionRepository         = repository.StudentCompanionRepository
 	StudentConsentState                = upstream.StudentConsentState
 	StudentDataChangeRequest           = upstream.StudentDataChangeRequest
-	StudentDataChangeRequestRepository = repository.StudentDataChangeRequestRepository
 	StudentGuardian                    = upstream.StudentGuardian
-	StudentGuardianRepository          = repository.StudentGuardianRepository
-	StudentRepository                  = repository.StudentRepository
 	StudentStatus                      = upstream.StudentStatus
 	StudentWithGroupInfo               = upstream.StudentWithGroupInfo
 	Teacher                            = upstream.Teacher
-	TeacherRepository                  = repository.TeacherRepository
 )
 
 const (
@@ -94,7 +74,6 @@ const (
 	ParentRequestEventSubmitted        = upstream.ParentRequestEventSubmitted
 	ParentRequestTypeCareSchedule      = upstream.ParentRequestTypeCareSchedule
 	ParentRequestTypePickupChange      = upstream.ParentRequestTypePickupChange
-	SortDesc                           = repository.SortDesc
 	StudentStatusActive                = upstream.StudentStatusActive
 	StudentStatusAlumnus               = upstream.StudentStatusAlumnus
 	StudentStatusInactive              = upstream.StudentStatusInactive
@@ -114,20 +93,14 @@ var (
 	ErrGuardianAccountConflict         = upstream.ErrGuardianAccountConflict
 	ErrGuardianProfileNotFound         = upstream.ErrGuardianProfileNotFound
 	ErrPersonnelNumberConflict         = upstream.ErrPersonnelNumberConflict
-	ErrRepositoryNotFound              = repository.ErrRepositoryNotFound
 	ErrStudentGuardianNotFound         = upstream.ErrStudentGuardianNotFound
 	ErrStudentRowMissing               = upstream.ErrStudentRowMissing
-	IsRepositoryNoRows                 = repository.IsRepositoryNoRows
-	NewQueryFilter                     = repository.NewQueryFilter
-	NewQueryOptions                    = repository.NewQueryOptions
 	AccompaniedWeekdays                = upstream.AccompaniedWeekdays
 	ContextWithCompanionChangeRecorder = upstream.ContextWithCompanionChangeRecorder
 	EnrolledOn                         = upstream.EnrolledOn
-	MissingStudentError                = repository.MissingStudentError
 	MonthDayOf                         = upstream.MonthDayOf
 	OptionalCalendarDate               = upstream.OptionalCalendarDate
 	RecordCompanionChange              = upstream.RecordCompanionChange
 	RenderCalendarDate                 = upstream.RenderCalendarDate
-	RowMissing                         = repository.RowMissing
 	WithAccompaniedDays                = upstream.WithAccompaniedDays
 )

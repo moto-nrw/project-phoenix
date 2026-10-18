@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -40,6 +42,9 @@ type PreferenceOverview struct {
 
 // PreferenceService owns per-account notification consent.
 type PreferenceService interface {
+	StaffPreferences() devices.StaffNotificationPreferences
+	SupportedLocale(string) bool
+	ParentPreferences() devices.NotificationPreferences
 	// GetForAccount returns the full catalogue of one portal with the account's
 	// stored decisions merged in. Types the account never touched read as off.
 	GetForAccount(ctx context.Context, accountID int64, portal string) (*PreferenceOverview, error)

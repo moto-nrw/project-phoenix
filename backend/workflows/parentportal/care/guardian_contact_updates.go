@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // UpdateGuardianContact replaces the contact data (name, email, address,
@@ -19,7 +15,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	if err := validateContactInput(&input); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionGuardianEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +31,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianContactInTx(txCtx, child, accountID, studentID, guardianProfileID, input)
 		result = updated
 		return err
@@ -109,7 +105,7 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 	// Containment passed (or self), so the edited profile does not escape the
 	// caller's family: not shared-locked from this caller's view.
 	result := projectChildGuardian(profile, target.link, phones, accountID, true,
-		child.HasPermission(authorize.GuardianPermissionPickupManage), false)
+		child.HasPermission(GuardianPermissionPickupManage), false, s.GuardianPolicy.IsFullRole)
 	s.broadcastProfileChildrenAfterCommit(ctx, child.TenantID, target.profileLinks)
 	return result, nil
 }
@@ -117,9 +113,9 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 // editableGuardianContact is a guardian profile the caller may edit, locked
 // together with its relationship to the child.
 type editableGuardianContact struct {
-	profile      *usersModels.GuardianProfile
-	link         *usersModels.StudentGuardian
-	profileLinks []*usersModels.StudentGuardian
+	profile      *GuardianProfile
+	link         *GuardianRelationship
+	profileLinks []*GuardianRelationship
 }
 
 // lockEditableGuardianContact locks the profile, then its relationship row,
@@ -130,7 +126,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 	// replace (delete-all then re-insert) would otherwise race under
 	// read-committed and could lose an update or duplicate phone rows.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return editableGuardianContact{}, ErrGuardianNotLinked
 		}
 		return editableGuardianContact{}, err
@@ -157,7 +153,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 		return editableGuardianContact{}, err
 	}
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
-	if err := refuseContactEdit(profile, link, isSelf); err != nil {
+	if err := refuseContactEdit(profile, link, isSelf, s.GuardianPolicy.IsFullRole); err != nil {
 		return editableGuardianContact{}, err
 	}
 	// A contact edit propagates to every child the profile serves (intended for
@@ -178,7 +174,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 
 // profileStaysInFamily reports whether every child the profile serves belongs
 // to the caller's family.
-func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStudents map[int64]bool) bool {
+func profileStaysInFamily(profileLinks []*GuardianRelationship, callerStudents map[int64]bool) bool {
 	for _, pl := range profileLinks {
 		if !callerStudents[pl.StudentID] {
 			return false
@@ -189,7 +185,7 @@ func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStu
 
 // refuseContactEdit applies the contact-edit eligibility: only contact-only
 // helpers or the caller's own profile are editable.
-func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf bool) error {
+func refuseContactEdit(profile *GuardianProfile, link *GuardianRelationship, isSelf bool, fullGuardianRole func(string) bool) error {
 	// Editing another account holder's personal data is forbidden — the UI is
 	// not the boundary, the backend is. "Account holder" is derived from
 	// has_account OR account_id (HasPortalAccount): isSelf already keys off
@@ -201,7 +197,7 @@ func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.S
 	}
 	// A social worker is a school-managed professional contact; a parent may
 	// not rewrite their personal data (mirrors the read redaction).
-	if !isSelf && link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if !isSelf && link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	// A full guardian (primary/legal/co) is a real legal guardian, not a
@@ -210,7 +206,7 @@ func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.S
 	// because they lack a login). Only the guardian themselves or the school
 	// manages them. Helper roles (pickup_only/emergency_contact/custom) stay
 	// editable — that is the intended account-less helper case.
-	if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+	if !isSelf && fullGuardianRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
 	return nil
@@ -218,12 +214,12 @@ func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.S
 
 // broadcastProfileChildrenAfterCommit refreshes the live view of every child
 // the edited profile serves, once the edit has committed.
-func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenantID int64, profileLinks []*usersModels.StudentGuardian) {
+func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenantID int64, profileLinks []*GuardianRelationship) {
 	affectedStudents := make([]int64, 0, len(profileLinks))
 	for _, pl := range profileLinks {
 		affectedStudents = append(affectedStudents, pl.StudentID)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		for _, sid := range affectedStudents {
 			s.broadcastStudentUpdated(tenantID, sid)
 		}
@@ -232,7 +228,7 @@ func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenan
 
 // guardianContactLink is the relationship as People Directory stores it. The
 // permissions travel as their stored JSON object.
-func guardianContactLink(link *usersModels.StudentGuardian) (GuardianContactLink, error) {
+func guardianContactLink(link *GuardianRelationship) (GuardianContactLink, error) {
 	var permissions json.RawMessage
 	if link.Permissions != nil {
 		encoded, err := json.Marshal(link.Permissions)
@@ -252,9 +248,9 @@ func guardianContactLink(link *usersModels.StudentGuardian) (GuardianContactLink
 
 // findLinkedGuardianProfile reads the locked profile; a missing one is
 // reported as not linked.
-func (s *Service) findLinkedGuardianProfile(ctx context.Context, guardianProfileID int64) (*usersModels.GuardianProfile, error) {
+func (s *Service) findLinkedGuardianProfile(ctx context.Context, guardianProfileID int64) (*GuardianProfile, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
-	if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+	if errors.Is(err, ErrGuardianProfileNotFound) {
 		return nil, ErrGuardianNotLinked
 	}
 	return profile, err

@@ -29,25 +29,36 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:               repos.CarePlan(),
+		GuardianChanges:        api.ParentGuardianChanges(),
+		DeparturePolicy:        api.ParentDeparturePolicy(),
+		GuardianPolicy:         api.NewParentGuardianPolicy(),
+		Fingerprints:           api.SecurityFingerprints{},
+		Declarations:           api.ParentDeclarationPolicy(),
+		Locales:                api.ParentPortalLocales(),
+		Runtime:                api.ParentPortalRuntime{},
+		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
-		ChildRepo:              repos.ParentChild,
+		ChildRepo:              repos.ParentChildReads(),
 		StatusDayRepo:          repos.StudentStatusDay,
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
-		ParentRequestEvents:    repos.ParentRequestEvent,
-		ExcusedRequests:        excused,
+		StudentRepo:            api.NewParentStudentReads(repos.Student),
+		PersonRepo:             api.NewParentPersonReads(repos.Person),
+		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo:    api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
+		ParentRequestEvents:    api.NewParentRequestEvents(repos.ParentRequestEvent),
+		ExcusedRequests:        api.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
 		Logger: slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	// Portal implements the sharing surface at compile time.
 	var sharing parentService.RequestSharingService = svc

@@ -50,8 +50,9 @@ type AccountLifecycle interface {
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService AccountLifecycle
-	Sessions    AccountSessions
+	ConstraintViolation func(error) bool
+	AuthService         AccountLifecycle
+	Sessions            AccountSessions
 	// Invitations is the Identity & Access invitation capability the
 	// invitation routes call directly (#3332).
 	Invitations Invitations
@@ -103,8 +104,12 @@ type RoleGrantPolicy interface {
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool) *Resource {
+	if constraintViolation == nil {
+		panic("account resource: database failure classifier is required")
+	}
 	return &Resource{
+		ConstraintViolation: constraintViolation,
 		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,
@@ -165,7 +170,7 @@ func requirePlatformScope(next http.Handler) http.Handler {
 // RouterWithAuthRateLimiter returns the auth router with the given rate
 // limiter middleware on the public login, password-reset, MFA and
 // passkey-login routes; nil mounts them unthrottled.
-func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -175,7 +180,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	rs.mountPublicRoutes(r, authRateLimiter)
 	rs.mountSessionRoutes(r)
 	// Protected routes that require access token
-	r.Group(rs.mountAuthenticatedRoutes)
+	r.Group(func(r chi.Router) { rs.mountAuthenticatedRoutes(r, configureSession) })
 
 	return r
 }
@@ -249,14 +254,11 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 // mountAuthenticatedRoutes registers the routes that require an access token:
 // the caller's own account, tenant switch, staff-view preview, and the admin
 // routes behind the tenant transaction.
-func (rs *Resource) mountAuthenticatedRoutes(r chi.Router) {
-	r.Use(sessiontoken.Authenticator)
+func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func(chi.Router)) {
 	// Write block for admin staff-view preview tokens (#2893): a preview
 	// token must not switch tenants, change passwords, manage roles, or
 	// start another preview. Same placement as in ProtectedTenantGroup.
-	r.Use(common.ReadOnlyPreviewMiddleware)
-	r.Use(common.TenantScopeMiddleware)
-	r.Use(common.SecurityPrincipalMiddleware)
+	configureSession(r)
 
 	// Tenant switching
 	r.Post("/switch-tenant", rs.switchTenant)

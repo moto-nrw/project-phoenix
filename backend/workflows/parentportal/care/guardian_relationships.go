@@ -6,11 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // UpdateGuardianRelationship edits the per-child pickup/relationship fields of a
@@ -40,7 +35,7 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	// Resolve on baseline portal access, then gate each field group by its own
 	// permission. Resolving on the lower baseline (rather than guardian.edit) is
 	// what lets a pickup.manage-only caller flip the flags.
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -52,17 +47,17 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if edit.editsFlags && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
+	if edit.editsFlags && !child.HasPermission(GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
-	if edit.editsDetails && !child.HasPermission(authorize.GuardianPermissionGuardianEdit) {
+	if edit.editsDetails && !child.HasPermission(GuardianPermissionGuardianEdit) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	if s.Guardians == nil {
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianRelationshipInTx(txCtx, child, edit)
 		result = updated
 		return err
@@ -105,7 +100,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	// same guardian so independent field writes can't clobber each other in a
 	// lost update under read-committed.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, edit.guardianProfileID); err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err
@@ -127,7 +122,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	}
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, edit.guardianProfileID)
 	if err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err
@@ -147,7 +142,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 }
 
 // refuseRelationshipEdit applies the eligibility of each field group.
-func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) error {
+func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) error {
 	isSelf := profile.AccountID != nil && *profile.AccountID == edit.accountID
 	if edit.editsFlags {
 		if err := refusePickupFlagEdit(profile, link); err != nil {
@@ -165,7 +160,7 @@ func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *usersMode
 	// contact-edit guard and the read-side CanManagePickup gate. Self is exempt
 	// (the account guard above already blocks self flags; a parent may still
 	// annotate their own relationship).
-	if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+	if !isSelf && s.GuardianPolicy.IsFullRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
 	// A contact-only profile that ALSO serves a child outside the caller's
@@ -195,7 +190,7 @@ func (s *Service) refuseSharedContactNote(ctx context.Context, profileID int64, 
 
 // refusePickupFlagEdit guards the safety-critical can_pickup /
 // is_emergency_contact flags.
-func refusePickupFlagEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupFlagEdit(profile *GuardianProfile, link *GuardianRelationship) error {
 	// can_pickup / is_emergency_contact grant safety-critical pickup/emergency
 	// AUTHORITY. A parent may set them only for guardians WITHOUT their own
 	// portal account (helpers like grandma). A guardian who holds their own
@@ -211,14 +206,14 @@ func refusePickupFlagEdit(profile *usersModels.GuardianProfile, link *usersModel
 	}
 	// A social worker's pickup/emergency standing is set by the school, not by
 	// a parent (mirrors the read-side CanManagePickup gate).
-	if link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	return nil
 }
 
 // refusePickupNoteEdit guards another guardian's per-child pickup note.
-func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupNoteEdit(profile *GuardianProfile, link *GuardianRelationship) error {
 	// The per-child pickup note follows CONTACT-edit eligibility (#1667 review):
 	// a parent may edit it only for a guardian whose contact data they may also
 	// edit/see — their own profile, or an account-less helper that is not a
@@ -231,7 +226,7 @@ func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModel
 	if profile.HasPortalAccount() {
 		return ErrGuardianHasOwnAccount
 	}
-	if link.GuardianRole == authorize.GuardianRoleSocialWorker {
+	if link.GuardianRole == GuardianRoleSocialWorker {
 		return ErrGuardianSocialWorkerManaged
 	}
 	return nil
@@ -248,7 +243,7 @@ func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModel
 // edits the student-guardian relationship without taking it). Building the patch from
 // exactly the supplied fields makes the write-set equal the touched-set, so an
 // untouched flag is never written.
-func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.StudentGuardian, input GuardianRelationshipInput) error {
+func (s *Service) writeRelationshipEdit(ctx context.Context, link *GuardianRelationship, input GuardianRelationshipInput) error {
 	patch := GuardianLinkPickupPatch{LinkID: link.ID}
 	if input.CanPickup != nil {
 		link.CanPickup = *input.CanPickup
@@ -285,7 +280,7 @@ func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.S
 
 // projectEditedRelationship reads the phones and family reach for the response
 // and refreshes the child's live view after the commit.
-func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
+func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
 	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
@@ -295,11 +290,11 @@ func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, p
 		return nil, err
 	}
 	result := projectChildGuardian(profile, link, phones, edit.accountID,
-		child.HasPermission(authorize.GuardianPermissionGuardianEdit),
-		child.HasPermission(authorize.GuardianPermissionPickupManage), escapes)
+		child.HasPermission(GuardianPermissionGuardianEdit),
+		child.HasPermission(GuardianPermissionPickupManage), escapes, s.GuardianPolicy.IsFullRole)
 
 	capturedTenant := child.TenantID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(capturedTenant, edit.studentID)
 	})
 	return result, nil
@@ -335,10 +330,10 @@ func (s *Service) requireGuardianManagementEnabled(ctx context.Context, tenantID
 // guardian profile) so a concurrent staff edit/delete of the relationship row
 // cannot change role, account, or existence between the authorization checks and
 // the write.
-func (s *Service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error) {
+func (s *Service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*GuardianRelationship, error) {
 	link, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
-		if errors.Is(err, usersModels.ErrStudentGuardianNotFound) {
+		if errors.Is(err, ErrStudentGuardianNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err

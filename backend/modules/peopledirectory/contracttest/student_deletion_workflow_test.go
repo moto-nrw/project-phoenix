@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -41,7 +41,7 @@ type deletionFixture struct {
 // companionLinks is the Care Plan record store behind the "läuft mit" edges,
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
-func companionLinks(db *bun.DB) peopleVocabulary.StudentCompanionRepository {
+func companionLinks(db *bun.DB) peoplePorts.StudentCompanionRepository {
 	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
 }
 
@@ -76,8 +76,10 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
 	feedback := &testpkg.FeedbackEntryCounterMock{}
+	owners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
-		DB: db, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
+		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
 		LockCareBookingWrites: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
 	})

@@ -30,7 +30,7 @@ func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	_, services := RootCompositions.Module(t)
 	resource := NewResource(Dependencies{Templates: services.Templates, TimetableData: services.Data, ConflictDetection: services.ConflictDetection})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return router
 }
 

@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +34,7 @@ func init() {
 }
 
 // newReq builds a request authenticated with a real signed JWT so the
-// production middleware chain mounted by Resource.Router()
+// production middleware chain mounted by Resource.Router(rootAPI.ProtectedTenantRoutes)
 // (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
 // TenantTxMiddleware) accepts it. The permission set carried by the token is
 // exactly `permissions` — this mirrors the old testutil.WithPermissions option
@@ -61,8 +64,7 @@ func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster)
 		svc.Education,
 		svc.Active,
 		svc.People,
-		svc.UserContext,
-	)
+		svc.UserContext, transactionFailures.IsConstraintViolation)
 
 	return &testContext{
 		db:       db,
@@ -70,7 +72,7 @@ func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster)
 	}
 }
 
-// setupProtectedRouter mounts the production Resource.Router() at /groups so
+// setupProtectedRouter mounts the production Resource.Router(rootAPI.ProtectedTenantRoutes) at /groups so
 // tests exercise the real route + middleware wiring. Router() already includes
 // the JWT chain and per-route permission checks; requests must carry a signed
 // token (see newReq).
@@ -80,7 +82,7 @@ func setupProtectedRouter(t *testing.T, publishers ...*testpkg.RecordingBroadcas
 	tc := setupGroupsRoute(t, publishers...)
 
 	router := chi.NewRouter()
-	router.Mount("/groups", tc.resource.Router())
+	router.Mount("/groups", tc.resource.Router(rootAPI.ProtectedTenantRoutes))
 
 	return tc, router
 }
@@ -543,7 +545,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
 	tc := setupGroupsRoute(t)
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }
 

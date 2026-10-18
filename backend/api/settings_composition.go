@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
@@ -14,18 +15,18 @@ import (
 func newSettingsResource(operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
 	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
 		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(r, fn)
+			ProtectedTenantRoutes(r, fn)
 		},
 		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
 			switch access {
 			case settingsHTTP.AccessRead:
-				return apiCommon.RequireConfigRead()
+				return RequireConfigRead()
 			case settingsHTTP.AccessManage:
-				return apiCommon.RequireConfigManage()
+				return RequireConfigManage()
 			case settingsHTTP.AccessReadOrWrite:
-				return apiCommon.RequireConfigReadOrWrite()
+				return RequireConfigReadOrWrite()
 			default:
-				return apiCommon.RequireConfigWrite()
+				return RequireConfigWrite()
 			}
 		},
 		TenantGuard: apiCommon.TenantOperationMiddleware,
@@ -36,7 +37,7 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 			}
 			return principal.TenantID(), principal.AccountID(), principal.Permissions()
 		},
-		Editable:  apiCommon.CanEditConfig,
+		Editable:  CanEditConfig,
 		Success:   apiCommon.Respond,
 		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
@@ -65,10 +66,10 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 			}
 			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
-		ImageSave:  apiCommon.SaveImage,
-		PDFSave:    apiCommon.SavePDF,
-		FileRemove: apiCommon.RemoveImage,
-		StoredPath: apiCommon.ResolveStoredPath,
+		ImageSave:  saveImageUpload,
+		PDFSave:    savePDFUpload,
+		FileRemove: (nativeUploads.UploadFiles{}).RemoveUpload,
+		StoredPath: nativeUploads.ResolveStoredPath,
 		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
 			publicURL := enrollmentAPI.PublicLegalDocumentURL(storedURL)
 			referenced, err := references(ctx, storedURL, publicURL)

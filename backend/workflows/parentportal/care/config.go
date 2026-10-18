@@ -5,26 +5,26 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StudentChangeRecorder appends the per-child change history for a field the
 // flow changed, attributed to the authenticated actor (People Directory, bound
 // by the composition root).
 type StudentChangeRecorder interface {
-	RecordChangesForActor(ctx context.Context, before, after *usersModels.Student, editedBy int64) error
+	RecordChangesForActor(ctx context.Context, before, after *PortalStudent, editedBy int64) error
 }
 
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
 type Config struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	CarePlanPolicy  CarePlanPolicy
+	GuardianPolicy  GuardianPolicy
+	DeparturePolicy DeparturePolicy
+	Runtime         Runtime
+	Logger          *slog.Logger
+	Now             func() time.Time
 
 	// Reads of the child, its school and its guardians.
 	ChildRepo             ChildReads
@@ -47,15 +47,11 @@ type Config struct {
 	// Care Plan: the weekly plan, its requests, the absence requests and the
 	// day exceptions. CareExceptions shares the caller's tenant transaction;
 	// writes follow the student/day lock.
-	ArrivalSchedules careplan.ArrivalScheduleService
-	PickupSchedules  careplan.PickupScheduleService
+	ArrivalSchedules ArrivalSchedules
+	PickupSchedules  PickupSchedules
 	CareRequests     carerequests.Service
-	ExcusedRequests  careplan.ExcusedAbsenceRequests
+	ExcusedRequests  ExcusedAbsenceRequests
 	CareExceptions   CareExceptions
-	// PickupAutoExcusal couples pulled-forward day pickup times with the
-	// per-block partial-absence mechanics (#2360). Optional in tests; nil
-	// skips the coupling.
-	PickupAutoExcusal careplan.PickupAutoExcusal
 
 	// Enrollment: the booked care offerings behind the child and the
 	// post-enrollment change-request lifecycle.
@@ -68,7 +64,7 @@ type Config struct {
 	// photo lifecycle, and the parent-request ledger.
 	StudentAudit        StudentChangeRecorder
 	StudentConsents     StudentConsentService
-	ParentRequestEvents usersModels.ParentRequestEventRepository
+	ParentRequestEvents RequestEventWriter
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
 	// The API bootstrap builds that service after this one, so the
 	// composition passes a resolver instead of setting it afterwards.
@@ -78,8 +74,8 @@ type Config struct {
 	// day's pickup exception and the Stammdaten requests; People Directory
 	// writes the guardian and student rows; Audit Platform appends the
 	// guardian change trail. All of them join the flow's tenant unit of work.
-	GuardianAbsences careplan.GuardianAbsenceReports
-	GuardianPickups  careplan.GuardianPickupExceptions
+	GuardianAbsences GuardianAbsenceReports
+	GuardianPickups  GuardianPickupExceptions
 	DataRequests     StudentDataRequestCommands
 	Guardians        GuardianRecords
 	Students         StudentRecords
@@ -96,7 +92,7 @@ type Config struct {
 
 	// Best-effort notifiers, called after the commit only.
 	AbsenceNotifier AbsenceNotifier
-	Emitter         *parentmessaging.Emitter
+	Emitter         ChildEvents
 	StudentUpdates  StudentUpdates
 	SelfService     SelfServiceEvents
 
@@ -134,10 +130,16 @@ type Service struct {
 	Config
 }
 
-// New wires the child flows. RequestSharing is required.
+// New wires the child flows. Runtime, GuardianPolicy and RequestSharing are required.
 func New(cfg Config) *Service {
+	if cfg.Runtime == nil {
+		panic("care: runtime is required")
+	}
 	if cfg.RequestSharing == nil {
 		panic("care: request sharing is required")
+	}
+	if cfg.GuardianPolicy == nil {
+		panic("care: guardian policy is required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -159,13 +161,12 @@ func (s *Service) todayDate() calendar.Date {
 	return calendar.DateFromTime(s.now())
 }
 
-// InTenant runs fn in the tenant unit of work of the child's school. Nested
-// calls join the ambient transaction; after-commit work runs once, after the
-// outermost commit.
-func InTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	id, err := tenant.NewTenantID(tenantID)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenant(ctx, id, fn)
+// Runtime is the workflow-owned transaction and after-commit boundary.
+// Implementations retain the caller's context and the platform's nested
+// transaction, tenant validation and callback lifecycle semantics.
+type Runtime interface {
+	WithinTenant(context.Context, int64, func(context.Context) error) error
+	WithinAdmin(context.Context, func(context.Context) error) error
+	RegisterAfterCommit(context.Context, func())
+	WithTenantID(context.Context, int64) context.Context
 }

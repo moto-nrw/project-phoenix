@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,28 +37,6 @@ func WithAuthenticatedContext(ctx context.Context, claims Claims, permissions []
 // middleware does, without claims.
 func WithPermissionsContext(ctx context.Context, permissions []string) context.Context {
 	return context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
-}
-
-// MintTestJWT signs a JWT for the given claims using the same configuration as
-// production (sessiontoken.NewTokenAuth reads the JWT secret from viper / env). Pair it
-// with routetest.WithJWTBearer when calling handlers through Resource.Router() so the
-// production auth middleware accepts the request.
-//
-// Callers must arrange for a non-empty auth_jwt_secret to be present before the
-// Resource is constructed (typically via routetest.SeedTestJWTConfig in init() or
-// TestMain). Without a secret, jwx refuses to HMAC-sign and this helper fails.
-//
-// Claims carrying the bootstrap tenant are rebased onto the tenant the test
-// owns, so a test that opted into a per-test tenant gets a matching token
-// without passing the tenant through every claims helper (#2419).
-func MintTestJWT(t testing.TB, claims sessiontoken.AppClaims) string {
-	t.Helper()
-	claims.TenantID = RebaseTenantID(t, claims.TenantID)
-	tokenAuth, err := ConfiguredTokenAuth()
-	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(t, err, "MintTestJWT: CreateJWT")
-	return token
 }
 
 // AuthenticationContext returns the identity values injected by request
@@ -191,4 +170,10 @@ func OpaqueCapabilityFingerprint(token string) string {
 // without the test naming the token package (#2736).
 func WithRefreshToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, sessiontoken.CtxRefreshToken, token)
+}
+
+// WithRequestIdentityCache attaches the native request identity memo for
+// behavior tests; entry contents and cache lifetime remain with their owners.
+func WithRequestIdentityCache(ctx context.Context) context.Context {
+	return securityruntime.WithRequestIdentityCache(ctx)
 }

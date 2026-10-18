@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -18,11 +20,11 @@ func LegacyGroupManagement(capability schoolstructure.GroupManagement) Service {
 
 func (s *legacyGroupManagement) GetGroup(ctx context.Context, id int64) (*domain.Group, error) {
 	value, err := s.capability.GetGroup(ctx, id)
-	return legacyGroup(value), legacyGroupError(err)
+	return groups.LegacyGroup(value), legacyGroupError(err)
 }
 func (s *legacyGroupManagement) FindGroupWithRoom(ctx context.Context, id int64) (*domain.Group, error) {
 	value, err := s.capability.FindGroupWithRoom(ctx, id)
-	return legacyGroup(value), legacyGroupError(err)
+	return groups.LegacyGroup(value), legacyGroupError(err)
 }
 func (s *legacyGroupManagement) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {
 	values, err := s.capability.GetGroupsByIDs(ctx, ids)
@@ -31,7 +33,7 @@ func (s *legacyGroupManagement) GetGroupsByIDs(ctx context.Context, ids []int64)
 	}
 	result := make(map[int64]*domain.Group, len(values))
 	for id, value := range values {
-		result[id] = legacyGroup(value)
+		result[id] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
@@ -42,23 +44,23 @@ func (s *legacyGroupManagement) GetGroupsWithRoomsByIDs(ctx context.Context, ids
 	}
 	result := make(map[int64]*domain.Group, len(values))
 	for id, value := range values {
-		result[id] = legacyGroup(value)
+		result[id] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
 func (s *legacyGroupManagement) CreateGroup(ctx context.Context, row *domain.Group) error {
-	value := publicGroup(row)
+	value := groups.PublicGroup(row)
 	err := s.capability.CreateGroup(ctx, value)
 	if row != nil && value != nil {
-		*row = *legacyGroup(value)
+		*row = *groups.LegacyGroup(value)
 	}
 	return legacyGroupError(err)
 }
 func (s *legacyGroupManagement) UpdateGroup(ctx context.Context, row *domain.Group) error {
-	value := publicGroup(row)
+	value := groups.PublicGroup(row)
 	err := s.capability.UpdateGroup(ctx, value)
 	if row != nil && value != nil {
-		*row = *legacyGroup(value)
+		*row = *groups.LegacyGroup(value)
 	}
 	return legacyGroupError(err)
 }
@@ -72,7 +74,7 @@ func (s *legacyGroupManagement) ListGroups(ctx context.Context, query *domain.Gr
 	}
 	result := make([]*domain.Group, len(values))
 	for i, value := range values {
-		result[i] = legacyGroup(value)
+		result[i] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
@@ -87,7 +89,7 @@ func (s *legacyGroupManagement) GetTeacherGroups(ctx context.Context, id int64) 
 	}
 	result := make([]*domain.Group, len(values))
 	for i, value := range values {
-		result[i] = legacyGroup(value)
+		result[i] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
@@ -140,7 +142,6 @@ func NewService(groupRepo GroupRecords, groupTeachers GroupTeacherStore, classTe
 }
 
 type Service interface {
-	// Group operations
 	GetGroup(ctx context.Context, id int64) (*domain.Group, error)
 	GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
 	CreateGroup(ctx context.Context, group *domain.Group) error
@@ -153,17 +154,14 @@ type Service interface {
 	// one query — use instead of per-group FindGroupWithRoom loops.
 	GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
 
-	// Group-Teacher operations
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*Teacher, error)
 	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*domain.Group, error)
 
-	// Class-Teacher operations (#1772): staff-to-school-class assignments
-	// that scope the Lehrkraft day view. Classes are free-text strings
-	// matched via schoolclass.Normalize; there is no class entity. changedBy
-	// is the authenticated account ID for the audit trail.
+	// Staff-to-class assignments scope the Lehrkraft day view (#1772); free-text
+	// classes use schoolclass.Normalize. changedBy is the authenticated audit account.
 	GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]string, error)
 	SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error
 }

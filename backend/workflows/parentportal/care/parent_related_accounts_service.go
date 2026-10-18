@@ -7,10 +7,6 @@ import (
 	"net/mail"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Sentinel errors mapped to stable HTTP codes by the parent handlers.
@@ -81,7 +77,7 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	}
 
 	var out []*RelatedAccount
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
@@ -107,7 +103,7 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 
 // relatedAccountForLink projects one guardian link into a RelatedAccount. It
 // returns nil when the link's guardian profile no longer exists.
-func (s *Service) relatedAccountForLink(txCtx context.Context, link *userModels.StudentGuardian, accountID, studentID int64) (*RelatedAccount, error) {
+func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, accountID, studentID int64) (*RelatedAccount, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
 	if err != nil {
 		return nil, err
@@ -157,8 +153,8 @@ type GuardianInvitationReads interface {
 	ListByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error)
 }
 
-func (s *Service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
-	hasAccess := authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess)
+func (s *Service) relatedAccountStatus(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, studentID int64) RelatedAccountStatus {
+	hasAccess := s.guardianHasPermission(link, GuardianPermissionPortalAccess)
 	if profile.HasAccount && hasAccess {
 		return RelatedAccountActive
 	}
@@ -224,7 +220,7 @@ func (s *Service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 		return nil, ErrGuardianAccessUnavailable
 	}
 	var result GuardianInviteOutcome
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -310,7 +306,7 @@ func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 	if s.GuardianInvites == nil {
 		return ErrGuardianAccessUnavailable
 	}
-	return InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	return s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}

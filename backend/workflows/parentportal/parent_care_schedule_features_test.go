@@ -34,44 +34,57 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
-	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				parentService.KeyParentSickNoteEnabled:           true,
-				parentService.KeyParentNotesEnabled:              true,
-				parentService.KeyParentCareArrivalRequestEnabled: true,
-				parentService.KeyParentCarePickupRequestEnabled:  true,
-				parentService.KeyParentCareModeRequestEnabled:    true,
-			},
-			stringValues: map[string]string{
-				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled:           true,
+			parentService.KeyParentNotesEnabled:              true,
+			parentService.KeyParentCareArrivalRequestEnabled: true,
+			parentService.KeyParentCarePickupRequestEnabled:  true,
+			parentService.KeyParentCareModeRequestEnabled:    true,
 		},
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:        api.ParentGuardianChanges(),
+		DeparturePolicy:        api.ParentDeparturePolicy(),
+		GuardianPolicy:         api.NewParentGuardianPolicy(),
+		Fingerprints:           api.SecurityFingerprints{},
+		Declarations:           api.ParentDeclarationPolicy(),
+		Locales:                api.ParentPortalLocales(),
+		Runtime:                api.ParentPortalRuntime{},
+		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:           careProfiles(t, db),
+		ChildRepo:              repos.ParentChildReads(),
+		StudentRepo:            api.NewParentStudentReads(repos.Student),
+		StudentGuardianRepo:    api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:             api.NewParentPersonReads(repos.Person),
+		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
-		Broadcaster:            testpkg.NewRecordingBroadcaster(),
-		ArrivalSchedules:       sf.ArrivalSchedule,
-		PickupSchedules:        sf.PickupSchedule,
+		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		ArrivalSchedules:       api.NewParentArrivalSchedules(sf.ArrivalSchedule),
+		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
 		CareRequests:           sf.CareRequests,
-		CareRequestRepo:        repos.CareScheduleChangeRequest,
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
+		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      repos.ParentMessageThread,
-		MessageRepo:            communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:        repos.ParentMessageRead,
+		MessageThreadRepo:      api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:            api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:        api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:          api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 

@@ -1,6 +1,6 @@
 {
-  "schema_version": 4,
-  "policy_epoch": 55,
+  "schema_version": 5,
+  "policy_epoch": 72,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -11,7 +11,10 @@
   "build": {
     "goos": "linux",
     "goarch": "amd64",
-    "cgo_enabled": false
+    "cgo_enabled": false,
+    "tags": [
+      "testhooks"
+    ]
   },
   "owners": [
     {
@@ -24,7 +27,7 @@
     },
     {
       "id": "architecture-check",
-      "kind": "inbound"
+      "kind": "tool"
     },
     {
       "id": "audit-platform",
@@ -92,7 +95,7 @@
     },
     {
       "id": "dev-tools",
-      "kind": "inbound"
+      "kind": "tool"
     },
     {
       "id": "device-fleet",
@@ -137,62 +140,6 @@
     {
       "id": "identity-access",
       "kind": "domain"
-    },
-    {
-      "id": "inbound-absence-types",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-announcement",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-common",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-display",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-iot",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-iot-sessions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-messaging",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-notifications",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-school",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-shift-types",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-sse",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-staff-shifts",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-substitutions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-work-time-models",
-      "kind": "inbound"
     },
     {
       "id": "legacy-composition",
@@ -670,29 +617,29 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/absence-types",
-      "owner": "inbound-absence-types",
+      "path": "modules/workforce/http/absencetypes",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
       "path": "modules/communication/http/parentannouncements",
-      "owner": "inbound-announcement",
+      "owner": "communication",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
       "path": "modules/communication/http/parentmessages",
-      "owner": "inbound-messaging",
+      "owner": "communication",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
       "path": "modules/communication/http/staffmessages",
-      "owner": "inbound-messaging",
+      "owner": "communication",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "workflow-integration-test"
@@ -720,7 +667,7 @@
     },
     {
       "path": "api/common",
-      "owner": "inbound-common",
+      "owner": "tenant-runtime",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -741,7 +688,7 @@
     },
     {
       "path": "api/display",
-      "owner": "inbound-display",
+      "owner": "device-fleet",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -768,7 +715,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/inbound",
+      "path": "modules/dataimport/http",
       "owner": "data-import",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -776,13 +723,13 @@
     },
     {
       "path": "api/iot",
-      "owner": "inbound-iot",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/checkin",
+      "path": "modules/devicescan/http/checkin",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -790,41 +737,41 @@
     },
     {
       "path": "api/iot/compose",
-      "owner": "inbound-iot",
-      "role": "compose",
+      "owner": "process-device-scan",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/iot/devices",
+      "path": "modules/devicefleet/http/devices",
       "owner": "device-fleet",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/data",
+      "path": "modules/devicescan/http/data",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/internal/shared",
+      "path": "modules/devicescan/http/internal/shared",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/sessions",
-      "owner": "inbound-iot-sessions",
+      "path": "modules/devicescan/http/sessions",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/staffclock",
+      "path": "modules/devicescan/http/staffclock",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -839,7 +786,7 @@
     },
     {
       "path": "modules/delivery/http/notifications",
-      "owner": "inbound-notifications",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -881,28 +828,28 @@
     },
     {
       "path": "modules/schoolportal",
-      "owner": "inbound-school",
+      "owner": "identity-access",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/shift-types",
-      "owner": "inbound-shift-types",
+      "path": "modules/workforce/http/shifttypes",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
       "path": "modules/delivery/http/sse",
-      "owner": "inbound-sse",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/staff-shifts",
-      "owner": "inbound-staff-shifts",
+      "path": "modules/workforce/http/staffshifts",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -915,8 +862,8 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/substitutions",
-      "owner": "inbound-substitutions",
+      "path": "modules/workforce/http/substitutions",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -936,8 +883,8 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/work-time-models",
-      "owner": "inbound-work-time-models",
+      "path": "modules/workforce/http/worktimemodels",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -974,6 +921,13 @@
       "path": "auth/device/devicetest",
       "owner": "device-fleet",
       "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/tokenprimitives",
+      "owner": "identity-access",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1622,6 +1576,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/application/locales",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/emailbranding",
       "owner": "delivery-platform",
       "role": "application",
@@ -1944,6 +1905,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolstructure",
       "owner": "school-structure",
       "role": "public",
@@ -2203,6 +2171,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetable/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetable/timetabletest",
       "owner": "test-support",
       "role": "test-support",
@@ -2218,13 +2193,6 @@
     },
     {
       "path": "modules/workforce/compose",
-      "owner": "workforce",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/compose/httpadapter",
       "owner": "workforce",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -2280,21 +2248,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/workforce/inbound",
-      "owner": "workforce",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/inbound/shiftplanning",
-      "owner": "workforce",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/inbound/timetracking",
+      "path": "modules/workforce/http/timetracking",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -2910,6 +2864,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/careplan/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/careplan/integration",
       "owner": "care-plan",
       "role": "test-support",
@@ -3036,6 +2997,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/devicefleet/internal/adapters/credentials",
+      "owner": "device-fleet",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/devicefleet/internal/adapters/postgres",
       "owner": "device-fleet",
       "role": "postgres",
@@ -3100,6 +3068,13 @@
     },
     {
       "path": "modules/identityaccess/internal/ports",
+      "owner": "identity-access",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/ports",
       "owner": "identity-access",
       "role": "port",
       "internal_test_role": "module-internal-test",
@@ -3417,6 +3392,13 @@
       "path": "modules/schoolstructure/contract",
       "owner": "school-structure",
       "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/devices",
+      "owner": "delivery-platform",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -5252,28 +5234,6 @@
       "target_role": "compose"
     },
     {
-      "id": "device-fleet.workflow-integration-test.care-plan.public.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "device-fleet.workflow-integration-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "shared-kernel.contract",
       "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
       "scopes": [
@@ -5340,17 +5300,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-plan.port.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "port",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.port.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5391,28 +5340,6 @@
       ],
       "source_owner": "process-device-scan",
       "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "group-live-view.adapter.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "calendar-view.adapter.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
       "target_owner": "care-plan",
       "target_role": "public"
     },
@@ -5459,6 +5386,17 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.port",
+      "description": "The Care Plan contract suite names the Timetable dependency types its compose reach builds with (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
     },
     {
       "id": "care-plan.contracttest.identity-access.adapter",
@@ -5547,6 +5485,17 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "compose"
+    },
+    {
+      "id": "student-owner-integration.people-directory.port",
+      "description": "The student unit-of-work integration test names the owner seam its People Directory composition takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "port"
     },
     {
       "id": "student-owner-integration.care-plan.compose",
@@ -5856,17 +5805,6 @@
       "target_role": "compose"
     },
     {
-      "id": "emergency-snapshot.adapter-test.presence-compose",
-      "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -5897,6 +5835,28 @@
       "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.application.tenant-runtime",
+      "description": "School Membership application code runs the staff identity read inside the caller's tenant transaction or opens one for the tenant in context (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.application.tenant-runtime",
+      "description": "School Structure application code reads the caller's tenant from context for the group, transition and ledger commands (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -6184,17 +6144,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-iot-sessions.to.session-end",
-      "description": "The kiosk session end endpoint calls exactly one owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
-      "source_role": "http",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
       "id": "open-room-move.port.facilities",
       "description": "Open-room move ports name the Facilities room lock through its public contract (#3066).",
       "scopes": [
@@ -6458,18 +6407,6 @@
       "target_role": "contract"
     },
     {
-      "id": "projection.adapter-test.domain.contract",
-      "description": "Adapter tests may fake domain contracts (projection sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "projection",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "contract"
-    },
-    {
       "id": "workflow.adapter-test.domain.contract",
       "description": "Adapter tests may fake domain contracts (workflow sources; a platform reaches no domain owner, ADR 0057).",
       "scopes": [
@@ -6489,30 +6426,6 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound.adapter-test.domain.public",
-      "description": "Adapter tests may use public domain capabilities (inbound sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "public"
-    },
-    {
-      "id": "projection.adapter-test.domain.public",
-      "description": "Adapter tests may use public domain capabilities (projection sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "projection",
       "source_role": "adapter-test",
       "target_owner_kind": "domain",
       "target_role": "public"
@@ -6605,18 +6518,6 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
-      "source_role": "adapter-test",
-      "target_owner_kind": "workflow",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound.adapter-test.workflow.public",
-      "description": "Adapter tests may use public workflows (inbound sources; a platform reaches no workflow owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
       "source_role": "adapter-test",
       "target_owner_kind": "workflow",
       "target_role": "public"
@@ -6821,6 +6722,17 @@
       "same_owner": true
     },
     {
+      "id": "domain.port-public",
+      "description": "domain ports may use their own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "port",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
       "id": "domain.postgres-public",
       "description": "domain postgres adapters may use their own public contract (ADR 0058 addendum, #4084).",
       "scopes": [
@@ -6841,39 +6753,6 @@
       "source_role": "e2e-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "emergency-snapshot.from.facilities",
-      "description": "The emergency snapshot adapter binds the room-name port to the public facilities query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
-      "id": "emergency-snapshot.from.people-directory",
-      "description": "The emergency snapshot adapter binds the person port to the public people-directory query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "emergency-snapshot.from.student-presence",
-      "description": "The emergency snapshot adapter binds the presence ports to the public student-presence query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "composition.external-test.domain.contract",
@@ -7157,26 +7036,14 @@
       "target_class": "concurrency"
     },
     {
-      "id": "external.crypto.device-fleet",
-      "description": "device-fleet may use classified cryptographic dependencies.",
+      "id": "external.crypto.device-fleet.adapter",
+      "description": "Existing Device Fleet adapter uses cryptographic primitives without exposing them to HTTP.",
       "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
+        "production"
       ],
       "source_owner": "device-fleet",
-      "target_class": "crypto"
-    },
-    {
-      "id": "external.crypto.identity-access",
-      "description": "identity-access may use classified cryptographic dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "target_class": "crypto"
+      "target_class": "crypto",
+      "source_role": "adapter"
     },
     {
       "id": "external.crypto.security-runtime",
@@ -7188,17 +7055,6 @@
       ],
       "source_owner": "security-runtime",
       "target_class": "crypto"
-    },
-    {
-      "id": "external.delivery.delivery-platform",
-      "description": "delivery-platform may use classified delivery dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "target_class": "delivery"
     },
     {
       "id": "external.http-router.adapter",
@@ -7428,17 +7284,6 @@
       "target_class": "process-exec"
     },
     {
-      "id": "external.rendering.delivery-platform",
-      "description": "delivery-platform may use classified rendering dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "target_class": "rendering"
-    },
-    {
       "id": "external.rendering.document-rendering",
       "description": "document-rendering may use classified rendering dependencies.",
       "scopes": [
@@ -7501,17 +7346,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-absence-types.to.workforce",
-      "description": "inbound-absence-types calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-absence-types",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "settings-platform.test-support.domain",
       "description": "The settings test support scripts tenant values against the registry keys they are stored under. The models/* packages carry the legacy-model role (ADR 0057).",
       "scopes": [
@@ -7534,18 +7368,19 @@
       "target_role": "public"
     },
     {
-      "id": "student-presence.http.inbound-common",
+      "id": "student-presence.http.tenant-runtime.common",
       "description": "The presence HTTP adapter binds the shared HTTP runtime in api/common: tenant middleware, response rendering and error helpers. It has no replacement; the other owners' HTTP adapters hold the same standing rule (#3447).",
       "scopes": [
         "production"
       ],
       "source_owner": "student-presence",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
-      "id": "student-presence.adapter-test.inbound-common",
+      "id": "student-presence.adapter-test.tenant-runtime.common",
       "description": "Presence HTTP tests assert the shared response rendering of api/common that the adapter binds, as the other owners' adapter tests do (#3447).",
       "scopes": [
         "internal_test",
@@ -7553,19 +7388,9 @@
       ],
       "source_owner": "student-presence",
       "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-announcement.to.communication",
-      "description": "inbound-announcement calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "class-day-view.http.public",
@@ -7601,17 +7426,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-display.to.device-fleet",
-      "description": "inbound-display calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-display",
-      "source_role": "http",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
       "id": "emergency-snapshot.http.public",
       "description": "The Emergency Snapshot HTTP adapter calls its own public projection capability.",
       "scopes": [
@@ -7634,15 +7448,16 @@
       "target_role": "public"
     },
     {
-      "id": "enrollment.http.inbound-common",
+      "id": "enrollment.http.tenant-runtime.common",
       "description": "The enrollment routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#2734).",
       "scopes": [
         "production"
       ],
       "source_owner": "enrollment",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "enrollment.http.identity-adapter",
@@ -7766,28 +7581,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-iot-sessions.to.process-device-scan",
-      "description": "inbound-iot-sessions calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.to.process-device-scan",
-      "description": "inbound-iot calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
       "id": "meal-plan.http.public",
       "description": "The Meal Plan HTTP adapter calls its own public capability.",
       "scopes": [
@@ -7797,61 +7590,6 @@
       "source_role": "http",
       "target_owner": "meal-plan",
       "target_role": "public"
-    },
-    {
-      "id": "inbound-messaging.to.communication",
-      "description": "inbound-messaging calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.messages.root-composition-http",
-      "description": "The API composition root mounts the Communication message HTTP adapters.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-messaging",
-      "target_role": "http"
-    },
-    {
-      "id": "communication.messages.http-common",
-      "description": "The message HTTP adapters use shared authentication, transaction, and response middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "communication.messages.http-security-contract",
-      "description": "The parent-message HTTP adapter applies the established messaging permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "communication.messages.http-identity-adapter",
-      "description": "The staff-message HTTP adapter reads authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "communication.messages.compose-delivery-public",
@@ -7908,28 +7646,6 @@
       "target_role": "application"
     },
     {
-      "id": "communication.messages.http-workflow-self",
-      "description": "The cross-portal workflow test exercises both staff-message HTTP mantles.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-messaging",
-      "target_role": "http"
-    },
-    {
-      "id": "communication.messages.http-workflow-identity",
-      "description": "The cross-portal workflow test supplies scoped JWT claims.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "communication.messages.workflow-identity-adapter",
       "description": "Message compatibility tests supply authenticated account claims.",
       "scopes": [
@@ -7963,15 +7679,16 @@
       "target_role": "public"
     },
     {
-      "id": "parent-portal.http.inbound-common",
+      "id": "parent-portal.http.tenant-runtime.common",
       "description": "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
       "source_owner": "parent-portal",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "parent-portal.http.identity-adapter",
@@ -8074,39 +7791,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-shift-types.to.workforce",
-      "description": "inbound-shift-types calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-shift-types",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-sse.to.delivery-platform",
-      "description": "inbound-sse calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-staff-shifts.to.workforce",
-      "description": "inbound-staff-shifts calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.http.public",
       "description": "The student routes drive the People Directory owner through its public capability (#2731).",
       "scopes": [
@@ -8129,17 +7813,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-substitutions.to.workforce",
-      "description": "inbound-substitutions calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-substitutions",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.http.public",
       "description": "The timetable routes drive the Timetable owner through its public capability (#2732).",
       "scopes": [
@@ -8151,15 +7824,16 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-activities.http.inbound-common",
+      "id": "timetable-activities.http.tenant-runtime.common",
       "description": "The timetable routes reuse the shared HTTP runtime of api/common: the tenant and school route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2732).",
       "scopes": [
         "production"
       ],
       "source_owner": "timetable-activities",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "timetable-activities.http.identity-adapter",
@@ -8237,17 +7911,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "http"
-    },
-    {
-      "id": "inbound-work-time-models.to.workforce",
-      "description": "inbound-work-time-models calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-work-time-models",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
     },
     {
       "id": "internal-test.same-owner.application",
@@ -8540,6 +8203,17 @@
       "target_role": "compose"
     },
     {
+      "id": "test-support.to.timetable-port",
+      "description": "Timetable test support names the presence read filters the owner module it constructs takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
+    },
+    {
       "id": "meal-plan.compose.orm-sql",
       "description": "Meal Plan composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -8746,6 +8420,28 @@
       "same_owner": true
     },
     {
+      "id": "timetable-activities.port.legacy-model",
+      "description": "Timetable & Activities ports name the schedule and activity rows of the owner's legacy models in their dependency types (ADR 0058 addendum point 5, #4084); #4086 dissolves models/schedule and models/activities and with them this rule. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_owner": "timetable-activities",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "timetable-activities.port.student-presence.public",
+      "description": "Timetable & Activities ports name student-presence public values in their dependency types (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
       "id": "timetable-activities.compose.orm-sql",
       "description": "Timetable & Activities composition supplies the Bun database dependency.",
       "scopes": [
@@ -8898,15 +8594,16 @@
       "target_role": "legacy-model"
     },
     {
-      "id": "timetable-activities.http-integration-test.common",
+      "id": "timetable-activities.http-integration-test.common.tenant-runtime-common",
       "description": "Timetable HTTP integration tests inspect shared error rendering contracts.",
       "scopes": [
         "external_test"
       ],
       "source_owner": "timetable-activities",
       "source_role": "workflow-integration-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "timetable-activities.http-integration-test.identity-adapter",
@@ -9159,16 +8856,6 @@
       "target_role": "public"
     },
     {
-      "id": "workforce.compose.http-router",
-      "description": "Workforce HTTP composition binds the established Chi transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
       "id": "workforce.compose.security-contract",
       "description": "Workforce HTTP composition supplies the established time-tracking permission.",
       "scopes": [
@@ -9189,17 +8876,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "workforce.integration-test.work-time-models-http",
-      "description": "Workforce HTTP integration tests drive the work-time-model adapter directly.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-work-time-models",
-      "target_role": "http"
     },
     {
       "id": "workflow-decision-test.test-support",
@@ -9297,6 +8973,61 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "people-directory.port.legacy-model",
+      "description": "People Directory ports name the person, student, staff and guardian rows of the owner's legacy model in the repository contracts (ADR 0058 addendum point 5, #4084); #4004 dissolves models/users and with it this rule. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "people-directory.postgres.port",
+      "description": "The retained People Directory repositories implement the repository contracts and read the query vocabulary of the owner's ports (#4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "port"
+    },
+    {
+      "id": "people-directory.application.tenant-runtime",
+      "description": "People Directory application code stamps the caller's tenant on the rows the retained person directory writes (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.application.transaction-runtime",
+      "description": "People Directory application code classifies the retained repositories' missing rows through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.port.transaction-runtime",
+      "description": "The People Directory ports keep the no-rows sentinel in the not-found shape of a missing child through the transaction runtime (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
     },
     {
       "id": "people-directory.postgres.calendar-adapter",
@@ -9489,103 +9220,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "inbound-notifications.http-common",
-      "description": "Notification handlers reuse common HTTP rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-notifications.identity-adapter",
-      "description": "Notification handlers read authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-notifications.tenant-runtime",
-      "description": "Notification handlers join the request tenant transaction.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-notifications.adapter-test.identity-adapter",
-      "description": "Notification handler tests construct authenticated claims.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-sse.identity-adapter",
-      "description": "SSE handlers authenticate stream claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-sse.tenant-runtime",
-      "description": "SSE handlers use the request tenant transaction.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-sse.orm-sql",
-      "description": "SSE HTTP composition accepts Bun.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-sse.adapter-test.crypto",
-      "description": "SSE adapter tests mint signed JWT fixtures.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_class": "crypto"
-    },
-    {
-      "id": "inbound-sse.adapter-test.identity-adapter",
-      "description": "SSE adapter tests construct JWT middleware.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "delivery-platform.workflow-integration-test.delivery-platform-application",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -9628,50 +9262,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "inbound-school.adapter-test.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.http.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.compose.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.compose.inbound-sse-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-sse",
-      "target_role": "http"
     },
     {
       "id": "delivery-platform.compose-observability",
@@ -9772,50 +9362,6 @@
       "same_owner": true
     },
     {
-      "id": "communication.parent-http.common",
-      "description": "The parent-announcement HTTP adapter uses shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "communication.parent-http.security-contract",
-      "description": "The parent-announcement HTTP adapter applies the established admin permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "communication.parent-http.identity-adapter",
-      "description": "The parent-announcement HTTP adapter reads authenticated claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.parent-announcement-http",
-      "description": "The production root mounts the Communication parent-announcement HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-announcement",
-      "target_role": "http"
-    },
-    {
       "id": "communication.port-domain",
       "description": "Communication ports express announcement persistence and projection operations using owner domain values.",
       "scopes": [
@@ -9855,50 +9401,6 @@
       ],
       "source_owner": "communication",
       "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.compose.people-directory",
-      "description": "Communication resolves viewer display names through the People Directory facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.integration-test.organization-compose",
-      "description": "Communication integration tests compose target validation with Organization and Tenancy.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "organization-tenancy",
-      "target_role": "compose"
-    },
-    {
-      "id": "communication.integration-test.people-compose",
-      "description": "Communication integration tests compose viewer names with People Directory.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "communication.integration-test.tenant-runtime",
-      "description": "Communication integration tests verify outer UnitOfWork rollback.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
     },
@@ -10065,6 +9567,17 @@
       "target_role": "public"
     },
     {
+      "id": "care-plan.application.tenant-runtime",
+      "description": "Care Plan application code joins the caller's transaction or opens one for the tenant in context when it writes the student profile columns (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "care-plan.integration-test.runtime",
       "description": "Care Plan integration tests verify tenant transactions and RLS.",
       "scopes": [
@@ -10207,72 +9720,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "workforce.adapter.inbound-common",
-      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter.security-contract",
-      "description": "Workforce HTTP composition supplies the established time-tracking permissions and resolves the request principal.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "workforce.adapter.tenant-runtime",
-      "description": "Workforce HTTP composition checks the request principal against the ambient tenant.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "workforce.adapter.absence-types-http",
-      "description": "Workforce HTTP composition constructs the absence-type administration adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-absence-types",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter.substitutions-http",
-      "description": "Workforce HTTP composition constructs the substitutions adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-substitutions",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter-test.substitutions-http",
-      "description": "Workforce HTTP composition tests render the substitutions failure contract.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-substitutions",
-      "target_role": "http"
-    },
-    {
       "id": "workforce.behaviour-test.settings-support",
       "description": "The time-tracking export and schedule adapter suites script a school's payroll and work-schedule settings through the settings test support (#3213, #3413).",
       "scopes": [
@@ -10380,17 +9827,6 @@
       "source_owner": "parent-portal",
       "source_role": "compose",
       "target_owner": "meal-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "parent-portal.compose.delivery-platform.public",
-      "description": "Wire the guardian portal workflow (#3420): bind the live student_updated event to the flows' ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
@@ -10558,37 +9994,16 @@
       "target_role": "public"
     },
     {
-      "id": "workforce.http.staff-shifts",
-      "description": "The Workforce shift-planning HTTP composition constructs the staff-shift route adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.http.shift-types",
-      "description": "The Workforce shift-planning HTTP composition constructs the shift-type route adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "inbound-shift-types",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.http.inbound-common",
+      "id": "workforce.http.tenant-runtime.common",
       "description": "The Workforce shift-planning HTTP composition binds shared tenant middleware, response rendering and the plan export permission check.",
       "scopes": [
         "production"
       ],
       "source_owner": "workforce",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "workforce.http.security-contract",
@@ -10611,16 +10026,6 @@
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.http.orm-sql",
-      "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "device-fleet.port-domain",
@@ -10677,27 +10082,6 @@
       "target_role": "public"
     },
     {
-      "id": "device-fleet.compose.security-contract",
-      "description": "Device Fleet HTTP composition supplies the established display permissions.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "device-fleet.compose.http-router",
-      "description": "Device Fleet HTTP composition binds the established Chi transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
       "id": "device-fleet.integration-test.support",
       "description": "Device Fleet integration tests use hermetic database support.",
       "scopes": [
@@ -10707,42 +10091,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "device-fleet.integration-test.identity-adapter",
-      "description": "Device Fleet HTTP integration tests mint authenticated tenant requests.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "device-fleet.integration-test.inbound-display",
-      "description": "Device Fleet HTTP integration tests decode the established display wire shapes.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-display",
-      "target_role": "http"
-    },
-    {
-      "id": "device-fleet.integration-test.student-presence-compose",
-      "description": "Device Fleet HTTP integration tests construct Student Presence for tenant-isolated aggregates.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "observability.postgres.tenant-runtime",
@@ -10778,17 +10126,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "device-fleet",
       "target_role": "application"
-    },
-    {
-      "id": "device-fleet.integration-test.tenant-runtime",
-      "description": "Device Fleet integration tests verify transaction and RLS behaviour through the shared tenant runtime.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
     },
     {
       "id": "observability.integration-test.postgres",
@@ -10833,16 +10170,6 @@
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "device-fleet.device-auth.orm-sql",
-      "description": "The device authentication composition classifies missing rows and connection-class driver failures of the school read.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "test-support.to.device-fleet-device-auth",
@@ -10987,15 +10314,16 @@
       "target_class": "crypto"
     },
     {
-      "id": "class-day-view.http.common",
+      "id": "class-day-view.http.common.tenant-runtime-common",
       "description": "The Class Day HTTP adapter uses the shared HTTP runtime.",
       "scopes": [
         "production"
       ],
       "source_owner": "class-day-view",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "class-day-view.http.security-contract",
@@ -11026,105 +10354,6 @@
         "external_test"
       ],
       "source_owner": "class-day-view",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.http-common",
-      "description": "School-portal handlers reuse common HTTP rendering, request binding and the security principal middleware (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.identity-adapter",
-      "description": "School-portal handlers verify school-scope tokens and read enrollment claims (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.tenant-runtime",
-      "description": "School-portal MFA enrollment pins the tenant of the enrollment claims for the audit trail (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-school.to.class-day-http",
-      "description": "The School Portal mounts the Class Day HTTP surface.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "class-day-view",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.to.timetable-http",
-      "description": "The school portal mounts the assignment-bound supervision surface of the timetable routes (#2527, #2701, #2732).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.http-common",
-      "description": "School-portal handler tests read the common MFA request shapes (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.timetable-http",
-      "description": "School-portal handler tests construct the supervision surface they mount (#2527, #2701, #2732).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.class-day-http",
-      "description": "School Portal external handler tests construct the Class Day HTTP surface they mount.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "class-day-view",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.identity-adapter",
-      "description": "School-portal handler tests construct claims of every portal scope (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
@@ -11196,17 +10425,6 @@
       "target_role": "compose"
     },
     {
-      "id": "root-composition.to.school-portal-http",
-      "description": "The production root constructs the school-portal HTTP adapter (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-school",
-      "target_role": "http"
-    },
-    {
       "id": "process-device-scan.application.public",
       "description": "The device-scan workflow implements the public kiosk scan contract (#2698).",
       "scopes": [
@@ -11272,17 +10490,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "calendar-view.adapter-test.identity-access-adapter",
-      "description": "Adapter tests place JWT claims and permissions in the context (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "identity-access.port-domain",
       "description": "Identity & Access ports express persistence operations using their own domain values.",
       "scopes": [
@@ -11292,6 +10499,39 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "identity-access.application.tenant-runtime",
+      "description": "Identity & Access application code scopes the operator's school-wide MFA writes to the school they name (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.application.transaction-runtime",
+      "description": "Identity & Access application code marks a store's missing row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.module-internal-test.tenant-runtime",
+      "description": "The internal tests of the Identity & Access application read the tenant the MFA writes ran under (ADR 0058 addendum point 4, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
     },
     {
       "id": "identity-access.compose.orm-sql",
@@ -11686,37 +10926,16 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "emergency-snapshot.adapter-test.people-directory-compose",
-      "description": "Emergency snapshot adapter tests construct the People Directory facade for the two-tenant RLS proof (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "emergency-snapshot.adapter-test.facilities-compose",
-      "description": "Emergency snapshot adapter tests construct the Facilities facade for the two-tenant RLS proof (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "facilities",
-      "target_role": "compose"
-    },
-    {
-      "id": "emergency-snapshot.http.common",
+      "id": "emergency-snapshot.http.common.tenant-runtime-common",
       "description": "The Emergency Snapshot HTTP adapter uses the shared HTTP runtime.",
       "scopes": [
         "production"
       ],
       "source_owner": "emergency-snapshot",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "emergency-snapshot.http.security-contract",
@@ -11728,180 +10947,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-iot.compose.inbound-common.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-scan-http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.inbound-iot-sessions.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot-sessions",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-fleet.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-fleet.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.process-device-scan.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.session-end.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.tenant-runtime.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.observability.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "observability",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.http-router",
-      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "root-composition.iot-compose",
-      "description": "The API root mounts the IoT composition over native capabilities (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-iot",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-iot.compose-test.device-fleet",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.process-device-scan",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.feedback",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "feedback",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.device-scan-compose",
-      "description": "The kiosk composition regression test verifies persisted timetable mirror tenant and wall-clock mapping through the native session lifecycle (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "process-device-scan",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-iot.compose.logger-default",
-      "description": "IoT composition uses cmp.Or for the shared logger default; cmp is classified with the test dependency class (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "test"
     },
     {
       "id": "document-rendering.decision-test.application",
@@ -12144,15 +11189,16 @@
       "target_role": "public"
     },
     {
-      "id": "file-storage.http.http-common",
+      "id": "file-storage.http.http-common.tenant-runtime-common",
       "description": "File handlers reuse common HTTP rendering, the tenant and parent route groups, the permission gates and the multipart document validation (#2707).",
       "scopes": [
         "production"
       ],
       "source_owner": "file-storage",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "file-storage.http.security-contract",
@@ -12177,15 +11223,16 @@
       "target_role": "http"
     },
     {
-      "id": "file-storage.http.adapter-test.inbound-common",
+      "id": "file-storage.http.adapter-test.tenant-runtime.common",
       "description": "File route tests decode the string ids and resolve the uploads directory through the common HTTP helpers (#2707).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "file-storage",
       "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "student-deletion.to.people-directory",
@@ -12393,15 +11440,16 @@
       "target_role": "public"
     },
     {
-      "id": "grade-transition.http.inbound-common",
+      "id": "grade-transition.http.tenant-runtime.common",
       "description": "The grade transition routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing and response rendering (#2742).",
       "scopes": [
         "production"
       ],
       "source_owner": "grade-transition",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "grade-transition.http.security-contract",
@@ -12525,15 +11573,16 @@
       "target_role": "public"
     },
     {
-      "id": "identity-access.http.inbound-common",
+      "id": "identity-access.http.tenant-runtime.common",
       "description": "The operator identity routes use the shared HTTP request and response helpers (#3252).",
       "scopes": [
         "production"
       ],
       "source_owner": "identity-access",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "identity-access.http.token-claims",
@@ -12569,15 +11618,16 @@
       "target_role": "public"
     },
     {
-      "id": "organization-tenancy.http.inbound-common",
+      "id": "organization-tenancy.http.tenant-runtime.common",
       "description": "The operator provisioning routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "organization-tenancy.http.token-claims",
@@ -12591,15 +11641,16 @@
       "target_role": "http"
     },
     {
-      "id": "organization-tenancy.adapter-test.inbound-common",
+      "id": "organization-tenancy.adapter-test.tenant-runtime.common",
       "description": "The provisioning route tests assert the operator error bodies and request IDs (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "organization-tenancy.adapter-test.token-claims",
@@ -12613,15 +11664,16 @@
       "target_role": "http"
     },
     {
-      "id": "settings-platform.http.inbound-common",
+      "id": "settings-platform.http.tenant-runtime.common",
       "description": "The operator school settings routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "communication.http.public",
@@ -12635,15 +11687,16 @@
       "target_role": "public"
     },
     {
-      "id": "communication.http.inbound-common",
+      "id": "communication.http.tenant-runtime.common",
       "description": "The operator announcement routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "communication",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "communication.http.token-claims",
@@ -12657,15 +11710,16 @@
       "target_role": "http"
     },
     {
-      "id": "communication.adapter-test.inbound-common",
+      "id": "communication.adapter-test.tenant-runtime.common",
       "description": "The operator announcement tests assert the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "communication",
       "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "communication.adapter-test.token-claims",
@@ -12699,17 +11753,6 @@
       "source_role": "test-support",
       "target_owner": "care-plan",
       "target_role": "test-support"
-    },
-    {
-      "id": "group-live-view.adapter.care-plan-absence-records",
-      "description": "The live-group adapter groups the Care Plan status-day records of modules/careplan/absencerecords before the owner resolves their precedence (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "timetable-activities.compose.student-presence.public",
@@ -12920,17 +11963,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-common.http.student-presence-public",
-      "description": "api/common builds the student location snapshot from the public presence facades and location types (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "school-structure.http.student-presence-public",
       "description": "The group routes read room sessions and attendance through the public presence facades (#3422, #2742).",
       "scopes": [
@@ -12964,15 +11996,16 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.http.inbound-common",
+      "id": "school-structure.http.tenant-runtime.common",
       "description": "The group routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the student location snapshot, like the other owners' HTTP adapters (#2742).",
       "scopes": [
         "production"
       ],
       "source_owner": "school-structure",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "school-structure.http.identity-adapter",
@@ -13041,6 +12074,17 @@
       "target_role": "contract"
     },
     {
+      "id": "student-presence.application.transaction-runtime",
+      "description": "Student Presence application code reports a missing attendance or visit row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "student-presence.application.tenant-runtime-public",
       "description": "The presence application opens tenant transactions and after-commit hooks through the tenant runtime (#3422).",
       "scopes": [
@@ -13061,17 +12105,6 @@
       "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "calendar-view.adapter.student-presence-public",
-      "description": "modules/supervisiondashboard/legacy reads session details, rooms and visit displays through the public presence facades (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "open-room-move.compose.student-presence-public",
@@ -13184,17 +12217,6 @@
       "target_role": "public"
     },
     {
-      "id": "calendar-view.adapter.timetable-activities.public",
-      "description": "The supervision dashboard maps the Timetable owner's public start-conflict warnings (timetable planning dissolution, ADR 0038).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "workforce.module-internal-test.timetable-activities.public",
       "description": "The Dienstplan overview suites assert the Timetable owner's public coverage intervals (timetable planning dissolution, ADR 0038).",
       "scopes": [
@@ -13302,6 +12324,17 @@
       "source_owner": "workforce",
       "source_role": "application",
       "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.transaction-runtime",
+      "description": "Workforce application code keeps the retained not-found shape through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
       "target_role": "public"
     },
     {
@@ -13614,15 +12647,16 @@
       "target_role": "compose"
     },
     {
-      "id": "people-directory.http.inbound-common",
+      "id": "people-directory.http.tenant-runtime.common",
       "description": "The student routes reuse the shared HTTP runtime of api/common: the tenant route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2731).",
       "scopes": [
         "production"
       ],
       "source_owner": "people-directory",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "people-directory.http.identity-adapter",
@@ -13680,7 +12714,7 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.adapter-test.inbound-common",
+      "id": "people-directory.adapter-test.tenant-runtime.common",
       "description": "Student route tests drive the routes through the shared HTTP runtime of api/common (ADR 0031, #2731).",
       "scopes": [
         "external_test",
@@ -13688,8 +12722,9 @@
       ],
       "source_owner": "people-directory",
       "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "people-directory.adapter-test.identity-adapter",
@@ -13846,28 +12881,6 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-view.adapter.school-structure-contract",
-      "description": "Consumes the storage-neutral School Structure contract (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
-      "id": "group-live-view.adapter.school-structure-contract",
-      "description": "Consumes the storage-neutral School Structure contract (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
       "id": "shift-plan-sync.public.school-structure-contract",
       "description": "Consumes the storage-neutral School Structure contract (#3555).",
       "scopes": [
@@ -13901,93 +12914,40 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-common.http.identity-access-adapter",
-      "description": "The standing shared HTTP runtime consumes the permanent session adapter and request identity memo (ADR 0031) (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-common.http.tenant-runtime-public",
+      "id": "tenant-runtime.common.http.tenant-runtime-public",
       "description": "The standing shared HTTP runtime consumes tenant scope, transactions and rollback markers (ADR 0046, #2738, #3898).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-common",
+      "source_owner": "tenant-runtime",
       "source_role": "http",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
+      "target_role": "public",
+      "source_package": "api/common"
     },
     {
-      "id": "inbound-common.http.security-runtime-contract",
+      "id": "tenant-runtime.common.http.security-runtime-contract",
       "description": "The standing shared HTTP runtime consumes validated principals and the permission registry (ADR 0046, #2738, #3898).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-common",
+      "source_owner": "tenant-runtime",
       "source_role": "http",
       "target_owner": "security-runtime",
-      "target_role": "contract"
+      "target_role": "contract",
+      "source_package": "api/common"
     },
     {
-      "id": "inbound-common.http.security-runtime-public",
+      "id": "tenant-runtime.common.http.security-runtime-public",
       "description": "The standing shared HTTP runtime consumes authorization decisions, local-seeder gates and upload filename entropy (ADR 0046, #2738, #3898).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-common",
+      "source_owner": "tenant-runtime",
       "source_role": "http",
       "target_owner": "security-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common.http.settings-platform-public",
-      "description": "The standing shared HTTP runtime consumes settings keys, immutable snapshots and the request memo (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common.http.delivery-platform-public",
-      "description": "The standing shared HTTP runtime consumes the native byte storage capability without implementation imports (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common.http.transaction-runtime-public",
-      "description": "The standing shared HTTP runtime consumes driver-free database failure classification (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "transaction-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-common.adapter-test.identity-access-adapter",
-      "description": "Shared HTTP behavior tests construct session claims at the permanent session adapter (ADR 0046, #2738).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
+      "target_role": "public",
+      "source_package": "api/common"
     },
     {
       "id": "transaction-runtime.public.postgres-errors",
@@ -14075,6 +13035,16 @@
       "source_owner": "root-composition",
       "target_owner_kind": "domain",
       "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.domain.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "port"
     },
     {
       "id": "root-composition.reach.internal-test.domain.public",
@@ -14198,6 +13168,17 @@
       "target_role": "public"
     },
     {
+      "id": "root-composition.reach.internal-test.projection.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every projection owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
       "id": "root-composition.reach.workflow.compose",
       "description": "ADR 0053 point 2: the typed roots import the compose role of every workflow owner.",
       "scopes": [
@@ -14296,17 +13277,6 @@
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_class": "http-router"
-    },
-    {
-      "id": "root-composition.http-host.inbound-common",
-      "description": "ADR 0056: the HTTP host builds the global middleware chain and binds owner failure kinds from the shared HTTP runtime (ADR 0046).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
     },
     {
       "id": "root-composition.internal-test.cli-config",
@@ -14605,17 +13575,6 @@
       "same_owner": true
     },
     {
-      "id": "owner-compose.inbound.http",
-      "description": "ADR 0053 point 3: the composition of an inbound owner imports its own http role.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "compose",
-      "target_role": "http",
-      "same_owner": true
-    },
-    {
       "id": "own-test.domain.adapter",
       "description": "ADR 0053 point 7.1: the tests of a domain owner import its own adapter role.",
       "scopes": [
@@ -14660,17 +13619,6 @@
       "same_owner": true
     },
     {
-      "id": "own-test.inbound.compose",
-      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own compose role.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
-      "target_role": "compose",
-      "same_owner": true
-    },
-    {
       "id": "own-test.platform.compose",
       "description": "ADR 0053 point 7.1: the tests of a platform owner import its own compose role.",
       "scopes": [
@@ -14704,13 +13652,13 @@
       "same_owner": true
     },
     {
-      "id": "own-test.inbound.contract",
-      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own contract role.",
+      "id": "own-test.tool.contract",
+      "description": "ADR 0053 point 7.1: the tests of a tool owner import its own contract role.",
       "scopes": [
         "internal_test",
         "external_test"
       ],
-      "source_owner_kind": "inbound",
+      "source_owner_kind": "tool",
       "target_role": "contract",
       "same_owner": true
     },
@@ -14971,6 +13919,17 @@
       "same_owner": true
     },
     {
+      "id": "own-test-support.domain.port",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
       "id": "own-test-support.domain.public",
       "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own public role.",
       "scopes": [
@@ -15011,17 +13970,6 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
-      "target_owner": "root-composition",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-test.inbound.compose",
-      "description": "ADR 0053 point 7.2: the tests of an inbound owner build the typed roots.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
       "target_owner": "root-composition",
       "target_role": "compose"
     },
@@ -15124,15 +14072,16 @@
       "target_role": "http"
     },
     {
-      "id": "school-calendar.http-common",
+      "id": "school-calendar.http-common.tenant-runtime-common",
       "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
       "scopes": [
         "production"
       ],
       "source_owner": "school-calendar",
       "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     },
     {
       "id": "school-calendar.security-contract",
@@ -15144,17 +14093,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "school-calendar.identity-adapter",
-      "description": "Staff calendar handlers verify and authenticate the JWT and scope the tenant (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "e2e-calendar.to.school-calendar-http",
@@ -15188,9 +14126,211 @@
       "source_role": "http",
       "target_owner": "data-import",
       "target_role": "public"
+    },
+    {
+      "id": "external.rendering.delivery-platform.module-behavior-test",
+      "description": "Delivery module-behavior-test uses its existing classified rendering dependencies.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "module-behavior-test",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.delivery.delivery-platform.module-internal-test",
+      "description": "Delivery module-internal-test uses its existing classified delivery dependencies.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "module-internal-test",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.delivery-platform.workflow-integration-test",
+      "description": "Delivery workflow-integration-test uses its existing classified delivery dependencies.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.delivery-platform.adapter",
+      "description": "Delivery adapter uses its existing classified delivery dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.rendering.delivery-platform.adapter",
+      "description": "Delivery adapter uses its existing classified rendering dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.delivery.delivery-platform.application",
+      "description": "Delivery application uses its existing classified delivery dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.crypto.identity-access.production.application",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.domain",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "domain",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.public",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "public",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.internal_test.module-internal-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.external_test.e2e-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "communication.parent-announcements.http.security-contract",
+      "description": "The existing announcement/message HTTP adapter applies its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "modules/communication/http/parentannouncements",
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.parent-messages.http.security-contract",
+      "description": "The existing announcement/message HTTP adapter applies its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "modules/communication/http/parentmessages",
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.staff-messages.workflow.http-subject",
+      "description": "The existing cross-portal staff-message workflow test drives only its own HTTP adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_package": "modules/communication/http/staffmessages",
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_package": "modules/communication/http/staffmessages",
+      "target_owner": "communication",
+      "target_role": "http"
     }
   ],
   "relocations": [
+    {
+      "from": "api/absence-types",
+      "to": "modules/workforce/http/absencetypes",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/checkin",
+      "to": "modules/devicescan/http/checkin",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/data",
+      "to": "modules/devicescan/http/data",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/devices",
+      "to": "modules/devicefleet/http/devices",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/internal/shared",
+      "to": "modules/devicescan/http/internal/shared",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/sessions",
+      "to": "modules/devicescan/http/sessions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/staffclock",
+      "to": "modules/devicescan/http/staffclock",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/shift-types",
+      "to": "modules/workforce/http/shifttypes",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/staff-shifts",
+      "to": "modules/workforce/http/staffshifts",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/substitutions",
+      "to": "modules/workforce/http/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/work-time-models",
+      "to": "modules/workforce/http/worktimemodels",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
     {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
@@ -15207,9 +14347,19 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/dataimport/inbound",
+      "to": "modules/dataimport/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
+    },
+    {
+      "from": "modules/workforce/inbound/timetracking",
+      "to": "modules/workforce/http/timetracking",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
       "from": "services/education",

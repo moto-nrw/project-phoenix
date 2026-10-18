@@ -10,8 +10,11 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // OperatorAuthentication runs operator login, the MFA-proven token issue,
@@ -430,7 +433,7 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 		if _, err := s.operators.UpdateOperator(txCtx, operator); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}
-		if err := s.credentials.InvalidateEmailChangeTokens(txCtx, operatorID); err != nil {
+		if err := s.credentials.RevokeEmailChanges(txCtx, operatorID); err != nil {
 			return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
 		}
 		if err := s.revokeAllWithAudit(txCtx, operatorID, "password_change"); err != nil {
@@ -489,4 +492,165 @@ func (s *OperatorAuthentication) auditRevocation(ctx context.Context, operatorID
 		return fmt.Errorf("audit operator token revocation: %w", err)
 	}
 	return nil
+}
+
+type OperatorAudit struct{ Source identityPorts.OperatorAudit }
+
+func (a OperatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
+	return a.Source.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))
+}
+
+type OrganizationDirectory struct {
+	Source identityPorts.OrganizationDirectory
+}
+
+func (d OrganizationDirectory) ListSchools(ctx context.Context, ids []int64) ([]domain.School, error) {
+	schools, err := d.Source.ListSchools(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.School, 0, len(schools))
+	for _, school := range schools {
+		result = append(result, domain.School(school))
+	}
+	return result, nil
+}
+
+func (d OrganizationDirectory) ListOrganizationNames(ctx context.Context, ids []int64) ([]domain.OrganizationName, error) {
+	organizations, err := d.Source.ListOrganizationNames(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.OrganizationName, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, domain.OrganizationName(organization))
+	}
+	return result, nil
+}
+
+type SchoolIdentityProvisioner struct {
+	Source    identityPorts.SchoolIdentityProvisioner
+	Lifecycle *AccountLifecycle
+}
+
+func (p SchoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {
+	return p.Source.HasLivePersonAtSchool(ctx, accountID)
+}
+
+func (p SchoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]domain.AccountPersonIdentity, error) {
+	persons, err := p.Source.ListAccountPersons(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.AccountPersonIdentity, 0, len(persons))
+	for _, person := range persons {
+		result = append(result, domain.AccountPersonIdentity(person))
+	}
+	return result, nil
+}
+
+func (p SchoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return p.Source.HasLiveCaregiverProfile(ctx, accountID)
+}
+
+func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error {
+	if p.Lifecycle != nil {
+		role := request.Role
+		_, err := p.Lifecycle.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+			AccountID: request.AccountID, TenantID: request.TenantID,
+			Role: &domain.RoleFacts{
+				ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+			},
+			FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
+		})
+		if errors.Is(err, domain.ErrSchoolIdentityNamesRequired) || errors.Is(err, domain.ErrSchoolIdentityPersonIsStudent) {
+			return &domain.InvalidInputError{Err: err}
+		}
+		return err
+	}
+	err := p.Source.EnsureSchoolIdentity(ctx, identityPorts.SchoolIdentityRequest{
+		AccountID: request.AccountID, TenantID: request.TenantID, Role: schoolRoleFact(request.Role),
+		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
+	})
+	if invalid, ok := errors.AsType[*identityaccess.InvalidInputError](err); ok {
+		return &domain.InvalidInputError{Err: invalid.Err}
+	}
+	return err
+}
+
+func (p SchoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]domain.AccountIdentityFact, error) {
+	facts, err := p.Source.ListAccountIdentityFacts(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.AccountIdentityFact, 0, len(facts))
+	for _, fact := range facts {
+		result = append(result, domain.AccountIdentityFact(fact))
+	}
+	return result, nil
+}
+
+// schoolRolePolicy binds the public school-role policy every school-access
+// path shares (#3314). A role with ID zero is one that does not exist; the
+// validation reports why a role may not be handed out at the school with the
+// message the operator sees.
+type SchoolRolePolicy struct{}
+
+func (SchoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error {
+	return identityaccess.ValidateAssignableSchoolRole(operatorRoleFacts(role), tenantID)
+}
+
+func (SchoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
+	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
+}
+
+// RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
+// operator flows always did; only the lookup-shaped decisions treat ID zero
+// as no role.
+func (SchoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
+	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
+		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+	})
+}
+
+func (SchoolRolePolicy) LehrkraftRoleImmutable() error {
+	return identityaccess.ErrLehrkraftRoleImmutable
+}
+
+// publicOperatorAuditEntry renders one ledger entry across the module
+// boundary, with the typed evidence each action carries.
+func publicOperatorAuditEntry(entry domain.OperatorAuditEntry) identityaccess.OperatorAuditEntry {
+	public := identityaccess.OperatorAuditEntry{
+		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
+		ResourceID: entry.ResourceID, IPAddress: entry.IPAddress,
+	}
+	if entry.RevokedSessions != nil {
+		evidence := identityaccess.RevokedSessionsEvidence(*entry.RevokedSessions)
+		public.RevokedSessions = &evidence
+	}
+	if entry.AccessChange != nil {
+		change := identityaccess.OperatorAccessChange(*entry.AccessChange)
+		public.AccessChange = &change
+	}
+	if entry.MFA != nil {
+		evidence := identityaccess.OperatorMFAEvidence{Reason: entry.MFA.Reason, LockedUntil: entry.MFA.LockedUntil}
+		if entry.MFA.Override != nil {
+			override := identityaccess.OperatorMFAOverrideEvidence(*entry.MFA.Override)
+			evidence.Override = &override
+		}
+		public.MFA = &evidence
+	}
+	return public
+}
+
+// operatorRoleFacts projects a resolved role; ID zero is no role at all.
+func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
+	if role.ID <= 0 {
+		return nil
+	}
+	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+}
+
+func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
+	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
 }

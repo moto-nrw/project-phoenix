@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
@@ -124,7 +124,7 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		Announcements:      dependencies.Announcements,
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
-		StoredNames:        newStoredName,
+		StoredNames:        apiDocuments.NewStoredName,
 		Observe: func(observation Observation) {
 			observation.Err = mapError(observation.Err)
 			dependencies.Observe(observation)
@@ -212,15 +212,9 @@ func (s objectStore) Remove(ctx context.Context, tenantID int64, storedName stri
 }
 
 // newStoredName generates the storage name for a validated content type.
-func newStoredName(extension string) (string, error) {
-	if extension == "" {
-		return "", errors.New("unsupported document content type")
-	}
-	id, err := uuid.NewV4()
-	if err != nil {
-		return "", errors.New("failed to generate document filename")
-	}
-	return id.String() + extension, nil
+// NewDocumentCoordinator constructs the existing object-store adapter.
+func NewDocumentCoordinator(kind string, backend apiDocuments.Objects, store apiDocuments.Store, logger *slog.Logger) *apiDocuments.Coordinator {
+	return &apiDocuments.Coordinator{Kind: kind, Backend: backend, Store: store, Logger: logger}
 }
 
 // --- foreign facts -------------------------------------------------------------

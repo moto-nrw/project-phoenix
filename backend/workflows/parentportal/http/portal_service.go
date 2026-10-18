@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -79,13 +77,13 @@ type PortalService interface {
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
-	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error)
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*parentService.ExcusedAbsenceRequestSnapshot, error)
 
 	// EditExcusedRequest rewrites the caller's own pending sick or excused
 	// absence request instead of withdrawing and refiling it (#2267). The
 	// existing share is kept. Authorization: the account must be the
 	// submitting guardian.
-	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*careplan.ExcusedAbsenceRequest, error)
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*parentService.ExcusedAbsenceRequestSnapshot, error)
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
@@ -101,7 +99,7 @@ type PortalService interface {
 
 	// EditOfferingChangeRequest rewrites the caller's own pending offering
 	// change (#2267).
-	EditOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64, selections []careplan.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, expectedVersion string) (*parentService.ChildCareOfferings, error)
+	EditOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64, selections []parentService.OfferingChangeSelectionSnapshot, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, expectedVersion string) (*parentService.ChildCareOfferings, error)
 
 	// ListRequestEvents returns one request's history for the guardian who
 	// submitted it (#2267). Anyone else gets not-found.
@@ -112,7 +110,7 @@ type PortalService interface {
 	// stay excluded as a staff-only status. Authorization only; not gated by
 	// the setting so previously-reported days stay visible if a school later
 	// disables the feature.
-	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*absencerecords.StudentStatusDay, error)
+	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*parentService.StudentStatusDaySnapshot, error)
 
 	// ChildFeatures resolves which parent-portal write features are enabled
 	// for the child's tenant, so the UI can hide/disable actions the backend
@@ -247,12 +245,12 @@ type PortalService interface {
 	// GetChildOfferingCatalog returns the offerings the guardian may pick from
 	// for a change request, prefilled with the current booking. Requires
 	// parent_portal.request.submit.
-	GetChildOfferingCatalog(ctx context.Context, accountID, studentID int64) (*careplan.OfferingChangeCatalog, error)
-	GetChildOfferingCatalogAt(ctx context.Context, accountID, studentID int64, effectiveFrom timezone.Date) (*careplan.OfferingChangeCatalog, error)
+	GetChildOfferingCatalog(ctx context.Context, accountID, studentID int64) (*parentService.OfferingChangeCatalogSnapshot, error)
+	GetChildOfferingCatalogAt(ctx context.Context, accountID, studentID int64, effectiveFrom timezone.Date) (*parentService.OfferingChangeCatalogSnapshot, error)
 
 	// CreateOfferingChangeRequest stores a pending post-enrollment offering
 	// change for staff review. Requires parent_portal.request.submit.
-	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []careplan.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, recipientGuardianProfileIDs []int64) (*parentService.ChildCareOfferings, error)
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []parentService.OfferingChangeSelectionSnapshot, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, recipientGuardianProfileIDs []int64) (*parentService.ChildCareOfferings, error)
 
 	// GetChildCareOfferings returns the care offerings the child is booked into,
 	// plus whether the guardian may request a change
@@ -266,9 +264,9 @@ type PortalService interface {
 	// Reading needs parent_portal.enrollments.view and reports a missing
 	// permission as a named reason. The two actions additionally need
 	// parent_portal.enrollment.submit.
-	GetChildCourses(ctx context.Context, accountID, studentID int64) (*careplan.CourseCatalog, error)
-	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*careplan.CourseCatalog, error)
-	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*careplan.CourseCatalog, error)
+	GetChildCourses(ctx context.Context, accountID, studentID int64) (*parentService.CourseCatalogSnapshot, error)
+	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*parentService.CourseCatalogSnapshot, error)
+	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*parentService.CourseCatalogSnapshot, error)
 
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the

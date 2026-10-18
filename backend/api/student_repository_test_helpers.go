@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -6,7 +8,8 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -17,13 +20,13 @@ type StudentTestRepositories struct {
 	// CarePlan is the owner capability the legacy adapters below delegate to;
 	// Care Plan workflows composed by the test root share the same instance.
 	CarePlan           careplan.Capability
-	ParentRequestShare usersModels.ParentRequestShareEventRepository
+	ParentRequestShare peoplePorts.ParentRequestShareRecords
 	EnrollmentTestRepositories
-	CareScheduleChangeRequest    timetableCompose.CareScheduleRequestRows
+	CareScheduleChangeRequest    timetablePorts.CareScheduleRequestRows
 	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
-	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository
-	FamilyProtection             usersModels.FamilyProtectionEventRepository
+	StudentDataChangeRequest     peoplePorts.StudentDataChangeRequestRepository
+	FamilyProtection             peoplePorts.FamilyProtectionRecords
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
@@ -33,8 +36,8 @@ type StudentTestRepositories struct {
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
 	DataDeletion                 auditModels.DataDeletionRepository
-	ParentMessageThread          usersModels.ParentMessageThreadRepository
-	ParentMessage                usersModels.ParentMessageRepository
+	ParentMessageThread          parentStore.ParentMessageThreadRepository
+	ParentMessage                parentStore.ParentMessageRepository
 }
 
 func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (StudentTestRepositories, error) {
@@ -60,7 +63,7 @@ func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, membe
 		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,
-		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
+		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db.Pool(), newParentGuardianLister(db, NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
 		ParentMessage:              parentStore.NewParentMessageRepository(db.Pool()),
 	}, nil
 }

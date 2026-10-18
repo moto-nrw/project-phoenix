@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import (
@@ -12,7 +14,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -27,7 +29,7 @@ import (
 )
 
 type WorkforceTestModule struct {
-	Users      *peopleCompose.PersonDirectory
+	Users      peoplePorts.PersonDirectory
 	StaffAdmin *workforce.StaffAdmin
 	// TimeTracking is the Workforce time-tracking side composed the way
 	// the service graph composes it (#3413).
@@ -55,12 +57,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
-	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	usersService := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       repos.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.Membership,
@@ -131,8 +133,8 @@ func MustNewStaffEmployment(db transactionruntime.Database) workforce.StaffEmplo
 // may not name the Workforce composition.
 type StaffAdminDependencies struct {
 	DB         transactionruntime.Database
-	Staff      userModels.StaffRepository
-	Persons    userModels.PersonRepository
+	Staff      peoplePorts.StaffRepository
+	Persons    peoplePorts.PersonRepository
 	Membership schoolmembership.Capability
 
 	MasterDataAudit auditModels.StaffMasterDataChangeCreator

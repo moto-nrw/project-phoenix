@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -68,11 +72,11 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 		nil, nil, nil, nil,
 		NewTestPhases(TestPhaseDependencies{Records: NewTestModule()}),
 		nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, dbPublicSchools{db: db},
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/phases/public/%s", targetSchool.Slug), nil)
 	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	w := httptest.NewRecorder()
-	resource.Router().ServeHTTP(w, req)
+	resource.Router(rootAPI.TenantSessionChain).ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"name":"Target Tenant Phase"`)
 	assert.NotContains(t, w.Body.String(), `"name":"Other Tenant Phase"`)

@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -37,25 +38,36 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		Exec(ctx)
 	require.NoError(t, err)
 
-	request := &userModels.StudentDataChangeRequest{
+	request := &parentService.StudentDataChangeRequest{
 		StudentID: author.StudentID, SubmittedBy: author.AccountID,
-		Target: userModels.DataChangeTargetPerson, FieldKey: "first_name",
+		Target: parentService.DataChangeTargetPerson, FieldKey: "first_name",
 		OldValue: json.RawMessage(`"Felix"`), NewValue: json.RawMessage(`"Feli"`),
-		Status: userModels.DataChangeStatusPending,
+		Status: parentService.DataChangeStatusPending,
 	}
-	request.SetTenantID(author.TenantID)
-	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
+	request.TenantID = author.TenantID
+	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:     repos.CarePlan(),
-		People:       api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles: careProfiles(t, db),
-		ChildRepo:    repos.ParentChild, GuardianProfileRepo: repos.GuardianProfile,
-		GuardianPhoneRepo: repos.GuardianPhoneNumber, PersonRepo: repos.Person,
-		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
-		ChangeRequestRepo:      repos.StudentDataChangeRequest,
-		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
+		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		Logger: slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	var sharing parentService.RequestSharingService = svc
 	options, err := sharing.GetRequestSharingOptions(ctx, author.AccountID, author.StudentID)
@@ -85,20 +97,20 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.Len(t, recipientMasterData.PendingChanges, 1)
 	assert.Equal(t, request.ID, recipientMasterData.PendingChanges[0].ID)
 
-	protectionOn := &userModels.FamilyProtectionEvent{
+	protectionOn := &peopledirectory.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
-	protectionOn.SetTenantID(author.TenantID)
-	require.NoError(t, repos.FamilyProtection.Create(ctx, protectionOn))
+	protectionOn.TenantID = author.TenantID
+	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOn))
 	recipientRows, err = svc.ListMyMasterDataRequests(ctx, recipient.AccountID, author.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, recipientRows)
 
-	protectionOff := &userModels.FamilyProtectionEvent{
+	protectionOff := &peopledirectory.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
-	protectionOff.SetTenantID(author.TenantID)
-	require.NoError(t, repos.FamilyProtection.Create(ctx, protectionOff))
+	protectionOff.TenantID = author.TenantID
+	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOff))
 	recipientRows, err = svc.ListMyMasterDataRequests(ctx, recipient.AccountID, author.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, recipientRows, "disabling protection must not revive an old share")
