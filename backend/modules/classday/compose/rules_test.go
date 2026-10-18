@@ -3,6 +3,7 @@ package compose_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -59,7 +60,7 @@ func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := (compose.Rules{}).EnrolledOn(tc.student, list, today); got != tc.want {
+			if got := compose.Rules(api.ClassDayEnrolledOn).EnrolledOn(tc.student, list, today); got != tc.want {
 				t.Fatalf("EnrolledOn = %v, want %v", got, tc.want)
 			}
 		})
@@ -81,7 +82,7 @@ func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 	activeChild := func(from calendar.Date) ports.StudentFacts {
 		return ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledFrom: ptrDate(from)}
 	}
-	rules := compose.Rules{}
+	rules := compose.Rules(api.ClassDayEnrolledOn)
 
 	if rules.EnrolledOn(activeChild(enrolledFrom), beforeEnrollment, today) {
 		t.Fatal("active child must NOT be eligible for a past date before enrolled_from")
@@ -102,7 +103,7 @@ func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 // plan verdict through.
 func TestRulesRowCareDay(t *testing.T) {
 	t.Parallel()
-	rules := compose.Rules{}
+	rules := compose.Rules(api.ClassDayEnrolledOn)
 	now := calendar.NewDate(2030, 9, 4).BerlinMidnight()
 
 	if got := rules.RowCareDay(false, ports.RosterFacts{Status: "expected", ManualStatusAt: &now}, ports.CareDayNotScheduled); got != ports.CareDayUnknown {

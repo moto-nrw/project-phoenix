@@ -27,5 +27,5 @@ func (r feedbackStudents) LockFeedbackStudent(ctx context.Context, studentID int
 	if err != nil {
 		return devicescan.FeedbackStudent{}, err
 	}
-	return devicescan.FeedbackStudent{ID: student.ID, Alumnus: student.IsAlumnus()}, nil
+	return devicescan.FeedbackStudent{ID: student.ID, Alumnus: student.Alumnus}, nil
 }

@@ -328,6 +328,7 @@ func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings api.Class
 		PickupBaselines: carePlanTest.NewStoredPickupBaselines(carePlan, newApprovedOfferingProjection(db)),
 		ListExport:      renderer,
 		Settings:        api.ClassDaySlotListSettings{Settings: settings},
+		EnrolledOn:      api.ClassDayEnrolledOn,
 		Access:          api.ClassDaySlotListAccess{Staff: userCtx},
 		// Pin the clock to a fixed Wednesday so the pickup suite does not depend
 		// on the weekday CI runs on (see pickupNow).

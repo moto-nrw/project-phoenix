@@ -245,7 +245,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: newSupervisionYard(yard)},
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations,
-		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
+		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(data.Users), data.IoT, nil, logger)}, nil
 }
 
 // Session-end HTTP fixtures use the same values the root binds in production.

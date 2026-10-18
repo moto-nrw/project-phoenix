@@ -27,7 +27,7 @@ func TestUnregisteredTagScanRuntime(t *testing.T) {
 	require.NoError(t, err)
 	var measuring, observing bool
 	var operations []map[string]any
-	fleet, err := compose.New(compose.Dependencies{DB: db, Rooms: rooms, Observe: func(event compose.Observation) {
+	fleet, err := compose.New(compose.Dependencies{DB: db, Rooms: rooms, APIKeys: api.DeviceAPIKeys{}, Observe: func(event compose.Observation) {
 		if observing {
 			operations = append(operations, map[string]any{"operation": event.Operation, "error_code": devicefleet.ErrorCode(event.Err), "queries": event.Stats.Queries, "rows": event.Stats.Rows, "duration_ms": float64(event.Duration) / float64(time.Millisecond)})
 		}

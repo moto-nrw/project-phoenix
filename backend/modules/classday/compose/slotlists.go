@@ -12,7 +12,6 @@ import (
 	"time"
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
@@ -67,6 +66,8 @@ type SlotListDependencies struct {
 	// binds the admin permission and the caller's staff record.
 	Access     ports.ReadAccess
 	ListExport application.ListRenderer
+	// EnrolledOn is the People Directory's enrollment rule; the root binds it.
+	EnrolledOn func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -103,7 +104,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		CareDays:        careDays,
 		EffectiveTimes:  effectiveTimes,
 		PickupBaselines: baselines,
-		Rules:           Rules{},
+		Rules:           Rules(deps.EnrolledOn),
 		Settings:        settings,
 		Access:          deps.Access,
 		ListExport:      deps.ListExport,
@@ -176,17 +177,15 @@ func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentID
 
 // Rules forwards the pure care-plan rules to their owners so every reader of
 // the roster shares one derivation (#1565, #2606).
-type Rules struct{}
+type Rules func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 
 func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdict ports.CareDay) ports.CareDay {
 	model := &careplan.CareDayAttendance{Expected: row.Status == scheduleModel.AttendanceStatusExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
 	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
 }
 
-func (Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
-	return userModel.EnrolledOn(&userModel.Student{
-		Status: userModel.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
-	}, date, today)
+func (r Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
+	return r(student.Status, student.EnrolledFrom, student.EnrolledUntil, date, today)
 }
 
 // SlotBlock is one block of the day as the slot lists read it: the Timetable

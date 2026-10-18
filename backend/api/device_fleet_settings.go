@@ -7,6 +7,7 @@ import (
 	"time"
 
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -80,3 +81,9 @@ func (f displayTenantFacts) School(ctx context.Context, tenantID int64) (devicef
 func (f displayTenantFacts) DisplayEnabled(ctx context.Context, tenantID int64) (bool, error) {
 	return f.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyDisplayEnabled)
 }
+
+// DeviceAPIKeys mints device API keys through Security Runtime, which owns the
+// key format and its entropy.
+type DeviceAPIKeys struct{}
+
+func (DeviceAPIKeys) Mint() (string, error) { return securityruntime.DeviceAPIKey() }
