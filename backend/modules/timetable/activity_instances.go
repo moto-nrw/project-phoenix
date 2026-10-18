@@ -15,6 +15,10 @@ const (
 	ActivityInstanceIdempotencyKeyMaxLength = 128
 )
 
+// IsPlannedInstanceStatus reports whether a stored instance status still
+// plans the block, as opposed to a cancelled one.
+func IsPlannedInstanceStatus(status string) bool { return status == InstanceStatusPlanned }
+
 // ActivityInstance is one planned occurrence of a block: its date, times,
 // room, template link and planning annotations. Its execution (start, live
 // group, completion) lives in Student Presence's activity session.

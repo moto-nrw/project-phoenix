@@ -218,7 +218,7 @@ func (a planExportInstances) InstancesInRange(ctx context.Context, from, to plan
 			Title:            instance.Title,
 			ActivityGroupID:  instance.ActivityGroupID,
 			RoomID:           instance.RoomID,
-			Cancelled:        instance.Status == timetable.InstanceStatusCancelled,
+			Cancelled:        instance.IsCancelled(),
 			IsDuty:           instance.IsDuty,
 			CancelReason:     instance.CancelReason,
 			Notes:            instance.Notes,
