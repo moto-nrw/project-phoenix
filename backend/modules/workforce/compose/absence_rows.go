@@ -1,7 +1,6 @@
 package compose
 
 import (
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
@@ -30,7 +29,3 @@ func NewStaffAbsenceRepository(capability workforce.Capability) StaffAbsenceRepo
 func NewStaffAbsenceAuditRepository(capability workforce.Capability) StaffAbsenceAuditRepository {
 	return timetracking.NewStaffAbsenceAuditRows(capability)
 }
-
-// ErrRowNotFound is the retained repositories' not-found sentinel the row
-// adapters wrap (models/base.ErrNotFound).
-var ErrRowNotFound = modelBase.ErrNotFound

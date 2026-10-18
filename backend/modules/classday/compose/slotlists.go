@@ -11,7 +11,6 @@ import (
 	"context"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
@@ -66,7 +65,6 @@ type SlotListDependencies struct {
 	// binds the admin permission and the caller's staff record.
 	Access     ports.ReadAccess
 	ListExport application.ListRenderer
-	// EnrolledOn is the People Directory's enrollment rule; the root binds it.
 	EnrolledOn func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
@@ -175,12 +173,14 @@ func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentID
 	return out, nil
 }
 
+const SlotAttendanceExpected = "expected" // Timetable's stored status, pinned in list_kind_pin_test.go.
+
 // Rules forwards the pure care-plan rules to their owners so every reader of
 // the roster shares one derivation (#1565, #2606).
 type Rules func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
 
 func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdict ports.CareDay) ports.CareDay {
-	model := &careplan.CareDayAttendance{Expected: row.Status == scheduleModel.AttendanceStatusExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
+	model := &careplan.CareDayAttendance{Expected: row.Status == SlotAttendanceExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
 	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
 }
 
