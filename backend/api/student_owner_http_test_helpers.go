@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peopleStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -65,7 +64,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	}
 	messages := NewStudentMessageRows(store)
 	parentEventEmitter := NewParentEventEmitter(store, unit, messages.ParentMessageThread, messages.ParentMessage, liveSettings.Settings, broadcaster, slog.Default())
-	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
+	studentPhotos := peopleServices.StudentPhotos
 	schoolGroups := studentSchoolGroups{GroupManagement: liveEducation.Education}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: store.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {

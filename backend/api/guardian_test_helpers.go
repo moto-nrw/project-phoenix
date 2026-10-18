@@ -15,17 +15,20 @@ import (
 
 type GuardianTestModule struct {
 	PeopleDirectory peopledirectory.Capability
-	// PhotoRuntime is the slot the directory resolves its photo runtime from,
-	// filled by the graph that also owns the feature gate and the file cleanup.
-	PhotoRuntime *peopleCompose.StudentPhotoRuntime
-	runtime      GuardianDirectoryRuntime
+	runtime         GuardianDirectoryRuntime
 }
 
 func (m GuardianTestModule) NewGuardianDirectoryRuntime(transactionruntime.Database) GuardianDirectoryRuntime {
 	return m.runtime
 }
 
+// NewGuardianTestModule composes the guardian graph over a People Directory
+// that serves no photos.
 func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (GuardianTestModule, error) {
+	return newGuardianTestModule(db, unit, nil)
+}
+
+func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, photos peopleCompose.StudentPhotoRuntime) (GuardianTestModule, error) {
 	auth, err := NewAuthTestModule(db, unit)
 	if err != nil {
 		return GuardianTestModule{}, err
@@ -51,11 +54,11 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: NewGuardianDataAccessLog(audits.DataAccessLog),
 		RolePresets: guardianRolePresets}, db.Pool())
-	people, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
+	people, err := NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted}, photos)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored

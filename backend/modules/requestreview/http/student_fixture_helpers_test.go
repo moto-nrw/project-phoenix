@@ -57,7 +57,8 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 	db := testpkg.SetupTestDB(t)
 	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	svc, live, people, audit, decisions, groupLive, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc, live, people, audit, decisions, groupLive, err := api.NewStudentHTTPTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, broadcaster, clocks...)
 	require.NoError(t, err)
 	liveEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	livePeople := api.BindStudentTestPeople(api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...), svc)
@@ -66,7 +67,6 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 	liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	liveCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	liveDevices := api.NewActiveTestDevices(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
-	broadcaster := testpkg.NewRecordingBroadcaster()
 	_, _, _, _, _, resource, mount, err := api.NewStudentHTTPTestResources(
 		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, live, liveSettings, liveEducation, liveCaller, livePeople, livePresence, liveTimetable, people, audit, groupLive, broadcaster, tenantScopedCaller{liveCaller},
 		testpkg.StudentDirectory{}, &testpkg.FeedbackEntryCounterMock{}, testpkg.RequestAuditActor,
