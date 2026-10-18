@@ -79,3 +79,27 @@ func (r AttendanceRetention) Days(ctx context.Context) (int, error) {
 func (r AttendanceRetention) SettingError(err error) error {
 	return fmt.Errorf("resolve %s: %w", configModel.KeyGDPRAttendanceRetentionDays, err)
 }
+
+// GuardianRetention is the retention window of a parent contact without a
+// child, the tenant's GDPR guardian retention (#4043).
+type GuardianRetention struct{ source StatisticsRetentionSource }
+
+// NewGuardianRetention binds the window to the resolver.
+func NewGuardianRetention(source StatisticsRetentionSource) GuardianRetention {
+	return GuardianRetention{source: source}
+}
+
+// Days resolves the window.
+func (r GuardianRetention) Days(ctx context.Context) (int, error) {
+	days, err := r.source.ResolveInt(ctx, configModel.KeyGDPRGuardianRetentionDays)
+	if err != nil {
+		return 0, r.SettingError(err)
+	}
+	return days, nil
+}
+
+// SettingError names the setting behind a window the deletion refused or
+// could not read.
+func (r GuardianRetention) SettingError(err error) error {
+	return fmt.Errorf("resolve %s: %w", configModel.KeyGDPRGuardianRetentionDays, err)
+}

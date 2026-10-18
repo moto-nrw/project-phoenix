@@ -188,7 +188,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
 		cleanupJobs: append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
-			operatorRetentionJobs(deps.OperatorRetention)...),
+			append(operatorRetentionJobs(deps.OperatorRetention), accountRetentionJobs(deps.AccountRetention)...)...),
 
 		activeService:          deps.Active,
 		breakAutoEnder:         deps.BreakAutoEnder,
@@ -1084,6 +1084,15 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 	}
 
 	return firstErr
+}
+
+// accountRetentionJobs lists the hourly erasure of unused accounts (#4043).
+// A missing side leaves its job out.
+func accountRetentionJobs(r ports.AccountRetention) []CleanupJob {
+	if r == nil {
+		return nil
+	}
+	return []CleanupJob{{Description: "Unused account erasure", Run: r.EraseUnusedAccounts}}
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.

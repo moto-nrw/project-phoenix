@@ -143,8 +143,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
-		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
-		Runtime:               runtime.Attach, WithRecoveryProof: rotation.WithRecoveryProof,
+		AccountRetention: application.NewAccountRetention(store, runtime.Attach, invitationLogger(dependencies.Invitations)), InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
+		Runtime: runtime.Attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
 	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
 }

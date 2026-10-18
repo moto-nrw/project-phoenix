@@ -259,7 +259,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 		submissionLimits:     enrollmentCompose.New(),
 		settingAudit:         settingsCompose.NewAuditRetention(),
 		exportTransfers:      exportTransferCompose.NewJournalRetention(),
-	}, students, staff, presence)
+	}, students, staff, presence, newGuardianRetention(graph.db, reads.identity))
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +320,7 @@ func workerDependencies(graph *serveGraph, reads workerReads, reminderNotificati
 		EmailChangeCleanup:        identity,
 		OperatorInvitationCleanup: identity,
 		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: services.Audit, Accounts: identity},
+		AccountRetention:          identity,
 		WorkSessionCleanup:        services.WorkSession.Jobs,
 		BreakAutoEnder:            services.WorkSession.Jobs,
 		AutoCheckouter:            services.WorkSession.Jobs,

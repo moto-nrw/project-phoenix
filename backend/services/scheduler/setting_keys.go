@@ -19,6 +19,7 @@ const (
 	settingDataCleanupTimeoutMinutes             = "gdpr.data_cleanup_timeout_minutes"
 	settingStatusDayRetentionDays                = "gdpr.status_day_retention_days"
 	settingAttendanceRetentionDays               = "gdpr.attendance_retention_days"
+	settingGuardianRetentionDays                 = "gdpr.guardian_retention_days"
 	settingParentMessageRetentionDays            = "gdpr.parent_message_retention_days"
 	settingWithdrawnEnrollmentRetentionDays      = "gdpr.withdrawn_enrollment_retention_days"
 	settingEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"

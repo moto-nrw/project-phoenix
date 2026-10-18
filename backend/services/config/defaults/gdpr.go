@@ -266,6 +266,27 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
+	// Parent contacts without a child (#4043), counted from the moment the
+	// last relationship to a child went. The child itself was kept for its
+	// own window already, so a short window covers a relationship removed
+	// by mistake and a sibling enrolled soon after. The frame of 30 days to
+	// a year stays below the children's window.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRGuardianRetentionDays,
+		Label:           "Erziehungsberechtigte ohne Kind aufbewahren (Tage)",
+		Description:     "So lange speichert moto Erziehungsberechtigte, die kein Kind mehr an der Schule haben. Danach löscht moto sie mit allen Angaben.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       34,
+		Validation:      config.Range(30, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	minPWAUsageRetentionDays := float64(30)
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{

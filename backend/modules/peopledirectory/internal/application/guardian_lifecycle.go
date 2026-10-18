@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -47,6 +48,46 @@ func (s *GuardianLifecycle) DeleteGuardianProfile(ctx context.Context, guardianI
 		}
 		return err
 	}))
+}
+
+// DeleteChildlessGuardiansBefore deletes the tenant's profiles that have been
+// without a child since before cutoff (#4043), except those openInvitations
+// still names: an invitation in flight would otherwise lose its contact. It
+// runs in a savepoint of the nightly cleanup's tenant transaction and never
+// opens its own, so the deletion commits with its deletion-log entry.
+func (s *GuardianLifecycle) DeleteChildlessGuardiansBefore(ctx context.Context, cutoff time.Time, openInvitations peopledirectory.OpenGuardianInvitations) (deleted int, err error) {
+	if cutoff.IsZero() || openInvitations == nil {
+		return 0, errors.New("people directory: a cutoff and the invitation check are required to delete childless guardians")
+	}
+	g := s.guardians
+	if g.tx.TenantID(ctx) <= 0 {
+		return 0, domain.ErrTenantRequired
+	}
+	err = observeRun(ctx, g.observe, "delete_childless_guardians", g.tx.RunSavepoint, func(txCtx context.Context, stats *domain.OperationStats) error {
+		ids, readStats, err := g.store.LockChildlessGuardiansBefore(txCtx, cutoff)
+		stats.Add(readStats)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		invited, err := openInvitations(txCtx, ids)
+		if err != nil {
+			return fmt.Errorf("people directory: check open guardian invitations: %w", err)
+		}
+		due := make([]int64, 0, len(ids))
+		for _, id := range ids {
+			if !invited[id] {
+				due = append(due, id)
+			}
+		}
+		count, writeStats, err := g.store.DeleteChildlessGuardians(txCtx, due, cutoff)
+		stats.Add(writeStats)
+		deleted = count
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // LinkGuardianProfileToAccount binds the account under the account's advisory

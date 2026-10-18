@@ -24,6 +24,10 @@ func (fakeOperatorRetention) DeleteExpiredOperatorAuditLog(context.Context) (int
 }
 func (fakeOperatorRetention) DeleteDeactivatedOperators(context.Context) (int, error) { return 0, nil }
 
+type fakeAccountRetention struct{}
+
+func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
+
 type fakeFeedbackCleaner struct{ err error }
 
 func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { return 0, f.err }
@@ -40,6 +44,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
 		OperatorRetention:         ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
+		AccountRetention:          fakeAccountRetention{},
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
 		CleanupRuns:               newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
@@ -76,6 +81,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.InvitationCleanup = nil }},
 		{name: "email change cleanup", remove: func(deps *ports.WorkerDependencies) { deps.EmailChangeCleanup = nil }},
 		{name: "operator invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
+		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,4 +120,18 @@ func TestNewWorkerRejectsTypedNilDependencies(t *testing.T) {
 
 		require.ErrorContains(t, err, "visit-cleanup")
 	})
+}
+
+// The hourly cleanup erases the accounts no school needs (#4043).
+func TestCleanupJobsEraseUnusedAccounts(t *testing.T) {
+	t.Parallel()
+
+	jobs := newScheduler(minimalWorkerDependencies(t)).cleanupJobs
+
+	require.NotEmpty(t, jobs)
+	descriptions := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		descriptions = append(descriptions, job.Description)
+	}
+	require.Contains(t, descriptions, "Unused account erasure")
 }

@@ -191,6 +191,7 @@ type engine interface {
 	guardianEngine
 	guardianPortalEngine
 	GuardianLifecycleCommand
+	childlessGuardianPurge
 	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 	PersonDetailsCommand
 	PersonRemovalCommand

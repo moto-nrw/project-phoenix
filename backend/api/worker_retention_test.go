@@ -42,6 +42,8 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: admin, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	identity, err := lifecycleTestModule(db, testpkg.TenantRuntime(t, admin), GuardianInvitationTestConfig{})
+	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,
 		settings:             owners.Settings,
@@ -58,7 +60,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		submissionLimits:     owners.SubmissionLimits,
 		settingAudit:         owners.SettingAudit,
 		exportTransfers:      owners.ExportTransfers,
-	}, students, staff, attendance)
+	}, students, staff, attendance, newGuardianRetention(db, identity))
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -136,6 +138,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRAttendanceRetentionDays,
+		settingsModule.KeyGDPRGuardianRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,

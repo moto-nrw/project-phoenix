@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/uptrace/bun"
 )
 
 // guardianAccountLockKey is the advisory lock of one parent account in one
@@ -132,4 +133,54 @@ func (s *GuardianStore) DeleteLink(ctx context.Context, linkID int64) (domain.Op
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", linkID).Exec)
 	return stats, err
+}
+
+// LockChildlessGuardiansBefore locks the tenant's profiles childless since
+// before cutoff (#4043). SKIP LOCKED leaves a profile a concurrent write
+// holds, a relationship insert among them, to the next nightly run.
+func (s *GuardianStore) LockChildlessGuardiansBefore(ctx context.Context, cutoff time.Time) ([]int64, domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDB(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var ids []int64
+	started := time.Now()
+	err = db.NewSelect().
+		TableExpr("users.guardian_profiles AS guardian").
+		ColumnExpr("guardian.id").
+		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.childless_since < ?", cutoff).
+		Where(`NOT EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
+			WHERE link.tenant_id = guardian.tenant_id AND link.guardian_profile_id = guardian.id)`).
+		OrderExpr("guardian.id").
+		For("UPDATE SKIP LOCKED").
+		Scan(ctx, &ids)
+	stats := domain.OperationStats{Queries: 1, Rows: int64(len(ids)), StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: lock childless guardians: %w", err)
+	}
+	return ids, stats, nil
+}
+
+// DeleteChildlessGuardians deletes the locked profiles in one statement. Its
+// fresh snapshot checks the mark and the relationships again, so a
+// relationship committed between the lock read and this delete keeps its
+// profile. Phone numbers, payment data and invitations follow through their
+// foreign keys.
+func (s *GuardianStore) DeleteChildlessGuardians(ctx context.Context, guardianIDs []int64, cutoff time.Time) (int, domain.OperationStats, error) {
+	if len(guardianIDs) == 0 {
+		return 0, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.tenantDB(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	affected, stats, err := exec(ctx, "delete childless guardians", db.NewDelete().
+		TableExpr("users.guardian_profiles AS guardian").
+		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.id IN (?)", bun.List(guardianIDs)).
+		Where("guardian.childless_since < ?", cutoff).
+		Where(`NOT EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
+			WHERE link.tenant_id = guardian.tenant_id AND link.guardian_profile_id = guardian.id)`).Exec)
+	return int(affected), stats, err
 }

@@ -57,7 +57,7 @@ var openSpecTickets = []string{}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 0
-	openGapTables = 9
+	openGapTables = 7
 )
 
 // staffRetention is the deletion path of a retired staff member's records
@@ -129,7 +129,7 @@ var tableRetentions = map[string]tableRetention{
 	"auth.account_permissions":                              parent("auth.accounts"),
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),
-	"auth.accounts":                                         undecided("accounts (e-mail, username, calendar link) stay until someone deletes them"),
+	"auth.accounts":                                         own("anonymized, not deleted, so messages, protocols and records of other people keep their reference: hourly token-cleanup, EraseUnusedAccounts -> SQL auth.erase_unused_accounts once no school needs the account (#4043)"),
 	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
 	"auth.guardian_invitations":                             own("hourly token-cleanup, DeleteExpiredGuardianInvitations (30 days after accepted_at, else expires_at)"),
@@ -268,7 +268,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.class_list_entries":                              undecided("child first/last names from class lists; only platform.schools cascade; DeleteClassListEntry is manual"),
 	"users.guardian_financial_data":                         parent("users.guardian_profiles"),
 	"users.guardian_phone_numbers":                          parent("users.guardian_profiles"),
-	"users.guardian_profiles":                               undecided("guardians (name, address, notes) stay even without a child"),
+	"users.guardian_profiles":                               own("nightly retention step guardian_retention (api/worker_retention.go), People Directory DeleteExpiredChildlessGuardians (school window gdpr.guardian_retention_days after childless_since, #4043)"),
 	"users.guests":                                          staffRetention("School Membership EraseNextRetiredStaff"),
 	"users.notification_preferences":                        parent("auth.accounts"),
 	"users.parent_announcement_declaration_submissions":     parent("users.student_profiles"),

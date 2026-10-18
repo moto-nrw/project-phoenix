@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
@@ -91,6 +92,13 @@ type GuardianLifecycleWrites interface {
 	// binding when accountID is nil.
 	SetGuardianAccount(ctx context.Context, guardianID int64, accountID *int64) (bool, domain.OperationStats, error)
 	DeleteGuardian(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error)
+	// LockChildlessGuardiansBefore locks the tenant's profiles that have
+	// been without a child since before cutoff (#4043), skipping rows a
+	// concurrent transaction holds, and returns their IDs in order.
+	LockChildlessGuardiansBefore(ctx context.Context, cutoff time.Time) ([]int64, domain.OperationStats, error)
+	// DeleteChildlessGuardians deletes those of the profiles that are still
+	// without a child since before cutoff and reports how many went.
+	DeleteChildlessGuardians(ctx context.Context, guardianIDs []int64, cutoff time.Time) (int, domain.OperationStats, error)
 	SetLinkRole(ctx context.Context, linkID int64, role string) (bool, domain.OperationStats, error)
 	DeleteLink(ctx context.Context, linkID int64) (domain.OperationStats, error)
 }
