@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -98,7 +100,7 @@ func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []activi
 	return nil
 }
 
-func hasTemplateTargets(targetsByGroup map[int64][]*activitiesModels.GroupTarget) bool {
+func hasTemplateTargets(targetsByGroup map[int64][]*activityContract.GroupTarget) bool {
 	for _, targets := range targetsByGroup {
 		if len(targets) > 0 {
 			return true

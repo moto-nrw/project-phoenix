@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -57,6 +56,7 @@ func postgresDatabase(db *bun.DB) parentpostgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }
 
-func inboxDatabase(db *bun.DB) parentinbox.Database {
+// ProjectionDatabase exposes this store's existing ambient runtime for root binding.
+func ProjectionDatabase(db *bun.DB) func(context.Context) (bun.IDB, int64, error) {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }

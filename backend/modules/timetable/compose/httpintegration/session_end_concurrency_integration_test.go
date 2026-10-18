@@ -21,7 +21,7 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	moduleTimetable := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleTimetable, _ := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	moduleSessionEnd := api.NewActiveTestSessionEnd(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	activity := testpkg.CreateTestActivityGroup(t, db, "Concurrent session end")
 	room := testpkg.CreateTestRoom(t, db, "Concurrent session end")

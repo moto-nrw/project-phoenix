@@ -6,11 +6,12 @@ import (
 	"errors"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -39,7 +40,7 @@ type ExcusedRequestTestPeople struct {
 // emitter or broadcaster is skipped.
 func NewTestExcusedAbsenceRequests(
 	options ExcusedRequestTestOptions, people ExcusedRequestTestPeople,
-	emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster,
+	emitter eventContract.Emitter, broadcaster realtime.Broadcaster,
 ) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	if options.CarePlan == nil || people.Students == nil || people.Persons == nil {
 		return nil, errors.New("test excused requests: care plan capability, student and person repositories are required")

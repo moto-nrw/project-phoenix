@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	staffAudience "github.com/moto-nrw/project-phoenix/modules/communication/projections/staffannouncementaudience"
+
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -149,7 +151,7 @@ func buildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 // buildCommunicationModule composes Communication over Organisation &
 // Tenancy, the People Directory's viewer names and the operator audit log.
 func buildCommunicationModule(db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, persons peopledirectory.Capability, operatorAuditLog operatorAuditEntries) (*communicationModule.Module, error) {
-	return communicationCompose.New(communicationCompose.Dependencies{
+	return NewCommunicationAnnouncements(communicationCompose.Dependencies{
 		DB:            db.Pool(),
 		Organizations: organizations,
 		Viewers:       communicationViewerNames{query: persons},
@@ -220,4 +222,9 @@ func buildServeTimetable(db transactionruntime.Database, persons peopledirectory
 			timetable.ErrorCode(observation.Err), observation.Err,
 		)
 	})
+}
+
+// NewCommunicationAnnouncements binds the staff audience projection at the root.
+func NewCommunicationAnnouncements(deps communicationCompose.Dependencies) (*communicationModule.Module, error) {
+	return communicationCompose.New(deps, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), communicationCompose.AudienceMapping()))
 }

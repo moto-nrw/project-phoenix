@@ -3,6 +3,8 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"testing"
 	"time"
 
@@ -11,9 +13,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -29,7 +30,7 @@ import (
 // sourceOffering creates one care offering on the rollover source phase
 // via the repository (no service-side template validation, matching how
 // production rows exist before a rollover runs).
-func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentModels.CareOffering) *enrollmentModels.CareOffering {
+func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *offeringContract.CareOfferingRecord) *offeringContract.CareOfferingRecord {
 	t.Helper()
 	offering.PhaseID = env.sourcePhase.ID
 	offering.TenantID = testpkg.Tenant(t)
@@ -37,7 +38,7 @@ func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentMode
 	return offering
 }
 
-func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *capability.RequestChildOffering) *capability.RequestChildOffering {
+func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *enrollmentNative.RequestChildOffering) *enrollmentNative.RequestChildOffering {
 	t.Helper()
 	link.TenantID = testpkg.Tenant(t)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(testpkg.Ctx(t), link))
@@ -59,35 +60,35 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 
 	capacity := 20
 	price := 4200
-	kurz := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	kurz := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Betreuung kurz",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 		Capacity:       &capacity,
 		PriceCents:     &price,
 		SelectionGroup: "kernzeit",
-		SelectionRule:  enrollmentModels.SelectionRuleExactlyOne,
+		SelectionRule:  offeringContract.SelectionRuleExactlyOne,
 	})
-	lang := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	lang := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Betreuung lang",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 		SelectionGroup: "kernzeit",
-		SelectionRule:  enrollmentModels.SelectionRuleExactlyOne,
+		SelectionRule:  offeringContract.SelectionRuleExactlyOne,
 	})
-	mittag := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	mittag := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Mittagessen",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IncludesLunch:  true,
 		IsActive:       true,
 		IsRequired:     true,
 	})
-	frueh := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	frueh := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Frühbetreuung",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       false,
 	})
@@ -108,29 +109,29 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	historyEnd := calendar.NewDate(2027, 1, 1)
 	notes := "Oma holt ab"
 	laterNote := "Spätere Buchungsnotiz"
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: kurz.ID,
 		SelectedDays:   []string{"mon", "wed"},
 		Notes:          &notes,
-		ValidUntil:     (*capability.Date)(&historyEnd),
+		ValidUntil:     (*enrollmentNative.Date)(&historyEnd),
 	})
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID:        child.ID,
 		CareOfferingID:        kurz.ID,
 		SelectedDays:          []string{"tue", "thu"},
 		ManualSelectedDays:    []string{"tue"},
 		AutomaticSelectedDays: []string{"thu"},
 		Notes:                 &laterNote,
-		ValidFrom:             (*capability.Date)(&historyEnd),
+		ValidFrom:             (*enrollmentNative.Date)(&historyEnd),
 	})
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: mittag.ID,
 	})
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
-		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+		validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 	require.Equal(t, 4, result.ClonedOfferingCount)
 
@@ -138,7 +139,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 4)
-	cloneByName := make(map[string]*enrollmentModels.CareOffering, len(clones))
+	cloneByName := make(map[string]*offeringContract.CareOfferingRecord, len(clones))
 	sourceIDs := map[int64]bool{kurz.ID: true, lang.ID: true, mittag.ID: true, frueh.ID: true}
 	for _, clone := range clones {
 		cloneByName[clone.Name] = clone
@@ -149,17 +150,17 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	require.NotNil(t, kurzClone)
 	assert.True(t, kurzClone.CreatedAt.After(oldTimestamp), "clone must receive a fresh creation timestamp")
 	assert.True(t, kurzClone.UpdatedAt.After(oldTimestamp), "clone must receive a fresh update timestamp")
-	assert.Equal(t, enrollmentModels.DaysOfWeekModeParentChoice, kurzClone.DaysOfWeekMode)
+	assert.Equal(t, offeringContract.DaysOfWeekModeParentChoice, kurzClone.DaysOfWeekMode)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, kurzClone.AvailableDays)
 	require.NotNil(t, kurzClone.Capacity)
 	assert.Equal(t, capacity, *kurzClone.Capacity)
 	require.NotNil(t, kurzClone.PriceCents)
 	assert.Equal(t, price, *kurzClone.PriceCents)
 	assert.Equal(t, "kernzeit", kurzClone.SelectionGroup)
-	assert.Equal(t, enrollmentModels.SelectionRuleExactlyOne, kurzClone.SelectionRule)
+	assert.Equal(t, offeringContract.SelectionRuleExactlyOne, kurzClone.SelectionRule)
 	langClone := cloneByName["Betreuung lang"]
 	require.NotNil(t, langClone)
-	assert.Equal(t, enrollmentModels.SelectionRuleExactlyOne, langClone.SelectionRule)
+	assert.Equal(t, offeringContract.SelectionRuleExactlyOne, langClone.SelectionRule)
 	mittagClone := cloneByName["Mittagessen"]
 	require.NotNil(t, mittagClone)
 	assert.True(t, mittagClone.IsRequired)
@@ -174,13 +175,13 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	// the source phase, remapped onto the clones, days carried, validity
 	// reset to the new service period.
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	copied, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
 	require.NoError(t, err)
 	require.Len(t, copied, 2, "only the effective booking is carried, not history rows")
-	copiedByOffering := make(map[int64]*capability.RequestChildOffering, len(copied))
+	copiedByOffering := make(map[int64]*enrollmentNative.RequestChildOffering, len(copied))
 	for _, row := range copied {
 		copiedByOffering[row.CareOfferingID] = row
 	}
@@ -194,10 +195,10 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	// Historical source-phase intervals are NOT carried: the repository
 	// pins the copy to the target phase's service window (end exclusive).
 	require.NotNil(t, kurzCopy.ValidFrom)
-	assert.Equal(t, capability.Date(result.Phase.ServiceStartDate), *kurzCopy.ValidFrom,
+	assert.Equal(t, enrollmentNative.Date(result.Phase.ServiceStartDate), *kurzCopy.ValidFrom,
 		"historical validity must not carry into the target phase")
 	require.NotNil(t, kurzCopy.ValidUntil)
-	assert.Equal(t, capability.Date(calendar.Date(result.Phase.ServiceEndDate).AddDays(1)), *kurzCopy.ValidUntil)
+	assert.Equal(t, enrollmentNative.Date(calendar.Date(result.Phase.ServiceEndDate).AddDays(1)), *kurzCopy.ValidUntil)
 	mittagCopy := copiedByOffering[mittagClone.ID]
 	require.NotNil(t, mittagCopy)
 	assert.Nil(t, mittagCopy.SelectedDays)
@@ -221,16 +222,16 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Legacy-Phasenreferenz",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	})
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Lena", "Legacy", "lena.legacy@example.com",
 		"Luis", "Legacy", int16(2))
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 	})
@@ -254,14 +255,14 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 	}()
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
-		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+		validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 	require.Equal(t, 1, result.ClonedOfferingCount)
 
 	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	bookings, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
@@ -277,10 +278,10 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	for _, rule := range []string{enrollmentModels.SelectionRuleExactlyOne, enrollmentModels.SelectionRuleAtLeastOne} {
-		sourceOffering(t, env, &enrollmentModels.CareOffering{
+	for _, rule := range []string{offeringContract.SelectionRuleExactlyOne, offeringContract.SelectionRuleAtLeastOne} {
+		sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 			Name:           "Legacy-Regel " + rule,
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 			AvailableDays:  []string{"mon"},
 			IsActive:       true,
 			SelectionGroup: "umfang",
@@ -290,7 +291,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 
 	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
-			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+			validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 		return createErr
 	})
 	require.ErrorIs(t, err, careplan.ErrCareOfferingGroupRuleConflict)
@@ -306,9 +307,9 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Legacy ohne Tage",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	})
@@ -324,7 +325,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Frank", "Fail", "frank.fail@example.com",
 		"Fritz", "Fail", int16(2))
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 	})
@@ -333,7 +334,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 	// that is where the atomicity contract comes from.
 	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
-			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+			validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 		return createErr
 	})
 	require.Error(t, err)
@@ -365,24 +366,24 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, schedule))
 
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:            "Inaktive Auswahl ohne Zeitfenster",
 		ActivityGroupID: &group.ID,
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		IsActive:        false,
 	})
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Ines", "Inaktiv", "ines.inaktiv@example.com",
 		"Ida", "Inaktiv", int16(2))
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 	})
 
 	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
-			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+			validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 		return createErr
 	})
 	require.Error(t, err)
@@ -396,16 +397,16 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Ohne Cloner",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	})
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Nora", "NoClone", "nora.noclone@example.com",
 		"Nils", "NoClone", int16(2))
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 	})
@@ -423,7 +424,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 	})
 	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svcNoCloner.CreatePhaseFromSource(txCtx,
-			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+			validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 		return createErr
 	})
 	require.Error(t, err)
@@ -447,24 +448,24 @@ func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentSt
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Elena", "Edit", "elena.edit@example.com",
 		"Emil", "Edit", int16(2))
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Editierbar",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	})
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 		SelectedDays:   []string{"tue"},
 	})
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
-		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+		validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	newRequest, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), rolled[0].RequestID)
@@ -498,28 +499,28 @@ func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplica
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Rita", "Repeat", "rita.repeat@example.com",
 		"Rio", "Repeat", int16(2))
-	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+	offering := sourceOffering(t, env, &offeringContract.CareOfferingRecord{
 		Name:           "Wiederholung",
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	})
-	linkChildOffering(t, env, &capability.RequestChildOffering{
+	linkChildOffering(t, env, &enrollmentNative.RequestChildOffering{
 		RequestChildID: child.ID,
 		CareOfferingID: offering.ID,
 	})
 
 	first, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
-		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+		validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 
-	secondReq := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	secondReq := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	secondReq.Name = "rollover-target-second-run"
 	_, err = env.rolloverSvc.CreatePhaseFromSource(ctx, secondReq)
-	require.ErrorIs(t, err, capability.ErrRolloverSourceAlreadyRolled)
+	require.ErrorIs(t, err, enrollmentNative.ErrRolloverSourceAlreadyRolled)
 
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, first.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+		ctx, first.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1, "repeated execution must not duplicate target enrollments")
 	links, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
@@ -553,11 +554,11 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
 
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
 		Name:            "Wochentagswahl mit Vorlage",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:   []string{"tue", "thu"},
 		IsActive:        true,
 	}
@@ -570,7 +571,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		"Vito", "Vorlage",
 		int16(1),
 	)
-	link := &capability.RequestChildOffering{
+	link := &enrollmentNative.RequestChildOffering{
 		RequestChildID:     source.ID,
 		CareOfferingID:     offering.ID,
 		SelectedDays:       []string{"tue", "thu"},
@@ -579,7 +580,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	link.TenantID = testpkg.Tenant(t)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-time.Hour)
 	req.Name = "carryover-materialization-target"
@@ -596,7 +597,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	assert.Equal(t, group.ID, *clones[0].ActivityGroupID)
 
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	rolledChildID := rolled[0].ID

@@ -16,7 +16,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -50,14 +51,14 @@ func makeSeriesChain(t *testing.T, weekdays []int, firstBoundary, secondBoundary
 
 	s := makeScenario(t, weekdays[0], firstBoundary)
 	for _, weekday := range weekdays[1:] {
-		row := &activitiesModels.Schedule{
+		row := &activityContract.Schedule{
 			Weekday:         weekday,
 			TimeframeID:     &s.timeframe.ID,
 			ActivityGroupID: s.template.ID,
 			WeekPattern:     0,
 		}
 		row.SetTenantID(s.tenantID)
-		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
+		_, err := s.db.NewInsert().Model(activityScheduleFixture(row)).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 
@@ -115,19 +116,19 @@ func (c *seriesChain) assertShape(t *testing.T) {
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.rootID) {
 		assert.Nil(t, row.ValidFrom, "root segment keeps its open start")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidUntil)
+		assert.Equal(t, activityContract.Date(c.firstBoundary), *row.ValidUntil)
 	}
 	middle := loadSplitSchedules(t, c.scenarioSetup, c.middleID)
 	require.Len(t, middle, len(c.weekdays))
 	for _, row := range middle {
 		require.NotNil(t, row.ValidFrom)
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidFrom)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "middle segment must be fully bounded")
+		assert.Equal(t, activityContract.Date(c.firstBoundary), *row.ValidFrom)
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidUntil, "middle segment must be fully bounded")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidFrom)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidFrom)
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidFrom)
 		assert.Nil(t, row.ValidUntil, "living segment stays open")
 	}
 }
@@ -135,7 +136,7 @@ func (c *seriesChain) assertShape(t *testing.T) {
 func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
 	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
@@ -152,7 +153,7 @@ func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
 	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.livingID)
@@ -164,7 +165,7 @@ func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 func TestResolveLivingTemplateSegment_ErrorsOnFullyEndedSeries(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
 	t.Run("unknown template id", func(t *testing.T) {

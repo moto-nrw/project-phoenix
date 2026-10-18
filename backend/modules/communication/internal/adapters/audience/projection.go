@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
+
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -19,48 +21,13 @@ type Database func(context.Context) (bun.IDB, error)
 // Projection answers the staff-announcement audience reads.
 type Projection struct{ database Database }
 
-// Announcement is one announcement row as the projection reads it.
-type Announcement struct {
-	ID              int64
-	Title           string
-	Content         string
-	Type            string
-	Severity        string
-	Version         *string
-	Active          bool
-	PublishedAt     *time.Time
-	ExpiresAt       *time.Time
-	TargetRoles     []string
-	TargetOrgIDs    []int64
-	TargetTenantIDs []int64
-	CreatedBy       int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
+// contract.Announcement is one announcement row as the projection reads it.
 
-// Target is the audience an announcement addresses.
-type Target struct {
-	PublishedAt     *time.Time
-	TargetRoles     []string
-	TargetOrgIDs    []int64
-	TargetTenantIDs []int64
-}
+// contract.Target is the audience an announcement addresses.
 
-// ViewDetail is the latest view of one account.
-type ViewDetail struct {
-	UserID       int64
-	AccountEmail string
-	UserName     string
-	SeenAt       time.Time
-	Dismissed    bool
-}
+// contract.ViewDetail is the latest view of one account.
 
-// Stats measures the statements one read ran.
-type Stats struct {
-	Queries           int
-	Rows              int64
-	StatementDuration time.Duration
-}
+// contract.Stats measures the statements one read ran.
 
 type announcementRow struct {
 	bun.BaseModel   `bun:"table:platform.announcements,alias:announcement"`
@@ -122,13 +89,13 @@ const unreadWhere = `
 			OR (a.target_org_ids != '{}' AND s.organization_id = ANY(a.target_org_ids))
 		)`
 
-func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]Announcement, Stats, error) {
+func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]contract.Announcement, contract.Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return nil, Stats{}, err
+		return nil, contract.Stats{}, err
 	}
 	var rows []announcementRow
-	stats := Stats{Queries: 1}
+	stats := contract.Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT a.*`+unreadFrom+unreadWhere+` ORDER BY a.published_at DESC`, unreadArgs(userID, roles, tenantID, orgID)...).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -136,20 +103,20 @@ func (p *Projection) Unread(ctx context.Context, userID int64, roles []string, t
 		return nil, stats, fmt.Errorf("announcement audience projection: list unread: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]Announcement, 0, len(rows))
+	result := make([]contract.Announcement, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toAnnouncement(row))
 	}
 	return result, stats, nil
 }
 
-func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (int, Stats, error) {
+func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (int, contract.Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return 0, Stats{}, err
+		return 0, contract.Stats{}, err
 	}
 	var count int
-	stats := Stats{Queries: 1}
+	stats := contract.Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT COUNT(*)`+unreadFrom+unreadWhere, unreadArgs(userID, roles, tenantID, orgID)...).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
@@ -160,13 +127,13 @@ func (p *Projection) CountUnread(ctx context.Context, userID int64, roles []stri
 	return count, stats, nil
 }
 
-func (p *Projection) TargetCount(ctx context.Context, value Target) (int, Stats, error) {
+func (p *Projection) TargetCount(ctx context.Context, value contract.Target) (int, contract.Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return 0, Stats{}, err
+		return 0, contract.Stats{}, err
 	}
 	var count int
-	stats := Stats{Queries: 1}
+	stats := contract.Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`
 		SELECT COUNT(DISTINCT at.account_id)
@@ -203,10 +170,10 @@ func (p *Projection) TargetCount(ctx context.Context, value Target) (int, Stats,
 	return count, stats, nil
 }
 
-func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]ViewDetail, Stats, error) {
+func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]contract.ViewDetail, contract.Stats, error) {
 	db, err := p.database(ctx)
 	if err != nil {
-		return nil, Stats{}, err
+		return nil, contract.Stats{}, err
 	}
 	var rows []struct {
 		UserID       int64     `bun:"user_id"`
@@ -215,7 +182,7 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]V
 		SeenAt       time.Time `bun:"seen_at"`
 		Dismissed    bool      `bun:"dismissed"`
 	}
-	stats := Stats{Queries: 1}
+	stats := contract.Stats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT user_id, account_email, user_name, seen_at, dismissed
 		FROM (
@@ -231,9 +198,9 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]V
 		return nil, stats, fmt.Errorf("announcement audience projection: get view details: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]ViewDetail, 0, len(rows))
+	result := make([]contract.ViewDetail, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ViewDetail{
+		result = append(result, contract.ViewDetail{
 			UserID: row.UserID, AccountEmail: row.AccountEmail, UserName: row.UserName,
 			SeenAt: row.SeenAt, Dismissed: row.Dismissed,
 		})
@@ -241,8 +208,8 @@ func (p *Projection) ViewDetails(ctx context.Context, announcementID int64) ([]V
 	return result, stats, nil
 }
 
-func toAnnouncement(row announcementRow) Announcement {
-	return Announcement{
+func toAnnouncement(row announcementRow) contract.Announcement {
+	return contract.Announcement{
 		ID: row.ID, Title: row.Title, Content: row.Content, Type: row.Type,
 		Severity: row.Severity, Version: row.Version, Active: row.Active,
 		PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt,

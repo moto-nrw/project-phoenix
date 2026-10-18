@@ -21,7 +21,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -66,7 +67,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -100,7 +101,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -128,7 +129,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -162,7 +163,7 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -187,7 +188,7 @@ func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	// Spontaneous instance: no template binding before (or after) the edit.

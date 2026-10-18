@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 // and without children (#3822).
 func makeDutyScenario(t *testing.T, materializeDate calendar.Date, requiredStaff *int) *scenarioSetup {
 	t.Helper()
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	_, err := s.db.NewDelete().TableExpr(`activities.student_enrollments`).
 		Where("activity_group_id = ?", s.template.ID).Exec(s.ctx)
 	require.NoError(t, err)

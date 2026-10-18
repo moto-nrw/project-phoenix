@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +21,7 @@ func TestRosterWeekdayUsesFridayOnlyWhenWeekendPlanIsEnabled(t *testing.T) {
 	fridayOnly := 5
 	assert.True(t, rosterWeekdayApplies(&fridayOnly, planWeekday(friday.AddDays(1), true)), "an enabled Saturday occurrence takes Friday's roster rows")
 	assert.False(t, rosterWeekdayApplies(&fridayOnly, planWeekday(friday.AddDays(1), false)), "a retained Saturday occurrence keeps Saturday's roster rows")
-	enrollment := &activities.StudentEnrollment{Weekday: &fridayOnly}
+	enrollment := &activityContract.StudentEnrollment{Weekday: &fridayOnly}
 	assert.True(t, isEnrollmentValidOn(enrollment, friday.AddDays(1), 0, planWeekday(friday.AddDays(1), true)))
 	assert.False(t, isEnrollmentValidOn(enrollment, friday.AddDays(1), 0, planWeekday(friday.AddDays(1), false)))
 	assert.Equal(t, 6, planWeekday(friday.AddDays(1), false))

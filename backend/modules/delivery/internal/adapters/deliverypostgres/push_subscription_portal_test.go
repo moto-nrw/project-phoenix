@@ -21,7 +21,7 @@ func TestDeleteUnboundByAccountForPortalDeletesOnlyThatPortal(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-portal-%d@test.local", tenantID))
 	for _, portal := range []string{deliveryModels.PushPortalStaff, deliveryModels.PushPortalParent, deliveryModels.PushPortalSchool} {
 		require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			return repo.Upsert(ctx, &deliveryModels.PushSubscription{
+			return repo.RegisterSubscription(ctx, &deliveryModels.PushSubscription{
 				AccountID: account.ID, Portal: portal, Endpoint: fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%s-%d", portal, tenantID),
 				P256dh: "key", Auth: "auth",
 			})

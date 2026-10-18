@@ -1,0 +1,122 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2580",
+    "#4004",
+    "#4084",
+    "#4085",
+    "#4086"
+  ],
+  "owner_and_capability": "Root-bound projection and authorization ports, native owner HTTP, Enrollment availability values, opaque Communication event payload and Delivery private tenant persistence/errors.",
+  "affected_packages": [
+    "api",
+    "modules/communication",
+    "modules/enrollment/offeringcontract",
+    "modules/timetable/http/activities",
+    "modules/timetable/ports",
+    "modules/timetable/internal/application",
+    "modules/presenceprojection",
+    "modules/timetableprojection",
+    "modules/organizationtenancy",
+    "modules/dataimport",
+    "modules/delivery/internal/adapters/deliverypostgres",
+    "modules/transactionruntime/internal/adapters/postgres"
+  ],
+  "affected_tables": [
+    "None: SQL statements, schema and write ownership are unchanged."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/composition|github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/audience",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/parentstore|github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/parentstore|github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentinbox",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/staffstore|github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffinbox",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose|github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter|github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose|github.com/moto-nrw/project-phoenix/modules/presenceprojection",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose|github.com/moto-nrw/project-phoenix/modules/timetableprojection"
+  ],
+  "atomic_cutover": "Retire 10 keys for carrier 4004 against development dd92c93a8af3c4cc3d74d51769eb04d4922c85b8. Total 15 to 1 keys; production composition remains 0. Root builds immutable values and passes positional consumer ports. No exception, grant, alias, hook allowance or checker change. Clean integration of development 25c8d7368021768e253e1091ad297f01287e494c preserves the durable timeline transaction/error contract from PR 4336.",
+  "tests": [
+    "scripts/backend-architecture.sh check --base-ref 25c8d7368021768e253e1091ad297f01287e494c",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref 25c8d7368021768e253e1091ad297f01287e494c",
+    "GOCACHE=/tmp/gocache-final /tmp/orch2580/heavy.sh scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development (full, no --fast)",
+    "golangci-lint run --timeout 10m; full pre-commit/pre-push hooks",
+    "TestFullProductionRouterGolden source unchanged. Golden normalization replaces only modules/timetable/compose/httpadapter with modules/timetable/http/activities and yields identical bytes."
+  ],
+  "runtime_evidence": {
+    "source": "Fixed-build local architecture measurement and unchanged owner behavioral assertions. No production requests.",
+    "sources": [
+      "docs/architecture/final-legacy-cluster.md",
+      "backend/api/testdata/middleware_table.golden",
+      "backend/modules/delivery/internal/adapters/deliverypostgres/error_contract_test.go",
+      "backend/modules/delivery/internal/adapters/postgres/push_subscription_repository_test.go",
+      "backend/modules/communication/internal/parentmessages/payload_contract_test.go",
+      "backend/modules/careplan/contracttest/care_request_pickup_pill_test.go",
+      "backend/modules/dataimport/internal/application/importservice/authorization_double_test.go"
+    ],
+    "workload": "Code-only retirement against dd92c93a8af3c4cc3d74d51769eb04d4922c85b8. Test DB settings read only from the main checkout .env; GOCACHE=/tmp/gocache-final.",
+    "thresholds": "15 to 1 legacy keys: 10 from 4004 and 4 from 4076. Production composition 0. Foreign aliases 30 to 23. Conventional carriers 8 to 5. Compose LOC 31146 to 27190. No increased budget or new allowance.",
+    "errors": {
+      "state": "not_applicable",
+      "reason": "No new error semantics or failure policy; unchanged owner assertions are required in the final full affected-test gate."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "No new error semantics or failure policy; unchanged owner assertions are required in the final full affected-test gate."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Integrated development 25c8d7368021768e253e1091ad297f01287e494c: architecture passes with one retained original Data Import key and unchanged production composition 0. All 14 retirements are covered by validate-ticket --all. Full test-changed without --fast passes 221 affected packages with /tmp/gocache-final. Full lint reports 0 issues; both test-entry and production dead-code gates pass. Normal pre-commit hooks pass. Full pre-push hooks are required before publication."
+    },
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only relocation changes no stored row or schema."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query-count benchmark is claimed; SQL and query ordering remain unchanged."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code-only contraction."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code-only contraction."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No pool configuration or acquisition policy changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock acquisition order or transaction boundary changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No new lock ordering is introduced."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No deployment or database change occurred; source rollback is documented."
+    }
+  },
+  "rollback_and_cleanup": "Revert the local contract, caller, policy, baseline, relocation and budget changes together. No data rollback or credential change is required.",
+  "exit_criterion": "All listed exact keys absent with retirement coverage, architecture and full affected tests/lint/hooks green before publication. Package-layout and remaining alias/compose debt are explicitly not claimed complete."
+}

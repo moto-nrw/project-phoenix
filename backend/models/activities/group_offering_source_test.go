@@ -1,81 +1,85 @@
 package activities
 
-import "testing"
+import (
+	"testing"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+)
 
 func TestGroupValidateOfferingSource(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		group   Group
+		group   activityContract.Group
 		wantErr string
 	}{
 		{
 			name: "angebot with source and filter is valid",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceGradeLevels:     []int{1, 2},
 			},
 		},
 		{
 			name: "angebot with source and empty filter is valid",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 			},
 		},
 		{
 			name: "legacy angebot without source stays valid",
-			group: Group{
-				TargetGroupType: TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType: activityContract.TargetGroupTypeAngebot,
 			},
 		},
 		{
 			name: "grade filter without source is rejected",
-			group: Group{
-				TargetGroupType:   TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:   activityContract.TargetGroupTypeAngebot,
 				SourceGradeLevels: []int{1},
 			},
 			wantErr: "source_grade_levels requires source_care_offering_ids",
 		},
 		{
 			name: "source on non-angebot type is rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeJahrgang,
-				TargetGradeLevel:      int16Ptr(2),
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeJahrgang,
+				TargetGradeLevel:      new(int16(2)),
 				SourceCareOfferingIDs: []int64{5},
 			},
 			wantErr: "source_care_offering_ids requires target group type 'angebot'",
 		},
 		{
 			name: "non-positive source id is rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{0},
 			},
 			wantErr: "source_care_offering_ids entries must be positive",
 		},
 		{
 			name: "duplicate source ids are rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5, 5},
 			},
 			wantErr: "source_care_offering_ids must not contain duplicates",
 		},
 		{
 			name: "several distinct sources are valid",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5, 8, 9},
 				SourceGradeLevels:     []int{1},
 			},
 		},
 		{
 			name: "out-of-range grade is rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceGradeLevels:     []int{14},
 			},
@@ -83,8 +87,8 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 		},
 		{
 			name: "duplicate grades are rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceGradeLevels:     []int{2, 2},
 			},
@@ -110,8 +114,8 @@ func TestGroupValidateOfferingSource(t *testing.T) {
 func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
 	t.Parallel()
 
-	group := Group{
-		TargetGroupType:       TargetGroupTypeAngebot,
+	group := activityContract.Group{
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{5},
 		SourceGradeLevels:     []int{},
 	}
@@ -126,20 +130,20 @@ func TestGroupValidateOfferingSourceNormalizesEmptyFilter(t *testing.T) {
 func TestGroupMatchesSourceGradeFilter(t *testing.T) {
 	t.Parallel()
 
-	unfiltered := Group{TargetGroupType: TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
-	if !unfiltered.MatchesSourceGradeFilter(nil) || !unfiltered.MatchesSourceGradeFilter(int16Ptr(3)) {
+	unfiltered := activityContract.Group{TargetGroupType: activityContract.TargetGroupTypeAngebot, SourceCareOfferingIDs: []int64{5}}
+	if !unfiltered.MatchesSourceGradeFilter(nil) || !unfiltered.MatchesSourceGradeFilter(new(int16(3))) {
 		t.Fatal("empty filter must admit every child")
 	}
 
-	filtered := Group{
-		TargetGroupType:       TargetGroupTypeAngebot,
+	filtered := activityContract.Group{
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{5},
 		SourceGradeLevels:     []int{1, 2},
 	}
-	if !filtered.MatchesSourceGradeFilter(int16Ptr(2)) {
+	if !filtered.MatchesSourceGradeFilter(new(int16(2))) {
 		t.Fatal("grade 2 must match filter [1 2]")
 	}
-	if filtered.MatchesSourceGradeFilter(int16Ptr(3)) {
+	if filtered.MatchesSourceGradeFilter(new(int16(3))) {
 		t.Fatal("grade 3 must not match filter [1 2]")
 	}
 	if filtered.MatchesSourceGradeFilter(nil) {
@@ -239,29 +243,29 @@ func TestGroupValidateSourceSchoolClasses(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		group   Group
+		group   activityContract.Group
 		wantErr string
 	}{
 		{
 			name: "angebot with source and class filter is valid",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceSchoolClasses:   []string{"1a", "1b"},
 			},
 		},
 		{
 			name: "class filter without source is rejected",
-			group: Group{
-				TargetGroupType:     TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:     activityContract.TargetGroupTypeAngebot,
 				SourceSchoolClasses: []string{"1a"},
 			},
 			wantErr: "source_school_classes requires source_care_offering_ids",
 		},
 		{
 			name: "class and grade filter together are rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceGradeLevels:     []int{1},
 				SourceSchoolClasses:   []string{"1a"},
@@ -270,8 +274,8 @@ func TestGroupValidateSourceSchoolClasses(t *testing.T) {
 		},
 		{
 			name: "blank class entry is rejected",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceSchoolClasses:   []string{"  "},
 			},
@@ -279,8 +283,8 @@ func TestGroupValidateSourceSchoolClasses(t *testing.T) {
 		},
 		{
 			name: "classes differing only in case or padding are duplicates",
-			group: Group{
-				TargetGroupType:       TargetGroupTypeAngebot,
+			group: activityContract.Group{
+				TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 				SourceCareOfferingIDs: []int64{5},
 				SourceSchoolClasses:   []string{"1a", " 1A "},
 			},
@@ -306,8 +310,8 @@ func TestGroupValidateSourceSchoolClasses(t *testing.T) {
 func TestGroupValidateSourceSchoolClassesNormalizes(t *testing.T) {
 	t.Parallel()
 
-	group := Group{
-		TargetGroupType:       TargetGroupTypeAngebot,
+	group := activityContract.Group{
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{5},
 		SourceSchoolClasses:   []string{" 1b ", "2A"},
 	}
@@ -321,8 +325,8 @@ func TestGroupValidateSourceSchoolClassesNormalizes(t *testing.T) {
 		t.Fatalf("expected trimmed classes, got %#v", group.SourceSchoolClasses)
 	}
 
-	empty := Group{
-		TargetGroupType:       TargetGroupTypeAngebot,
+	empty := activityContract.Group{
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{5},
 		SourceSchoolClasses:   []string{},
 	}

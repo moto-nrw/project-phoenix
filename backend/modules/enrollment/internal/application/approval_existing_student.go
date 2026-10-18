@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -29,13 +30,13 @@ import (
 // silently discards the submitted guardian and their portal access (#1663).
 func (d *Decisions) attachApprovalToExistingStudent(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	child *RequestChild,
-	phase *enrollment.Phase,
+	phase *enrollmentNative.Phase,
 	studentID int64,
 	reviewedBy int64,
 	syncTargetedFields bool,
-) (*enrollment.PendingGuardianInvite, error) {
+) (*enrollmentNative.PendingGuardianInvite, error) {
 	if err := d.lockExistingStudentGates(ctx); err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (d *Decisions) lockExistingStudentGates(ctx context.Context) error {
 // Writing next year's values at once put the child in next year's class for
 // the rest of the running year, and a future enrolled_from made every reader
 // of the window treat it as not yet enrolled.
-func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollment.Phase, studentID, reviewedBy int64) (*Student, string, approvalActivationPlan, error) {
+func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollmentNative.Phase, studentID, reviewedBy int64) (*Student, string, approvalActivationPlan, error) {
 	existing, err := d.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
 		return nil, "", approvalActivationPlan{}, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
@@ -132,7 +133,7 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 	previousSchoolClass := existing.SchoolClass
 	targetSchoolClass := resolveRolloverSchoolClass(child, existing.SchoolClass)
 	switchOn := calendar.Date(phase.ServiceStartDate)
-	deferred := phase.Kind == enrollment.PhaseKindSchoolYear &&
+	deferred := phase.Kind == enrollmentNative.PhaseKindSchoolYear &&
 		existing.Status == studentStatusActive && switchOn.After(d.todayDate())
 	enrolledFrom, enrolledUntil := renewedEnrollmentWindow(phase, existing.EnrolledFrom, existing.EnrolledUntil)
 	if !deferred {
@@ -146,9 +147,9 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 	if err := d.deps.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
 		return nil, "", plan, fmt.Errorf("decision: update existing student: %w", err)
 	}
-	var planned *enrollment.ClassSwitch
+	var planned *enrollmentNative.ClassSwitch
 	if deferred {
-		planned = &enrollment.ClassSwitch{RequestChildID: child.ID, From: previousSchoolClass, To: targetSchoolClass, On: enrollment.Date(switchOn.String())}
+		planned = &enrollmentNative.ClassSwitch{RequestChildID: child.ID, From: previousSchoolClass, To: targetSchoolClass, On: enrollmentNative.Date(switchOn.String())}
 	}
 	if err := d.planClassSwitch(ctx, child.ID, planned); err != nil {
 		return nil, "", plan, err
@@ -187,7 +188,7 @@ func (d *Decisions) auditRenewedStatus(ctx context.Context, existing *Student, b
 // year's approval, an import, the other parent), so they keep their link —
 // and with it their pickup authority and parent-portal access — and are only
 // demoted from primary by the DB trigger (#1663).
-func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *enrollmentModels.Request, studentID, reviewedBy int64) (*GuardianProfile, error) {
+func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *Request, studentID, reviewedBy int64) (*GuardianProfile, error) {
 	guardianRequest, err := d.guardianIdentityRequest(ctx, request)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *enrol
 // pickup schedule rows from its original enrollment; they are replaced, not
 // appended to. ReplaceConsent: this form re-asks every configured consent,
 // so a box the guardian left unchecked WITHDRAWS the consent the matched
-// student still carries from an earlier enrollment.
+// student still carries from an earlier enrollmentNative.
 //
 // Unlike the fresh-create path, a dispatch failure here is FATAL:
 // ReplaceSchedules has already deleted the matched student's live arrival /
@@ -224,7 +225,7 @@ func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *enrol
 // Returning the error rolls the whole approval back through the surrounding
 // tenant tx. Losing a pickup-authorized emergency contact is a data-integrity
 // failure as well, so the co-guardian link is fatal too.
-func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *enrollmentModels.Request, child *RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64) error {
+func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *Request, child *RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64) error {
 	if _, err := d.applyTargetedFields(ctx, request, child, existing, guardian, reviewedBy, targetedFieldSyncOptions{
 		ReplaceSchedules: true,
 		ReplaceConsent:   true,
@@ -244,12 +245,12 @@ func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *enro
 func (d *Decisions) reconcileExistingStudentCareRenewal(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	phase *enrollment.Phase,
+	phase *enrollmentNative.Phase,
 ) error {
 	if d.deps.CareWithdrawal == nil {
 		return nil
 	}
-	links, err := enrollment.OfferingSelectionRecordsAt(ctx, d.deps.Children, requestChildID, calendar.Date(phase.ServiceStartDate))
+	links, err := enrollmentNative.OfferingSelectionRecordsAt(ctx, d.deps.Children, requestChildID, calendar.Date(phase.ServiceStartDate))
 	if err != nil {
 		return fmt.Errorf("decision: list renewed care offerings: %w", err)
 	}
@@ -272,8 +273,8 @@ func (d *Decisions) reconcileExistingStudentCareRenewal(
 // offering covers a day: its selected days, or the fixed days of the
 // offering.
 func offeringLinksHaveCareDays(
-	links []*enrollment.RequestChildOfferingRecord,
-	offerings map[int64]*enrollmentModels.CareOffering,
+	links []*enrollmentNative.RequestChildOfferingRecord,
+	offerings map[int64]*offeringContract.CareOfferingRecord,
 ) bool {
 	for _, link := range links {
 		if link == nil {
@@ -284,7 +285,7 @@ func offeringLinksHaveCareDays(
 			continue
 		}
 		hasCareDays := len(link.SelectedDays) > 0
-		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+		if offering.DaysOfWeekMode == offeringContract.DaysOfWeekModeFixed {
 			hasCareDays = len(offering.AvailableDays) > 0
 		}
 		if hasCareDays {
@@ -311,12 +312,12 @@ func offeringLinksHaveCareDays(
 // A missing bound (nil) is treated as "not set" and takes the phase's date, so
 // a legacy student without a window still ends up with one.
 func renewedEnrollmentWindow(
-	phase *enrollment.Phase,
+	phase *enrollmentNative.Phase,
 	currentFrom, currentUntil *calendar.Date,
 ) (calendar.Date, calendar.Date) {
 	from := calendar.Date(phase.ServiceStartDate)
 	until := calendar.Date(phase.ServiceEndDate)
-	if phase.Kind == enrollment.PhaseKindSchoolYear {
+	if phase.Kind == enrollmentNative.PhaseKindSchoolYear {
 		return from, until
 	}
 	if currentFrom != nil && currentFrom.Before(from) {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,28 +22,28 @@ import (
 func TestHTTPVocabularyMatchesTheRetainedModels(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, activitiesModel.TargetGroupTypeJahrgang, timetable.TargetGroupTypeGrade)
-	assert.Equal(t, activitiesModel.TargetGroupTypeKlasse, timetable.TargetGroupTypeSchoolClass)
-	assert.Equal(t, activitiesModel.TargetGroupTypeGruppe, timetable.TargetGroupTypeEducationGroup)
-	assert.Equal(t, activitiesModel.TargetGroupTypeAngebot, timetable.TargetGroupTypeOffering)
-	assert.Equal(t, activitiesModel.TargetGroupTypeNone, timetable.TargetGroupTypeNone)
+	assert.Equal(t, activityContract.TargetGroupTypeJahrgang, timetable.TargetGroupTypeGrade)
+	assert.Equal(t, activityContract.TargetGroupTypeKlasse, timetable.TargetGroupTypeSchoolClass)
+	assert.Equal(t, activityContract.TargetGroupTypeGruppe, timetable.TargetGroupTypeEducationGroup)
+	assert.Equal(t, activityContract.TargetGroupTypeAngebot, timetable.TargetGroupTypeOffering)
+	assert.Equal(t, activityContract.TargetGroupTypeNone, timetable.TargetGroupTypeNone)
 
-	assert.Equal(t, activitiesModel.GroupTypeActivity, timetable.GroupTypeActivity)
-	assert.Equal(t, activitiesModel.GroupTypeCare, timetable.GroupTypeCare)
-	assert.Equal(t, activitiesModel.GroupTypeExternal, timetable.GroupTypeExternal)
+	assert.Equal(t, activityContract.GroupTypeActivity, timetable.GroupTypeActivity)
+	assert.Equal(t, activityContract.GroupTypeCare, timetable.GroupTypeCare)
+	assert.Equal(t, activityContract.GroupTypeExternal, timetable.GroupTypeExternal)
 
-	assert.Equal(t, activitiesModel.ListKindEdgeHours, timetable.ListKindEdgeHours)
-	assert.Equal(t, activitiesModel.ListKindLearningTime, timetable.ListKindLearningTime)
-	assert.Equal(t, activitiesModel.ListKindActivity, timetable.ListKindActivity)
-	assert.Equal(t, activitiesModel.ListKindMensa, timetable.ListKindMensa)
+	assert.Equal(t, activityContract.ListKindEdgeHours, timetable.ListKindEdgeHours)
+	assert.Equal(t, activityContract.ListKindLearningTime, timetable.ListKindLearningTime)
+	assert.Equal(t, activityContract.ListKindActivity, timetable.ListKindActivity)
+	assert.Equal(t, activityContract.ListKindMensa, timetable.ListKindMensa)
 
-	assert.Equal(t, activitiesModel.WeekdayMonday, timetable.WeekdayMonday)
-	assert.Equal(t, activitiesModel.WeekdayTuesday, timetable.WeekdayTuesday)
-	assert.Equal(t, activitiesModel.WeekdayWednesday, timetable.WeekdayWednesday)
-	assert.Equal(t, activitiesModel.WeekdayThursday, timetable.WeekdayThursday)
-	assert.Equal(t, activitiesModel.WeekdayFriday, timetable.WeekdayFriday)
-	assert.Equal(t, activitiesModel.WeekdaySaturday, timetable.WeekdaySaturday)
-	assert.Equal(t, activitiesModel.WeekdaySunday, timetable.WeekdaySunday)
+	assert.Equal(t, activityContract.WeekdayMonday, timetable.WeekdayMonday)
+	assert.Equal(t, activityContract.WeekdayTuesday, timetable.WeekdayTuesday)
+	assert.Equal(t, activityContract.WeekdayWednesday, timetable.WeekdayWednesday)
+	assert.Equal(t, activityContract.WeekdayThursday, timetable.WeekdayThursday)
+	assert.Equal(t, activityContract.WeekdayFriday, timetable.WeekdayFriday)
+	assert.Equal(t, activityContract.WeekdaySaturday, timetable.WeekdaySaturday)
+	assert.Equal(t, activityContract.WeekdaySunday, timetable.WeekdaySunday)
 
 	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindEmpty, timetable.TemplateWeekdayRosterKindEmpty)
 	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindStaff, timetable.TemplateWeekdayRosterKindStaff)
@@ -75,12 +77,12 @@ func TestHTTPGradeRangeMatchesTheRetainedTargetValidation(t *testing.T) {
 
 	for _, level := range []int{timetable.MinSchoolGradeLevel, timetable.MaxSchoolGradeLevel} {
 		grade := int16(level)
-		target := &activitiesModel.GroupTarget{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &grade}
+		target := &activityContract.GroupTarget{TargetGroupType: activityContract.TargetGroupTypeJahrgang, TargetGradeLevel: &grade}
 		require.NoError(t, target.Validate(), "grade %d", level)
 	}
 	for _, level := range []int{timetable.MinSchoolGradeLevel - 1, timetable.MaxSchoolGradeLevel + 1} {
 		grade := int16(level)
-		target := &activitiesModel.GroupTarget{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &grade}
+		target := &activityContract.GroupTarget{TargetGroupType: activityContract.TargetGroupTypeJahrgang, TargetGradeLevel: &grade}
 		require.Error(t, target.Validate(), "grade %d", level)
 	}
 }
@@ -90,31 +92,31 @@ func TestHTTPRequestRulesMatchTheRetainedModels(t *testing.T) {
 
 	t.Run("weekday", func(t *testing.T) {
 		for weekday := -1; weekday <= 9; weekday++ {
-			assert.Equal(t, activitiesModel.IsValidWeekday(weekday), timetable.IsValidWeekday(weekday), "weekday %d", weekday)
+			assert.Equal(t, activityContract.IsValidWeekday(weekday), timetable.IsValidWeekday(weekday), "weekday %d", weekday)
 		}
 	})
 
 	t.Run("list kind", func(t *testing.T) {
 		for _, kind := range []string{"", "edge_hours", "learning_time", "activity", "mensa", "Mensa", " mensa", "lunch"} {
-			assert.Equal(t, activitiesModel.IsValidListKind(kind), timetable.IsValidListKind(kind), "kind %q", kind)
+			assert.Equal(t, activityContract.IsValidListKind(kind), timetable.IsValidListKind(kind), "kind %q", kind)
 		}
 	})
 
 	t.Run("target group type", func(t *testing.T) {
 		for _, targetType := range []string{"", "jahrgang", "klasse", "gruppe", "angebot", "none", "Klasse", "class"} {
-			assert.Equal(t, activitiesModel.IsValidTargetGroupType(targetType), timetable.IsValidTargetGroupType(targetType), "type %q", targetType)
+			assert.Equal(t, activityContract.IsValidTargetGroupType(targetType), timetable.IsValidTargetGroupType(targetType), "type %q", targetType)
 		}
 	})
 
 	t.Run("participant limit", func(t *testing.T) {
 		for _, limit := range []int{-3, 0, 1, 24} {
-			assert.Equal(t, activitiesModel.ParticipantLimitPtr(limit), timetable.ParticipantLimitPtr(limit), "limit %d", limit)
+			assert.Equal(t, activityContract.ParticipantLimitPtr(limit), timetable.ParticipantLimitPtr(limit), "limit %d", limit)
 		}
 	})
 
 	t.Run("source school classes", func(t *testing.T) {
 		for _, classes := range [][]string{nil, {}, {"1a"}, {" 1a ", "1b"}, {"1a", " "}, {"1a", "1A"}, {"1a", " 1a"}, {"Klasse 3", "klasse 4"}} {
-			wantClasses, wantErr := activitiesModel.NormalizeSourceSchoolClasses(classes)
+			wantClasses, wantErr := activityContract.NormalizeSourceSchoolClasses(classes)
 			gotClasses, gotErr := timetable.NormalizeSourceSchoolClasses(classes)
 			assert.Equal(t, wantClasses, gotClasses, "classes %q", classes)
 			assertSameError(t, wantErr, gotErr, fmt.Sprintf("classes %q", classes))
@@ -147,7 +149,7 @@ func TestHTTPDynamicTargetRuleMatchesTheRetainedModel(t *testing.T) {
 		"empty":                   {},
 	} {
 		t.Run(name, func(t *testing.T) {
-			model := &activitiesModel.GroupTarget{
+			model := &activityContract.GroupTarget{
 				TargetGroupType: target.TargetGroupType, TargetGradeLevel: cloneGrade(target.TargetGradeLevel),
 				TargetSchoolClass: cloneText(target.TargetSchoolClass), EducationGroupID: cloneID(target.EducationGroupID),
 			}
@@ -198,7 +200,7 @@ func TestHTTPTemplateTargetGroupRuleMatchesTheRetainedModel(t *testing.T) {
 		"empty source slices":          {TargetGroupType: "angebot", SourceCareOfferingIDs: []int64{}, SourceGradeLevels: []int{}, SourceSchoolClasses: []string{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			model := &activitiesModel.Group{
+			model := &activityContract.Group{
 				TargetGroupType: target.TargetGroupType, TargetGradeLevel: cloneGrade(target.TargetGradeLevel),
 				TargetSchoolClass: cloneText(target.TargetSchoolClass), EducationGroupID: cloneID(target.EducationGroupID),
 				SourceCareOfferingIDs: cloneSlice(target.SourceCareOfferingIDs), SourceGradeLevels: cloneSlice(target.SourceGradeLevels),

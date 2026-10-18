@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -58,10 +60,10 @@ type DataTemplates interface {
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModels.TemplateListRow, error)
 	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]activitiesModels.TemplateWeekdayRosterRow, error)
 	ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]activitiesModels.TemplateCapacityOccurrence, error)
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error)
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
-	FindByName(ctx context.Context, name string) (*activitiesModels.Group, error)
-	Create(ctx context.Context, group *activitiesModels.Group) error
+	FindByName(ctx context.Context, name string) (*activityContract.Group, error)
+	Create(ctx context.Context, group *activityContract.Group) error
 }
 
 // DataGroups reads the template a block was materialized from through the
@@ -77,8 +79,8 @@ type BlockDisplayMetadata interface {
 
 // DataCategories reads and creates the activity categories.
 type DataCategories interface {
-	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activitiesModels.Category, error)
-	Create(ctx context.Context, category *activitiesModels.Category) error
+	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error)
+	Create(ctx context.Context, category *activityContract.Category) error
 }
 
 // RoomOccupancy reports another open Student Presence session in a room.

@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -68,7 +69,7 @@ func newCareScheduleRequestService(
 	pickup careplan.PickupScheduleService,
 	caller *api.CallerRows,
 	services api.PeopleServices,
-	emitter *parentmessaging.Emitter,
+	emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) carerequests.Service {
@@ -82,9 +83,9 @@ func newCareScheduleRequestService(
 
 func (f *careFixture) emitter(
 	t *testing.T,
-	settings parentmessaging.TenantSettingsResolver,
+	settings eventContract.TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
-) *parentmessaging.Emitter {
+) eventContract.Emitter {
 	t.Helper()
 	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), settings, broadcaster, slog.Default())
 	return emitter
@@ -104,7 +105,7 @@ func newCareFixture(t *testing.T, options ...api.CareRequestOption) *careFixture
 
 // newCareFixtureWithEmitter builds the same service with a pill emitter, so a
 // test can assert what the message thread receives (#3135).
-func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...api.CareRequestOption) *careFixture {
+func newCareFixtureWithEmitter(t *testing.T, emitter eventContract.Emitter, options ...api.CareRequestOption) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))

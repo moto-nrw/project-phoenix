@@ -88,7 +88,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactoryTimetable.Timetable,
 		Feedback: feedback, IsVerifiedStaff: liveCaller.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
 		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: audit, Now: clock,
-	})
+	}, NewStudentActivityEnrollments())
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}

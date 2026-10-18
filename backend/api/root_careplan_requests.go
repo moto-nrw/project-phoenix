@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -37,7 +38,7 @@ type CarePlanRequests struct {
 // requestShareVisibility builds the parents domain's sharing rules over the
 // sharing ledger and the family protection alone, so every request queue
 // receives them at construction (#2267, story 47).
-func requestShareVisibility(db transactionruntime.Database) (communicationCompose.ParentShareVisibilityResolver, error) {
+func requestShareVisibility(db transactionruntime.Database) (eventContract.ShareVisibilityResolver, error) {
 	return parentportalcompose.NewRequestShareVisibility(
 		BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(db.Pool())),
 		BindParentFamilyProtectionReads(peopleCompose.NewFamilyProtectionEventRepository(db.Pool())),
@@ -50,7 +51,7 @@ func buildCarePlanRequests(
 	db transactionruntime.Database, env RootEnvironment, transport MailTransport, carePlan careplan.Capability,
 	persons peopledirectory.Capability, people PeopleRows, schedules CarePlanSchedules, offerings CarePlanOfferings,
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
-	audit AuditOwner, services PeopleServices, emitter *communicationCompose.ParentEventEmitter, caller *CallerRows,
+	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
 	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier,
 ) (CarePlanRequests, error) {
 	shares, err := requestShareVisibility(db)
@@ -93,8 +94,8 @@ func buildCarePlanRequests(
 func buildOfferingChanges(
 	db transactionruntime.Database, env RootEnvironment, carePlan careplan.Capability, people PeopleRows, enrollment EnrollmentRows,
 	timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService, offerings CarePlanOfferings,
-	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, emitter *communicationCompose.ParentEventEmitter,
-	shares communicationCompose.ParentShareVisibilityResolver,
+	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, emitter eventContract.Emitter,
+	shares eventContract.ShareVisibilityResolver,
 ) (careplan.OfferingChangeCapability, error) {
 	deps, err := offeringChangeOwners(
 		carePlan, nil, enrollment.Bookings, people.Students, NewCareWithdrawalCompletionRepository(carePlan),
@@ -123,9 +124,9 @@ func buildOfferingChanges(
 // conflict_kind_unsupported for the missing one.
 func buildCarePlanDecisions(
 	db transactionruntime.Database, env RootEnvironment, transport MailTransport, carePlan careplan.Capability,
-	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter *communicationCompose.ParentEventEmitter,
+	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter eventContract.Emitter,
 	caller *CallerRows, reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string,
-	shares communicationCompose.ParentShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests,
+	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests,
 ) (CarePlanRequests, error) {
 	deps, err := StudentDocumentDependencies(carePlan, people.Students, caller, audit.Persistence.StudentFieldEdit, audit.Persistence.DataAccessLog)
 	if err != nil {

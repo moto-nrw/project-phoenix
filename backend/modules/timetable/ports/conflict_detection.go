@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -42,7 +44,7 @@ type ConflictExceptions interface {
 
 // ConflictSchedules reads the template schedules of activity groups.
 type ConflictSchedules interface {
-	FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.Schedule, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error)
 	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.TemplateStartTime, error)
 }
 

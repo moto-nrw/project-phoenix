@@ -80,7 +80,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     43,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":  37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":  22,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails": 25,
@@ -310,9 +310,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 
-	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
-
-	"workflows/studentdeletion/compose/new.go:Assemble":                         16,
+	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot":            17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).checkCompanionStranding": 19,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":              17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).lockCompanionGraph":      19,

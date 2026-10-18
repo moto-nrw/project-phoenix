@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +64,7 @@ func publishAnnouncement(t *testing.T, db *bun.DB, operatorID int64, title strin
 	return id
 }
 
-func announcementIDs(values []Announcement) []int64 {
+func announcementIDs(values []contract.Announcement) []int64 {
 	ids := make([]int64, 0, len(values))
 	for _, value := range values {
 		ids = append(ids, value.ID)
@@ -82,7 +84,7 @@ func TestProjection_UnreadStaysInTheReadersSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, announcementIDs(unread), fix.ownAnnouncement)
 	assert.NotContains(t, announcementIDs(unread), fix.foreignMessage, "an announcement for another school must not appear")
-	assert.Equal(t, Stats{Queries: 1, Rows: int64(len(unread)), StatementDuration: stats.StatementDuration}, stats)
+	assert.Equal(t, contract.Stats{Queries: 1, Rows: int64(len(unread)), StatementDuration: stats.StatementDuration}, stats)
 	for _, value := range unread {
 		if value.ID == fix.ownAnnouncement {
 			assert.Equal(t, "Own school", value.Title)
@@ -116,7 +118,7 @@ func TestProjection_TargetsAndViewsStayInTheAddressedSchool(t *testing.T) {
 	db, fix := setupAudience(t)
 	ctx := context.Background()
 
-	targets, stats, err := fix.projection.TargetCount(ctx, Target{PublishedAt: &fix.publishedAt, TargetTenantIDs: []int64{fix.foreignID}})
+	targets, stats, err := fix.projection.TargetCount(ctx, contract.Target{PublishedAt: &fix.publishedAt, TargetTenantIDs: []int64{fix.foreignID}})
 	require.NoError(t, err)
 	assert.Equal(t, 1, targets, "only the foreign school's reader is addressed")
 	assert.Equal(t, 1, stats.Queries)
@@ -146,13 +148,15 @@ func TestMap_AnswersInConsumerValues(t *testing.T) {
 	t.Parallel()
 	_, fix := setupAudience(t)
 	ctx := context.Background()
-	mapped := Map(fix.projection, Rows[announcementView, int64, int]{
-		Announcement: func(row Announcement) announcementView { return announcementView{ID: row.ID, Title: row.Title} },
-		Target: func(value announcementView) Target {
-			return Target{PublishedAt: &fix.publishedAt, TargetTenantIDs: []int64{fix.foreignID}}
+	mapped := Map(fix.projection, contract.Rows[announcementView, int64, int]{
+		Announcement: func(row contract.Announcement) announcementView {
+			return announcementView{ID: row.ID, Title: row.Title}
 		},
-		View:  func(row ViewDetail) int64 { return row.UserID },
-		Stats: func(stats Stats) int { return stats.Queries },
+		Target: func(value announcementView) contract.Target {
+			return contract.Target{PublishedAt: &fix.publishedAt, TargetTenantIDs: []int64{fix.foreignID}}
+		},
+		View:  func(row contract.ViewDetail) int64 { return row.UserID },
+		Stats: func(stats contract.Stats) int { return stats.Queries },
 	})
 
 	unread, queries, err := mapped.Unread(ctx, fix.readerID, nil, fix.tenantID, fix.organizationID)
@@ -175,10 +179,10 @@ func TestMap_RequiresEveryMapping(t *testing.T) {
 	t.Parallel()
 	projection := New(func(context.Context) (bun.IDB, error) { return nil, nil })
 	assert.Panics(t, func() {
-		Map(projection, Rows[Announcement, ViewDetail, Stats]{
-			Announcement: func(row Announcement) Announcement { return row },
-			View:         func(row ViewDetail) ViewDetail { return row },
-			Stats:        func(stats Stats) Stats { return stats },
+		Map(projection, contract.Rows[contract.Announcement, contract.ViewDetail, contract.Stats]{
+			Announcement: func(row contract.Announcement) contract.Announcement { return row },
+			View:         func(row contract.ViewDetail) contract.ViewDetail { return row },
+			Stats:        func(stats contract.Stats) contract.Stats { return stats },
 		})
 	})
 }

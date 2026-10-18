@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -37,9 +38,9 @@ type OperationParticipants interface {
 
 // OperationTemplates reads the templates (activity groups) behind blocks.
 type OperationTemplates interface {
-	FindByID(ctx context.Context, id any) (*activitiesModels.Group, error)
-	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModels.Group, error)
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error)
+	FindByID(ctx context.Context, id any) (*activityContract.Group, error)
+	FindByIDs(ctx context.Context, ids []int64) ([]*activityContract.Group, error)
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 }
 
 // OperationSessions reads and touches the Student Presence live sessions.

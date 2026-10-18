@@ -223,7 +223,7 @@ type planExportOwnerInstances struct {
 
 func newPlanExportOwnerInstances(t *testing.T, db *bun.DB) planExportOwnerInstances {
 	t.Helper()
-	return planExportOwnerInstances{rows: timetabletest.NewLegacyRows(t, db)}
+	return planExportOwnerInstances{rows: timetabletest.NewLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
 }
 
 func (s planExportOwnerInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {

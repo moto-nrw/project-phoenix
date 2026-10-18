@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/contract"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,7 @@ func TestFindThreadHeaderAnswersOnlyTheThreadsSchool(t *testing.T) {
 
 	header, err := projectionForSchool(db, chain.TenantID).FindThreadHeader(ctx, threadID)
 	require.NoError(t, err)
-	assert.Equal(t, &ParentThreadHeader{StudentName: "Felix Schneider", GuardianName: "Sabine Schneider", RelationshipType: "parent"}, header)
+	assert.Equal(t, &contract.ParentThreadHeader{StudentName: "Felix Schneider", GuardianName: "Sabine Schneider", RelationshipType: "parent"}, header)
 
 	foreign, err := projectionForSchool(db, otherSchool).FindThreadHeader(ctx, threadID)
 	require.NoError(t, err)

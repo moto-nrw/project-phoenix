@@ -122,7 +122,7 @@ func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64
 		return err
 	}
 	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		return s.repo.Upsert(txCtx, sub)
+		return s.repo.RegisterSubscription(txCtx, sub)
 	})
 }
 
@@ -153,7 +153,7 @@ func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID
 		if err := s.repo.DeleteSchoolByEndpointAcrossTenants(txCtx, sub.Endpoint); err != nil {
 			return fmt.Errorf("clearing previous school push subscription bindings: %w", err)
 		}
-		return s.repo.Upsert(txCtx, sub)
+		return s.repo.RegisterSubscription(txCtx, sub)
 	})
 }
 
@@ -203,7 +203,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 		for _, mapping := range mappings {
 			sub := *prototype
 			sub.TenantID = mapping
-			if err := s.repo.Upsert(txCtx, &sub); err != nil {
+			if err := s.repo.RegisterSubscription(txCtx, &sub); err != nil {
 				return fmt.Errorf("registering push subscription for tenant %d: %w", mapping, err)
 			}
 		}

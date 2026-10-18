@@ -15,7 +15,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -58,12 +57,12 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	require.NoError(t, err)
 	phase := &capability.Phase{
 		Name:             "unread-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
@@ -239,12 +238,12 @@ func TestUnreadEnrollments_ParentEditResetsButDecisionDoesNot(t *testing.T) {
 
 	// An OGS decision on one child moves no parent-change stamp.
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusWaitlisted, nil, 0))
+		capability.ChildStatusWaitlisted, nil, 0))
 	assert.Equal(t, 0, env.count(t, anna), "an OGS decision keeps the enrollment read")
 
 	// Parent edits are accepted only while every child is submitted.
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusSubmitted, nil, 0))
+		capability.ChildStatusSubmitted, nil, 0))
 	rec := env.do(t, http.MethodPatch, "/requests/"+submitted.Request.StatusToken, "", `{"guardian_first_name":"Ulrike"}`)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, 1, env.count(t, anna), "a parent edit makes it unread again")
@@ -256,7 +255,7 @@ func TestUnreadEnrollments_RenewalConfirmationResets(t *testing.T) {
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	submitted := env.submit(t, 1)
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusPendingRenewal, nil, 0))
+		capability.ChildStatusPendingRenewal, nil, 0))
 	require.Equal(t, http.StatusNoContent, env.do(t, http.MethodPut, idPath(submitted.Request.ID, "/read"), anna, "").Code)
 	require.Equal(t, 0, env.count(t, anna))
 
@@ -271,9 +270,9 @@ func TestUnreadEnrollments_TerminalChildrenAndInactivePhaseDoNotCount(t *testing
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	closed, open := env.submit(t, 2), env.submit(t, 1)
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, 0))
+	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[0].ID, capability.ChildStatusRejected, nil, 0))
 	require.Equal(t, 2, env.count(t, anna), "one open child keeps the enrollment unread")
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[1].ID, enrollmentModels.ChildStatusWithdrawn, nil, 0))
+	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[1].ID, capability.ChildStatusWithdrawn, nil, 0))
 	assert.Equal(t, 1, env.count(t, anna), "only terminal children: not counted")
 	assert.False(t, env.listUnread(t, anna)[strconv.FormatInt(closed.Request.ID, 10)])
 

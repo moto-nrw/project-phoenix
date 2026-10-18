@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/audience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -53,34 +53,14 @@ type Dependencies struct {
 	Observe       func(Observation)
 }
 
-func New(dependencies Dependencies) (*communication.Module, error) {
-	if dependencies.DB == nil || dependencies.Organizations == nil || dependencies.Viewers == nil || dependencies.Audit == nil || dependencies.Observe == nil {
+func New(dependencies Dependencies, audience ports.Audience) (*communication.Module, error) {
+	if audience == nil || dependencies.DB == nil || dependencies.Organizations == nil || dependencies.Viewers == nil || dependencies.Audit == nil || dependencies.Observe == nil {
 		return nil, errors.New("communication compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("communication postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, fmt.Errorf("communication postgres: unsupported transaction %T", transaction)
-		}
-		return tx, nil
-	}
-	store := postgres.New(database)
+	store := postgres.New(AnnouncementDatabase())
 	service := application.New(
 		store,
-		audience.Map(audience.New(database), audience.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats]{
-			Announcement: func(row audience.Announcement) domain.Announcement { return domain.Announcement(row) },
-			Target: func(value domain.Announcement) audience.Target {
-				return audience.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
-			},
-			View: func(row audience.ViewDetail) domain.AnnouncementViewDetail { return domain.AnnouncementViewDetail(row) },
-			Stats: func(stats audience.Stats) domain.OperationStats {
-				return domain.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
-			},
-		}),
+		audience,
 		targets{capability: dependencies.Organizations},
 		dependencies.Viewers,
 		audit{port: dependencies.Audit},
@@ -282,5 +262,33 @@ func mapError(err error, id int64) error {
 		return &communication.InvalidDataError{Err: err}
 	default:
 		return err
+	}
+}
+
+func AudienceMapping() contract.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats] {
+	return contract.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats]{
+		Announcement: func(row contract.Announcement) domain.Announcement { return domain.Announcement(row) },
+		Target: func(value domain.Announcement) contract.Target {
+			return contract.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
+		},
+		View: func(row contract.ViewDetail) domain.AnnouncementViewDetail { return domain.AnnouncementViewDetail(row) },
+		Stats: func(stats contract.Stats) domain.OperationStats {
+			return domain.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
+		},
+	}
+}
+
+// AnnouncementDatabase supplies the existing administrative runtime to the root.
+func AnnouncementDatabase() func(context.Context) (bun.IDB, error) {
+	return func(ctx context.Context) (bun.IDB, error) {
+		transaction, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, errors.New("communication postgres: transaction is required")
+		}
+		tx, ok := transaction.(bun.Tx)
+		if !ok {
+			return nil, fmt.Errorf("communication postgres: unsupported transaction %T", transaction)
+		}
+		return tx, nil
 	}
 }

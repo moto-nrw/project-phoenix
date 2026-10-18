@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,22 +14,22 @@ import (
 // a future status shows up as a compile-visible gap here rather than a
 // silently mis-counted preview.
 var allChildStatuses = []string{
-	enrollmentModels.ChildStatusSubmitted,
-	enrollmentModels.ChildStatusUnderReview,
-	enrollmentModels.ChildStatusApproved,
-	enrollmentModels.ChildStatusWaitlisted,
-	enrollmentModels.ChildStatusRejected,
-	enrollmentModels.ChildStatusWithdrawn,
-	enrollmentModels.ChildStatusPendingRenewal,
-	enrollmentModels.ChildStatusAutoRenewed,
-	enrollmentModels.ChildStatusPendingAdminReview,
+	enrollmentNative.ChildStatusSubmitted,
+	enrollmentNative.ChildStatusUnderReview,
+	enrollmentNative.ChildStatusApproved,
+	enrollmentNative.ChildStatusWaitlisted,
+	enrollmentNative.ChildStatusRejected,
+	enrollmentNative.ChildStatusWithdrawn,
+	enrollmentNative.ChildStatusPendingRenewal,
+	enrollmentNative.ChildStatusAutoRenewed,
+	enrollmentNative.ChildStatusPendingAdminReview,
 }
 
 // PreviewPhaseFromSource classifies the source phase's children without
 // writing anything. Shares classifyRolloverGrade with the create path,
 // so the numbers the admin confirms are the numbers the rollover
 // produces.
-func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*enrollment.RolloverPreview, error) {
+func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*enrollmentNative.RolloverPreview, error) {
 	tenantID := s.deps.Runtime.TenantID(ctx)
 	if tenantID == 0 {
 		return nil, fmt.Errorf("rollover preview: tenant not in context")
@@ -50,13 +49,13 @@ func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID in
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
 	}
-	preview := &enrollment.RolloverPreview{
+	preview := &enrollmentNative.RolloverPreview{
 		ReviewByReason:   make(map[string]int),
 		ExcludedByStatus: make(map[string]int),
 	}
 	candidateRequests := make(map[int64]struct{})
 	for _, child := range children {
-		if child.Status != enrollmentModels.ChildStatusApproved {
+		if child.Status != enrollmentNative.ChildStatusApproved {
 			preview.ExcludedCount++
 			preview.ExcludedByStatus[child.Status]++
 			continue
@@ -77,11 +76,11 @@ func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID in
 
 // ListReviewQueue loads admin-review rows + their parent request + the
 // source child for context. Tenant RLS scopes the read.
-func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enrollment.RolloverReviewItem, error) {
+func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enrollmentNative.RolloverReviewItem, error) {
 	if phaseID <= 0 {
-		return nil, fmt.Errorf("%w: phase_id is required", enrollment.ErrRolloverInvalidRequest)
+		return nil, fmt.Errorf("%w: phase_id is required", enrollmentNative.ErrRolloverInvalidRequest)
 	}
-	children, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, []string{enrollmentModels.ChildStatusPendingAdminReview})
+	children, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, []string{enrollmentNative.ChildStatusPendingAdminReview})
 	if err == nil {
 		_, err = childValues(children)
 	}
@@ -100,7 +99,7 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*enrollment.RolloverReviewItem, 0, len(children))
+	out := make([]*enrollmentNative.RolloverReviewItem, 0, len(children))
 	for _, c := range children {
 		req := requestsByID[c.RequestID]
 		if req == nil {
@@ -109,7 +108,7 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 				slog.Int64("request_id", c.RequestID))
 			continue
 		}
-		item := &enrollment.RolloverReviewItem{Child: c, Request: req}
+		item := &enrollmentNative.RolloverReviewItem{Child: c, Request: req}
 		if c.RolloverSourceChildID != nil {
 			// The source child is in the previous phase of the same tenant.
 			// If it cannot be read, the admin still gets a useful row — just
@@ -123,7 +122,7 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 
 // reviewQueueContext loads the parent requests and the source children of
 // the review rows.
-func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceChildIDs []int64) (map[int64]*enrollment.Request, map[int64]*enrollment.RequestChild, error) {
+func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceChildIDs []int64) (map[int64]*enrollmentNative.Request, map[int64]*enrollmentNative.RequestChild, error) {
 	requests, err := s.deps.Requests.RequestsByID(ctx, requestIDs)
 	if err == nil {
 		_, err = requestValues(requests)
@@ -138,11 +137,11 @@ func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceCh
 	if err != nil {
 		return nil, nil, fmt.Errorf("rollover: load review queue source children: %w", err)
 	}
-	requestsByID := make(map[int64]*enrollment.Request, len(requests))
+	requestsByID := make(map[int64]*enrollmentNative.Request, len(requests))
 	for _, row := range requests {
 		requestsByID[row.ID] = row
 	}
-	sourceChildrenByID := make(map[int64]*enrollment.RequestChild, len(sourceChildren))
+	sourceChildrenByID := make(map[int64]*enrollmentNative.RequestChild, len(sourceChildren))
 	for _, row := range sourceChildren {
 		sourceChildrenByID[row.ID] = row
 	}
@@ -158,21 +157,21 @@ func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceCh
 // approval. The class override (if any) is applied at the same time.
 // "Defer" means "I'll come back to it" — the row stays as-is, but reviewed_at
 // is still stamped so the admin sees their last touch.
-func (s *Rollovers) DecideReview(ctx context.Context, req enrollment.DecideReviewRequest) error {
+func (s *Rollovers) DecideReview(ctx context.Context, req enrollmentNative.DecideReviewRequest) error {
 	if req.RequestChildID <= 0 {
-		return fmt.Errorf("%w: request_child_id is required", enrollment.ErrRolloverReviewInvalid)
+		return fmt.Errorf("%w: request_child_id is required", enrollmentNative.ErrRolloverReviewInvalid)
 	}
 	switch req.Decision {
-	case enrollment.ReviewDecisionKeep:
-		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentModels.ChildStatusAutoRenewed, nil, req.NewGradeLevel, req.AdminAccountID)
-	case enrollment.ReviewDecisionDrop:
+	case enrollmentNative.ReviewDecisionKeep:
+		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentNative.ChildStatusAutoRenewed, nil, req.NewGradeLevel, req.AdminAccountID)
+	case enrollmentNative.ReviewDecisionDrop:
 		reason := "rollover_drop"
-		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentModels.ChildStatusWithdrawn, &reason, nil, req.AdminAccountID)
-	case enrollment.ReviewDecisionDefer:
-		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentModels.ChildStatusPendingAdminReview, nil, nil, req.AdminAccountID)
+		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentNative.ChildStatusWithdrawn, &reason, nil, req.AdminAccountID)
+	case enrollmentNative.ReviewDecisionDefer:
+		return s.deps.Children.ReviewRolloverChild(ctx, req.RequestChildID, enrollmentNative.ChildStatusPendingAdminReview, nil, nil, req.AdminAccountID)
 	default:
 		return fmt.Errorf("%w: decision must be keep/drop/defer, got %q",
-			enrollment.ErrRolloverReviewInvalid, req.Decision)
+			enrollmentNative.ErrRolloverReviewInvalid, req.Decision)
 	}
 }
 
@@ -198,7 +197,7 @@ func classifyRolloverGrade(sourceGrade *int16, bumpsGrade, collectGradeLevel boo
 //   - otherwise           → bumped grade, no review
 func computeNewGrade(sourceGrade *int16, bumpsGrade bool, maxGrade int) (*int16, string) {
 	if sourceGrade == nil {
-		return nil, enrollmentModels.ReviewReasonNoGradeLevel
+		return nil, enrollmentNative.ReviewReasonNoGradeLevel
 	}
 	bump := int16(0)
 	if bumpsGrade {
@@ -208,26 +207,26 @@ func computeNewGrade(sourceGrade *int16, bumpsGrade bool, maxGrade int) (*int16,
 	if int(newGrade) > maxGrade {
 		// Surface as review with the same grade carried through so
 		// the admin can see "this student would be in grade 5".
-		return &newGrade, enrollmentModels.ReviewReasonGradeAboveMax
+		return &newGrade, enrollmentNative.ReviewReasonGradeAboveMax
 	}
 	return &newGrade, ""
 }
 
 func renewalInitialStatus(mode string) string {
-	if mode == enrollment.PhaseRolloverModeOptIn {
-		return enrollmentModels.ChildStatusPendingRenewal
+	if mode == enrollmentNative.PhaseRolloverModeOptIn {
+		return enrollmentNative.ChildStatusPendingRenewal
 	}
-	return enrollmentModels.ChildStatusAutoRenewed
+	return enrollmentNative.ChildStatusAutoRenewed
 }
 
 // RunDeadlineWorker is the scheduled resolver. The caller (scheduler tick
 // or CLI) wraps it in a tenant transaction so the bulk updates run as
 // phoenix_tenant with RLS scoping to the current tenant.
-func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enrollment.DeadlineWorkerSummary, error) {
+func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enrollmentNative.DeadlineWorkerSummary, error) {
 	if s.deps.Phases == nil || s.deps.Children == nil {
 		return nil, fmt.Errorf("rollover deadline: required repos not wired")
 	}
-	summary := &enrollment.DeadlineWorkerSummary{}
+	summary := &enrollmentNative.DeadlineWorkerSummary{}
 	values, err := s.deps.Phases.PhasesWithExpiredRolloverDeadline(ctx, asOf)
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: list expired phases: %w", err)
@@ -257,7 +256,7 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 // submitted (the admin still approves manually through the existing queue).
 // The opt-in side lets pending_renewal rows lapse to withdrawn: the parent
 // didn't act before the deadline.
-func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollment.Phase, summary *enrollment.DeadlineWorkerSummary) error {
+func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollmentNative.Phase, summary *enrollmentNative.DeadlineWorkerSummary) error {
 	auto, autoFatalErr := s.resolveAutoRenewed(ctx, phase)
 	summary.AutoRenewedToApproved += auto.approved
 	summary.AutoRenewedToSubmitted += auto.submitted
@@ -268,8 +267,8 @@ func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollment.P
 	}
 	pendingCount, err := s.deps.Children.TransitionPhaseChildren(
 		ctx, phase.ID,
-		enrollmentModels.ChildStatusPendingRenewal,
-		enrollmentModels.ChildStatusWithdrawn,
+		enrollmentNative.ChildStatusPendingRenewal,
+		enrollmentNative.ChildStatusWithdrawn,
 	)
 	if err != nil {
 		s.deps.Logger.Error("rollover deadline: demote pending_renewal failed",
@@ -309,7 +308,7 @@ type autoRenewedOutcome struct {
 // (test environments that don't wire the full approval pipeline), we fall
 // back to the bulk-promotion-to-submitted path so the worker still
 // completes — logs a warning so the gap is visible.
-func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Phase) (out autoRenewedOutcome, fatalErr error) {
+func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollmentNative.Phase) (out autoRenewedOutcome, fatalErr error) {
 	if !phase.RolloverAutoApprove || s.deps.Decisions == nil {
 		out.submitted = s.promoteAutoRenewed(ctx, phase)
 		return out, nil
@@ -317,7 +316,7 @@ func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Ph
 	// Auto-approve path: pull each auto_renewed row and Decide it so the
 	// rollover approval runs (updates the existing student, fires the
 	// approval email, etc.).
-	rows, err := s.childrenByStatuses(ctx, phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+	rows, err := s.childrenByStatuses(ctx, phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	if err != nil {
 		s.deps.Logger.Error("rollover deadline: list auto_renewed failed",
 			slog.Int64("phase_id", phase.ID),
@@ -361,15 +360,15 @@ func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Ph
 }
 
 // promoteAutoRenewed moves a phase's auto_renewed rows to submitted.
-func (s *Rollovers) promoteAutoRenewed(ctx context.Context, phase *enrollment.Phase) int {
+func (s *Rollovers) promoteAutoRenewed(ctx context.Context, phase *enrollmentNative.Phase) int {
 	if phase.RolloverAutoApprove && s.deps.Decisions == nil {
 		s.deps.Logger.Warn("rollover deadline: auto_approve=true but DecisionService not wired, falling back to submitted",
 			slog.Int64("phase_id", phase.ID))
 	}
 	count, err := s.deps.Children.TransitionPhaseChildren(
 		ctx, phase.ID,
-		enrollmentModels.ChildStatusAutoRenewed,
-		enrollmentModels.ChildStatusSubmitted,
+		enrollmentNative.ChildStatusAutoRenewed,
+		enrollmentNative.ChildStatusSubmitted,
 	)
 	if err != nil {
 		s.deps.Logger.Error("rollover deadline: promote auto_renewed failed",
@@ -388,10 +387,10 @@ func (s *Rollovers) promoteAutoRenewed(ctx context.Context, phase *enrollment.Ph
 // production atomicity contract documented on RunDeadlineWorker.
 func (s *Rollovers) decideAutoRenewedRow(ctx context.Context, row *RequestChild) error {
 	decide := func(decideCtx context.Context) error {
-		_, err := s.deps.Decisions.Decide(decideCtx, enrollment.DecideInput{
+		_, err := s.deps.Decisions.Decide(decideCtx, enrollmentNative.DecideInput{
 			RequestID: row.RequestID,
 			ChildID:   row.ID,
-			Status:    enrollment.DecisionApproved,
+			Status:    enrollmentNative.DecisionApproved,
 		})
 		return err
 	}

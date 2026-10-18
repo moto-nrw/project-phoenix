@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -27,12 +29,12 @@ type IoTDataTestModule struct {
 // room deletion's usage port over the same sessions and care offerings, as
 // the root binds it.
 func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (
-	IoTDataTestModule, ActivitiesTestModule, peoplePorts.PersonDirectory, DeviceTestModule, facilitiesCompose.RoomService, facilitiesCompose.RoomUsage, error,
+	IoTDataTestModule, ActivitiesTestModule, activityContract.ActivityService, peoplePorts.PersonDirectory, DeviceTestModule, facilitiesCompose.RoomService, facilitiesCompose.RoomUsage, error,
 ) {
-	fail := func(err error) (IoTDataTestModule, ActivitiesTestModule, peoplePorts.PersonDirectory, DeviceTestModule, facilitiesCompose.RoomService, facilitiesCompose.RoomUsage, error) {
-		return IoTDataTestModule{}, ActivitiesTestModule{}, nil, DeviceTestModule{}, nil, nil, err
+	fail := func(err error) (IoTDataTestModule, ActivitiesTestModule, activityContract.ActivityService, peoplePorts.PersonDirectory, DeviceTestModule, facilitiesCompose.RoomService, facilitiesCompose.RoomUsage, error) {
+		return IoTDataTestModule{}, ActivitiesTestModule{}, nil, nil, DeviceTestModule{}, nil, nil, err
 	}
-	activities, _, _, err := NewActivitiesTestModule(db)
+	activities, activityService, _, _, err := NewActivitiesTestModule(db)
 	if err != nil {
 		return fail(err)
 	}
@@ -79,7 +81,7 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	return IoTDataTestModule{
 			Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}, DeviceScanPrincipal), RoomAvailability: devicescanCompose.NewRoomAvailability(facility, DeviceScanPrincipal),
-			Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(persons), DeviceActivityCatalog(activities.Activities), nil, DeviceScanPrincipal), TagAssignments: identity.TagAssignments,
-		}, activities, persons, devices, facility,
+			Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(persons), DeviceActivityCatalog(activityService), nil, DeviceScanPrincipal), TagAssignments: identity.TagAssignments,
+		}, activities, activityService, persons, devices, facility,
 		&RoomUsage{Sessions: NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, nil
 }

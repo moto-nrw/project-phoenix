@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -248,7 +250,7 @@ type fakeActivityExceptionReader struct {
 }
 
 type fakeActivityScheduleReader struct {
-	rows    []*activitiesModel.Schedule
+	rows    []*activityContract.Schedule
 	err     error
 	calls   int
 	groupID int64
@@ -258,7 +260,7 @@ func (f *fakeActivityScheduleReader) FindTemplateStartTimesByGroupIDs(context.Co
 	return nil, errors.New("not used by the shift-coverage probe")
 }
 
-func (f *fakeActivityScheduleReader) FindByGroupID(_ context.Context, groupID int64) ([]*activitiesModel.Schedule, error) {
+func (f *fakeActivityScheduleReader) FindByGroupID(_ context.Context, groupID int64) ([]*activityContract.Schedule, error) {
 	f.calls++
 	f.groupID = groupID
 	return f.rows, f.err
@@ -551,7 +553,7 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 
 	warnings, err := detectShiftCoverageWarnings(context.Background(), ports.ConflictDetectionDependencies{
 		Shifts: shifts, Instances: instances, Exceptions: exceptions,
-		Schedules:     &fakeActivityScheduleReader{rows: []*activitiesModel.Schedule{{ActivityGroupID: groupID}}},
+		Schedules:     &fakeActivityScheduleReader{rows: []*activityContract.Schedule{{ActivityGroupID: groupID}}},
 		InstanceStaff: instanceStaff, Staff: staff,
 		CalendarPeriods: &fakeCalendarPeriodReader{period: period},
 	}, timetable.ShiftCoverageProbe{
@@ -584,8 +586,8 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 	wednesday := monday.AddDays(2)
 	nextMonday := monday.AddDays(7)
 	groupID, periodID, pattern := int64(91), int64(92), 0
-	validFrom, validUntil := activitiesModel.Date(wednesday), activitiesModel.Date(nextMonday)
-	schedules := &fakeActivityScheduleReader{rows: []*activitiesModel.Schedule{{
+	validFrom, validUntil := activityContract.Date(wednesday), activityContract.Date(nextMonday)
+	schedules := &fakeActivityScheduleReader{rows: []*activityContract.Schedule{{
 		ActivityGroupID: groupID,
 		ValidFrom:       &validFrom,
 		ValidUntil:      &validUntil,

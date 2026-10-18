@@ -8,7 +8,8 @@ import (
 	"sort"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -434,8 +435,8 @@ func applyRosterStudentIdentity(row *timetable.OperationRosterRow, studentID int
 
 // rosterTemplateGroup is the block's template with its dynamic targets.
 type rosterTemplateGroup struct {
-	*activitiesModels.Group
-	Targets []*activitiesModels.GroupTarget
+	*activityContract.Group
+	Targets []*activityContract.GroupTarget
 }
 
 func (s *operations) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*rosterTemplateGroup, error) {

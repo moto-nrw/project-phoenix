@@ -1,5 +1,12 @@
 # 4086 relocation inventory
 
+## Final cluster round 4 (current follow-up)
+
+Development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` → candidate: 15 → 1 exact keys, eight → five conventional production carriers, 30 → 23 foreign compose aliases. The dead generic CRUD/model API is deleted after production dead-code proof; `database/repositories/base` disappears. The live canonical unique-violation detector stays in `models/base` because the unchanged helper-consolidation guard pins that path. `models/enrollment` is dissolved into native values and existing Enrollment internal application. `services/parentmessaging` moves to Communication internal application with unchanged owner/application roles.
+
+The [current final-cluster report](final-legacy-cluster.md#exact-remaining-boundaries) records the exact five remaining carriers and the 33 path-bound projection-grant blocker. This does not establish the whole package-layout exit. All older tables below are historical snapshots.
+
+
 Current final-cluster outcome: **5 of 13 remaining carriers removed; 8 retained**. See the current update below and [the final-cluster report](final-legacy-cluster.md). The older figures are preserved as historical evidence.
 
 ## Historical relocation snapshot

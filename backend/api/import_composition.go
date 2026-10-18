@@ -92,7 +92,7 @@ func newStaffImport(
 ) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
 		importPorts.StaffImportDeps{
-			Authorization:       dataImportCompose.NewAuthorization(),
+			Authorization:       NewImportAuthorization(),
 			Transactions:        runtime.Transactions,
 			Invitations:         dataImportCompose.NewStaffInviter(invitations),
 			FindInvitedPeople:   identity.FindInvitedPersonIDs,

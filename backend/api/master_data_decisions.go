@@ -5,10 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -27,7 +28,7 @@ import (
 func NewMasterDataDecisions(
 	carePlan careplan.Capability, fields MasterDataPeople, students masterDataStudentRows, persons masterDataPersonRows,
 	audit peoplePorts.StudentChangeRecorder, scope carePlanCompose.ReviewScopeResolver,
-	emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents,
+	emitter eventContract.Emitter, broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents,
 	shares carePlanCompose.ShareVisibility, logger *slog.Logger, today func() timezone.Date,
 ) (*carePlanCompose.MasterDataDecisions, error) {
 	if students == nil || persons == nil || fields == nil {

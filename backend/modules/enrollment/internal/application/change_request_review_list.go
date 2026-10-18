@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -78,7 +77,7 @@ func (s *ChangeRequests) listForReview(ctx context.Context, query enrollment.Cha
 	return items, next, nil
 }
 
-func reviewItem(row *ChangeRequest, req *enrollmentModels.Request, children []*RequestChild, reviewers map[int64]string) (*enrollment.ChangeRequestReviewItem, error) {
+func reviewItem(row *ChangeRequest, req *Request, children []*RequestChild, reviewers map[int64]string) (*enrollment.ChangeRequestReviewItem, error) {
 	value, err := changeRequestToOwner(row)
 	if err != nil {
 		return nil, err
@@ -125,13 +124,13 @@ func affectedReviewChildren(children []*RequestChild, pinnedChildID *int64) []en
 
 // reviewListLookups batch-loads everything the page needs: one read per
 // kind, never one per row.
-func (s *ChangeRequests) reviewListLookups(ctx context.Context, rows []*ChangeRequest) (map[int64]*enrollmentModels.Request, map[int64][]*RequestChild, map[int64]string, error) {
+func (s *ChangeRequests) reviewListLookups(ctx context.Context, rows []*ChangeRequest) (map[int64]*Request, map[int64][]*RequestChild, map[int64]string, error) {
 	requestIDs, reviewerIDs := reviewListIDs(rows)
 	requestRows, err := decodedRequestsByID(ctx, s.deps.Requests, requestIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("change request review list: load enrollments: %w", err)
 	}
-	requests := make(map[int64]*enrollmentModels.Request, len(requestRows))
+	requests := make(map[int64]*Request, len(requestRows))
 	for _, req := range requestRows {
 		requests[req.ID] = req
 	}

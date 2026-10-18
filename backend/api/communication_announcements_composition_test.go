@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	staffAudience "github.com/moto-nrw/project-phoenix/modules/communication/projections/staffannouncementaudience"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -72,7 +74,7 @@ func buildCommunication(t *testing.T, db *bun.DB, audit communicationCompose.Aud
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := communicationCompose.New(communicationCompose.Dependencies{DB: db, Organizations: organizations, Viewers: communicationViewerNames{query: people}, Audit: audit, Observe: observe})
+	module, err := communicationCompose.New(communicationCompose.Dependencies{DB: db, Organizations: organizations, Viewers: communicationViewerNames{query: people}, Audit: audit, Observe: observe}, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), communicationCompose.AudienceMapping()))
 	require.NoError(t, err)
 	return module
 }

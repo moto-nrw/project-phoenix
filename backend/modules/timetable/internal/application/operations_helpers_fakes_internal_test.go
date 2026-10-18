@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -29,7 +30,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 	deps := &timetableOpsTestDeps{
 		instanceRepo:   &helperInstances{byID: map[int64]*scheduleModels.ActivityInstance{}},
 		personService:  &helperPeople{},
-		activityGroups: &helperTemplates{byID: map[int64]*activitiesModels.Group{}},
+		activityGroups: &helperTemplates{byID: map[int64]*activityContract.Group{}},
 		settings:       &helperSettings{},
 		announcer:      &helperAnnouncer{},
 	}
@@ -112,11 +113,11 @@ func (p *helperPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[in
 }
 
 type helperTemplates struct {
-	byID map[int64]*activitiesModels.Group
+	byID map[int64]*activityContract.Group
 	err  error
 }
 
-func (r *helperTemplates) FindByID(_ context.Context, id any) (*activitiesModels.Group, error) {
+func (r *helperTemplates) FindByID(_ context.Context, id any) (*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -127,12 +128,12 @@ func (r *helperTemplates) FindByID(_ context.Context, id any) (*activitiesModels
 	return group, nil
 }
 
-func (r *helperTemplates) FindByIDs(context.Context, []int64) ([]*activitiesModels.Group, error) {
+func (r *helperTemplates) FindByIDs(context.Context, []int64) ([]*activityContract.Group, error) {
 	return nil, r.err
 }
 
-func (r *helperTemplates) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
-	return map[int64][]*activitiesModels.GroupTarget{}, r.err
+func (r *helperTemplates) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activityContract.GroupTarget, error) {
+	return map[int64][]*activityContract.GroupTarget{}, r.err
 }
 
 // helperSettings answers every policy as unset; stringErr fails them all.

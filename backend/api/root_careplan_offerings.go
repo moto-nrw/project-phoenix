@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -37,7 +38,7 @@ func buildCarePlanOfferings(
 	env RootEnvironment, carePlan careplan.Capability, persons peopledirectory.Capability, people PeopleRows,
 	timetableOwner timetable.Capability, calendar schoolcalendar.Query, owner TimetableOwner, enrollment EnrollmentRows,
 	settings settingsCompose.SettingsService, schedules CarePlanSchedules, audit AuditOwner, identity *identityaccess.Module,
-	hub *realtime.Hub, guardians *communicationCompose.ParentEventEmitter,
+	hub *realtime.Hub, guardians eventContract.Emitter,
 ) (CarePlanOfferings, error) {
 	lock := owner.RecurrenceLock.LockRecurrenceWrites
 	bookings, err := bookingMaterializationOwners(

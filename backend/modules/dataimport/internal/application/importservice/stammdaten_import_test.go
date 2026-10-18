@@ -103,7 +103,7 @@ func TestMatchLinkedGuardian(t *testing.T) {
 
 func newTestTransactions() importModels.Transactions { return dataImportCompose.NewTransactions() }
 
-func newTestAuthorization() importModels.Authorization { return dataImportCompose.NewAuthorization() }
+func newTestAuthorization() importModels.Authorization { return importAuthorizationDouble{} }
 
 func newTestRolePolicy() importModels.SchoolRolePolicy {
 	return dataImportCompose.NewSchoolRolePolicy()

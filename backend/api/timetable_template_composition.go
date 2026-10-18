@@ -5,8 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
+	schoolStructureOwner "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -86,9 +87,9 @@ func TimetableTemplateDependencies(
 // identity the template writes validate against.
 func timetableSchoolClassRules() timetablePorts.SchoolClassRules {
 	return timetablePorts.SchoolClassRules{
-		MinGradeLevel: schoolStructure.MinGradeLevel,
-		MaxGradeLevel: schoolStructure.MaxGradeLevel,
-		Normalize:     schoolStructure.NormalizeClass,
+		MinGradeLevel: schoolStructureOwner.MinGradeLevel,
+		MaxGradeLevel: schoolStructureOwner.MaxGradeLevel,
+		Normalize:     schoolStructureOwner.NormalizeClass,
 	}
 }
 

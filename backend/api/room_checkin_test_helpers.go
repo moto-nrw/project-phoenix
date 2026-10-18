@@ -42,7 +42,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	moduleDevices := NewActiveTestDevices(db, unit, clocks...)
 	modulePresence := NewActiveTestPresence(db, unit, clocks...)
 	modulePeople := NewActiveTestPeople(db, unit, clocks...)
-	moduleTimetable := NewActiveTestTimetable(db, unit, clocks...)
+	_, activityService := NewActiveTestTimetable(db, unit, clocks...)
 	moduleEducation := NewActiveTestEducation(db, unit, clocks...)
 	moduleSettings := NewActiveTestSettings(db, unit, clocks...)
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
@@ -57,7 +57,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Rooms:      rooms,
 		Active:     modulePresence.Active,
 		Users:      NewDeviceScanPeople(modulePeople.Users),
-		Activities: DeviceActivityCatalog(moduleTimetable.Activities),
+		Activities: DeviceActivityCatalog(activityService),
 		Rosters:    rosters,
 		Education:  moduleEducation.Education,
 		Pickups:    module.PickupSchedule,

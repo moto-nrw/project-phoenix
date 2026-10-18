@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 )
@@ -10,21 +9,6 @@ import (
 // The operator provisioning flows (#3253) reach the owners they touch
 // through these consumer-owned seams; the root binds them. Every seam that
 // takes a tenant ID scopes its own work to that school.
-
-// OperatorDashboard is the named tenant-safe read projection behind the
-// operator overview: organisation and school rows with their account counts
-// and the PWA standalone-usage buckets. It runs in the caller's
-// administrative transaction.
-type OperatorDashboard interface {
-	Counts(ctx context.Context) (domain.DashboardCounts, error)
-	OrganizationSummaries(ctx context.Context) ([]domain.OrganizationSummary, error)
-	// SchoolSummaries lists every school, or the schools of one organisation
-	// when organizationID is set, including soft-deleted ones.
-	SchoolSummaries(ctx context.Context, organizationID *int64) ([]domain.SchoolSummary, error)
-	// PWAUsage returns the usage buckets within window; tenantID > 0 limits
-	// them to one school.
-	PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]domain.PWAUsageRow, error)
-}
 
 // ProvisioningIdentity is the Identity & Access part of provisioning: roles,
 // school-admin invitations, account registration, the school identity

@@ -4,11 +4,10 @@ import (
 	"testing"
 	"time"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // TestClassRosterRowNamesStructuredCompanions pins that the class roster prints
@@ -79,7 +78,7 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(88)
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:          10,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
@@ -89,7 +88,7 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 		RequestID: 10,
 		FirstName: "Lina",
 		LastName:  "Muster",
-		Status:    enrollmentModels.ChildStatusApproved,
+		Status:    enrollmentNative.ChildStatusApproved,
 		CustomData: map[string]any{
 			"departure": map[string]any{
 				"mon": []any{"accompanied"},
@@ -104,10 +103,10 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	}
 	person := &RosterPerson{FirstName: "Lina", LastName: "Muster"}
 	approved := &classRosterApprovedEnrollment{request: req, child: child}
-	schemas := map[int64]*enrollment.FormSchema{
+	schemas := map[int64]*enrollmentNative.FormSchema{
 		schemaID: {
-			Fields: []enrollment.FormField{
-				{Key: "departure", Target: enrollment.TargetStudentAllowedDepartureModes, Type: enrollment.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			Fields: []enrollmentNative.FormField{
+				{Key: "departure", Target: enrollmentNative.TargetStudentAllowedDepartureModes, Type: enrollmentNative.FormFieldWeekdayMultiMode, AppliesToCh: true},
 			},
 		},
 	}

@@ -4,11 +4,12 @@ import (
 	"context"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -29,7 +30,7 @@ type CarePlanObserver func(carePlanCompose.Observation)
 // workflow over the legacy root's dependencies. Nil effects are skipped.
 func NewExcusedAbsenceRequestService(
 	carePlan careplan.Capability, students ExcusedRequestStudentRows, persons ExcusedRequestPersonRows,
-	scope carePlanCompose.ReviewScopeResolver, emitter *communicationCompose.ParentEventEmitter,
+	scope carePlanCompose.ReviewScopeResolver, emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
 	shares carePlanCompose.ShareVisibility, observe CarePlanObserver, logger *slog.Logger, today func() timezone.Date,
 ) (*carePlanCompose.ExcusedAbsenceRequests, error) {

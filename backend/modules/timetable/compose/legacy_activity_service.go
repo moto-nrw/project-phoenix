@@ -5,14 +5,14 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-// Service implements the ActivityService interface
+// Service implements the activityContract.ActivityService interface
 type Service struct {
 	timetable       timetable.Capability
 	groupRepo       activities.GroupRepository
@@ -71,9 +71,9 @@ const (
 )
 
 // CreateCategory creates a new activity category
-func (s *Service) CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {
+func (s *Service) CreateCategory(ctx context.Context, category *activityContract.Category) (*activityContract.Category, error) {
 	if category == nil || s.timetable == nil {
-		return nil, &ActivityError{Op: "create category", Err: timetable.ErrInvalidCategory}
+		return nil, &activityContract.ActivityError{Op: "create category", Err: timetable.ErrInvalidCategory}
 	}
 	created, err := s.timetable.CreateCategory(ctx, timetable.CreateCategory{
 		Name: category.Name, Description: category.Description, Color: category.Color, IsSystem: category.IsSystem,
@@ -85,15 +85,15 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 }
 
 // ListCategories lists all activity categories
-func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, error) {
+func (s *Service) ListCategories(ctx context.Context) ([]*activityContract.Category, error) {
 	if s.timetable == nil {
-		return nil, &ActivityError{Op: "list categories", Err: errors.New("category capability is required")}
+		return nil, &activityContract.ActivityError{Op: "list categories", Err: errors.New("category capability is required")}
 	}
 	categories, err := s.timetable.ListCategories(ctx)
 	if err != nil {
-		return nil, &ActivityError{Op: "list categories", Err: err}
+		return nil, &activityContract.ActivityError{Op: "list categories", Err: err}
 	}
-	result := make([]*activities.Category, 0, len(categories))
+	result := make([]*activityContract.Category, 0, len(categories))
 	for _, category := range categories {
 		result = append(result, application.LegacyServiceCategory(category))
 	}
@@ -107,7 +107,7 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 // transaction (the shift-types router wires TenantTxMiddleware).
 func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
 	if s.timetable == nil {
-		return &ActivityError{Op: "set category shift type links", Err: errors.New("category capability is required")}
+		return &activityContract.ActivityError{Op: "set category shift type links", Err: errors.New("category capability is required")}
 	}
 	if err := s.timetable.SetCategoryShiftTypeLinks(ctx, shiftTypeID, categoryIDs); err != nil {
 		return categoryActivityError("set category shift type links", err)
@@ -118,12 +118,12 @@ func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int
 // ======== Activity Group Methods ========
 
 // CreateGroup creates a new activity group with supervisors and schedules
-func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error) {
+func (s *Service) CreateGroup(ctx context.Context, group *activityContract.Group, supervisorIDs []int64, schedules []*activityContract.Schedule) (*activityContract.Group, error) {
 	if group != nil && group.IsTemplate {
-		return nil, &ActivityError{Op: "create group", Err: ErrTimetableTemplateProtected}
+		return nil, &activityContract.ActivityError{Op: "create group", Err: activityContract.ErrTimetableTemplateProtected}
 	}
 	if err := group.Validate(); err != nil {
-		return nil, &ActivityError{Op: "validate group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "validate group", Err: err}
 	}
 
 	if err := s.validateAndSetCategory(ctx, group); err != nil {
@@ -133,20 +133,20 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 	group.SetTenantID(group.Category.GetTenantID())
 
 	if err := s.groupRepo.Create(ctx, group); err != nil {
-		return nil, &ActivityError{Op: "create group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
 	}
 
 	if err := s.createSupervisorsInTx(ctx, s, group.ID, supervisorIDs); err != nil {
-		return nil, &ActivityError{Op: "create group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
 	}
 
 	if err := s.createSchedulesInTx(ctx, s, group, schedules); err != nil {
-		return nil, &ActivityError{Op: "create group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
 	}
 
 	result, err := s.groupRepo.FindByID(ctx, group.ID)
 	if err != nil {
-		return nil, &ActivityError{Op: "retrieve created group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "retrieve created group", Err: err}
 	}
 	result.Category = validatedCategory
 
@@ -154,7 +154,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 }
 
 // validateAndSetCategory validates and sets the category if provided
-func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.Group) error {
+func (s *Service) validateAndSetCategory(ctx context.Context, group *activityContract.Group) error {
 	if group.CategoryID <= 0 {
 		return nil
 	}
@@ -168,50 +168,50 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 }
 
 // createSupervisorsInTx creates supervisors for a group within a transaction
-func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityService, groupID int64, supervisorIDs []int64) error {
+func (s *Service) createSupervisorsInTx(ctx context.Context, txService activityContract.ActivityService, groupID int64, supervisorIDs []int64) error {
 	for i, staffID := range supervisorIDs {
-		supervisor := &activities.SupervisorPlanned{
+		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:   staffID,
 			GroupID:   groupID,
 			IsPrimary: i == 0, // First supervisor is primary
 		}
 
 		if err := supervisor.Validate(); err != nil {
-			return &ActivityError{Op: opValidateSupervisor, Err: err}
+			return &activityContract.ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-			return &ActivityError{Op: opCreateSupervisor, Err: err}
+			return &activityContract.ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 	}
 	return nil
 }
 
 // createSchedulesInTx creates schedules for a group within a transaction
-func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivityService, group *activities.Group, schedules []*activities.Schedule) error {
+func (s *Service) createSchedulesInTx(ctx context.Context, txService activityContract.ActivityService, group *activityContract.Group, schedules []*activityContract.Schedule) error {
 	for _, schedule := range schedules {
 		schedule.ActivityGroupID = group.ID
 		schedule.SetTenantID(group.GetTenantID())
 
 		if err := schedule.Validate(); err != nil {
-			return &ActivityError{Op: opValidateSchedule, Err: err}
+			return &activityContract.ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
 		if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
-			return &ActivityError{Op: "create schedule", Err: err}
+			return &activityContract.ActivityError{Op: "create schedule", Err: err}
 		}
 	}
 	return nil
 }
 
 // GetGroup retrieves an activity group by ID
-func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
+func (s *Service) GetGroup(ctx context.Context, id int64) (*activityContract.Group, error) {
 	group, err := s.timetable.FindGroup(ctx, id)
 	if err != nil {
 		if errors.Is(err, timetable.ErrGroupNotFound) || errors.Is(err, timetable.ErrInvalidGroupQuery) {
-			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
+			return nil, &activityContract.ActivityError{Op: opGetGroup, Err: activityContract.ErrGroupNotFound}
 		}
-		return nil, &ActivityError{Op: opGetGroup, Err: err}
+		return nil, &activityContract.ActivityError{Op: opGetGroup, Err: err}
 	}
 
 	return application.LegacyServiceGroup(group), nil
@@ -221,37 +221,37 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 // templates. The generic activities service has none of the recurrence lock,
 // split-lineage, or care-offering validation required to mutate templates.
 // Every legacy mutation entry point must call this guard before writing.
-func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activities.Group, error) {
+func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activityContract.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
 		if isRepositoryNotFound(err) {
-			return nil, ErrGroupNotFound
+			return nil, activityContract.ErrGroupNotFound
 		}
 		return nil, err
 	}
 	if group.IsTemplate {
-		return nil, ErrTimetableTemplateProtected
+		return nil, activityContract.ErrTimetableTemplateProtected
 	}
 	return group, nil
 }
 
 // UpdateGroup updates an activity group with ownership verification
 // Only the creator, supervisors, or users with manage permission can update
-func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error) {
+func (s *Service) UpdateGroup(ctx context.Context, group *activityContract.Group, requestingStaffID int64, hasManagePermission bool) (*activityContract.Group, error) {
 	if group != nil && group.IsTemplate {
-		return nil, &ActivityError{Op: "update group", Err: ErrTimetableTemplateProtected}
+		return nil, &activityContract.ActivityError{Op: "update group", Err: activityContract.ErrTimetableTemplateProtected}
 	}
 	if err := group.Validate(); err != nil {
-		return nil, &ActivityError{Op: "validate group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "validate group", Err: err}
 	}
 
 	// Check if user can modify this activity
 	canModify, err := s.CanModifyActivity(ctx, group.ID, requestingStaffID, hasManagePermission)
 	if err != nil {
-		return nil, &ActivityError{Op: opCheckPermissions, Err: err}
+		return nil, &activityContract.ActivityError{Op: opCheckPermissions, Err: err}
 	}
 	if !canModify {
-		return nil, &ActivityError{Op: "update group", Err: ErrNotOwner}
+		return nil, &activityContract.ActivityError{Op: "update group", Err: activityContract.ErrNotOwner}
 	}
 
 	// Block renaming system activities (Schulhof Freispiel, WC).
@@ -259,10 +259,10 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	// already fetches the group internally for non-admin users.
 	existingGroup, err := s.findMutableActivityGroup(ctx, group.ID)
 	if err != nil {
-		return nil, &ActivityError{Op: "update group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "update group", Err: err}
 	}
 	if timetable.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
-		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
+		return nil, &activityContract.ActivityError{Op: "update group", Err: activityContract.ErrSystemActivityProtected}
 	}
 	if group.CategoryID != existingGroup.CategoryID {
 		if err := s.validateAndSetCategory(ctx, group); err != nil {
@@ -272,7 +272,7 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	group.SetTenantID(existingGroup.GetTenantID())
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return nil, &ActivityError{Op: "update group", Err: err}
+		return nil, &activityContract.ActivityError{Op: "update group", Err: err}
 	}
 
 	return group, nil
@@ -292,42 +292,42 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 			return nil
 		}
 		if isRepositoryNotFound(err) {
-			return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
+			return &activityContract.ActivityError{Op: "delete group", Err: activityContract.ErrGroupNotFound}
 		}
-		return &ActivityError{Op: "delete group", Err: err}
+		return &activityContract.ActivityError{Op: "delete group", Err: err}
 	}
 	if timetable.IsSystemActivityName(existingGroup.Name) {
-		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
+		return &activityContract.ActivityError{Op: "delete group", Err: activityContract.ErrSystemActivityProtected}
 	}
 	if existingGroup.IsTemplate {
-		return &ActivityError{Op: "delete group", Err: ErrTimetableTemplateProtected}
+		return &activityContract.ActivityError{Op: "delete group", Err: activityContract.ErrTimetableTemplateProtected}
 	}
 
 	// Check if user can modify this activity before starting transaction
 	canModify, err := s.CanModifyActivity(ctx, id, requestingStaffID, hasManagePermission)
 	if err != nil {
-		return &ActivityError{Op: opCheckPermissions, Err: err}
+		return &activityContract.ActivityError{Op: opCheckPermissions, Err: err}
 	}
 	if !canModify {
-		return &ActivityError{Op: "delete group", Err: ErrNotOwner}
+		return &activityContract.ActivityError{Op: "delete group", Err: activityContract.ErrNotOwner}
 	}
 
 	// Delete all related records
 	if err := deleteGroupEnrollments(ctx, s, id); err != nil {
-		return &ActivityError{Op: "delete group transaction", Err: err}
+		return &activityContract.ActivityError{Op: "delete group transaction", Err: err}
 	}
 
 	if err := deleteGroupSupervisors(ctx, s, id); err != nil {
-		return &ActivityError{Op: "delete group transaction", Err: err}
+		return &activityContract.ActivityError{Op: "delete group transaction", Err: err}
 	}
 
 	if err := deleteGroupSchedules(ctx, s, id); err != nil {
-		return &ActivityError{Op: "delete group transaction", Err: err}
+		return &activityContract.ActivityError{Op: "delete group transaction", Err: err}
 	}
 
 	// Finally delete the group
 	if err := s.groupRepo.Delete(ctx, id); err != nil {
-		return &ActivityError{Op: "delete group transaction", Err: err}
+		return &activityContract.ActivityError{Op: "delete group transaction", Err: err}
 	}
 
 	return nil
@@ -352,21 +352,21 @@ func deleteGroupRows[E any](ctx context.Context, groupID int64, find func(contex
 
 // deleteGroupEnrollments deletes all enrollments for a group
 func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, func(row *activities.StudentEnrollment) int64 { return row.ID }, service.enrollmentRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, func(row *activityContract.StudentEnrollment) int64 { return row.ID }, service.enrollmentRepo.Delete)
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, func(row *activities.SupervisorPlanned) int64 { return row.ID }, service.supervisorRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, func(row *activityContract.SupervisorPlanned) int64 { return row.ID }, service.supervisorRepo.Delete)
 }
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, func(row *activities.Schedule) int64 { return row.ID }, service.scheduleRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, func(row *activityContract.Schedule) int64 { return row.ID }, service.scheduleRepo.Delete)
 }
 
 // ListGroups lists activity groups with optional filters
-func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQuery) ([]*activities.Group, error) {
+func (s *Service) ListGroups(ctx context.Context, query *activityContract.GroupListQuery) ([]*activityContract.Group, error) {
 	filter := timetable.GroupFilter{}
 	if query != nil {
 		filter = timetable.GroupFilter{
@@ -375,7 +375,7 @@ func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQue
 	}
 	groups, err := s.timetable.ListGroups(ctx, filter)
 	if err != nil {
-		return nil, &ActivityError{Op: "list groups", Err: err}
+		return nil, &activityContract.ActivityError{Op: "list groups", Err: err}
 	}
 	return application.LegacyServiceGroups(groups), nil
 }
@@ -386,11 +386,11 @@ func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQue
 func (s *Service) ListOccupiedGroups(ctx context.Context) ([]timetable.OccupiedGroup, error) {
 	listed, err := s.groupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
-		return nil, &ActivityError{Op: "list groups with occupancy", Err: err}
+		return nil, &activityContract.ActivityError{Op: "list groups with occupancy", Err: err}
 	}
-	groups := make([]*activities.Group, 0, len(listed))
+	groups := make([]*activityContract.Group, 0, len(listed))
 	for _, group := range listed {
-		if group != nil && group.Type != activities.GroupTypeDuty {
+		if group != nil && group.Type != activityContract.GroupTypeDuty {
 			groups = append(groups, group)
 		}
 	}
@@ -408,7 +408,7 @@ func (s *Service) ListOccupiedGroups(ctx context.Context) ([]timetable.OccupiedG
 	// Batch-fetch occupancy status
 	occupiedMap, err := s.activeGroupRepo.GetOccupiedActivityGroupIDs(ctx, groupIDs)
 	if err != nil {
-		return nil, &ActivityError{Op: "get activity occupancy", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get activity occupancy", Err: err}
 	}
 
 	// Combine
@@ -424,7 +424,7 @@ func (s *Service) ListOccupiedGroups(ctx context.Context) ([]timetable.OccupiedG
 }
 
 // FindByCategory finds all activity groups in a specific category
-func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
+func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*activityContract.Group, error) {
 	// First verify the category exists
 	_, err := s.timetable.FindCategory(ctx, categoryID)
 	if err != nil {
@@ -434,49 +434,49 @@ func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*acti
 	// Use the repository method
 	groups, err := s.timetable.ListGroups(ctx, timetable.GroupFilter{CategoryID: &categoryID, OrderByName: true})
 	if err != nil {
-		return nil, &ActivityError{Op: opFindByCategory, Err: err}
+		return nil, &activityContract.ActivityError{Op: opFindByCategory, Err: err}
 	}
 
 	return application.LegacyServiceGroups(groups), nil
 }
 
 // GetGroupWithDetails retrieves a group with its supervisors and schedules
-func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
+func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, []*activityContract.Schedule, error) {
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
 		if isRepositoryNotFound(err) {
-			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
+			return nil, nil, nil, &activityContract.ActivityError{Op: opGetGroup, Err: activityContract.ErrGroupNotFound}
 		}
-		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
+		return nil, nil, nil, &activityContract.ActivityError{Op: opGetGroup, Err: err}
 	}
 
 	// Load the category if not already loaded.
 	if group.Category == nil && group.CategoryID > 0 {
 		category, err := s.timetable.FindCategory(ctx, group.CategoryID)
 		if err != nil {
-			return nil, nil, nil, &ActivityError{Op: opGetCategory, Err: err}
+			return nil, nil, nil, &activityContract.ActivityError{Op: opGetCategory, Err: err}
 		}
 		group.Category = application.LegacyServiceCategory(category)
 	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)
 	if err != nil {
-		return nil, nil, nil, &ActivityError{Op: "get supervisors", Err: err}
+		return nil, nil, nil, &activityContract.ActivityError{Op: "get supervisors", Err: err}
 	}
 
 	// Get schedules
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, id)
 	if err != nil {
-		return nil, nil, nil, &ActivityError{Op: "get schedules", Err: err}
+		return nil, nil, nil, &activityContract.ActivityError{Op: "get schedules", Err: err}
 	}
 
 	return group, supervisors, schedules, nil
 }
 
 // GetGroupsWithEnrollmentCounts returns groups with their enrollment counts
-func (s *Service) GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error) {
+func (s *Service) GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activityContract.Group, map[int64]int, error) {
 	// Use the repository method that does this
 	return s.groupRepo.FindWithEnrollmentCounts(ctx)
 }
@@ -499,9 +499,9 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	group, err := s.groupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		if isRepositoryNotFound(err) {
-			return false, &ActivityError{Op: opCheckPermissions, Err: ErrGroupNotFound}
+			return false, &activityContract.ActivityError{Op: opCheckPermissions, Err: activityContract.ErrGroupNotFound}
 		}
-		return false, &ActivityError{Op: opCheckPermissions, Err: err}
+		return false, &activityContract.ActivityError{Op: opCheckPermissions, Err: err}
 	}
 
 	// Check if user is the creator (system-created groups with NULL created_by are not owned by any staff)

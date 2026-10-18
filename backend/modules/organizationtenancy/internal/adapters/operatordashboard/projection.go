@@ -17,6 +17,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
+
 	"github.com/uptrace/bun"
 )
 
@@ -80,25 +82,20 @@ SELECT
 `
 
 // Counts are the platform-wide organisation, school and account counts.
-type Counts struct {
-	Organizations int `bun:"organizations"`
-	Schools       int `bun:"schools"`
-	Accounts      int `bun:"accounts"`
-}
 
 // Counts returns the platform-wide organisation, school and account counts.
-func (p *Projection) Counts(ctx context.Context) (Counts, error) {
+func (p *Projection) Counts(ctx context.Context) (contract.Counts, error) {
 	db, err := p.accountReads(ctx)
 	if err != nil {
-		return Counts{}, err
+		return contract.Counts{}, err
 	}
-	var row Counts
+	var row contract.Counts
 	if err := db.NewRaw(countsQuery).Scan(ctx, &row); err != nil {
-		return Counts{}, err
+		return contract.Counts{}, err
 	}
 	groups, err := schoolGroups(ctx, db)
 	if err != nil {
-		return Counts{}, err
+		return contract.Counts{}, err
 	}
 	var schools []int64
 	for _, ids := range groups {
@@ -106,7 +103,7 @@ func (p *Projection) Counts(ctx context.Context) (Counts, error) {
 	}
 	counts, err := p.accountCounts(ctx, map[int64][]int64{0: schools})
 	if err != nil {
-		return Counts{}, err
+		return contract.Counts{}, err
 	}
 	row.Accounts = counts[0]
 	return row, nil
@@ -137,29 +134,17 @@ LEFT JOIN school_agg AS "sa" ON "sa".organization_id = "o".id
 ORDER BY "o".name ASC
 `
 
-// OrganizationSummary is an organisation with its school and account counts.
-type OrganizationSummary struct {
-	ID           int64      `bun:"id"`
-	Name         string     `bun:"name"`
-	Slug         string     `bun:"slug"`
-	Active       bool       `bun:"active"`
-	CreatedAt    time.Time  `bun:"created_at"`
-	UpdatedAt    time.Time  `bun:"updated_at"`
-	DeletedAt    *time.Time `bun:"deleted_at"`
-	Settings     string     `bun:"settings"`
-	SchoolCount  int        `bun:"school_count"`
-	AccountCount int        `bun:"account_count"`
-}
+// contract.OrganizationSummary is an organisation with its school and account counts.
 
 // OrganizationSummaries returns every organisation, deleted ones included,
 // with the counts of its non-deleted schools and their active accounts. An
 // account active in several schools of one organisation counts once.
-func (p *Projection) OrganizationSummaries(ctx context.Context) ([]OrganizationSummary, error) {
+func (p *Projection) OrganizationSummaries(ctx context.Context) ([]contract.OrganizationSummary, error) {
 	db, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var rows []OrganizationSummary
+	var rows []contract.OrganizationSummary
 	if err := db.NewRaw(organizationSummariesQuery).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
@@ -171,7 +156,7 @@ func (p *Projection) OrganizationSummaries(ctx context.Context) ([]OrganizationS
 	if err != nil {
 		return nil, err
 	}
-	result := make([]OrganizationSummary, 0, len(rows))
+	result := make([]contract.OrganizationSummary, 0, len(rows))
 	for _, row := range rows {
 		row.AccountCount = counts[row.ID]
 		result = append(result, row)
@@ -235,40 +220,17 @@ WHERE "s".organization_id = ?
 ORDER BY "s".name ASC
 `
 
-// SchoolSummary is a school with its organisation's name and account count.
-type SchoolSummary struct {
-	ID               int64      `bun:"id"`
-	OrganizationID   int64      `bun:"organization_id"`
-	OrganizationName string     `bun:"organization_name"`
-	Name             string     `bun:"name"`
-	Slug             string     `bun:"slug"`
-	Subdomain        string     `bun:"subdomain"`
-	Active           bool       `bun:"active"`
-	Hidden           bool       `bun:"hidden"`
-	CreatedAt        time.Time  `bun:"created_at"`
-	UpdatedAt        time.Time  `bun:"updated_at"`
-	DeletedAt        *time.Time `bun:"deleted_at"`
-	Address          string     `bun:"address"`
-	City             string     `bun:"city"`
-	Zip              string     `bun:"zip"`
-	Phone            string     `bun:"phone"`
-	Email            string     `bun:"email"`
-	Settings         string     `bun:"settings"`
-	AccountCount     int        `bun:"account_count"`
-	// ChildQuotaBundles is nil when the school has no Kinderkontingent.
-	ChildQuotaBundles    *int `bun:"child_quota_bundles"`
-	ChildQuotaBundleSize int  `bun:"child_quota_bundle_size"`
-}
+// contract.SchoolSummary is a school with its organisation's name and account count.
 
 // SchoolSummaries returns every school, or the schools of one organisation,
 // deleted ones included, with the organisation's name and the count of
 // active accounts.
-func (p *Projection) SchoolSummaries(ctx context.Context, organizationID *int64) ([]SchoolSummary, error) {
+func (p *Projection) SchoolSummaries(ctx context.Context, organizationID *int64) ([]contract.SchoolSummary, error) {
 	db, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var rows []SchoolSummary
+	var rows []contract.SchoolSummary
 	if organizationID == nil {
 		err = db.NewRaw(schoolSummariesQuery).Scan(ctx, &rows)
 	} else {
@@ -285,7 +247,7 @@ func (p *Projection) SchoolSummaries(ctx context.Context, organizationID *int64)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]SchoolSummary, 0, len(rows))
+	result := make([]contract.SchoolSummary, 0, len(rows))
 	for _, row := range rows {
 		row.AccountCount = counts[row.ID]
 		result = append(result, row)
@@ -395,24 +357,18 @@ LEFT JOIN iot.pwa_standalone_usage AS "u"
 GROUP BY "b".tenant_id, "b".portal
 `
 
-// PWAUsageRow is one school's PWA standalone usage in one portal.
-type PWAUsageRow struct {
-	TenantID        int64  `bun:"tenant_id"`
-	Portal          string `bun:"portal"`
-	StandaloneUsers int    `bun:"standalone_users"`
-	EligibleUsers   int    `bun:"eligible_users"`
-}
+// contract.PWAUsageRow is one school's PWA standalone usage in one portal.
 
 // PWAUsage returns per-school, per-portal PWA standalone-usage counts within
 // window. tenantID > 0 limits the result to one school; 0 returns every
 // school.
-func (p *Projection) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]PWAUsageRow, error) {
+func (p *Projection) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]contract.PWAUsageRow, error) {
 	db, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	cutoff := time.Now().Add(-window)
-	var rows []PWAUsageRow
+	var rows []contract.PWAUsageRow
 	if tenantID > 0 {
 		err = db.NewRaw(schoolPWAUsageQuery, guardianRoleName, guardianRoleName, tenantID, cutoff).Scan(ctx, &rows)
 	} else {
@@ -422,5 +378,5 @@ func (p *Projection) PWAUsage(ctx context.Context, tenantID int64, window time.D
 		return nil, err
 	}
 	// A school without buckets answers [] rather than nil.
-	return append(make([]PWAUsageRow, 0, len(rows)), rows...), nil
+	return append(make([]contract.PWAUsageRow, 0, len(rows)), rows...), nil
 }

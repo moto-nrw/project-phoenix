@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,78 +39,78 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			name:              "source with grade filter on an Angebot is valid",
 			sourceOfferingIDs: []int64{12},
 			gradeLevels:       []int{1, 2},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 		},
 		{
 			name:              "source without grade filter is valid",
 			sourceOfferingIDs: []int64{12},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 		},
 		{
 			name:            "no source and no filter is valid",
-			targetGroupType: activitiesModel.TargetGroupTypeNone,
+			targetGroupType: activityContract.TargetGroupTypeNone,
 		},
 		{
 			name:            "grade filter without a source is rejected",
 			gradeLevels:     []int{1},
-			targetGroupType: activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType: activityContract.TargetGroupTypeAngebot,
 			wantErr:         "source_grade_levels requires source_care_offering_ids",
 		},
 		{
 			name:              "non-positive offering id is rejected",
 			sourceOfferingIDs: []int64{0},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_care_offering_ids entries must be positive",
 		},
 		{
 			name:              "duplicate offering ids are rejected",
 			sourceOfferingIDs: []int64{12, 12},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_care_offering_ids must not contain duplicates",
 		},
 		{
 			name:              "several distinct offerings are valid",
 			sourceOfferingIDs: []int64{12, 13, 14},
 			gradeLevels:       []int{1},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 		},
 		{
 			name:              "source outside the Angebot Zielgruppe is rejected",
 			sourceOfferingIDs: []int64{12},
-			targetGroupType:   activitiesModel.TargetGroupTypeNone,
+			targetGroupType:   activityContract.TargetGroupTypeNone,
 			wantErr:           "requires target group type 'angebot'",
 		},
 		{
 			name:              "out-of-range grade filter is rejected",
 			sourceOfferingIDs: []int64{12},
 			gradeLevels:       []int{0, 2},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_grade_levels entries must be between",
 		},
 		{
 			name:              "grade filter above the supported bound is rejected",
 			sourceOfferingIDs: []int64{12},
 			gradeLevels:       []int{14},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_grade_levels entries must be between",
 		},
 		{
 			name:              "duplicate grade filter entries are rejected",
 			sourceOfferingIDs: []int64{12},
 			gradeLevels:       []int{2, 2},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_grade_levels must not contain duplicates",
 		},
 		{
 			name:              "source with class filter on an Angebot is valid",
 			sourceOfferingIDs: []int64{12},
 			schoolClasses:     []string{"1a", "1b"},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 		},
 		{
 			name:            "class filter without a source is rejected",
 			schoolClasses:   []string{"1a"},
-			targetGroupType: activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType: activityContract.TargetGroupTypeAngebot,
 			wantErr:         "source_school_classes requires source_care_offering_ids",
 		},
 		{
@@ -116,20 +118,20 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			sourceOfferingIDs: []int64{12},
 			gradeLevels:       []int{1},
 			schoolClasses:     []string{"1a"},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_school_classes and source_grade_levels cannot be combined",
 		},
 		{
 			name:              "duplicate class filter entries are rejected",
 			sourceOfferingIDs: []int64{12},
 			schoolClasses:     []string{"1a", " 1A "},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			wantErr:           "source_school_classes must not contain duplicates",
 		},
 		{
 			name:              "manual child list next to a source is rejected",
 			sourceOfferingIDs: []int64{12},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			studentIDs:        []int64{21},
 			wantErr:           "student_ids must be empty",
 		},
@@ -138,20 +140,20 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			// who supervises which weekday.
 			name:              "per-weekday staff next to a source is valid",
 			sourceOfferingIDs: []int64{12},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			weekdayAssignments: []timetable.WeekdayRosterAssignment{
-				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}, PrimaryStaffID: testpkg.Int64Ptr(31)},
-				{Weekday: activitiesModel.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{}},
-				{Weekday: activitiesModel.WeekdayWednesday},
+				{Weekday: activityContract.WeekdayMonday, StaffIDs: []int64{31}, PrimaryStaffID: testpkg.Int64Ptr(31)},
+				{Weekday: activityContract.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{}},
+				{Weekday: activityContract.WeekdayWednesday},
 			},
 		},
 		{
 			name:              "per-weekday child list next to a source is rejected",
 			sourceOfferingIDs: []int64{12},
-			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			targetGroupType:   activityContract.TargetGroupTypeAngebot,
 			weekdayAssignments: []timetable.WeekdayRosterAssignment{
-				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}},
-				{Weekday: activitiesModel.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{21}},
+				{Weekday: activityContract.WeekdayMonday, StaffIDs: []int64{31}},
+				{Weekday: activityContract.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{21}},
 			},
 			wantErr: "weekday_assignments must not contain student_ids when an offering source is set",
 		},
@@ -187,11 +189,11 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		err := validateTemplateCreateInput(CreateTemplateInput{
 			Name:                  "Frühbetreuung",
-			Weekdays:              []int{activitiesModel.WeekdayMonday},
+			Weekdays:              []int{activityContract.WeekdayMonday},
 			CategoryID:            22,
 			RoomID:                33,
 			RosterValidFrom:       calendar.NewDate(2026, 8, 10),
-			TargetGroupType:       activitiesModel.TargetGroupTypeNone,
+			TargetGroupType:       activityContract.TargetGroupTypeNone,
 			SourceCareOfferingIDs: []int64{12},
 		}, testSchoolClassRules)
 
@@ -203,11 +205,11 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 		err := validateTemplateUpdateInput(TemplateUpdateInput{
 			TemplateID:      77,
 			TimeframeID:     44,
-			Weekdays:        []int{activitiesModel.WeekdayMonday},
+			Weekdays:        []int{activityContract.WeekdayMonday},
 			RosterValidFrom: calendar.NewDate(2026, 8, 10),
 			GradeLevelMax:   4,
 			Fields: activitiesModel.TemplateFieldsUpdate{
-				TargetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+				TargetGroupType:   activityContract.TargetGroupTypeAngebot,
 				SourceGradeLevels: []int{1},
 			},
 		}, testSchoolClassRules)
@@ -226,16 +228,16 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 func TestResolveSuccessorOfferingSource(t *testing.T) {
 	t.Parallel()
 
-	sourcedOld := func() *activitiesModel.Group {
-		return &activitiesModel.Group{
-			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+	sourcedOld := func() *activityContract.Group {
+		return &activityContract.Group{
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{12, 15},
 			SourceGradeLevels:     []int{1, 2},
 		}
 	}
 
 	t.Run("omitted fields inherit sources and filter", func(t *testing.T) {
-		in := &TemplateSplitInput{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		in := &TemplateSplitInput{TargetGroupType: activityContract.TargetGroupTypeAngebot}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld(), testSchoolClassRules))
 		assert.Equal(t, []int64{12, 15}, in.SourceCareOfferingIDs)
 		assert.Equal(t, []int{1, 2}, in.SourceGradeLevels)
@@ -243,7 +245,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 
 	t.Run("provided values win over the stored ones", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:               activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:               activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs:         []int64{13},
 			SourceCareOfferingIDsProvided: true,
 			SourceGradeLevels:             []int{3},
@@ -256,7 +258,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 
 	t.Run("filter-only change keeps the inherited sources", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:           activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:           activityContract.TargetGroupTypeAngebot,
 			SourceGradeLevels:         []int{4},
 			SourceGradeLevelsProvided: true,
 		}
@@ -267,7 +269,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 
 	t.Run("explicit nil clears the sources and drags the omitted filter along", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:               activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:               activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDsProvided: true,
 		}
 		require.NoError(t, resolveSuccessorOfferingSource(in, sourcedOld(), testSchoolClassRules))
@@ -278,7 +280,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 
 	t.Run("a Zielgruppe away from angebot drops the rule", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType:               activitiesModel.TargetGroupTypeNone,
+			TargetGroupType:               activityContract.TargetGroupTypeNone,
 			SourceCareOfferingIDs:         []int64{13},
 			SourceCareOfferingIDsProvided: true,
 		}
@@ -289,7 +291,7 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 
 	t.Run("merged source next to explicit student_ids is rejected", func(t *testing.T) {
 		in := &TemplateSplitInput{
-			TargetGroupType: activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType: activityContract.TargetGroupTypeAngebot,
 			StudentIDs:      []int64{21},
 		}
 		err := resolveSuccessorOfferingSource(in, sourcedOld(), testSchoolClassRules)
@@ -298,9 +300,9 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 	})
 
 	t.Run("no stored source stays no source", func(t *testing.T) {
-		in := &TemplateSplitInput{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
-		require.NoError(t, resolveSuccessorOfferingSource(in, &activitiesModel.Group{
-			TargetGroupType: activitiesModel.TargetGroupTypeAngebot,
+		in := &TemplateSplitInput{TargetGroupType: activityContract.TargetGroupTypeAngebot}
+		require.NoError(t, resolveSuccessorOfferingSource(in, &activityContract.Group{
+			TargetGroupType: activityContract.TargetGroupTypeAngebot,
 		}, testSchoolClassRules))
 		assert.Nil(t, in.SourceCareOfferingIDs)
 		assert.Nil(t, in.SourceGradeLevels)
@@ -312,13 +314,13 @@ func TestResolveSuccessorOfferingSource(t *testing.T) {
 func TestOfferingRosterFeedChanged(t *testing.T) {
 	t.Parallel()
 
-	group := func(offeringIDs []int64, levels []int) *activitiesModel.Group {
-		return &activitiesModel.Group{SourceCareOfferingIDs: offeringIDs, SourceGradeLevels: levels}
+	group := func(offeringIDs []int64, levels []int) *activityContract.Group {
+		return &activityContract.Group{SourceCareOfferingIDs: offeringIDs, SourceGradeLevels: levels}
 	}
 
 	tests := []struct {
 		name        string
-		old, newG   *activitiesModel.Group
+		old, newG   *activityContract.Group
 		wantChanged bool
 	}{
 		{"both without source", group(nil, nil), group(nil, nil), false},

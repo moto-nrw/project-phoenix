@@ -49,7 +49,7 @@ var dienstplanMonday = calendar.NewDate(2026, time.July, 27)
 // with the staff roster read over the given tenant transaction.
 func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workforce.Capability, rooms workforceCompose.RoomReader) workforce.StaffScheduleOverviewQuery {
 	t.Helper()
-	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, db)}
+	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
 	return workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 		Shifts:        capability,
 		Instances:     instances,

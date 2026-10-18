@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
@@ -21,7 +20,7 @@ type phaseDeparture struct {
 	hasLegacy         bool
 }
 
-func classRosterDepartureByDay(req *enrollmentModels.Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, student *RosterStudent, companions []departure.CompanionLink) (map[string]string, error) {
+func classRosterDepartureByDay(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, student *RosterStudent, companions []departure.CompanionLink) (map[string]string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
 		return nil, err
@@ -35,7 +34,7 @@ func classRosterDepartureByDay(req *enrollmentModels.Request, child *reportChild
 	return classRosterDepartureByDayFromStudent(student, companions), nil
 }
 
-func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (departure.AllowedDepartureModes, departure.DepartureDays, *string, bool, error) {
+func classRosterDepartureFromPhase(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (departure.AllowedDepartureModes, departure.DepartureDays, *string, bool, error) {
 	if req == nil || req.SchemaID == nil || child == nil {
 		return nil, nil, nil, false, nil
 	}

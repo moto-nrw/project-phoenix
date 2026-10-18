@@ -3,32 +3,27 @@ package operatordashboard
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
 )
 
 // Rows maps the projection's rows onto the consumer's values. The owner's
 // composition supplies it, so the projection never names the owner's types.
-type Rows[C, O, S, P any] struct {
-	Counts       func(Counts) C
-	Organization func(OrganizationSummary) O
-	School       func(SchoolSummary) S
-	PWAUsage     func(PWAUsageRow) P
-}
-
 // Mapped answers the projection's reads in the consumer's values.
 type Mapped[C, O, S, P any] struct {
 	projection *Projection
-	rows       Rows[C, O, S, P]
+	rows       contract.Rows[C, O, S, P]
 }
 
 // Map binds rows to the projection. Every mapping is required.
-func Map[C, O, S, P any](projection *Projection, rows Rows[C, O, S, P]) Mapped[C, O, S, P] {
+func Map[C, O, S, P any](projection *Projection, rows contract.Rows[C, O, S, P]) Mapped[C, O, S, P] {
 	if projection == nil || rows.Counts == nil || rows.Organization == nil || rows.School == nil || rows.PWAUsage == nil {
 		panic("organization tenancy operator dashboard: projection and every row mapping are required")
 	}
 	return Mapped[C, O, S, P]{projection: projection, rows: rows}
 }
 
-// Counts maps Projection.Counts.
+// contract.Counts maps Projection.Counts.
 func (m Mapped[C, O, S, P]) Counts(ctx context.Context) (C, error) {
 	counts, err := m.projection.Counts(ctx)
 	return m.rows.Counts(counts), err

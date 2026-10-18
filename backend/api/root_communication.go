@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -23,7 +25,7 @@ import (
 func buildParentEventEmitter(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport,
 	settings settingsCompose.BatchSettingsService, messaging parentStore.MessagingRepositories, notifications DeliveryNotifications,
-) *communicationCompose.ParentEventEmitter {
+) eventContract.Emitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, unit), ThreadRepo: messaging.ParentMessageThread,
 		MessageRepo: parentStore.NewParentMessageRepository(db.Pool()), Settings: settingsValues.NewParentEventValues(settings),

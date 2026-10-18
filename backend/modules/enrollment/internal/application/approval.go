@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,7 +18,7 @@ import (
 // (no existing portal account) so the handler can fire it post-commit.
 func (d *Decisions) applyApproval(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	child *RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,
@@ -71,7 +70,7 @@ func (d *Decisions) applyApproval(
 // materialization and the activation plan.
 func (d *Decisions) approveNewStudent(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	child *RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,
@@ -200,7 +199,7 @@ func (d *Decisions) linkPrimaryGuardian(ctx context.Context, studentID, guardian
 // deliberately dropped: this student row was created moments ago in this
 // transaction, so no "läuft mit" link can exist yet and a companion broadcast
 // would only wake every open editor once per mass approval.
-func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *enrollmentModels.Request, child *RequestChild, student *Student, guardian *GuardianProfile, reviewedBy int64) error {
+func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *Request, child *RequestChild, student *Student, guardian *GuardianProfile, reviewedBy int64) error {
 	_, err := d.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{})
 	if err == nil {
 		return nil
@@ -247,7 +246,7 @@ func (d *Decisions) materializeApprovedOfferings(ctx context.Context, requestChi
 // approval; profileWasNew is logging context only.
 func (d *Decisions) attachGuardianAccountIfPresent(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	guardian *GuardianProfile,
 	profileWasNew bool,
 ) error {
@@ -323,7 +322,7 @@ func (d *Decisions) pendingGuardianInvite(
 // unique index already prevents source-row reuse so this is rare).
 func (d *Decisions) applyApprovalRollover(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	child *RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,

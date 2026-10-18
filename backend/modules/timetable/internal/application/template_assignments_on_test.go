@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -17,21 +19,21 @@ var errConversionMock = errors.New("conversion mock failure")
 
 type conversionEnrollmentRepo struct {
 	activitiesModel.StudentEnrollmentRepository
-	rows []*activitiesModel.StudentEnrollment
+	rows []*activityContract.StudentEnrollment
 	err  error
 }
 
-func (r *conversionEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activitiesModel.StudentEnrollment, error) {
+func (r *conversionEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
 	return r.rows, r.err
 }
 
 type conversionSupervisorRepo struct {
 	activitiesModel.SupervisorPlannedRepository
-	rows []*activitiesModel.SupervisorPlanned
+	rows []*activityContract.SupervisorPlanned
 	err  error
 }
 
-func (r *conversionSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activitiesModel.SupervisorPlanned, error) {
+func (r *conversionSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
 	return r.rows, r.err
 }
 
@@ -47,11 +49,11 @@ func (r *conversionGroupTargetRepo) FindTargetStudentIDs(context.Context, int64)
 	return r.targetIDs, r.err
 }
 
-func (r *conversionGroupTargetRepo) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activitiesModel.GroupTarget, error) {
+func (r *conversionGroupTargetRepo) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activityContract.GroupTarget, error) {
 	return nil, nil
 }
 
-func (r *conversionGroupTargetRepo) ReplaceTargets(context.Context, int64, []*activitiesModel.GroupTarget) error {
+func (r *conversionGroupTargetRepo) ReplaceTargets(context.Context, int64, []*activityContract.GroupTarget) error {
 	return nil
 }
 
@@ -67,17 +69,17 @@ func conversionValidFrom() calendar.Date {
 	return calendar.NewDate(2026, time.May, 4)
 }
 
-func conversionEnrollment(studentID int64, from calendar.Date) *activitiesModel.StudentEnrollment {
-	return &activitiesModel.StudentEnrollment{
+func conversionEnrollment(studentID int64, from calendar.Date) *activityContract.StudentEnrollment {
+	return &activityContract.StudentEnrollment{
 		StudentID: studentID,
-		ValidFrom: activitiesModel.Date(from),
+		ValidFrom: activityContract.Date(from),
 	}
 }
 
-func conversionSupervisor(staffID int64, from calendar.Date) *activitiesModel.SupervisorPlanned {
-	return &activitiesModel.SupervisorPlanned{
+func conversionSupervisor(staffID int64, from calendar.Date) *activityContract.SupervisorPlanned {
+	return &activityContract.SupervisorPlanned{
 		StaffID:   staffID,
-		ValidFrom: activitiesModel.Date(from),
+		ValidFrom: activityContract.Date(from),
 	}
 }
 
@@ -85,7 +87,7 @@ func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
 	t.Parallel()
 
 	svc := NewTemplateService(TemplateServiceDependencies{})
-	assignments, err := svc.templateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
+	assignments, err := svc.TemplateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
 	require.Error(t, err)
 	assert.Nil(t, assignments.StudentIDs)
 	assert.Nil(t, assignments.StaffIDs)
@@ -102,7 +104,7 @@ func TestTemplateAssignmentsOn_EnrollmentLoadError(t *testing.T) {
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
 	})
-	_, err := svc.templateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
+	_, err := svc.TemplateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errConversionMock)
 	assert.Contains(t, err.Error(), "load enrollments")
@@ -113,11 +115,11 @@ func TestTemplateAssignmentsOn_SupervisorLoadError(t *testing.T) {
 
 	from := conversionValidFrom()
 	svc := NewTemplateService(TemplateServiceDependencies{
-		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{}},
+		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: []*activityContract.StudentEnrollment{}},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{err: errConversionMock},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
 	})
-	_, err := svc.templateAssignmentsOn(context.Background(), 1, from, 11)
+	_, err := svc.TemplateAssignmentsOn(context.Background(), 1, from, 11)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errConversionMock)
 	assert.Contains(t, err.Error(), "load supervisors")
@@ -132,7 +134,7 @@ func TestTemplateAssignmentsOn_TargetStudentLoadError(t *testing.T) {
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionGroupTargetRepo{err: errConversionMock},
 	})
-	_, err := svc.templateAssignmentsOn(context.Background(), 1, from, 11)
+	_, err := svc.TemplateAssignmentsOn(context.Background(), 1, from, 11)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errConversionMock)
 	assert.Contains(t, err.Error(), "load target students")
@@ -147,18 +149,18 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 	wrongPeriod := int64(99)
 	periodID := int64(11)
 
-	enrollments := []*activitiesModel.StudentEnrollment{
+	enrollments := []*activityContract.StudentEnrollment{
 		conversionEnrollment(21, from),
 		conversionEnrollment(21, from),   // duplicate student id
 		conversionEnrollment(22, future), // not yet valid
 		{
 			StudentID:        23,
-			ValidFrom:        activitiesModel.Date(from),
+			ValidFrom:        activityContract.Date(from),
 			CalendarPeriodID: &wrongPeriod,
 		},
 		conversionEnrollment(24, from),
 	}
-	supervisors := []*activitiesModel.SupervisorPlanned{
+	supervisors := []*activityContract.SupervisorPlanned{
 		conversionSupervisor(31, from),
 		conversionSupervisor(31, from),   // duplicate staff id
 		conversionSupervisor(32, future), // not yet valid
@@ -174,7 +176,7 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 		},
 	})
 
-	assignments, err := svc.templateAssignmentsOn(context.Background(), 7, from, periodID)
+	assignments, err := svc.TemplateAssignmentsOn(context.Background(), 7, from, periodID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{21, 24, 25}, assignments.StudentIDs)
 	assert.Equal(t, []int64{31, 33}, assignments.StaffIDs)
@@ -186,15 +188,15 @@ func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) 
 	from := conversionValidFrom()
 	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo: &conversionEnrollmentRepo{
-			rows: []*activitiesModel.StudentEnrollment{conversionEnrollment(41, from)},
+			rows: []*activityContract.StudentEnrollment{conversionEnrollment(41, from)},
 		},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{
-			rows: []*activitiesModel.SupervisorPlanned{conversionSupervisor(51, from)},
+			rows: []*activityContract.SupervisorPlanned{conversionSupervisor(51, from)},
 		},
 		ActivityGroupRepo: &conversionPlainGroupRepo{},
 	})
 
-	assignments, err := svc.templateAssignmentsOn(context.Background(), 8, from, 11)
+	assignments, err := svc.TemplateAssignmentsOn(context.Background(), 8, from, 11)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{41}, assignments.StudentIDs)
 	assert.Equal(t, []int64{51}, assignments.StaffIDs)
