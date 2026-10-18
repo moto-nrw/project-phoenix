@@ -115,7 +115,7 @@ func (e engine) ListOperatorTrustedDevices(ctx context.Context, operatorID int64
 	if err != nil {
 		return nil, err
 	}
-	devices, err := flows.ListTrustedDevices(ctx, operatorID)
+	devices, err := flows.records.ListActiveTrustedDevices(ctx, operatorID)
 	if err != nil {
 		return nil, operatorFlowError(err)
 	}

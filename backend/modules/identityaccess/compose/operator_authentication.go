@@ -57,7 +57,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		Codec:       application.TokenCodec{Source: sessions.Codec},
 		MFA:         mfa,
 		Audit:       application.OperatorAudit{Source: deps.Audit},
-		Credentials: application.EmailChangeRevocation{Tokens: tokens},
+		Credentials: tokens,
 		Runtime:     runtime,
 		Rotation:    rotationPolicy{},
 		Logger:      deps.Logger,

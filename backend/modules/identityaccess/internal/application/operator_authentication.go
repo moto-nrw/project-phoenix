@@ -433,7 +433,7 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 		if _, err := s.operators.UpdateOperator(txCtx, operator); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}
-		if err := s.credentials.InvalidateEmailChangeTokens(txCtx, operatorID); err != nil {
+		if err := s.credentials.RevokeEmailChanges(txCtx, operatorID); err != nil {
 			return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
 		}
 		if err := s.revokeAllWithAudit(txCtx, operatorID, "password_change"); err != nil {
@@ -615,15 +615,6 @@ func (SchoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
 
 func (SchoolRolePolicy) LehrkraftRoleImmutable() error {
 	return identityaccess.ErrLehrkraftRoleImmutable
-}
-
-// emailChangeRevocation spends the operator's pending e-mail change links
-// when the password changes. The module owns both, so the revocation joins
-// the password change's transaction (#2722).
-type EmailChangeRevocation struct{ Tokens *OperatorTokens }
-
-func (r EmailChangeRevocation) InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error {
-	return r.Tokens.RevokeEmailChanges(ctx, operatorID)
 }
 
 // publicOperatorAuditEntry renders one ledger entry across the module
