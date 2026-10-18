@@ -69,9 +69,23 @@ func buildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa}, AccountAuthenticationWiring{
-		Repos:              SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, pushSubscriptions),
+	sessionRepos := SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	// The accept and login links go to the parents portal, never to the
+	// staff frontend.
+	guardianMail, enrollmentClaims, err := guardianInvitationDependencies(settings, organizations, outbox, guardianEnrollments,
+		links.ParentsURL, links.InvitationTokenExpiry, authLogger.With("flow", "guardian_invitation"))
+	if err != nil {
+		return nil, nil, err
+	}
+	// The lifecycle flows (#3225) read the role management of the module
+	// they are composed into.
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, audit.Command, CaregiverProfiles{Persons: persons, Membership: membership},
+		guardianMail, enrollmentClaims, authLogger)
+	if err != nil {
+		return nil, nil, err
+	}
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool(), MFA: mfa, Lifecycle: lifecycle}, AccountAuthenticationWiring{
+		Repos:              sessionRepos,
 		Codec:              tokens.SessionTokens,
 		Settings:           settings,
 		Audit:              audit.Command,
@@ -97,21 +111,6 @@ func buildIdentityAccess(
 			Settings:     settings,
 			Outbox:       outbox,
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		},
-		// The lifecycle flows (#3225) read the role management of the module
-		// they are composed into.
-		Lifecycle: &LifecycleWiring{
-			Settings: settings, Audit: audit.Command,
-			Caregivers: CaregiverProfiles{Persons: persons, Membership: membership},
-			GuardianMail: &GuardianInvitationWiring{
-				Settings: settings, Schools: organizations,
-				Outbox:      outbox,
-				Enrollments: guardianEnrollments,
-				// The accept and login links go to the parents portal, never
-				// to the staff frontend.
-				ParentsURL: links.ParentsURL, FallbackExpiry: links.InvitationTokenExpiry,
-				Logger: authLogger.With("flow", "guardian_invitation"),
-			},
 		},
 	})
 	if err != nil {

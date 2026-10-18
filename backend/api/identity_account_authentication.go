@@ -39,9 +39,6 @@ type AccountAuthenticationWiring struct {
 	// Operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
 	Operators *identityaccessCompose.OperatorDependencies
-	// Lifecycle binds the account lifecycle seams (#3225); nil composes the
-	// module without them (cleanup roots, repository fixtures).
-	Lifecycle *LifecycleWiring
 	// Resets configures the password reset flows (#2722); nil composes the
 	// module without them and every reset reports it as unavailable.
 	Resets *PasswordResetWiring
@@ -91,7 +88,9 @@ func SessionRepositoriesOf(people LifecycleRepositories, organizations organizat
 
 // NewIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound. base carries what the caller binds
-// (the database and the second factor); the flows are bound here.
+// (the database, the second factor and the account lifecycle, which
+// lifecycleDependencies binds over Repos.Lifecycle); the flows are bound
+// here.
 func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiring AccountAuthenticationWiring) (*identityaccess.Module, error) {
 	if wiring.Repos.schools.schools == nil || wiring.Repos.persons == nil || wiring.Repos.authEvents == nil || wiring.Repos.pushSubscriptions == nil || wiring.Codec == nil || wiring.Audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
@@ -102,16 +101,6 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 			wiring.observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
 		}
 	}
-	var lifecycleBinding *LifecycleWiring
-	if wiring.Lifecycle != nil {
-		bound := *wiring.Lifecycle
-		bound.repos = wiring.Repos.Lifecycle
-		lifecycleBinding = &bound
-	}
-	lifecycle, err := lifecycleDependencies(lifecycleBinding, wiring.Logger)
-	if err != nil {
-		return nil, err
-	}
 	demo, err := demoDependencies(wiring.DemoAccess, wiring.DemoStandingSchool, wiring.Repos.schools.schools)
 	if err != nil {
 		return nil, err
@@ -121,7 +110,6 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 	resets := passwordResetDependencies(wiring.Resets, wiring.Logger)
 	invitations := invitationDependencies(wiring.Invitations, wiring.Codec, wiring.Logger)
 	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, wiring.Logger)
-	base.Lifecycle = lifecycle
 	base.Resets = resets
 	base.Invitations = invitations
 	base.OperatorProvisioning = operatorLinks
