@@ -681,13 +681,7 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
-			if access == mealplanAPI.AccessParticipants {
-				return RequireMealParticipantsRead()
-			}
-			if access == mealplanAPI.AccessRead {
-				return RequireConfigRead()
-			}
-			return RequireConfigUpdate()
+			return requireMealPlanAccess(access)
 		},
 		Success: apiCommon.Respond,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
