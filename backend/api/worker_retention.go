@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -261,7 +260,9 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 		RemoveSupervision: presence.RemoveSupervision,
 		People:            peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
 		AppendAudit: func(ctx context.Context, erasure staffoffboarding.Erasure) error {
-			return audit.Append(ctx, staffRetentionDeletion(tenant.FromContext(ctx), erasure))
+			return audit.Append(ctx, auditModels.NewStaffRetentionDeletion(
+				tenant.FromContext(ctx), erasure.StaffID, erasure.Records(), erasure.PersonAnonymized, erasure.Counts(),
+			))
 		},
 		Isolate: func(ctx context.Context, fn func(context.Context) error) error {
 			err := tenant.WithSavepoint(ctx, fn)
@@ -272,24 +273,6 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 		},
 		Logger: logger,
 	})
-}
-
-// staffRetentionDeletion is the deletion log entry of one erased staff
-// member: the data kind staff_retention, the counts per record kind and the
-// reason retention_expired, never the deleted content, written by the
-// system like the automatic deletion of a child.
-func staffRetentionDeletion(tenantID int64, erasure staffoffboarding.Erasure) *auditModels.DataDeletion {
-	staffID := erasure.StaffID
-	metadata := map[string]interface{}{"person_anonymized": erasure.PersonAnonymized}
-	for kind, count := range erasure.Counts() {
-		metadata[kind] = count
-	}
-	event := &auditModels.DataDeletion{
-		StaffID: &staffID, DeletionType: auditModels.DeletionTypeStaffRetention, RecordsDeleted: erasure.Records(),
-		DeletionReason: "retention_expired", DeletedBy: "system", DeletedAt: time.Now(), Metadata: metadata,
-	}
-	event.SetTenantID(tenantID)
-	return event
 }
 
 // newStudentRetention composes the automatic deletion of children over the

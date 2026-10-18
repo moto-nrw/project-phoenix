@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
@@ -95,22 +94,13 @@ type studentNoteDeletionAudit struct {
 func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
 	ctx context.Context, studentID, noteID, actorAccountID int64,
 ) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1,
-		"account:"+strconv.FormatInt(actorAccountID, 10))
-	record.DeletionReason = "student note deleted"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("deleted_by_account_id", actorAccountID)
-	return a.repo.Create(ctx, record)
+	return a.repo.Create(ctx, auditModels.NewStudentNoteDeletion(studentID, noteID, actorAccountID))
 }
 
 func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
 	ctx context.Context, studentID, noteID int64,
 ) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1, "system")
-	record.DeletionReason = "legacy supervisor notes cleared"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("source", "supervisor_notes")
-	return a.repo.Create(ctx, record)
+	return a.repo.Create(ctx, auditModels.NewLegacyStudentNoteDeletion(studentID, noteID))
 }
 
 type studentFieldAuditLog struct {
