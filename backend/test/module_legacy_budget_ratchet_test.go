@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 32697 - 92
+const moduleComposeBudgetTotal = 32697 - 92 - 296
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -179,15 +179,15 @@ var moduleComposeBudgets = map[string]int{
 	"modules/emergencysnapshot/compose":             13,
 	"modules/enrollment/compose":                    716,
 	"modules/exporttransfer/compose":                323,
-	"modules/facilities/compose":                    273,
+	"modules/facilities/compose":                    272,
 	"modules/facilities/compose/httpadapter":        473,
-	"modules/facilities/compose/repositoryadapter":  242,
+	"modules/facilities/compose/repositoryadapter":  227,
 	"modules/feedback/compose":                      196,
-	"modules/filestorage/compose":                   636,
+	"modules/filestorage/compose":                   363,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
 	// Raised by ADR 0063: the operator status lifecycle (#4047).
-	"modules/identityaccess/compose":      1768,
+	"modules/identityaccess/compose":      1761,
 	"modules/mealplan/compose":            242,
 	"modules/organizationtenancy/compose": 479,
 	// #4076: the compositions of the parent request feed, student directory
