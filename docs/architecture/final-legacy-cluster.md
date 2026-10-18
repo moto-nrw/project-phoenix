@@ -2,7 +2,7 @@
 
 Base: fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee` after PR #4338. The earlier rounds below are historical.
 
-Integrated development: `68e67f40165454c17db6713e86082de7db71c37f` after PR #4337. Its export dispatch recovery, strict side-effect guard and budget reductions are preserved. Current before/after measurements use this integrated base.
+Integrated development: `10591926424937be480dd39ce3c54a44d97cad9a` after PR #4340, including PR #4337. Its architecture principles, export dispatch recovery, strict side-effect guard and budget reductions are preserved. Current before/after measurements use this integrated base.
 
 ## Current result
 
@@ -73,7 +73,7 @@ Removed rules: `delivery-platform.workflow-integration-test.delivery-platform-le
 
 ## Verification and issue exits
 
-Architecture must pass with the single unchanged key and zero current composition targets. `validate-ticket --all --base-ref 68e67f40165454c17db6713e86082de7db71c37f` must report zero removed keys and zero uncovered retirements. Historical evidence whose file moved is pinned to that immutable base URL. The full affected suite, lint, dead-code gates and hooks are required before the single publication push; final outcomes and offline review are recorded in the PR.
+Architecture must pass with the single unchanged key and zero current composition targets. `validate-ticket --all --base-ref 10591926424937be480dd39ce3c54a44d97cad9a` must report zero removed keys and zero uncovered retirements. Historical evidence whose file moved is pinned to that immutable base URL. The full affected suite, lint, dead-code gates and hooks are required before the authorized corrective follow-up push; final outcomes and offline review are recorded in the PR.
 
 | Issue | Exit evidence |
 |---|---|
@@ -86,7 +86,7 @@ Architecture must pass with the single unchanged key and zero current compositio
 
 | Family | Observed blocker | Safe retained state |
 |---|---|---|
-| Scheduler internal relocation | PR #4337 introduced `sideEffectRegisterOnlyShrinks` / `sideEffectRegisterSubset` in `backend/test/side_effect_register.go`. Its exact origin/development subset comparison rejects the moved `Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` notice key, even with all 117 entries, fingerprints and reasons identical after one-to-one path normalization. ADR 0020 does not rename this JSON register. The actual test rejects the one renamed key as an addition. | The relocation is reverted; all 66 Scheduler files, its 7 constructor callers, 27 jobs and the 117-entry notice register match integrated development. No forwarding indirection, renamed hook, new allowance, checker edit or directory keep-alive is used. |
+| Scheduler internal relocation | PR #4337 introduced `sideEffectRegisterOnlyShrinks` / `sideEffectRegisterSubset` in `backend/test/side_effect_register.go`. Its exact origin/development subset comparison rejects the moved `Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` notice key, even with all 117 entries, fingerprints and reasons identical after one-to-one path normalization. ADR 0020 does not rename this JSON register. The authorized follow-up probe moved all 66 files and changed exactly one key prefix from `services/scheduler/tenant_runtime.go` to `modules/schedulerruntime/internal/application/tenant_runtime.go`. The 117 operations/reasons/fingerprints matched exactly after path normalization. `TestDurableSideEffectsRatchet` still rejected that key alone as an addition, not a changed body fingerprint; the user-directed fallback therefore applies. | The relocation is reverted; all 66 Scheduler files, its 7 constructor callers, 27 jobs and the 117-entry notice register match integrated development. No forwarding indirection, renamed hook, new allowance, checker edit or directory keep-alive is used. |
 
 The first publication also exposed three scanners walking the deleted `services/` root only in clean checkouts; an empty local directory had masked those failures. One-to-one root repairs were verified locally, including 7/7 normalized constructor records. Retaining Scheduler for the independent strict-register blocker restores its real directory, so those extra scanner repairs are reverted too. The canonical detector's file-literal repair remains. The last key and Timetable work are deferred by explicit scope.
 

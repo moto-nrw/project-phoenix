@@ -2,9 +2,9 @@
 
 ## Final cluster round 5 (current follow-up)
 
-Initial base after PR #4338; integrated development `68e67f40165454c17db6713e86082de7db71c37f` after PR #4337. Two scoped carriers are dissolved: the canonical SQLSTATE detector moves from `models/base` into Transaction Runtime with one narrowed file-literal repair and the same four sites; Delivery owns native subscription records, its internal persistence port and owner test fixture, deleting `models/delivery`. `database/repositories/base` stays absent.
+Initial base after PR #4338; integrated development `10591926424937be480dd39ce3c54a44d97cad9a` after PR #4340, including PR #4337. Two scoped carriers are dissolved: the canonical SQLSTATE detector moves from `models/base` into Transaction Runtime with one narrowed file-literal repair and the same four sites; Delivery owns native subscription records, its internal persistence port and owner test fixture, deleting `models/delivery`. `database/repositories/base` stays absent.
 
-Conventional carriers: **5 → 3**, namely `models/activities`, `models/schedule` and `services/scheduler`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**. Legacy-prefixed files and projection locations/grants stay unchanged. Scheduler's 66-file internal relocation was verified, then reverted because the new exact side-effect notice subset guard rejects even its one-to-one path-key rename. No allowance or checker behavior is added.
+Conventional carriers: **5 → 3**, namely `models/activities`, `models/schedule` and `services/scheduler`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**. Legacy-prefixed files and projection locations/grants stay unchanged. Scheduler's 66-file internal relocation was verified, then reverted because the new exact side-effect notice subset guard rejects even its one-to-one path-key rename. The authorized follow-up probe confirmed the same rejection with 117/117 identical operations, reasons and fingerprints after path normalization. No allowance or checker behavior is added.
 
 [Exact blocker and current evidence](final-legacy-cluster.md#exact-remaining-blocker). The whole package-layout exit is not established. All sections below are historical snapshots.
 
