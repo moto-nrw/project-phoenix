@@ -21,7 +21,7 @@ func TestRequestShareVisibilityRequiresTheLedgerAndTheFamilyProtection(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
 	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	const message = "parent: request share visibility needs the sharing ledger and the family protection"
@@ -39,7 +39,7 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)

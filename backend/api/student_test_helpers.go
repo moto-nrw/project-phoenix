@@ -199,55 +199,54 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
-		Catalog: offeringLinks.Catalog, Timetable: repos.Timetable, Rosters: rosterReconciler, Students: persons,
-		Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approvedOfferings,
-		Settings: settingsService, Bookings: repos.CarePlan, Withdrawals: careLifecycleService,
-		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: guardianAccess,
-		Pickup: pickupBaselines, PickupRows: repos.CarePlan,
-		LockRecurrence:           recurrenceLock.LockRecurrenceWrites,
-		ResyncPickupAutoExcusals: pickupAutoExcusal.ResyncFutureExceptions,
-		Broadcaster:              realtimeHub,
-		GuardianNotifier:         pillEmitter,
-		Today:                    today,
-		Logger:                   logger.With("service", "care-plan-bookings"),
-	})
+	careBookingDeps, err := bookingMaterializationOwners(
+		repos.Timetable, rosterReconciler, persons, repos.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
+		repos.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, repos.CarePlan,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(EnrollmentDecisionSources{
-		Requests:               repos.Enrollment(),
-		Children:               repos.Enrollment(),
-		Guardians:              repos.Enrollment(),
-		LateInvites:            repos.Enrollment(),
-		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Phases:                 repos.Enrollment(),
-		Schemas:                repos.Enrollment(),
-		DataAccessLog:          repos.DataAccessLog,
-		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
-		Restorations:           repos.EnrollmentRestorationAudit,
-		Notifications:          NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
-		Persons:                repos.Person,
-		Staff:                  repos.Staff,
-		Students:               repos.Student,
-		StudentGuardians:       repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		GuardianProfiles:       repos.GuardianProfile,
-		GuardianPhones:         repos.GuardianPhoneNumber,
+	careBookingDeps.Catalog = offeringLinks.Catalog
+	careBookingDeps.Settings = settingsValues.NewCareBookingValues(settingsService)
+	careBookingDeps.Bookings = repos.CarePlan
+	careBookingDeps.Withdrawals = careLifecycleService
+	careBookingDeps.LockTemplateRecurrence = recurrenceLock.LockRecurrenceWrites
+	careBookingDeps.ResyncPickupAutoExcusals = pickupAutoExcusal.ResyncFutureExceptions
+	careBookingDeps.PickupGuardians = pillEmitter
+	careBookingDeps.Today = today
+	careBookingDeps.Logger = logger.With("service", "care-plan-bookings")
+	careBookings, err := newBookingMaterialization(careBookingDeps, realtimeHub)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repos.Enrollment(),
+		Children:       repos.Enrollment(),
+		Guardians:      repos.Enrollment(),
+		LateInvites:    repos.Enrollment(),
+		Phases:         repos.Enrollment(),
+		Schemas:        repos.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Notifications:  NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
+		Bookings:       careBookings,
+		GuardianAccess: guardianAccess,
+		People: EnrollmentDecisionPeopleDirectory(
+			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, persons,
+		),
+		StudentEnrollment:      persons,
+		Companions:             EnrollmentDecisionCompanions(NewStudentCompanionRepository(repos.CarePlan), repos.CarePlan.DeleteCompanionEdges),
 		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
 		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
-		CareBookings:           careBookings,
-		GuardianAccess:         guardianAccess,
-		StudentEnrollment:      persons,
-		Companions:             NewStudentCompanionRepository(repos.CarePlan),
-		DeleteCompanions:       repos.CarePlan.DeleteCompanionEdges,
-		StudentAudit:           studentAuditService,
-		StudentConsents:        studentConsentService,
+		AccessLog:              EnrollmentDecisionAccessLog(repos.DataAccessLog),
+		Adjustments:            EnrollmentDecisionAdjustments(repos.EnrollmentOfferingAdjustment),
+		Restorations:           EnrollmentDecisionRestorations(repos.EnrollmentRestorationAudit),
+		Payers:                 EnrollmentDecisionPayers(repos.GuardianFinancialChange),
+		StudentAudit:           EnrollmentDecisionStudentAudit(studentAuditService),
+		StudentConsents:        EnrollmentDecisionStudentConsents(studentConsentService),
 		CareWithdrawal:         careLifecycleService,
-		Broadcaster:            realtimeHub,
-		FrontendURL:            frontendURL,
-		ParentsURL:             parentsURL,
-		Settings:               settingsService,
+		Broadcasts:             EnrollmentDecisionBroadcasts(realtimeHub),
+		ParentsURL:             EnrollmentDecisionParentsURL(parentsURL, frontendURL),
+		Settings:               EnrollmentDecisionSettingValues(settingsService),
 		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
 		Pickups: enrollmentCompose.WeeklyPickupHooks{
 			LockStudents:  careplanCompose.LockWeeklyPickupStudents(pickupStudentLocks{students: persons}),
@@ -277,50 +276,50 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChanges, err := newOfferingChanges(OfferingChangeInputs{
-		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: requestTokenReads.Permissions, Emitter: pillEmitter,
-		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
-	})
+	offeringChangeDeps, err := offeringChangeOwners(
+		repos.CarePlan, nil, repos.Enrollment(), repos.Student, repos.CareWithdrawal, settingsService,
+		requestReviewPolicy, requestTokenReads.Permissions, pillEmitter, parentRequestEvents,
+	)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	offeringChangeDeps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
+	offeringChangeDeps.Bookings = careBookings
+	offeringChangeDeps.Today = today
+	offeringChangeDeps.Logger = logger.With("service", "offering-change-requests")
+	offeringChanges, err := newOfferingChanges(offeringChangeDeps)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
 	newPickupAdjustmentsFor := func(offerings careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error) {
-		return NewPickupAdjustments(PickupAdjustmentInputs{
-			CarePlan: repos.CarePlan, PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
-			Baselines: pickupBaselines, Offerings: offerings, Settings: settingsService,
-			Audit: studentAuditService, Students: repos.Student, Today: today,
-		})
+		return NewPickupAdjustments(
+			repos.CarePlan, pickupScheduleService, arrivalScheduleService, pickupBaselines, offerings,
+			settingsService, studentAuditService, repos.Student, today,
+		)
 	}
 	pickupAdjustments, err := newPickupAdjustmentsFor(offeringChanges)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	excusedRequestService, err := NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
-		CarePlan: repos.CarePlan, Students: repos.Student, Persons: repos.Person,
-		Scope:   ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
-		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
-		Logger: logger.With("service", "excused-requests"),
-	})
+	excusedRequestService, err := NewExcusedAbsenceRequestService(
+		repos.CarePlan, repos.Student, repos.Person, ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
+		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataDecisions, err := NewMasterDataDecisions(MasterDataDecisionWiring{
-		CarePlan: repos.CarePlan, Fields: persons, Students: repos.Student, Persons: repos.Person,
-		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
-		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
-		Logger: logger.With("service", "master-data-review"),
-	})
+	masterDataDecisions, err := NewMasterDataDecisions(
+		repos.CarePlan, persons, repos.Student, repos.Person, studentAuditService,
+		ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
+		pillEmitter, realtimeHub, parentRequestEvents, nil, logger.With("service", "master-data-review"), nil,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
-		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
-		Offering: newOfferingChangeConflicts(offeringChanges), Events: parentRequestEvents,
-		Permissions: requestTokenReads.Permissions,
-	})
+	parentRequestCoordinator, err := NewParentRequestCoordinator(
+		masterDataDecisions, excusedRequestService, careRequestService,
+		newOfferingChangeConflicts(offeringChanges), parentRequestEvents, requestTokenReads.Permissions,
+	)
 	if err != nil {
 		return StudentTestModule{}, err
 	}

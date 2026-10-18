@@ -154,10 +154,7 @@ func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
 	}
 	return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: deps.DB.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
-	}, staffAdminOwners{
-		Staff: deps.Staff, Persons: staffAdminPersons{rows: deps.Persons, details: people}, Membership: deps.Membership,
-		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
-	})
+	}, deps.Staff, deps.Persons, people, deps.Membership, deps.MasterDataAudit, deps.PersonnelNumber, deps.DataAccessLog)
 }
 
 // StaffAbsenceRow and AbsenceRequestFilter name the Workforce rows the staff

@@ -158,10 +158,9 @@ func newPeopleRepositorySuiteFactory(
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), capability)),
-		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
-			People: students, Groups: groups, Membership: membership,
-			Identity: NewPeopleIdentityAccess(db, nil), Enrollment: enrollment, Now: now,
-		}),
+		ParentPortalRepositories: NewParentPortalRepositories(
+			db, students, groups, membership, NewPeopleIdentityAccess(db, nil), enrollment, now,
+		),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		FamilyProtection:         peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),

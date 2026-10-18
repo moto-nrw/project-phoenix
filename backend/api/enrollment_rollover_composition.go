@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -64,4 +65,29 @@ func NewEnrollmentOfferingCapacity(offerings enrollmentCompose.CapacityOfferings
 		}
 	}
 	return enrollmentCompose.NewOfferingCapacity(offerings, peaks, waitlistEnabled)
+}
+
+// EnrollmentRolloverSettings resolves the grade collection settings the
+// rollover reads.
+type EnrollmentRolloverSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// EnrollmentRolloverSources are the owners the root binds the rollover to.
+type EnrollmentRolloverSources struct {
+	Bookings enrollmentOwner.CareBookingCommands
+	Phases   enrollmentCompose.RolloverPhases
+	Requests enrollmentCompose.RolloverRequests
+	Children enrollmentCompose.RolloverChildren
+	// Catalog clones the source phase's care-offering catalog (#2249).
+	Catalog          enrollmentCompose.RolloverCatalogCloner
+	Notifications    enrollmentOwner.Notifications
+	PhaseEligibility enrollmentCompose.PhaseEligibilityGuard
+	Outbox           enrollmentCompose.MailOutbox
+	Settings         EnrollmentRolloverSettings
+	// Decisions approves auto-renewed rows on an auto-approve phase.
+	Decisions  enrollmentCompose.RolloverDecider
+	ParentsURL string
+	Logger     *slog.Logger
 }

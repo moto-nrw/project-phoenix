@@ -98,31 +98,30 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	wiring := ImportWiring{
-		Identity:      rfid,
-		Organizations: organizations,
-		Groups:        groups, Rooms: rooms,
-		Persons: persons, Membership: membership, Workforce: workTime,
-		CarePlan: repos.CarePlan, Presence: NewStudentPresenceForTests(db),
-		InvitationService: auth.Invitation,
-		ConsentHistory:    auditCompose.NewConsentRecorder(command),
-		OpeningBalance: importService.OpeningBalanceImportDeps{
+	runtime := newImportRuntime(command, func(observation importService.ImportObservation) {
+		*observations = append(*observations, observation)
+	})
+	// The composer binds one People Directory to three ports; only the
+	// guardian one is decorated, so the person and student paths keep
+	// talking to the real owner.
+	var studentGuardians importService.GuardianPort = persons
+	if options.WrapGuardians != nil {
+		if wrapped := options.WrapGuardians(persons); wrapped != nil {
+			studentGuardians = wrapped
+		}
+	}
+	dataImports := imports{
+		Student: newStudentImport(
+			runtime, rfid, groups, rooms, persons, studentGuardians, repos.CarePlan, NewStudentPresenceForTests(db),
+			auditCompose.NewConsentRecorder(command),
+		),
+		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
+		ClassList: newClassListImport(runtime, membership, persons),
+		OpeningBalance: newOpeningBalanceImport(runtime, importService.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
-		},
-		Audit: command,
-		Observe: func(observation importService.ImportObservation) {
-			*observations = append(*observations, observation)
-		},
+		}, membership, persons, workTime),
 	}
-	if options.WrapGuardians != nil {
-		// The composer binds one People Directory to three ports; only the
-		// guardian one is decorated, so the person and student paths keep
-		// talking to the real owner.
-		wiring.GuardianOverride = options.WrapGuardians(persons)
-	}
-
-	dataImports := NewImports(wiring)
 	return ImportTestModule{
 		PeopleDirectory: persons, Membership: membership,
 		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,

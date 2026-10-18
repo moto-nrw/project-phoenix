@@ -48,27 +48,23 @@ func setupAutoApproveIntegrationEnvWithSettings(
 
 	repoFactory := testRepositories(t, env.db)
 
-	decision := newTestDecisions(api.EnrollmentDecisionSources{
-		Requests:          repoFactory.Enrollment(),
-		Children:          repoFactory.Enrollment(),
-		CareBookings:      testBookings(t, env, settings),
-		CareOfferings:     enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:            repoFactory.Enrollment(),
-		Persons:           repoFactory.Person,
-		Staff:             repoFactory.Staff,
-		Students:          repoFactory.Student,
-		StudentGuardians:  repoFactory.StudentGuardian,
-		GuardianProfiles:  repoFactory.GuardianProfile,
-		GuardianAccess:    testGuardianAccess(env.db),
-		StudentEnrollment: testStudentEnrollment(env.db),
-		Companions:        api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:      api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor),
-		FrontendURL:       "http://localhost:3000",
-		ParentsURL:        "http://parents.localhost:3000",
-		Settings:          settings,
+	studentEnrollment := testStudentEnrollment(env.db)
+	decision := newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		Bookings:       testBookings(t, env, settings),
+		GuardianAccess: testGuardianAccess(env.db),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, nil, studentEnrollment,
+		),
+		StudentEnrollment: studentEnrollment,
+		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactory.CarePlan()), repoFactory.CarePlan().DeleteCompanionEdges),
+		StudentAudit:      api.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
+		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		Logger:            slog.Default(),
-	}, env.outbox)
+	}, settings, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
 	env.rolloverSvc = newTestRolloverService(api.EnrollmentRolloverSources{

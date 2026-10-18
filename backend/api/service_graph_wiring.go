@@ -181,9 +181,17 @@ type PeopleWiring struct {
 	StudentChangeLogCleanup  func(edits peoplePorts.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peoplePorts.StudentChangeLogCleanupService
 	StatusDayPeople          func(peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople
 	GroupRosterPeople        func(peoplePorts.PersonDirectory) GroupRoster
-	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
-	ParentRequestCoordinator func(ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error)
-	ParentRequestWriteScope  func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
+	MasterDataDecisions      func(
+		carePlan careplan.Capability, fields MasterDataPeople, students masterDataStudentRows, persons masterDataPersonRows,
+		audit peoplePorts.StudentChangeRecorder, scope careplanCompose.ReviewScopeResolver,
+		emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster, events ParentRequestEvents,
+		shares careplanCompose.ShareVisibility, logger *slog.Logger, today func() timezone.Date,
+	) (*careplanCompose.MasterDataDecisions, error)
+	ParentRequestCoordinator func(
+		masterData *careplanCompose.MasterDataDecisions, excused careplan.ExcusedAbsenceRequests, careRequests any,
+		offering careplanCompose.ParentRequestConflicts, events ParentRequestEvents, permissions func(context.Context) []string,
+	) (parentrequests.Coordinator, error)
+	ParentRequestWriteScope func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
 }
 
 // The Audit Platform trails the root's adapters append to, as the narrow
@@ -264,7 +272,7 @@ type EnrollmentWiring struct {
 	Notifications       func(EnrollmentSettings, MailOutbox) enrollmentOwner.Notifications
 	Deletions           func(EnrollmentDeletionSources) enrollmentCompose.DeletionModule
 	Phases              func(EnrollmentPhaseSources) *enrollmentCompose.Phases
-	Decisions           func(EnrollmentDecisionSources) *enrollmentCompose.Decisions
+	Decisions           func(enrollmentCompose.DecisionDependencies) *enrollmentCompose.Decisions
 	Capacity            func(EnrollmentSettings) enrollmentOwner.OfferingCapacity
 	AdminSubscribers    func(deliveryCompose.EmailSubscribers, deliveryCompose.EmailAccounts) enrollmentCompose.AdminMailSubscribers
 	Intake              func(EnrollmentIntakeSources) *enrollmentCompose.Intake
@@ -272,7 +280,7 @@ type EnrollmentWiring struct {
 	GuardianInvitations func(EnrollmentGuardianInvitations) enrollmentCompose.GuardianInvitationAvailability
 	ChangeRequests      func(EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests
 	Rollovers           func(EnrollmentRolloverSources) enrollmentOwner.Rollovers
-	OfferingChanges     func(OfferingChangeInputs) (careplan.OfferingChangeCapability, error)
+	OfferingChanges     func(careplanCompose.OfferingChangeDependencies) (careplan.OfferingChangeCapability, error)
 	OfferingConflicts   func(careplan.OfferingChangeConflicts) careplanCompose.ParentRequestConflicts
 }
 
@@ -323,268 +331,6 @@ type EnrollmentSettings interface {
 // profiles.
 type EnrollmentGuardianInvitations interface {
 	ListOpenGuardianInvitations(context.Context, []int64) ([]identityaccess.GuardianInvitation, error)
-}
-
-// EnrollmentPhaseSources are the values of this graph the phase
-// administration is bound over.
-type EnrollmentPhaseSources struct {
-	LockTemplateRecurrence          func(context.Context) error
-	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
-	// SourcedTemplates resolves the booking materialization on every edit.
-	SourcedTemplates func() enrollmentOwner.SourcedTemplateResyncer
-	Settings         EnrollmentSettings
-	Logger           *slog.Logger
-}
-
-// EnrollmentDecisionSettings resolves the tenant settings of the decision
-// flow.
-type EnrollmentDecisionSettings interface {
-	ResolveString(ctx context.Context, key string) (string, error)
-	ResolveBool(ctx context.Context, key string) (bool, error)
-}
-
-// EnrollmentStudentAuditor records tracked profile changes made while
-// approving or synchronizing enrollment data for an existing student.
-type EnrollmentStudentAuditor interface {
-	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
-	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
-}
-
-// EnrollmentConsentAuditor records effective consent transitions made while an
-// enrollment submission is applied to a student.
-type EnrollmentConsentAuditor interface {
-	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
-}
-
-// EnrollmentDepartureCompanions reads Care Plan's "läuft mit" edges of a
-// student.
-type EnrollmentDepartureCompanions interface {
-	ListForStudent(context.Context, int64) ([]*userModels.StudentCompanion, error)
-	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
-}
-
-// EnrollmentDecisionSources are the owners and retained repositories the root
-// binds the decision flow to. A nil source skips the work that needs it, the
-// way the decision flow always treated an unwired repository.
-type EnrollmentDecisionSources struct {
-	Requests               enrollmentCompose.DecisionRequests
-	Children               enrollmentCompose.DecisionChildren
-	Guardians              enrollmentCompose.DecisionGuardians
-	LateInvites            enrollmentCompose.DecisionLateInvites
-	Phases                 enrollmentCompose.DecisionPhases
-	Schemas                enrollmentCompose.DecisionSchemas
-	CareOfferings          enrollmentCompose.CareOfferingCatalog
-	DataAccessLog          enrollmentAccessLogAppender
-	OfferingAdjustments    enrollmentAdjustmentRows
-	Restorations           enrollmentRestorationAppender
-	Notifications          enrollmentOwner.Notifications
-	Persons                enrollmentPersonRows
-	Staff                  enrollmentStaffRows
-	Students               enrollmentStudentRows
-	StudentEnrollment      EnrollmentDecisionPeople
-	Companions             EnrollmentDepartureCompanions
-	DeleteCompanions       func(context.Context, []int64) error
-	StudentGuardians       enrollmentStudentGuardianRows
-	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
-	GuardianProfiles       enrollmentGuardianProfileRows
-	GuardianPhones         enrollmentGuardianPhoneRows
-	PickupSchedules        enrollmentCompose.WeeklyPickupSchedules
-	ArrivalSchedules       enrollmentCompose.WeeklyArrivalSchedules
-	// CareBookings is Care Plan's booking materialization (#3560). Nil skips
-	// the roster materialization of an approval (focused tests).
-	CareBookings enrollmentCompose.DecisionBookings
-	// GuardianAccess is the Identity & Access capability an approval uses to
-	// recognise a parent's existing portal account. Required: an approval
-	// without it fails instead of silently skipping the account attach.
-	GuardianAccess  enrollmentCompose.DecisionGuardianAccess
-	StudentAudit    EnrollmentStudentAuditor
-	StudentConsents EnrollmentConsentAuditor
-	CareWithdrawal  enrollmentCompose.CareWithdrawalReconciler
-	// Broadcaster announces student_updated + student_companions_changed
-	// after an approved enrollment sync trimmed a child's "läuft mit" links.
-	Broadcaster realtime.Broadcaster
-	FrontendURL string
-	// ParentsURL is the base of the status links in the parent mails. It
-	// falls back to FrontendURL when empty.
-	ParentsURL             string
-	Settings               EnrollmentDecisionSettings
-	LockTemplateRecurrence func(context.Context) error
-	Pickups                enrollmentCompose.WeeklyPickupHooks
-	Logger                 *slog.Logger
-	Today                  func() timezone.Date
-}
-
-// EnrollmentIntakeSettings resolves the tenant settings of the intake by key.
-// A resolver that also answers ResolveMany is read through one snapshot.
-type EnrollmentIntakeSettings interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
-
-// EnrollmentIntakeSources are the owners and retained repositories the root
-// binds the intake to. A nil source skips the work that needs it, the way
-// the intake always treated an unwired repository.
-type EnrollmentIntakeSources struct {
-	Requests           enrollmentCompose.IntakeRequests
-	Children           enrollmentCompose.IntakeChildren
-	Bookings           enrollmentOwner.CareBookingCommands
-	Guardians          enrollmentCompose.IntakeGuardians
-	LateInviteRepo     enrollmentCompose.IntakeLateInvites
-	CareOfferingRepo   enrollmentCompose.IntakeOfferings
-	Capacity           enrollmentOwner.OfferingCapacity
-	Catalog            enrollmentCompose.IntakeCatalog
-	SchoolRepo         enrollmentOwner.SchoolDirectory
-	Notifications      enrollmentOwner.Notifications
-	StudentRepo        enrollmentCompose.StudentMatches
-	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
-	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     enrollmentCompose.MailOutbox
-	Settings           EnrollmentIntakeSettings
-	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
-	// mail (#3780); nil keeps the configured address list only.
-	AdminSubscribers enrollmentCompose.AdminMailSubscribers
-	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
-	// ParentChanges makes a request unread again after a parent edit (#3778).
-	ParentChanges enrollmentCompose.RequestParentChanges
-	// FrontendURL is the base of the staff links, ParentsURL of the
-	// parent-facing ones; it falls back to FrontendURL.
-	FrontendURL string
-	ParentsURL  string
-	Logger      *slog.Logger
-}
-
-// EnrollmentChangeRequestSources are the owners and retained repositories the
-// root binds the change requests to.
-type EnrollmentChangeRequestSources struct {
-	Bookings            enrollmentCompose.CareBookingChanges
-	Requests            enrollmentCompose.ChangeRequestRecords
-	Children            enrollmentCompose.IntakeChildren
-	Guardians           enrollmentCompose.IntakeGuardians
-	LateInviteRepo      enrollmentCompose.DecisionLateInvites
-	CareOfferingRepo    enrollmentCompose.IntakeOfferings
-	Capacity            enrollmentOwner.OfferingCapacity
-	Catalog             enrollmentCompose.IntakeCatalog
-	Notifications       enrollmentOwner.Notifications
-	GuardianProfileRepo enrollmentGuardianProfileRows
-	GuardianPhoneRepo   enrollmentGuardianPhoneRows
-	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
-	PersonRepo          EnrollmentReviewerPersons
-	StudentRepo         enrollmentCompose.StudentMatches
-	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
-	// Decisions applies an approved change to a child the decision flow
-	// already approved; BookingGates wrap those writes. A nil Decisions
-	// leaves every child to the booking replacement.
-	Decisions            enrollmentOwner.ApprovedChildChanges
-	BookingGates         enrollmentCompose.CareBookingGates
-	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
-	Settings             EnrollmentIntakeSettings
-	OutboxEnqueuer       enrollmentCompose.MailOutbox
-	FrontendURL          string
-	ParentsURL           string
-	Logger               *slog.Logger
-}
-
-// EnrollmentReviewerPersons resolves the persons behind reviewer accounts.
-type EnrollmentReviewerPersons interface {
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
-}
-
-// EnrollmentReportOwnerReads are the Enrollment owner reads of the reports.
-type EnrollmentReportOwnerReads interface {
-	enrollmentCompose.ReportRequests
-	enrollmentCompose.ReportChildren
-	enrollmentCompose.ReportGuardians
-	enrollmentCompose.ReportSchemas
-	enrollmentCompose.ReportPhases
-}
-
-// EnrollmentReportSources are the reads the root binds the reports to.
-type EnrollmentReportSources struct {
-	Owner             EnrollmentReportOwnerReads
-	Offerings         enrollmentCompose.ReportOfferings
-	AccessLog         enrollmentAccessLogAppender
-	Students          enrollmentRosterStudentRows
-	Persons           enrollmentRosterPersonRows
-	Groups            enrollmentCompose.RosterGroups
-	StudentGuardians  enrollmentGuardianContactRows
-	Companions        enrollmentCompose.RosterCompanions
-	ClassListEntries  enrollmentCompose.ClassListEntries
-	PickupSchedules   enrollmentCompose.PickupSchedules
-	CareParticipation enrollmentCompose.CareParticipation
-	Settings          interface {
-		ResolveBool(ctx context.Context, key string) (bool, error)
-	}
-}
-
-// EnrollmentRolloverSettings resolves the grade collection settings the
-// rollover reads.
-type EnrollmentRolloverSettings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
-
-// EnrollmentRolloverSources are the owners the root binds the rollover to.
-type EnrollmentRolloverSources struct {
-	Bookings enrollmentOwner.CareBookingCommands
-	Phases   enrollmentCompose.RolloverPhases
-	Requests enrollmentCompose.RolloverRequests
-	Children enrollmentCompose.RolloverChildren
-	// Catalog clones the source phase's care-offering catalog (#2249).
-	Catalog          enrollmentCompose.RolloverCatalogCloner
-	Notifications    enrollmentOwner.Notifications
-	PhaseEligibility enrollmentCompose.PhaseEligibilityGuard
-	Outbox           enrollmentCompose.MailOutbox
-	Settings         EnrollmentRolloverSettings
-	// Decisions approves auto-renewed rows on an auto-approve phase.
-	Decisions  enrollmentCompose.RolloverDecider
-	ParentsURL string
-	Logger     *slog.Logger
-}
-
-// EnrollmentDeletionOwner is the Enrollment owner slice the admin deletion
-// and the retention cleanup read, lock and delete through.
-type EnrollmentDeletionOwner = enrollmentCompose.DeletionOwner
-
-// EnrollmentDeletionSources are the owners the root binds the admin deletion
-// and the retention cleanup to.
-type EnrollmentDeletionSources struct {
-	Owner     EnrollmentDeletionOwner
-	Guardians enrollmentCompose.GuardianDirectory
-	// CountAuditAdjustments counts the audited offering adjustments of a
-	// request or one of its children.
-	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
-	// CountBookings counts Care Plan's bookings of the request children.
-	CountBookings func(context.Context, []int64) (int, error)
-	Audit         enrollmentDeletionAppender
-	Delivery      enrollmentCompose.EnrollmentDeletionDelivery
-	Settings      interface {
-		ResolveInt(ctx context.Context, key string) (int, error)
-	}
-	Logger *slog.Logger
-}
-
-// OfferingChangeInputs are the owners the offering-change review is composed
-// over.
-type OfferingChangeInputs struct {
-	CarePlan careplan.Capability
-	// Catalog reads the care offerings; nil reads them from CarePlan.
-	Catalog     careplanCompose.OfferingChangeCatalog
-	Enrollment  OfferingChangeEnrollmentReads
-	Students    offeringChangeStudentRows
-	Withdrawals offeringChangeWithdrawalRows
-	Settings    OfferingChangeSettingsReads
-	Planning    careplanCompose.OfferingChangePlanning
-	Bookings    careplan.BookingMaterializationCapability
-	Reviews     OfferingChangeReviewPolicy
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
-	Emitter     *communicationCompose.ParentEventEmitter
-	Events      ParentRequestEvents
-	Shares      careplanCompose.ShareVisibility
-	Today       func() timezone.Date
-	Logger      *slog.Logger
 }
 
 // OfferingChangeEnrollmentReads is the part of the Enrollment owner an
@@ -668,35 +414,6 @@ type StudentConsentRecords interface {
 // decision writes with.
 type ParentRequestScopePolicy interface {
 	Scope(ctx context.Context, permissions []string) (bool, []int64, error)
-}
-
-// MasterDataDecisionWiring is the graph's view of the Stammdaten decision's
-// dependencies. Nil effects are skipped.
-type MasterDataDecisionWiring struct {
-	CarePlan    careplan.Capability
-	Fields      MasterDataPeople
-	Students    masterDataStudentRows
-	Persons     masterDataPersonRows
-	Audit       peoplePorts.StudentChangeRecorder
-	Scope       careplanCompose.ReviewScopeResolver
-	Emitter     *communicationCompose.ParentEventEmitter
-	Broadcaster realtime.Broadcaster
-	Events      ParentRequestEvents
-	Shares      careplanCompose.ShareVisibility
-	Logger      *slog.Logger
-	Today       func() timezone.Date
-}
-
-// ParentRequestCoordinatorWiring names the four request queues the
-// cross-kind commands are composed over.
-type ParentRequestCoordinatorWiring struct {
-	MasterData *careplanCompose.MasterDataDecisions
-	Excused    careplan.ExcusedAbsenceRequests
-	Care       any
-	Offering   careplanCompose.ParentRequestConflicts
-	Events     ParentRequestEvents
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
 }
 
 // PresenceWiring is what the root builds for Student Presence, Facilities,
@@ -800,29 +517,17 @@ type PlatformWiring struct {
 	GuardianDisplays           func(GuardianDisplayQuery) deliveryCompose.GuardianDisplayResolver
 	AnnouncementDeliveries     func(*deliveryModule.Module) communicationCompose.ParentAnnouncementDeliveryRecorder
 	EnrollmentDeliveries       func(*deliveryModule.Module) enrollmentCompose.EnrollmentDeletionDelivery
-	OperatorProvisioning       func(OperatorProvisioningSources) (organizationtenancy.Provisioning, error)
-	PWAUsageCounts             func(organizationtenancy.Provisioning) deliveryCompose.PWAUsageCounts
+	OperatorProvisioning       func(
+		identity *identityaccess.Module, accounts OperatorAccountDirectory, devices devicefleetModule.Capability,
+		sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords,
+		categories OperatorCategoryCreator, settings settingsCompose.SettingsService, logger *slog.Logger,
+	) (organizationtenancy.Provisioning, error)
+	PWAUsageCounts func(organizationtenancy.Provisioning) deliveryCompose.PWAUsageCounts
 }
 
 // GuardianDisplayQuery names the guardians of the Delivery recipients.
 type GuardianDisplayQuery interface {
 	GuardianDisplays(context.Context, []int64) ([]peoplePorts.GuardianDisplay, error)
-}
-
-// OperatorProvisioningSources are the values of this graph the root binds
-// Organisation & Tenancy's operator provisioning over (#3253).
-type OperatorProvisioningSources struct {
-	Identity     *identityaccess.Module
-	Accounts     OperatorAccountDirectory
-	Devices      devicefleetModule.Capability
-	Sessions     *presenceCompose.SessionRecords
-	Supervisions studentpresence.SupervisionRecords
-	// Categories seeds the activity categories of a new school.
-	Categories interface {
-		CreateCategory(ctx context.Context, name, description, color string) error
-	}
-	Settings settingsCompose.SettingsService
-	Logger   *slog.Logger
 }
 
 // validate refuses a wiring with a missing value or constructor: the graph

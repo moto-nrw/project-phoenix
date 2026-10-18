@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -89,20 +90,24 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	bookings, err := newBookingMaterialization(bookingMaterializationInputs{
-		Catalog: catalog, Timetable: repos.Timetable, Rosters: repos.RosterMaintenance(slog.Default(), nil),
-		Students: people, Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approved,
-		Settings: settings, Bookings: repos.CarePlan, Withdrawals: options.Withdrawals,
-		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: accounts,
-		Pickup: pickup, PickupRows: repos.CarePlan,
-		LockRecurrence:              options.LockRecurrence,
-		ResyncPickupAutoExcusals:    options.ResyncPickupAutoExcusals,
-		ClearPickupWeekdayExtension: options.ClearPickupWeekdayExtension,
-		Broadcaster:                 options.Broadcaster,
-		GuardianNotifier:            options.GuardianNotifier,
-		Today:                       options.Today,
-		Logger:                      slog.Default(),
-	})
+	deps, err := bookingMaterializationOwners(
+		repos.Timetable, repos.RosterMaintenance(slog.Default(), nil), people, repos.SchoolCalendar(), repos.Enrollment(),
+		approved, repos.EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, repos.CarePlan,
+	)
+	if err != nil {
+		return BookingMaterializationTestModule{}, err
+	}
+	deps.Catalog = catalog
+	deps.Settings = settingsModule.NewCareBookingValues(settings)
+	deps.Bookings = repos.CarePlan
+	deps.Withdrawals = options.Withdrawals
+	deps.LockTemplateRecurrence = options.LockRecurrence
+	deps.ResyncPickupAutoExcusals = options.ResyncPickupAutoExcusals
+	deps.ClearPickupWeekdayExtension = options.ClearPickupWeekdayExtension
+	deps.PickupGuardians = options.GuardianNotifier
+	deps.Today = options.Today
+	deps.Logger = slog.Default()
+	bookings, err := newBookingMaterialization(deps, options.Broadcaster)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

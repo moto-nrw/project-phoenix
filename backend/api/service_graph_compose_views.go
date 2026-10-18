@@ -29,12 +29,12 @@ import (
 // weekly plans (#2079, #2706) and the push and PWA usage services.
 func composeViews(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
-	provisioning, err := b.Platform.OperatorProvisioning(OperatorProvisioningSources{
-		Identity: b.identityAccess, Accounts: NewOperatorAccountDirectory(b.identityAccess, b.Persons, b.Membership, b.Organizations),
-		Devices: b.deviceFleet, Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
-		Categories: arrivalTimetable.NewActivityCategorySeeder(repos.ActivityCategory),
-		Settings:   b.settingsService, Logger: b.Logger.With("service", "platform"),
-	})
+	provisioning, err := b.Platform.OperatorProvisioning(
+		b.identityAccess, NewOperatorAccountDirectory(b.identityAccess, b.Persons, b.Membership, b.Organizations),
+		b.deviceFleet, b.Presence.SessionRecords, b.groupSupervisions,
+		arrivalTimetable.NewActivityCategorySeeder(repos.ActivityCategory),
+		b.settingsService, b.Logger.With("service", "platform"),
+	)
 	if err != nil {
 		return b, fmt.Errorf("compose operator provisioning: %w", err)
 	}
@@ -197,12 +197,12 @@ func (b *graphBuild) composeTemplates() (timetable.TemplateAdministration, error
 // queue is listed with. Every queue is bound at construction, or the
 // resolve route would answer conflict_kind_unsupported for the missing one.
 func composeParentRequests(b graphBuild) (graphBuild, error) {
-	masterData, err := b.People.MasterDataDecisions(MasterDataDecisionWiring{
-		CarePlan: b.CarePlan, Fields: b.Persons, Students: b.People.Students, Persons: b.People.Persons,
-		Audit: b.graph.StudentAudit, Scope: b.People.ParentRequestWriteScope(b.reviewPolicy, b.Identity.Permissions),
-		Emitter: b.graph.ParentEventEmitter, Broadcaster: b.graph.RealtimeHub, Events: peopleCompose.NewParentRequestEventRepository(b.DB.Pool()),
-		Shares: b.requestShares, Logger: b.Logger.With("service", "master-data-review"), Today: b.today,
-	})
+	masterData, err := b.People.MasterDataDecisions(
+		b.CarePlan, b.Persons, b.People.Students, b.People.Persons,
+		b.graph.StudentAudit, b.People.ParentRequestWriteScope(b.reviewPolicy, b.Identity.Permissions),
+		b.graph.ParentEventEmitter, b.graph.RealtimeHub, peopleCompose.NewParentRequestEventRepository(b.DB.Pool()),
+		b.requestShares, b.Logger.With("service", "master-data-review"), b.today,
+	)
 	if err != nil {
 		return b, fmt.Errorf("compose master data decisions: %w", err)
 	}
@@ -213,11 +213,10 @@ func composeParentRequests(b graphBuild) (graphBuild, error) {
 	if resolver, ok := any(b.graph.Parent).(communicationCompose.ParentShareVisibilityResolver); ok {
 		b.late.requestShareVisibility = resolver
 	}
-	coordinator, err := b.People.ParentRequestCoordinator(ParentRequestCoordinatorWiring{
-		MasterData: masterData, Excused: b.excusedRequests, Care: b.graph.CareRequests,
-		Offering: b.Enrollment.OfferingConflicts(b.offeringChanges), Events: peopleCompose.NewParentRequestEventRepository(b.DB.Pool()),
-		Permissions: b.Identity.Permissions,
-	})
+	coordinator, err := b.People.ParentRequestCoordinator(
+		masterData, b.excusedRequests, b.graph.CareRequests, b.Enrollment.OfferingConflicts(b.offeringChanges),
+		peopleCompose.NewParentRequestEventRepository(b.DB.Pool()), b.Identity.Permissions,
+	)
 	if err != nil {
 		return b, fmt.Errorf("compose parent request coordinator: %w", err)
 	}

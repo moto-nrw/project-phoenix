@@ -55,12 +55,22 @@ func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 }
 
 // NewParentPortalRepositories builds the retained guardian-portal and
-// messaging repositories with the People Directory, School Membership,
-// School Structure, Identity & Access and Enrollment reads bound. The school
-// names are bound by WithSchools.
-func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPortalOwners) ParentPortalRepositories {
-	pool, identity := db.Pool(), owners.Identity
-	members := ParentStaffMembers{Membership: owners.Membership}.List
+// messaging repositories over the owners they read through, every one bound
+// at construction (#2743): people answers the student, guardian and person
+// reads that used to join users.students, users.guardian_profiles and
+// users.persons; groups names the groups of the inbox threads; membership
+// resolves the live staff accounts behind the read cursors; identity owns the
+// accounts, their school memberships and role classes; enrollment owns the
+// phases, applications and announcement applicants; now is the announcement
+// clock, nil keeps the store default. The school names are bound by
+// WithSchools.
+func NewParentPortalRepositories(
+	db transactionruntime.Database, people peopledirectory.Capability, groups schoolstructure.Query,
+	membership schoolmembership.Capability, identity *identityaccess.Module, enrollment *enrollmentCapability.Module,
+	now func() time.Time,
+) ParentPortalRepositories {
+	pool := db.Pool()
+	members := ParentStaffMembers{Membership: membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
 	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
@@ -78,17 +88,17 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 		}
 		return out, err
 	}
-	groupNames := parentGroupNames{groups: owners.Groups}.list
+	groupNames := parentGroupNames{groups: groups}.list
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-			DB: pool, Directory: ParentPortalDirectory{People: owners.People},
+			DB: pool, Directory: ParentPortalDirectory{People: people},
 			AccountSchools: identity.ListActiveAccountSchoolIDs,
-			Phases:         ParentPortalEnrollments{enrollment: owners.Enrollment},
-			Applications:   ParentPortalEnrollments{enrollment: owners.Enrollment},
+			Phases:         ParentPortalEnrollments{enrollment: enrollment},
+			Applications:   ParentPortalEnrollments{enrollment: enrollment},
 			Accounts:       IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), guardianLinkView.NewReader(), owners.Now),
+			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(enrollment), guardianLinkView.NewReader(), now),
 			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, newParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
 				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, personAccounts), groupNames),
@@ -191,25 +201,6 @@ func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCom
 			return result, nil
 		},
 	}
-}
-
-// ParentPortalOwners are the owners the retained guardian-portal and
-// messaging repositories read through. Every one is bound at construction
-// (#2743).
-type ParentPortalOwners struct {
-	// People answers the student, guardian and person reads that used to
-	// join users.students, users.guardian_profiles and users.persons.
-	People peopledirectory.Capability
-	// Groups names the groups of the inbox threads.
-	Groups schoolstructure.Query
-	// Membership resolves the live staff accounts behind the read cursors.
-	Membership schoolmembership.Capability
-	// Identity owns the accounts, their school memberships and role classes.
-	Identity *identityaccess.Module
-	// Enrollment owns the phases, applications and announcement applicants.
-	Enrollment *enrollmentCapability.Module
-	// Now is the announcement clock; nil keeps the store default.
-	Now func() time.Time
 }
 
 // ParentPortalRepositories are the retained guardian-portal repositories
