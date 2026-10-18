@@ -69,13 +69,12 @@ var RootCompositions displayTestCompositions
 func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database) displaySettings {
 	t.Helper()
 	service := NewSettingsTestService(testpkg.SettingsRuntime(t, database.Pool()))
-	testpkg.SetTenantRuntime(t, service, database.Pool())
 	return displaySettings{service: service}
 }
 
 func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetLegacy.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
 	t.Helper()
-	repos, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
+	repos, _, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
 	require.NoError(t, err)
 	approvedOfferings, err := NewApprovedOfferingTestProjection(database, repos.Enrollment())
 	require.NoError(t, err)
@@ -83,7 +82,7 @@ func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleet
 	require.NoError(t, err)
 	carePlan, err := NewCarePlan(database, MustNewPeopleDirectory(database), repos.InstanceStudent)
 	require.NoError(t, err)
-	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetLegacy.DashboardDependencies{ActiveGroups: repos.ActiveGroup, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
+	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetLegacy.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
 }
 
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue

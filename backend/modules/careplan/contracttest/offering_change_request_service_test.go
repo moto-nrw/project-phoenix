@@ -237,7 +237,7 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, ReviewedBy: env.creatorID, Approve: true,
 	}))
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	for _, link := range links {
 		assert.NotEqual(t, automatic.ID, link.CareOfferingID,
@@ -505,7 +505,7 @@ func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *te
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 	exclusiveEnd := fx.switchDate.AddDays(1)
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	require.NotEmpty(t, links)
 	for _, link := range links {
@@ -531,7 +531,7 @@ func TestOfferingChangeRequestService_Decide_RebookingObsoletesWithdrawalWithout
 	fx := setupOfferingChangeFixture(t, env, "RebookWithdrawal")
 	studentID := fx.studentID
 	actorID := env.creatorID
-	repo := env.repos.CareWithdrawal
+	repo := env.reposPeople.CareWithdrawal
 	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &careplan.WithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: fx.switchDate,
 		Trigger:               careplan.WithdrawalTriggerDirectSchool,
@@ -578,7 +578,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	// The period start moves behind the requested date while the request waits.
 	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(phaseStart)
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	require.NoError(t, env.repos.CarePlan().UpdateOfferingChangeEffectiveFrom(ctx, row.ID, string(enrollmentModels.OfferingChangeDate(fx.pastSwitchAt))))
 
 	pending, _, err := offeringReviewQueueForTest(t, env).ListPending(ctx, careplan.RequestQueueFilter{})
@@ -1453,7 +1453,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 	// The period start moves into the future while the request waits.
 	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(phaseStart)
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 
 	// Tomorrow is after today but still before the period begins.
 	confirmed := calendar.NewDate(2026, 8, 24).AddDays(1)

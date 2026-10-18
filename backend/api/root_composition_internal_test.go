@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -28,12 +29,18 @@ func setupGuardianModule(t *testing.T) (*bun.DB, GuardianTestModule) {
 	return db, module
 }
 
-func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, StudentTestModule) {
+// setupCareScheduleRouter composes the student graph and mounts the care
+// schedule routes over it.
+func setupCareScheduleRouter(t *testing.T, clocks ...func() time.Time) (*bun.DB, chi.Router) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	feedback, err := NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	module, err := NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	module, live, _, _, _, _, err := NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
 	require.NoError(t, err)
-	return db, module
+	liveSettings := NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveCaller := NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	resource, err := newCareScheduleTestRouter(testpkg.NewDatabase(t, db), module, live, liveSettings, liveCaller)
+	require.NoError(t, err)
+	return db, resource
 }

@@ -213,26 +213,26 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
-	cases := map[string]func(cfg *api.CalendarDependencies){
-		"the candidate scan": func(cfg *api.CalendarDependencies) {
+	cases := map[string]func(cfg *calendarCompose.Config){
+		"the candidate scan": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingCandidateScan{cfg.Appointments}
 		},
-		"loading the recurrence rules": func(cfg *api.CalendarDependencies) {
+		"loading the recurrence rules": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingRecurrenceList{cfg.Appointments}
 		},
-		"loading the moved occurrences": func(cfg *api.CalendarDependencies) {
+		"loading the moved occurrences": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingMovedOverrides{cfg.Appointments}
 		},
-		"re-locking the appointment": func(cfg *api.CalendarDependencies) {
+		"re-locking the appointment": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
-		"re-reading the recurrence rule": func(cfg *api.CalendarDependencies) {
+		"re-reading the recurrence rule": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = &failingRecurrenceReload{Capability: cfg.Appointments}
 		},
-		"re-reading the occurrence override": func(cfg *api.CalendarDependencies) {
+		"re-reading the occurrence override": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}
 		},
-		"resolving the recipients": func(cfg *api.CalendarDependencies) {
+		"resolving the recipients": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingRecipientLookup{cfg.Appointments}
 		},
 	}

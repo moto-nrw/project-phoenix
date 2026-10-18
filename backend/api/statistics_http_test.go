@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -39,7 +40,7 @@ func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *s
 	db, svc := setupStatisticsModule(t, statisticsClocks...)
 	return &statisticsHTTPTestContext{
 		db:               db,
-		resource:         statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(svc.ListExport), slog.Default()),
+		resource:         statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(lists.NewRendererService()), slog.Default()),
 		createClosingDay: svc.CreateClosingDay,
 	}
 }

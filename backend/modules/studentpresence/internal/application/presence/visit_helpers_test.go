@@ -457,7 +457,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
@@ -534,7 +534,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "parent-clear-test")
@@ -575,10 +575,9 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 // =============================================================================
 
 func setupVisitHelperService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.Service {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...)
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 func getAttendanceForStudent(t *testing.T, db *testpkg.DB, studentID int64, date calendar.Date) *studentpresence.Attendance {

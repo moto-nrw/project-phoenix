@@ -69,7 +69,7 @@ type Dependencies struct {
 
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
-	StudentPhotos       func() care.StudentPhotoUnlinker
+	StudentPhotos       care.StudentPhotoUnlinker
 	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
@@ -106,6 +106,12 @@ func New(deps Dependencies) *parentportal.Portal {
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
+// NewRequestShareVisibility builds the staff queues' request-share
+// visibility (#2267, story 47) over its two required readers.
+func NewRequestShareVisibility(shares messaging.RequestShareRecords, protection messaging.FamilyProtectionReads) (*messaging.ShareRecipients, error) {
+	return messaging.NewShareRecipients(shares, protection)
+}
+
 func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
 		CareExceptions: bound.careExceptions, DataRequests: deps.DataRequests,
@@ -129,7 +135,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
-		RequestSharing: requestSharing{messaging: messagingFlows},
+		RequestSharing: messagingFlows.ChildFlowSharing(),
 	}
 	if deps.MealPlan != nil {
 		cfg.MealPlan = mealPlan{provider: deps.MealPlan}

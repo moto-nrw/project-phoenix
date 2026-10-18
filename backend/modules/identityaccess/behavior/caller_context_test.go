@@ -29,7 +29,7 @@ func setupCallerRows(t *testing.T, db *bun.DB) *api.CallerRows {
 	t.Helper()
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return module.UserContext
+	return module
 }
 
 // callerCtx returns a context with JWT claims for accountID in this test's

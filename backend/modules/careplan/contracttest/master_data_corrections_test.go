@@ -32,7 +32,9 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = bc })
+	options, people := f.decisionInputs()
+	svc, err := api.NewTestMasterDataDecisions(options, people, nil, bc)
+	require.NoError(t, err)
 
 	approve := func(t *testing.T, row *careplan.StudentDataChangeRequest) {
 		t.Helper()
@@ -100,7 +102,7 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 	}
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*careplan.CompanionEdge{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.reposCare.CarePlan()), f.chain.StudentID, []*careplan.CompanionEdge{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {

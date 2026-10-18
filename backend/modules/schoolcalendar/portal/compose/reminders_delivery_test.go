@@ -153,12 +153,10 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")
 
-	renderer := api.CalendarEmailDependencies{
-		Runtime:   calendarCompose.NewTenantRuntime(db),
-		Guardians: calendarTestRepositories(t, db).StudentGuardian,
-	}
+	runtime := calendarCompose.NewTenantRuntime(db)
+	guardians := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
 	render := func() (bool, error) {
-		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), renderer, parentChain.TenantID, reminder.Kind, reminder.Payload)
+		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), runtime, guardians, parentChain.TenantID, reminder.Kind, reminder.Payload)
 	}
 
 	rendered, err := render()

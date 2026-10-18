@@ -68,7 +68,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -121,7 +121,7 @@ func TestArrivalBaselineHandlesStudentWithoutClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klasse", "3c")
@@ -146,7 +146,7 @@ func TestArrivalBaselineClassTimeAloneIsNoCareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -173,7 +173,7 @@ func TestArrivalBaselineCareDayWithoutAnyClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -195,7 +195,7 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 

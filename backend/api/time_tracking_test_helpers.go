@@ -6,18 +6,19 @@ import (
 	"context"
 	"log/slog"
 
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // timeTrackingTestGraph is what a test module supplies beyond the
-// work-session repositories to compose the Workforce time-tracking side the
-// way the service graph composes it (#3413).
+// work-session repositories and the tenant settings to compose the Workforce
+// time-tracking side the way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
 	Audits        timeTrackingAudits
-	Settings      settingsCompose.SettingsService
 	People        timeTrackingStaffLookup
 	Holidays      workforceCompose.HolidayDatesReader
 	Events        workforceCompose.EventPublisher
@@ -26,9 +27,9 @@ type timeTrackingTestGraph struct {
 	Today         func() timezone.Date
 }
 
-func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, graph timeTrackingTestGraph) (*workforceCompose.TimeTracking, error) {
-	payroll := settingsCompose.NewPayrollStatusService(graph.Settings, func(ctx context.Context) (int, int, error) {
-		staff, err := repos.Staff.List(ctx, nil)
+func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph) (*workforceCompose.TimeTracking, error) {
+	payroll := settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
+		staff, err := staffRows.List(ctx, nil)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -45,21 +46,37 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		return nil, err
 	}
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
-	return newTimeTracking(timeTrackingPortDependencies{
-		Workforce: repos.Workforce,
-		Bound: workforceCompose.TimeTrackingPorts{
-			Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
-			Staff:        WorkSessionStaff(repos.Staff, employment, membership),
-			Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
-			Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync,
-		},
-		Audits: graph.Audits,
-		Staff:  repos.Staff, People: graph.People, StaffEmployment: employment,
-		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel,
-		Settings: graph.Settings, Payroll: payroll,
-		DB: db, Logger: graph.Logger, Today: graph.Today,
-	})
+	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
+		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
+		Staff:        WorkSessionStaff(staffRows, employment, membership),
+		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
+		Events: graph.Events, Logger: graph.Logger, Today: graph.Today,
+	}, graph.Audits, staffRows, graph.People, employment, NewStaffWorkScheduleRepository(repos.Workforce), NewWorkTimeModelRepository(repos.Workforce),
+		settings, payroll, db,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return side.WithSickCascade(graph.ShiftPlanSync)
 }
+
+// noSickCascade is the sick cascade of a test graph that composes no shift
+// plans: a sick report leaves the plans untouched.
+type noSickCascade struct{}
+
+func (noSickCascade) MarkSickForRange(context.Context, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ClearSickForRange(context.Context, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ReconcileSickRange(context.Context, workforceModule.SickCascadeInput, workforceModule.SickCascadeInput) error {
+	return nil
+}
+
+func (noSickCascade) ReassignSickStamps(context.Context, int64, int64) error { return nil }
 
 // noHolidays is the calendar of a test graph that composes no School
 // Calendar: no day loses its Soll.
@@ -81,4 +98,20 @@ type PayrollSettings interface {
 // Settings Platform's services.
 func NewPayrollExportSettings(settings PayrollSettings, countPersonnel func(context.Context) (int, int, error)) PayrollExportSettings {
 	return PayrollExportSettings{Source: settingsCompose.NewPayrollStatusService(settings, countPersonnel)}
+}
+
+// newTimeTracking composes the Workforce time-tracking side (#3413) over the
+// root's port bindings; the caller completes it with the sick cascade. bound
+// are the ports the caller binds: the staff absences and their audit, the
+// work-session staff, the supervisions and session records, the holidays,
+// the events, the absence mail, the logger and the clock. timeTrackingPorts sets every
+// other port over the remaining arguments and leaves these alone.
+func newTimeTracking(
+	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits timeTrackingAudits,
+	staff timeTrackingStaffRecords, people timeTrackingStaffLookup, employment workforceCompose.StaffEmploymentQuery,
+	schedules timeTrackingWorkSchedules, timeModels timeTrackingWorkTimeModels,
+	settings timeTrackingSettings, payroll settingsCompose.PayrollStatusGetter, db transactionruntime.Database,
+) (*workforceCompose.WorkSessionSide, error) {
+	ports := timeTrackingPorts(workforce, bound, audits, staff, employment, schedules, timeModels, settings, payroll, db)
+	return workforceCompose.NewWorkSessionSide(workforce, ports, staffScheduleBindings(people))
 }

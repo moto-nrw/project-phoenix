@@ -215,14 +215,6 @@ type router struct {
 // are stable catalogue labels and must never contain recipient data.
 type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
 
-func (r *router) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	for _, channel := range r.channels {
-		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
-			setter.SetTenantRuntime(runtime)
-		}
-	}
-}
-
 // TypeTest is the notification an admin can fire to verify the setup. It is
 // the one type exempt from the delivery window.
 const TypeTest = "test"

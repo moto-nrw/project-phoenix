@@ -35,7 +35,7 @@ func createClassSourcedTemplate(
 ) *timetable.CreateTemplateResult {
 	t.Helper()
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%s-%d", label, time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -133,7 +133,7 @@ type offeringScopedResync interface {
 
 func offeringSourceResyncer(t *testing.T, s *scenarioSetup) offeringSourceResync {
 	t.Helper()
-	resyncer, ok := s.factory.EnrollmentCareOffering.(offeringSourceResync)
+	resyncer, ok := s.careOffering.(offeringSourceResync)
 	require.True(t, ok, "Care Plan's booking materialization must implement the offering-source resyncer")
 	return resyncer
 }
@@ -145,7 +145,7 @@ func offeringScopedResyncer(
 	s *scenarioSetup,
 ) offeringScopedResync {
 	t.Helper()
-	resyncer, ok := s.factory.EnrollmentCareOffering.(offeringScopedResync)
+	resyncer, ok := s.careOffering.(offeringScopedResync)
 	require.True(t, ok, "Care Plan's booking materialization must implement the per-offering resyncer")
 	return resyncer
 }
@@ -274,7 +274,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
 
-	mat, err := s.factory.Materialization.MaterializeForTenant(
+	mat, err := s.materialization.MaterializeForTenant(
 		s.ctx, monday, monday, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 
 	rosterFrom := monday.AddDays(-30)
 	name := fmt.Sprintf("Randstunde-Jahrgang-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -324,7 +324,7 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{s.students[0], s.students[1]}, sourcedStudentIDs(t, s, result.TemplateID))
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
@@ -361,7 +361,7 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 
-	_, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	_, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-Konflikt-%d", time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -474,7 +474,7 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 	setLinkSelectedDays(t, s, s.students[0], []string{"mon", "fri"})
 	setLinkSelectedDays(t, s, s.students[1], []string{"mon"})
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-MoFr-%d", time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
@@ -492,7 +492,7 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mat, err := s.factory.Materialization.MaterializeForTenant(
+	mat, err := s.materialization.MaterializeForTenant(
 		s.ctx, monday, friday, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -546,7 +546,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-Angebotswechsel-%d", time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},

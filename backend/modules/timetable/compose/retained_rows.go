@@ -82,12 +82,6 @@ func NewCarePickupExceptionRows(rows ports.CarePlanRows) ports.CarePickupExcepti
 	return application.NewCarePickupExceptionRows(rows)
 }
 
-// NewCareScheduleRequestRows serves the care schedule change requests from
-// Care Plan.
-func NewCareScheduleRequestRows(rows ports.CarePlanRows) ports.CareScheduleRequestRows {
-	return application.NewCareScheduleRequestRows(rows)
-}
-
 // NewCategoryCount counts the activity categories.
 func NewCategoryCount(records application.CategoryCountRecords) *application.CategoryCount {
 	return application.NewCategoryCount(records)

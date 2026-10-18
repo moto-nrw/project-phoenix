@@ -8,6 +8,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -20,115 +21,148 @@ import (
 // the Audit Platform trails, the Settings Platform, Care Plan's booking
 // materialization and the realtime hub.
 
-// NewEnrollmentDecisions composes Enrollment's decision flow over the sources.
-func NewEnrollmentDecisions(src EnrollmentDecisionSources) *enrollmentCompose.Decisions {
-	parentsURL := strings.TrimRight(strings.TrimSpace(src.ParentsURL), "/")
-	if parentsURL == "" {
-		parentsURL = strings.TrimRight(strings.TrimSpace(src.FrontendURL), "/")
-	}
-	deps := enrollmentCompose.DecisionDependencies{
-		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians,
-		LateInvites: src.LateInvites, Phases: src.Phases, Schemas: src.Schemas, Offerings: src.CareOfferings,
-		Notifications: src.Notifications, Bookings: src.CareBookings, GuardianAccess: src.GuardianAccess,
-		StudentEnrollment: src.StudentEnrollment, People: enrollmentPeopleDirectory(src),
-		PickupSchedules: src.PickupSchedules, ArrivalSchedules: src.ArrivalSchedules,
-		CareWithdrawal: src.CareWithdrawal, LockTemplateRecurrence: src.LockTemplateRecurrence,
-		Pickups: src.Pickups, ParentsURL: parentsURL, Logger: src.Logger, Today: src.Today,
-		AccessLog: decisionAccessLog(src), Adjustments: decisionAdjustmentTrail(src),
-		Restorations: decisionRestorationAudit(src), Payers: decisionPayerAudit(src),
-		StudentAudit: decisionStudentAudit(src), StudentConsents: decisionStudentConsents(src),
-	}
-	if src.Companions != nil && src.DeleteCompanions != nil {
-		deps.Companions = enrollmentDepartureCompanions{edges: src.Companions, delete: src.DeleteCompanions}
-	}
-	// The Enrollment owner behind Requests also keeps the per-account read
-	// state of the queue (#3778).
-	if reads, ok := src.Requests.(enrollmentOwner.RequestReads); ok {
+// NewEnrollmentDecisions composes Enrollment's decision flow over deps. The
+// caller binds the Enrollment owner's ports and Care Plan's, Timetable's and
+// Identity & Access's values into deps directly and the People Directory
+// rows, the Audit Platform trails, the realtime hub and the settings through
+// the EnrollmentDecision* adapters below; an absent adapter source leaves its
+// port unbound, the way the decision flow always treated an unwired
+// repository. The People Directory's rules and refusals are bound here, and
+// the Enrollment owner behind deps.Requests also keeps the per-account read
+// state of the queue (#3778).
+func NewEnrollmentDecisions(deps enrollmentCompose.DecisionDependencies) *enrollmentCompose.Decisions {
+	deps.People.Rules = enrollmentPeopleRules{}
+	deps.People.ErrGuardianLinkNotFound = peopleValues.ErrStudentGuardianNotFound
+	deps.People.ErrCompanionWouldLoseDeparture = peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture)
+	deps.People.ErrCompanionLockBusy = peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionLockBusy)
+	deps.People.IsLockNotAvailable = isPostgresLockNotAvailable
+	if reads, ok := deps.Requests.(enrollmentOwner.RequestReads); ok {
 		deps.Reads = reads
-	}
-	if src.Broadcaster != nil {
-		deps.Broadcasts = enrollmentPlanBroadcasts{hub: src.Broadcaster}
-	}
-	if src.Settings != nil {
-		deps.Settings = enrollmentDecisionSettings{settings: src.Settings}
 	}
 	return enrollmentCompose.NewDecisions(deps)
 }
 
-// enrollmentPeopleDirectory binds the People Directory ports the sources
-// carry.
-func enrollmentPeopleDirectory(src EnrollmentDecisionSources) enrollmentCompose.PeopleDirectory {
-	people := enrollmentCompose.PeopleDirectory{
-		Rules:                          enrollmentPeopleRules{},
-		ErrGuardianLinkNotFound:        peopleValues.ErrStudentGuardianNotFound,
-		ErrCompanionWouldLoseDeparture: peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture),
-		ErrCompanionLockBusy:           peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionLockBusy),
-		IsLockNotAvailable:             isPostgresLockNotAvailable,
+// EnrollmentDecisionParentsURL is the base of the status links in the parent
+// mails: parentsURL, falling back to frontendURL when empty.
+func EnrollmentDecisionParentsURL(parentsURL, frontendURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(parentsURL), "/")
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(frontendURL), "/")
 	}
-	if src.Persons != nil {
-		people.Persons = enrollmentPersons{repo: src.Persons, people: src.StudentEnrollment}
-	}
-	if src.Staff != nil {
-		people.Staff = enrollmentReviewerStaff{repo: src.Staff}
-	}
-	if src.Students != nil {
-		people.Students = enrollmentStudentRecords{repo: src.Students}
-	}
-	if src.GuardianProfiles != nil {
-		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfiles, accounts: src.StudentEnrollment}
-	}
-	if src.StudentGuardians != nil {
-		people.StudentGuardians = enrollmentStudentGuardians{repo: src.StudentGuardians, people: src.StudentEnrollment}
-	}
-	if src.GuardianPhones != nil {
-		people.GuardianPhones = enrollmentGuardianPhones{repo: src.GuardianPhones}
-	}
-	return people
+	return base
 }
 
-// The Audit Platform trails the sources carry; an absent source leaves the
-// port unbound.
-
-func decisionAccessLog(src EnrollmentDecisionSources) enrollmentCompose.ExportAccessLog {
-	if src.DataAccessLog == nil {
-		return nil
+// EnrollmentDecisionPeopleDirectory binds the decision flow's People
+// Directory ports to the retained person, staff, student, guardian link,
+// guardian profile and phone rows; people resolves the accounts and links
+// behind them. A nil row source leaves its port unbound.
+func EnrollmentDecisionPeopleDirectory(
+	persons enrollmentPersonRows, staff enrollmentStaffRows, students enrollmentStudentRows,
+	studentGuardians enrollmentStudentGuardianRows, guardianProfiles enrollmentGuardianProfileRows,
+	guardianPhones enrollmentGuardianPhoneRows, people EnrollmentDecisionPeople,
+) enrollmentCompose.PeopleDirectory {
+	var directory enrollmentCompose.PeopleDirectory
+	if persons != nil {
+		directory.Persons = enrollmentPersons{repo: persons, people: people}
 	}
-	return enrollmentExportAccessLog{repo: src.DataAccessLog}
+	if staff != nil {
+		directory.Staff = enrollmentReviewerStaff{repo: staff}
+	}
+	if students != nil {
+		directory.Students = enrollmentStudentRecords{repo: students}
+	}
+	if guardianProfiles != nil {
+		directory.GuardianProfiles = enrollmentGuardianProfiles{repo: guardianProfiles, accounts: people}
+	}
+	if studentGuardians != nil {
+		directory.StudentGuardians = enrollmentStudentGuardians{repo: studentGuardians, people: people}
+	}
+	if guardianPhones != nil {
+		directory.GuardianPhones = enrollmentGuardianPhones{repo: guardianPhones}
+	}
+	return directory
 }
 
-func decisionAdjustmentTrail(src EnrollmentDecisionSources) enrollmentCompose.OfferingAdjustmentTrail {
-	if src.OfferingAdjustments == nil {
+// EnrollmentDecisionCompanions binds Care Plan's "läuft mit" edges and their
+// deletion; without either the port stays unbound.
+func EnrollmentDecisionCompanions(edges EnrollmentDepartureCompanions, deleteEdges func(context.Context, []int64) error) enrollmentCompose.DepartureCompanions {
+	if edges == nil || deleteEdges == nil {
 		return nil
 	}
-	return enrollmentOfferingAdjustmentTrail{repo: src.OfferingAdjustments}
+	return enrollmentDepartureCompanions{edges: edges, delete: deleteEdges}
 }
 
-func decisionRestorationAudit(src EnrollmentDecisionSources) enrollmentCompose.RestorationAudit {
-	if src.Restorations == nil {
+// EnrollmentDecisionBroadcasts announces student_updated and
+// student_companions_changed on the realtime hub after an approved
+// enrollment sync trimmed a child's "läuft mit" links; nil without a hub.
+func EnrollmentDecisionBroadcasts(hub realtime.Broadcaster) enrollmentCompose.StudentPlanBroadcasts {
+	if hub == nil {
 		return nil
 	}
-	return enrollmentRestorationAudit{repo: src.Restorations}
+	return enrollmentPlanBroadcasts{hub: hub}
 }
 
-func decisionPayerAudit(src EnrollmentDecisionSources) enrollmentCompose.PayerAudit {
-	if src.GuardianFinancialAudit == nil {
+// EnrollmentDecisionSettingValues resolves the decision flow's tenant
+// settings; nil without settings.
+func EnrollmentDecisionSettingValues(settings EnrollmentDecisionSettings) enrollmentCompose.DecisionSettings {
+	if settings == nil {
 		return nil
 	}
-	return enrollmentPayerAudit{ledger: src.GuardianFinancialAudit}
+	return enrollmentDecisionSettings{settings: settings}
 }
 
-func decisionStudentAudit(src EnrollmentDecisionSources) enrollmentCompose.StudentAudit {
-	if src.StudentAudit == nil {
+// The Audit Platform trails of the decision flow; an absent source leaves
+// the port unbound.
+
+// EnrollmentDecisionAccessLog records the exports of the decision flow.
+func EnrollmentDecisionAccessLog(repo enrollmentAccessLogAppender) enrollmentCompose.ExportAccessLog {
+	if repo == nil {
 		return nil
 	}
-	return enrollmentStudentAudit{auditor: src.StudentAudit}
+	return enrollmentExportAccessLog{repo: repo}
 }
 
-func decisionStudentConsents(src EnrollmentDecisionSources) enrollmentCompose.StudentConsents {
-	if src.StudentConsents == nil {
+// EnrollmentDecisionAdjustments lists a child's audited offering adjustments.
+func EnrollmentDecisionAdjustments(repo enrollmentAdjustmentRows) enrollmentCompose.OfferingAdjustmentTrail {
+	if repo == nil {
 		return nil
 	}
-	return enrollmentStudentConsents{auditor: src.StudentConsents}
+	return enrollmentOfferingAdjustmentTrail{repo: repo}
+}
+
+// EnrollmentDecisionRestorations appends the trail of an admin restore.
+func EnrollmentDecisionRestorations(repo enrollmentRestorationAppender) enrollmentCompose.RestorationAudit {
+	if repo == nil {
+		return nil
+	}
+	return enrollmentRestorationAudit{repo: repo}
+}
+
+// EnrollmentDecisionPayers appends payer changes to the guardian financial
+// change ledger.
+func EnrollmentDecisionPayers(ledger auditModels.GuardianFinancialChangeCreator) enrollmentCompose.PayerAudit {
+	if ledger == nil {
+		return nil
+	}
+	return enrollmentPayerAudit{ledger: ledger}
+}
+
+// EnrollmentDecisionStudentAudit records the tracked profile changes of an
+// approval.
+func EnrollmentDecisionStudentAudit(auditor EnrollmentStudentAuditor) enrollmentCompose.StudentAudit {
+	if auditor == nil {
+		return nil
+	}
+	return enrollmentStudentAudit{auditor: auditor}
+}
+
+// EnrollmentDecisionStudentConsents records the consent transitions of an
+// approval.
+func EnrollmentDecisionStudentConsents(auditor EnrollmentConsentAuditor) enrollmentCompose.StudentConsents {
+	if auditor == nil {
+		return nil
+	}
+	return enrollmentStudentConsents{auditor: auditor}
 }
 
 // enrollmentDecisionSettings resolves the decision flow's tenant settings.
@@ -233,4 +267,31 @@ func (b enrollmentPlanBroadcasts) BroadcastStudentUpdated(tenantID int64, source
 
 func (b enrollmentPlanBroadcasts) BroadcastStudentCompanionsChanged(tenantID int64, source string) error {
 	return b.hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source}))
+}
+
+// EnrollmentDecisionSettings resolves the tenant settings of the decision
+// flow.
+type EnrollmentDecisionSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+// EnrollmentStudentAuditor records tracked profile changes made while
+// approving or synchronizing enrollment data for an existing student.
+type EnrollmentStudentAuditor interface {
+	RecordChangesForActor(ctx context.Context, before, after *peopleValues.StudentState, editedBy int64) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
+}
+
+// EnrollmentConsentAuditor records effective consent transitions made while an
+// enrollment submission is applied to a student.
+type EnrollmentConsentAuditor interface {
+	RecordTransitions(ctx context.Context, before, after *peopleValues.StudentState, source string, actorAccountID *int64, changedAt time.Time) error
+}
+
+// EnrollmentDepartureCompanions reads Care Plan's "läuft mit" edges of a
+// student.
+type EnrollmentDepartureCompanions interface {
+	ListForStudent(context.Context, int64) ([]*careplan.CompanionEdge, error)
+	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
 }

@@ -14,7 +14,6 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // Identity & Access owns the admin staff-view preview, staff offboarding
@@ -26,19 +25,6 @@ import (
 // guardian role class comes from Security Runtime. The reads, the audit
 // ledger and the guardian invitation storage and delivery are still bound to
 // the retained repositories the root composes.
-
-// LifecycleWiring is the retained material the lifecycle seams are bound to.
-// The module composition fills repos from the session repositories.
-type LifecycleWiring struct {
-	repos    LifecycleRepositories
-	Settings settingsCompose.SettingsService
-	Audit    auditModels.Command
-	// Caregivers is the Lehrkraft guard the role administration reads.
-	Caregivers CaregiverProfiles
-	// GuardianMail carries the invitation delivery and the enrollment claim
-	// the guardian invitation flows leave to the root.
-	GuardianMail *GuardianInvitationWiring
-}
 
 // lifecyclePeople are the People Directory commands the lifecycle writes
 // persons, invited guardian contacts and guardian relationships through.
@@ -77,32 +63,30 @@ type LifecycleRepositories struct {
 	Membership lifecycleMembership
 }
 
-func (w LifecycleWiring) complete() bool {
-	r := w.repos
+func (r LifecycleRepositories) complete() bool {
 	return r.Persons != nil && r.Staff != nil && r.Teachers != nil && r.Students != nil &&
-		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.authEvents != nil && r.People != nil && r.Membership != nil &&
-		w.Audit != nil && w.Caregivers.complete()
+		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.authEvents != nil && r.People != nil && r.Membership != nil
 }
 
-func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
-	if wiring == nil {
-		return nil, nil
-	}
-	if !wiring.complete() {
+// lifecycleDependencies binds the lifecycle seams to the identity chain in
+// repos (the session repositories' Lifecycle, which carries the auth event
+// ledger), the audit command, the Lehrkraft guard the role administration
+// reads, and the guardian invitation delivery and enrollment claim.
+func lifecycleDependencies(repos LifecycleRepositories, audit auditModels.Command, caregivers CaregiverProfiles, delivery identityPorts.GuardianInvitationDelivery, enrollments identityPorts.GuardianEnrollments, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
+	if !repos.complete() || audit == nil || !caregivers.complete() {
 		return nil, errors.New("identity access composition: every lifecycle repository and owner command, the audit command and the caregiver profiles are required")
 	}
-	delivery, enrollments, err := guardianInvitationDependencies(wiring.GuardianMail)
-	if err != nil {
-		return nil, err
+	if delivery == nil {
+		return nil, errors.New("identity access composition: the lifecycle needs the guardian invitation delivery")
 	}
 	return &identityaccessCompose.LifecycleDependencies{
-		Staff:       staffDirectory{repos: wiring.repos, caregivers: wiring.Caregivers},
-		Audit:       previewAudit{events: wiring.repos.authEvents},
+		Staff:       staffDirectory{repos: repos, caregivers: caregivers},
+		Audit:       previewAudit{events: repos.authEvents},
 		Passwords:   passwordPolicy{},
-		Guardians:   guardianDirectory{repos: wiring.repos},
+		Guardians:   guardianDirectory{repos: repos},
 		Delivery:    delivery,
 		Enrollments: enrollments,
-		Financial:   financialAudit{command: wiring.Audit},
+		Financial:   financialAudit{command: audit},
 		Logger:      logger,
 	}, nil
 }
@@ -111,7 +95,7 @@ func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*ident
 
 type staffDirectory struct {
 	repos      LifecycleRepositories
-	caregivers CaregiverProfiles
+	caregivers liveCaregiverProfile
 }
 
 func personRecord(person *peopledirectory.DirectoryPersonSnapshot) identityPorts.PersonRecord {

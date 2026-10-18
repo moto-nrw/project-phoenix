@@ -16,9 +16,12 @@ import (
 // retained contract's UpsertPending served the suites with; production
 // creates the task inside Care Plan's withdrawal flow (#4082).
 func SeedPendingCareWithdrawal(
-	ctx context.Context, repo CareWithdrawalRecords, completion *careplan.WithdrawalCompletion,
+	ctx context.Context, repo CareWithdrawalTestRows, completion *careplan.WithdrawalCompletion,
 ) error {
-	adapter := repo
+	adapter, ok := repo.(CareWithdrawalRecords)
+	if !ok {
+		return errors.New("care withdrawal completions are not served by the Care Plan owner")
+	}
 	if completion.StudentID == nil || *completion.StudentID <= 0 {
 		return errors.New("care withdrawal completion requires a student")
 	}

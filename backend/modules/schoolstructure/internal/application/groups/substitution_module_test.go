@@ -49,11 +49,12 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	// Supervisor names come from the People Directory composition (#2661),
 	// so the module is built on the composed repositories the graph uses.
 	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 	now := fixedNow
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Now:                     func() time.Time { return now },
 	})
@@ -134,7 +135,8 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Werken")
 	room := testpkg.CreateTestRoom(t, db, "Werkraum")
@@ -151,7 +153,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 
 	newModule := func(broad bool) SubstitutionModule {
 		return api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-			ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+			ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 			ActiveSupervisorCreator: activeService,
 
 			CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return broad, nil },
@@ -217,9 +219,10 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   failingAudit{},
 	})
@@ -232,7 +235,7 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 
 	_, err := module.Assign(testpkg.Ctx(t), substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
 	require.Error(t, err)
-	rows, listErr := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), running.ID, true)
+	rows, listErr := reposPresence.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), running.ID, true)
 	require.NoError(t, listErr)
 	require.Len(t, rows, 1)
 	require.Equal(t, owner.StaffID, rows[0].StaffID)
@@ -242,9 +245,10 @@ func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
-		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
+		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Future end activity")
 	room := testpkg.CreateTestRoom(t, db, "Future end room")
@@ -271,10 +275,11 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Broadcaster:             api.NewGroupEvents(broadcaster, nil),
 	})
@@ -299,7 +304,8 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
 	room := testpkg.CreateTestRoom(t, db, "Race room")
@@ -308,10 +314,10 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	target, _ := activeTeacher(t, db, "Theo", "Target")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 	entered := make(chan struct{})
-	groups := &testpkg.SignalingGroupRepository{SessionRecords: repos.ActiveGroup, Entered: entered}
+	groups := &testpkg.SignalingGroupRepository{SessionRecords: reposPresence.ActiveGroup, Entered: entered}
 
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: groups, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveGroups: groups, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 	})
 
@@ -652,12 +658,13 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")
 	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
 	groups := &ownershipRevokingGroups{
-		GroupStore: repos.Group, links: repos.GroupTeacher, teacherID: owner.ID,
+		GroupStore: reposStructure.Group, links: reposStructure.GroupTeacher, teacherID: owner.ID,
 	}
 	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Groups: groups, Now: func() time.Time { return fixedNow },
@@ -673,7 +680,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	rows, err := repos.GroupSubstitution.FindByGroup(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Empty(t, rows)
-	relations, err := repos.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
+	relations, err := reposStructure.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Len(t, relations, 1, "the simulated concurrent removal must roll back with the rejected assignment")
 }

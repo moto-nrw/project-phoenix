@@ -41,7 +41,6 @@ type operatorLinkWiring struct {
 
 func operatorProvisioningDependencies(
 	wiring *operatorLinkWiring,
-	tokens func() identityaccess.OperatorTokens,
 	logger *slog.Logger,
 ) *identityaccessCompose.OperatorProvisioningDependencies {
 	if wiring == nil {
@@ -51,14 +50,14 @@ func operatorProvisioningDependencies(
 		logger = slog.Default()
 	}
 	backoff := wiring.backoff
-	delivery := operatorLinkDelivery{
-		dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
-		frontendURL: wiring.frontendURL, operatorURL: wiring.operatorFrontendURL,
-		backoff: backoff, tokens: tokens, logger: logger,
-	}
 	return &identityaccessCompose.OperatorProvisioningDependencies{
-		Invites:           delivery,
-		Changes:           delivery,
+		DeliveryFor: func(tokens identityaccess.OperatorLinkDeliveryRecorder) identityaccessCompose.OperatorLinkDelivery {
+			return operatorLinkDelivery{
+				dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
+				frontendURL: wiring.frontendURL, operatorURL: wiring.operatorFrontendURL,
+				backoff: backoff, tokens: tokens, logger: logger,
+			}
+		},
 		Format:            operatorEmailFormat{},
 		InvitationExpiry:  wiring.invitationExpiry,
 		EmailChangeExpiry: wiring.emailChangeExpiry,
@@ -73,6 +72,13 @@ func (operatorEmailFormat) IsRoutable(address string) bool {
 	return peopledirectory.IsValidEmailFormat(address)
 }
 
+// operatorLinkRecords records the outcome of the operator mails that carry a
+// link in Identity & Access.
+type operatorLinkRecords interface {
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // operatorLinkDelivery mails the operator invitation and the three e-mail
 // change messages, and records the outcome of the two that carry a link
 // back through the module once the send settles.
@@ -82,7 +88,7 @@ type operatorLinkDelivery struct {
 	frontendURL string
 	operatorURL string
 	backoff     []time.Duration
-	tokens      func() identityaccess.OperatorTokens
+	tokens      operatorLinkRecords
 	logger      *slog.Logger
 }
 
@@ -156,7 +162,7 @@ func (d operatorLinkDelivery) dispatch(
 
 func (d operatorLinkDelivery) recordInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := operatorTokenDelivery(baseRetry, result)
-	if err := d.tokens().RecordOperatorInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.tokens.RecordOperatorInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update invitation delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),
@@ -168,7 +174,7 @@ func (d operatorLinkDelivery) recordInvitationDelivery(ctx context.Context, meta
 
 func (d operatorLinkDelivery) recordEmailChangeDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := operatorTokenDelivery(baseRetry, result)
-	if err := d.tokens().RecordOperatorEmailChangeDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.tokens.RecordOperatorEmailChangeDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update email change delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

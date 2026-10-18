@@ -39,19 +39,18 @@ var moduleComposeAliasBudgets = map[string]int{
 	"modules/auditlog/compose":              8,
 	"modules/communication/composition":     4,
 	"modules/dataimport/compose/retained":   16,
-	"modules/delivery/compose":              2,
 	"modules/delivery/compose/email":        23,
 	"modules/delivery/compose/realtime":     17,
 	"modules/requestreview/compose":         6,
 	"modules/schoolstructure/compose":       2,
-	"modules/settings/compose":              29,
+	"modules/settings/compose":              27,
 	"modules/timetable/compose/httpadapter": 1,
 	"observability/compose":                 1,
 	"workflows/staffclock/compose":          19,
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 128
+const moduleComposeAliasBudgetTotal = 124
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

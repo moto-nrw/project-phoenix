@@ -12,6 +12,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
+// StudentDataRequestTestRows are the student data change requests the
+// suites stage and read back over the Care Plan owner.
+type StudentDataRequestTestRows interface {
+	Create(ctx context.Context, row *careplan.StudentDataChangeRequest) error
+	FindByID(ctx context.Context, raw any) (*careplan.StudentDataChangeRequest, error)
+	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*careplan.StudentDataChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters careplan.RequestQueueFilter) ([]*careplan.StudentDataChangeRequest, error)
+	HasPendingForField(ctx context.Context, studentID int64, target, field string) (bool, error)
+	FindPendingByIDForUpdate(ctx context.Context, id int64) (*careplan.StudentDataChangeRequest, error)
+	Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy int64, applied bool) error
+}
+
 // The retained data-request adapter is used only by legacy repository fixtures.
 // Production composes the native workflow DTOs and owner ports instead.
 type studentDataRequestRepository struct{ capability careplan.Capability }

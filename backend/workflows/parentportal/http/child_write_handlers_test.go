@@ -74,7 +74,8 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService.SettingsService) http.Handler {
 	t.Helper()
-	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -89,7 +90,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(members.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CareExceptions),
 		Settings:        settings,
 		ExcusedRequests: api.NewParentExcusedAbsenceRequests(repos.ExcusedRequests),
@@ -234,7 +235,8 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -248,7 +250,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(members.Student),
 		Settings:        disabledSettings{},
 		Logger:          slog.Default(),
 

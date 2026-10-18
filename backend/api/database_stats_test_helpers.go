@@ -17,6 +17,11 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 	if err != nil {
 		return nil, err
 	}
+	members := MustNewMembershipTestRepositories(db)
+	rooms, err := NewTimetableRoomRows(db)
+	if err != nil {
+		return nil, err
+	}
 	auth, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, err
@@ -27,16 +32,22 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 	}
 	databaseService := databasestats.NewDatabaseStats(databasestats.DatabaseStatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
-			rows, err := repos.Student.List(ctx, nil)
+			rows, err := members.Student.List(ctx, nil)
 			return len(rows), err
 		},
-		Teachers: func(ctx context.Context) (int, error) { rows, err := repos.Staff.List(ctx, nil); return len(rows), err },
-		Rooms:    func(ctx context.Context) (int, error) { rows, err := repos.Room.List(ctx, nil); return len(rows), err },
+		Teachers: func(ctx context.Context) (int, error) {
+			rows, err := members.Staff.List(ctx, nil)
+			return len(rows), err
+		},
+		Rooms: func(ctx context.Context) (int, error) { rows, err := rooms.Room.List(ctx, nil); return len(rows), err },
 		Activities: func(ctx context.Context) (int, error) {
 			rows, err := repos.ActivityGroup.List(ctx, nil)
 			return len(rows), err
 		},
-		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
+		Groups: func(ctx context.Context) (int, error) {
+			rows, err := NewSchoolStructureSuiteRepositories(db).Group.List(ctx, nil)
+			return len(rows), err
+		},
 		Roles: func(ctx context.Context) (int, error) {
 			rows, err := auth.ListRoles(ctx, identityaccess.RoleFilter{})
 			return len(rows), err

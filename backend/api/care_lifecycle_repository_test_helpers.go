@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
@@ -14,7 +15,6 @@ import (
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
@@ -23,20 +23,44 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// CareLifecycleTestRepositories is the repository graph the care-lifecycle
+// CareWithdrawalTestRows are the care-withdrawal completions the suites read
+// back and resolve over the Care Plan owner (NewCareWithdrawalCompletionRepository).
+type CareWithdrawalTestRows interface {
+	FindByID(ctx context.Context, id int64) (*careplan.WithdrawalCompletion, error)
+	ListPending(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
+	ListResolved(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
+	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
+	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn owner0.Date, at time.Time) (bool, error)
+	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
+	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
+	ListParticipationBoundaries(
+		ctx context.Context, students map[int64]*peopleValues.StudentState, includeBookingBoundaries bool,
+	) (map[int64]owner0.Date, error)
+}
+
+// CareLifecycleTestRepositories are the Care Plan rows the care-lifecycle
 // suites run on, with the lifecycle's owners bound the way the production
-// graph binds them. StudentFieldEdit is filled by the composition that owns
-// Audit persistence (NewCareLifecycleTestRepositories).
+// graph binds them.
 type CareLifecycleTestRepositories struct {
-	TimetableTestRepositories
-	CareWithdrawal   CareWithdrawalRecords
-	StudentFieldEdit auditModels.StudentFieldEditRepository
-	db               transactionruntime.Database
-	sources          CareLifecycleOwnerSources
+	carePlan careplan.Capability
+	// lifecycle are the lifecycle's dependencies over the Care Plan rows and
+	// its owners, bound without the change trail, which each suite supplies
+	// through its audit (NewCareLifecycle).
+	lifecycle carePlanCompose.CareLifecycleDependencies
+}
+
+// CareWithdrawal is the People Directory's withdrawal completion port over
+// the Care Plan rows.
+func (r CareLifecycleTestRepositories) CareWithdrawal() CareWithdrawalRecords {
+	return NewCareWithdrawalCompletionRepository(r.carePlan)
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		return CareLifecycleTestRepositories{}, err
+	}
+	carePlan, err := NewTimetableCarePlanRows(db, tt, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
@@ -49,16 +73,17 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	care := tt.CarePlan
 	return CareLifecycleTestRepositories{
-		TimetableTestRepositories: tt,
-		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
-		db:                        db,
-		sources: CareLifecycleOwnerSources{
-			Students: tt.Student, Persons: tt.Person, Membership: membership,
-			People: people, Timetable: tt.Timetable, Calendar: calendar,
-			Presence: NewUnloggedStudentPresence(db), PlanReads: newPresenceProjectionReads(db),
-			Enrollment: tt.Enrollment(),
+		carePlan: carePlan.CarePlan,
+		lifecycle: carePlanCompose.CareLifecycleDependencies{
+			StudentDirectory: studentDirectoryView.NewReader(),
+			DB:               db.Pool(), Records: carePlan.CarePlan,
+			Owners: NewCareLifecycleOwners(
+				members.Student, members.Person, membership, people, tt.Timetable, calendar,
+				NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
+			),
+			Fingerprint: securityruntime.Fingerprint,
+			Logger:      slog.Default(),
 		},
 	}, nil
 }
@@ -81,16 +106,12 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	if lock == nil {
 		lock = func(context.Context) error { return nil }
 	}
-	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
-		DB:               r.db.Pool(), Records: r.CarePlan,
-		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
-		LockCareBookingWrites: lock,
-		BookingsAuthoritative: config.BookingsAuthoritative,
-		Fingerprint:           securityruntime.Fingerprint,
-		Logger:                slog.Default(),
-		Today:                 config.Today,
-	})
+	deps := r.lifecycle
+	deps.Owners.ChangeTrail = NewCareEndRecorder(config.Audit)
+	deps.LockCareBookingWrites = lock
+	deps.BookingsAuthoritative = config.BookingsAuthoritative
+	deps.Today = config.Today
+	return carePlanCompose.NewCareLifecycle(deps)
 }
 
 // MustNewStudentCompanions composes the companion capability over a test

@@ -314,7 +314,22 @@ type Capability interface {
 	Command
 }
 
-type engine interface {
+// Days is the School Calendar without the period administration: the
+// Capability and the tenant non-working-day reads. *Records serves it before
+// the owners the period administration asks exist; *Module serves it too.
+type Days interface {
+	Capability
+	NonWorkingDayQuery
+}
+
+type administrationEngine interface {
+	AddCalendarPeriod(context.Context, CreateCalendarPeriod) (CalendarPeriod, error)
+	ChangeCalendarPeriod(context.Context, UpdateCalendarPeriod) (CalendarPeriod, error)
+	RemoveCalendarPeriod(context.Context, int64) error
+	EnsureDefaultSchoolYear(context.Context) ([]CalendarPeriod, bool, error)
+}
+
+type recordsEngine interface {
 	FindCalendarPeriod(context.Context, int64) (CalendarPeriod, error)
 	ListCalendarPeriods(context.Context, CalendarPeriodFilter) ([]CalendarPeriod, error)
 	CreateCalendarPeriod(ctx context.Context, input CreateCalendarPeriod, ifAbsent bool) (CalendarPeriod, bool, error)
@@ -342,32 +357,47 @@ type engine interface {
 	// FederalState resolves the caller's tenant federal-state ISO code; the
 	// composition binds it to the settings platform.
 	FederalState(context.Context) (string, error)
-
-	AddCalendarPeriod(context.Context, CreateCalendarPeriod) (CalendarPeriod, error)
-	ChangeCalendarPeriod(context.Context, UpdateCalendarPeriod) (CalendarPeriod, error)
-	RemoveCalendarPeriod(context.Context, int64) error
-	EnsureDefaultSchoolYear(context.Context) ([]CalendarPeriod, bool, error)
 }
 
-type Module struct{ engine engine }
+// Records serves the Days: the whole School Calendar except the period
+// administration, whose recurrence gate and care-offering guard ask owners
+// a root builds after the readers of the calendar (#4080).
+type Records struct{ engine recordsEngine }
 
-func NewModule(engine engine) *Module {
+// NewRecords serves the Days over an engine without period administration.
+func NewRecords(engine recordsEngine) *Records {
 	if engine == nil {
 		panic("school calendar: engine is required")
 	}
-	return &Module{engine: engine}
+	return &Records{engine: engine}
+}
+
+// Module is the whole School Calendar: the Records and the period
+// administration.
+type Module struct {
+	*Records
+	administration administrationEngine
+}
+
+// NewAdministeredModule adds the period administration to Records built
+// earlier.
+func NewAdministeredModule(records *Records, administration administrationEngine) *Module {
+	if records == nil || administration == nil {
+		panic("school calendar: records and administration are required")
+	}
+	return &Module{Records: records, administration: administration}
 }
 
 // --- calendar periods ---
 
-func (m *Module) FindCalendarPeriod(ctx context.Context, id int64) (CalendarPeriod, error) {
+func (m *Records) FindCalendarPeriod(ctx context.Context, id int64) (CalendarPeriod, error) {
 	if id <= 0 {
 		return CalendarPeriod{}, invalidPeriod("calendar period ID is required")
 	}
 	return m.engine.FindCalendarPeriod(ctx, id)
 }
 
-func (m *Module) ListCalendarPeriods(ctx context.Context, filter CalendarPeriodFilter) ([]CalendarPeriod, error) {
+func (m *Records) ListCalendarPeriods(ctx context.Context, filter CalendarPeriodFilter) ([]CalendarPeriod, error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	if filter.PeriodType != "" && !IsValidPeriodType(filter.PeriodType) {
 		return nil, invalidPeriod("invalid period type")
@@ -381,7 +411,7 @@ func (m *Module) ListCalendarPeriods(ctx context.Context, filter CalendarPeriodF
 	return m.engine.ListCalendarPeriods(ctx, filter)
 }
 
-func (m *Module) CreateCalendarPeriod(ctx context.Context, input CreateCalendarPeriod) (CalendarPeriod, error) {
+func (m *Records) CreateCalendarPeriod(ctx context.Context, input CreateCalendarPeriod) (CalendarPeriod, error) {
 	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
 		return CalendarPeriod{}, err
 	}
@@ -389,14 +419,14 @@ func (m *Module) CreateCalendarPeriod(ctx context.Context, input CreateCalendarP
 	return period, err
 }
 
-func (m *Module) CreateCalendarPeriodIfAbsent(ctx context.Context, input CreateCalendarPeriod) (CalendarPeriod, bool, error) {
+func (m *Records) CreateCalendarPeriodIfAbsent(ctx context.Context, input CreateCalendarPeriod) (CalendarPeriod, bool, error) {
 	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
 		return CalendarPeriod{}, false, err
 	}
 	return m.engine.CreateCalendarPeriod(ctx, input, true)
 }
 
-func (m *Module) UpdateCalendarPeriod(ctx context.Context, input UpdateCalendarPeriod) (CalendarPeriod, error) {
+func (m *Records) UpdateCalendarPeriod(ctx context.Context, input UpdateCalendarPeriod) (CalendarPeriod, error) {
 	if input.ID <= 0 {
 		return CalendarPeriod{}, invalidPeriod("calendar period ID is required")
 	}
@@ -406,7 +436,7 @@ func (m *Module) UpdateCalendarPeriod(ctx context.Context, input UpdateCalendarP
 	return m.engine.UpdateCalendarPeriod(ctx, input)
 }
 
-func (m *Module) DeleteCalendarPeriod(ctx context.Context, id int64) error {
+func (m *Records) DeleteCalendarPeriod(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return invalidPeriod("calendar period ID is required")
 	}
@@ -415,14 +445,14 @@ func (m *Module) DeleteCalendarPeriod(ctx context.Context, id int64) error {
 
 // --- closing days ---
 
-func (m *Module) FindClosingDay(ctx context.Context, id int64) (ClosingDay, error) {
+func (m *Records) FindClosingDay(ctx context.Context, id int64) (ClosingDay, error) {
 	if id <= 0 {
 		return ClosingDay{}, invalidClosingDay("closing day ID is required")
 	}
 	return m.engine.FindClosingDay(ctx, id)
 }
 
-func (m *Module) ListClosingDays(ctx context.Context, filter ClosingDayFilter) ([]ClosingDay, error) {
+func (m *Records) ListClosingDays(ctx context.Context, filter ClosingDayFilter) ([]ClosingDay, error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	if err := validateWindow(filter.OverlappingFrom, filter.OverlappingTo, invalidClosingDay); err != nil {
 		return nil, err
@@ -430,14 +460,14 @@ func (m *Module) ListClosingDays(ctx context.Context, filter ClosingDayFilter) (
 	return m.engine.ListClosingDays(ctx, filter)
 }
 
-func (m *Module) CreateClosingDay(ctx context.Context, input CreateClosingDay) (ClosingDay, error) {
+func (m *Records) CreateClosingDay(ctx context.Context, input CreateClosingDay) (ClosingDay, error) {
 	if err := validateClosingDayFields(&input.ClosingDayFields); err != nil {
 		return ClosingDay{}, err
 	}
 	return m.engine.CreateClosingDay(ctx, input)
 }
 
-func (m *Module) UpdateClosingDay(ctx context.Context, input UpdateClosingDay) (ClosingDay, error) {
+func (m *Records) UpdateClosingDay(ctx context.Context, input UpdateClosingDay) (ClosingDay, error) {
 	if input.ID <= 0 {
 		return ClosingDay{}, invalidClosingDay("closing day ID is required")
 	}
@@ -447,7 +477,7 @@ func (m *Module) UpdateClosingDay(ctx context.Context, input UpdateClosingDay) (
 	return m.engine.UpdateClosingDay(ctx, input)
 }
 
-func (m *Module) DeleteClosingDay(ctx context.Context, id int64) error {
+func (m *Records) DeleteClosingDay(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return invalidClosingDay("closing day ID is required")
 	}
@@ -456,14 +486,14 @@ func (m *Module) DeleteClosingDay(ctx context.Context, id int64) error {
 
 // --- dateframes ---
 
-func (m *Module) FindDateframe(ctx context.Context, id int64) (Dateframe, error) {
+func (m *Records) FindDateframe(ctx context.Context, id int64) (Dateframe, error) {
 	if id <= 0 {
 		return Dateframe{}, invalidDateframe("dateframe ID is required")
 	}
 	return m.engine.FindDateframe(ctx, id)
 }
 
-func (m *Module) ListDateframes(ctx context.Context, filter DateframeFilter) ([]Dateframe, error) {
+func (m *Records) ListDateframes(ctx context.Context, filter DateframeFilter) ([]Dateframe, error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	if (filter.OverlappingFrom == nil) != (filter.OverlappingTo == nil) {
 		return nil, invalidDateframe("overlap window needs both from and to instants")
@@ -484,14 +514,14 @@ func (m *Module) ListDateframes(ctx context.Context, filter DateframeFilter) ([]
 	return m.engine.ListDateframes(ctx, filter)
 }
 
-func (m *Module) CreateDateframe(ctx context.Context, input CreateDateframe) (Dateframe, error) {
+func (m *Records) CreateDateframe(ctx context.Context, input CreateDateframe) (Dateframe, error) {
 	if err := validateDateframeFields(input.DateframeFields); err != nil {
 		return Dateframe{}, err
 	}
 	return m.engine.CreateDateframe(ctx, input)
 }
 
-func (m *Module) UpdateDateframe(ctx context.Context, input UpdateDateframe) (Dateframe, error) {
+func (m *Records) UpdateDateframe(ctx context.Context, input UpdateDateframe) (Dateframe, error) {
 	if input.ID <= 0 {
 		return Dateframe{}, invalidDateframe("dateframe ID is required")
 	}
@@ -501,7 +531,7 @@ func (m *Module) UpdateDateframe(ctx context.Context, input UpdateDateframe) (Da
 	return m.engine.UpdateDateframe(ctx, input)
 }
 
-func (m *Module) DeleteDateframe(ctx context.Context, id int64) error {
+func (m *Records) DeleteDateframe(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return invalidDateframe("dateframe ID is required")
 	}
@@ -510,25 +540,25 @@ func (m *Module) DeleteDateframe(ctx context.Context, id int64) error {
 
 // --- holidays and calendar documents ---
 
-func (m *Module) ValidHolidayRegion(region string) bool {
+func (m *Records) ValidHolidayRegion(region string) bool {
 	return m.engine.ValidHolidayRegion(region)
 }
 
-func (m *Module) ListHolidays(ctx context.Context, region, from, to string) ([]Holiday, error) {
+func (m *Records) ListHolidays(ctx context.Context, region, from, to string) ([]Holiday, error) {
 	if err := validateHolidayWindow(from, to); err != nil {
 		return nil, err
 	}
 	return m.engine.ListHolidays(ctx, region, from, to)
 }
 
-func (m *Module) HolidayDates(ctx context.Context, region, from, to string) (map[string]bool, error) {
+func (m *Records) HolidayDates(ctx context.Context, region, from, to string) (map[string]bool, error) {
 	if err := validateHolidayWindow(from, to); err != nil {
 		return nil, err
 	}
 	return m.engine.HolidayDates(ctx, region, from, to)
 }
 
-func (m *Module) RenderCalendar(ctx context.Context, name string, events []CalendarEvent) (string, error) {
+func (m *Records) RenderCalendar(ctx context.Context, name string, events []CalendarEvent) (string, error) {
 	for _, event := range events {
 		if err := validateCalendarEvent(event); err != nil {
 			return "", err
@@ -537,7 +567,7 @@ func (m *Module) RenderCalendar(ctx context.Context, name string, events []Calen
 	return m.engine.RenderCalendar(ctx, name, events)
 }
 
-func (m *Module) RenderCalendarObject(ctx context.Context, event CalendarEvent) (string, error) {
+func (m *Records) RenderCalendarObject(ctx context.Context, event CalendarEvent) (string, error) {
 	if err := validateCalendarEvent(event); err != nil {
 		return "", err
 	}

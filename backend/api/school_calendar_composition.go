@@ -2,57 +2,16 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// federalStateResolver is the slice of config.SettingsService the tenant
-// holiday reads need.
-type federalStateResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
-}
-
-// SchoolCalendarAdministration binds the owner collaborators the School
-// Calendar period administration and the tenant holiday reads resolve at
-// call time: the federal-state setting (#1418 3a), the shared tenant
-// recurrence gate and the Care Plan catalog's care-offering guard, whose
-// refusal is mapped onto the calendar's own sentinel.
-func SchoolCalendarAdministration(
-	settings federalStateResolver,
-	lockRecurrence func(context.Context) error,
-	careOfferings careplan.CareOfferingGuards,
-) schoolCalendarCompose.AdministrationRuntime {
-	runtime := schoolCalendarCompose.AdministrationRuntime{
-		FederalState: func(ctx context.Context) (string, error) {
-			region, err := settings.ResolveString(ctx, configModel.KeyFederalState)
-			if err != nil {
-				return "", fmt.Errorf("failed to resolve federal state setting: %w", err)
-			}
-			return region, nil
-		},
-		RecurrenceGate: lockRecurrence,
-	}
-	if careOfferings != nil {
-		runtime.CareOfferingGuard = func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error {
-			err := careOfferings.ValidateCalendarPeriodChange(ctx, periodID, calendarPeriodReplacement(replacement))
-			if errors.Is(err, careplan.ErrCalendarPeriodCareOfferingConflict) {
-				return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRequiredByCareOffering, err)
-			}
-			return err
-		}
-	}
-	return runtime
-}
 
 // calendarPeriodReplacement describes the School Calendar's proposed period
 // in the catalog's words; nil is the period's removal.
@@ -64,29 +23,6 @@ func calendarPeriodReplacement(fields *schoolcalendar.CalendarPeriodFields) *car
 		StartDate: calendar.Date(fields.StartDate), EndDate: calendar.Date(fields.EndDate),
 		IsActive: fields.IsActive, WeekCycleLength: fields.WeekCycleLength, WeekCycleAnchor: fields.WeekCycleAnchor,
 	}
-}
-
-// GuardedCalendarAdministration is the runtime the School Calendar module
-// resolves its period administration from once the service graph exists:
-// the care-offering guard is the Care Plan catalog the graph composes, long
-// after the root composed the calendar itself, and the recurrence gate is
-// the tenant-wide gate every recurrence-derived write serializes on.
-func GuardedCalendarAdministration(settings federalStateResolver, recurrence timetable.RecurrenceWriteLock, guard careplan.CareOfferingGuards) schoolCalendarCompose.AdministrationRuntime {
-	lockRecurrence := func(ctx context.Context) error {
-		if recurrence == nil {
-			return errors.New("timetable recurrence lock is not configured")
-		}
-		return recurrence.LockRecurrenceWrites(ctx)
-	}
-	runtime := SchoolCalendarAdministration(settings, lockRecurrence, guard)
-	if guard == nil {
-		// The service graph refuses this composition; keep the refusal loud on the
-		// write path rather than administering periods unguarded.
-		runtime.CareOfferingGuard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error {
-			return errors.New("calendar period care-offering validation is not configured")
-		}
-	}
-	return runtime
 }
 
 // planningCalendarCapability serves workforce.PlanningCalendar from the
@@ -137,7 +73,7 @@ func (c planningCalendarCapability) ClosingDaysInRange(ctx context.Context, from
 
 // planExportClosingDays and planExportHolidays serve the plan export's
 // non-working-day labels from the School Calendar.
-type planExportClosingDays struct{ calendar schoolcalendar.Calendar }
+type planExportClosingDays struct{ calendar schoolcalendar.Days }
 
 func (a planExportClosingDays) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
 	if _, _, err := parseCapabilityRange(string(from), string(to)); err != nil {
@@ -156,7 +92,7 @@ func (a planExportClosingDays) ClosingDaysInRange(ctx context.Context, from, to 
 	return out, nil
 }
 
-type planExportHolidays struct{ calendar schoolcalendar.Calendar }
+type planExportHolidays struct{ calendar schoolcalendar.Days }
 
 func (a planExportHolidays) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {
 	if _, _, err := parseCapabilityRange(string(from), string(to)); err != nil {

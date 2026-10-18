@@ -22,8 +22,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), nil)
 	require.NoError(t, err)
 

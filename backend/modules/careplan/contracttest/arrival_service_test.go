@@ -23,10 +23,9 @@ import (
 
 // setupArrivalScheduleService creates an ArrivalScheduleService with real database connection
 func setupArrivalScheduleService(t *testing.T, db *bun.DB) careplan.ArrivalScheduleService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactorySchedules, err := api.NewTestCarePlanSchedules(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.ArrivalSchedule
+	return serviceFactorySchedules.Arrivals
 }
 
 func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
@@ -248,7 +247,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")

@@ -45,7 +45,6 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 
 	selectCount := testpkg.CaptureSettingValueSelects(db)
 	service := NewSettingsService(repository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
-	testpkg.SetTenantRuntime(t, service, db)
 	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 

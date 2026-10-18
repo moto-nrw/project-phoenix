@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,9 +15,10 @@ import (
 func TestStudentPhotosRegisterTheFeatureToggle(t *testing.T) {
 	t.Parallel()
 
-	registry := settingsCompose.NewSideEffectRegistry()
-	photos := NewStudentPhotos(nil, nil, StudentPhotoRuntimeDependencies{Logger: slog.Default()})
-	RegisterStudentPhotoSettingsSideEffects(registry, photos)
+	photos := NewStudentPhotos(nil, StudentPhotoRuntimeDependencies{Logger: slog.Default()})
+	registry, err := settingsCompose.NewSideEffects(func(string) {},
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle})
+	require.NoError(t, err)
 	post, err := registry.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")
 	require.NoError(t, err)
 	require.NotNil(t, post)

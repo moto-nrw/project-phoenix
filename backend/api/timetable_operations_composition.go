@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -17,38 +18,64 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewTimetableOperations composes the Timetable owner's operational day and
-// binds the collaborators it may not name itself.
-func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCapability, error) {
-	templates, err := in.Rows.OperationTemplates()
+// NewTimetableOperations composes the Timetable owner's operational day
+// (#3551) and binds the collaborators it may not name itself. deps carries
+// the planning tracks, the session, supervision and visit reads, the people,
+// the lifecycle, the logger and the clock; the retained rows, the presence
+// writes, the operational settings, Care Plan's care days and effective
+// arrival and pickup times and the broadcaster are bound here. broadcaster
+// is optional.
+func NewTimetableOperations(
+	deps timetablePorts.OperationDependencies, rows timetableCompose.OwnerRows, presence TimetableOperationPresence,
+	settings TimetableSettings, careDays careplan.CareDayQuery, arrivals EffectiveArrivalTimes, pickups EffectivePickupTimes,
+	broadcaster realtime.Broadcaster,
+) (timetable.OperationCapability, error) {
+	templates, err := rows.OperationTemplates()
 	if err != nil {
 		return nil, err
 	}
-	return timetableCompose.NewOperations(timetablePorts.OperationDependencies{
-		Instances:            in.Rows.Instances,
-		InstanceStaff:        in.Rows.InstanceStaff,
-		Participants:         in.Rows.Participants,
-		Templates:            templates,
-		PlanningTracks:       in.PlanningTracks,
-		Sessions:             in.Sessions,
-		Supervisions:         in.Supervisions,
-		Visits:               in.Visits,
-		Attendance:           timetableOperationAttendance{presence: in.Presence},
-		Students:             in.Rows.Students,
-		People:               in.People,
-		EducationGroups:      in.Rows.EducationGroups,
-		Rooms:                in.Rows.Rooms,
-		Settings:             timetableOperationSettings{settings: in.Settings},
-		CareDays:             newTimetableCareDays(in.CareDays),
-		Arrivals:             timetableEffectiveArrivals{times: in.Arrivals},
-		Pickups:              timetableEffectivePickups{times: in.Pickups},
-		Lifecycle:            in.Lifecycle,
-		Locks:                in.Rows.Locks,
-		Announcer:            newTimetableAttendanceAnnouncer(in.Broadcaster),
-		NormalizeSchoolClass: schoolStructure.NormalizeClass,
-		Logger:               in.Logger,
-		Now:                  in.Now,
-	})
+	deps.Instances, deps.InstanceStaff, deps.Participants, deps.Templates = rows.Instances, rows.InstanceStaff, rows.Participants, templates
+	deps.Attendance = timetableOperationAttendance{presence: presence}
+	deps.Students = rows.Students
+	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
+	deps.Settings = timetableOperationSettings{settings: settings}
+	deps.CareDays = newTimetableCareDays(careDays)
+	deps.Arrivals, deps.Pickups = timetableEffectiveArrivals{times: arrivals}, timetableEffectivePickups{times: pickups}
+	deps.Session = TimetableRequestSession{}
+	deps.Locks = rows.Locks
+	deps.Announcer = newTimetableAttendanceAnnouncer(broadcaster)
+	deps.NormalizeSchoolClass = schoolStructure.NormalizeClass
+	return timetableCompose.NewOperations(deps)
+}
+
+// EffectiveArrivalTimes and EffectivePickupTimes are Care Plan's effective
+// arrival and pickup times of a day.
+type (
+	EffectiveArrivalTimes interface {
+		GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
+	}
+	EffectivePickupTimes interface {
+		GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
+	}
+)
+
+// TimetableRequestSession binds the operational day's session port to
+// Identity's session token adapter.
+type TimetableRequestSession struct{}
+
+// Claims are the verified claims of the request, the zero claims without
+// any.
+func (TimetableRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := requestTokenReads.claims(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: claims.AccountID, TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.SchoolScope, Admin: claims.Admin,
+	}
+}
+
+// Permissions are the permissions of the request.
+func (TimetableRequestSession) Permissions(ctx context.Context) []string {
+	return requestTokenReads.Permissions(ctx)
 }
 
 // newTimetableAttendanceAnnouncer wakes the tenant's clients after an

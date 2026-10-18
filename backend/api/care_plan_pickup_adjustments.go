@@ -16,27 +16,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// PickupAdjustmentInputs are the owners Care Plan's pickup adjustment
-// (#3561) is composed over.
-type PickupAdjustmentInputs struct {
-	CarePlan         careplan.Capability
-	PickupSchedules  careplan.PickupScheduleService
-	ArrivalSchedules careplan.ArrivalScheduleService
-	Baselines        careplan.PickupBaselineReader
-	Offerings        careplan.DirectOfferingAdjustments
-	Settings         OfferingChangeSettingsReads
-	Audit            peoplePorts.StudentPickupPlanRecorder
-	Students         PickupAdjustmentStudentRows
-	Today            func() calendar.Date
-}
-
-func NewPickupAdjustments(inputs PickupAdjustmentInputs) (careplan.PickupAdjustments, error) {
+// NewPickupAdjustments composes Care Plan's pickup adjustment (#3561) over
+// its owners.
+func NewPickupAdjustments(
+	carePlan careplan.Capability, pickupSchedules careplan.PickupScheduleService, arrivalSchedules careplan.ArrivalScheduleService,
+	baselines careplan.PickupBaselineReader, offerings careplan.DirectOfferingAdjustments, settings OfferingChangeSettingsReads,
+	audit peoplePorts.StudentPickupPlanRecorder, students PickupAdjustmentStudentRows, today func() calendar.Date,
+) (careplan.PickupAdjustments, error) {
 	return carePlanCompose.NewPickupAdjustments(carePlanCompose.PickupAdjustmentDependencies{
-		PickupSchedules: inputs.PickupSchedules, ArrivalSchedules: inputs.ArrivalSchedules, Records: inputs.CarePlan,
-		Baselines: inputs.Baselines, Offerings: inputs.Offerings,
-		Settings: offeringChangeSettings{settingsModule.NewCareBookingValues(inputs.Settings), inputs.Settings},
-		Audit:    inputs.Audit, Students: pickupAdjustmentStudents{students: inputs.Students},
-		Fingerprint: securityruntime.Fingerprint, Today: inputs.Today,
+		PickupSchedules: pickupSchedules, ArrivalSchedules: arrivalSchedules, Records: carePlan,
+		Baselines: baselines, Offerings: offerings,
+		Settings: offeringChangeSettings{settingsModule.NewCareBookingValues(settings), settings},
+		Audit:    audit, Students: pickupAdjustmentStudents{students: students},
+		Fingerprint: securityruntime.Fingerprint, Today: today,
 	})
 }
 

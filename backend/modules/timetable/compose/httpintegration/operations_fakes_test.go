@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -169,6 +170,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 		Arrivals:             deps.arrivalService,
 		Pickups:              deps.pickupService,
 		Lifecycle:            deps.instanceService,
+		Session:              api.TimetableRequestSession{},
 		Announcer:            deps.announcer,
 		NormalizeSchoolClass: normalizeSchoolClass,
 		Now: func() time.Time {

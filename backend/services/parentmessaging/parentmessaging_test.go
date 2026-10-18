@@ -85,7 +85,7 @@ func TestGuardianHasChildAccess(t *testing.T) {
 
 	ctx := context.Background()
 
-	linked := NewEmitter(&fakeEvents{guardians: []PortalGuardian{{AccountID: 7}, {AccountID: 9}}})
+	linked := NewEmitterWithDecisions(&fakeEvents{guardians: []PortalGuardian{{AccountID: 7}, {AccountID: 9}}}, nil)
 	ok, err := linked.GuardianHasChildAccess(ctx, 1, 7)
 	require.NoError(t, err)
 	assert.True(t, ok, "an account in the portal-guardian list has access")
@@ -94,7 +94,7 @@ func TestGuardianHasChildAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "a revoked/unlinked account is absent from the list → no access")
 
-	failing := NewEmitter(&fakeEvents{guardiansErr: errors.New("db down")})
+	failing := NewEmitterWithDecisions(&fakeEvents{guardiansErr: errors.New("db down")}, nil)
 	_, err = failing.GuardianHasChildAccess(ctx, 1, 7)
 	require.Error(t, err, "a port error must propagate, not be read as revoked")
 
@@ -123,7 +123,7 @@ func TestEmitterShellIsNilSafe(t *testing.T) {
 	bare.BroadcastChildUpdateToGuardians(1, 2)
 
 	events := &fakeEvents{}
-	wired := NewEmitter(events)
+	wired := NewEmitterWithDecisions(events, nil)
 	wired.EmitChildEvent(1, 2, 3, ChildEvent{EventType: "sick_note"})
 	wired.EmitChildEvent(0, 2, 3, ChildEvent{EventType: "sick_note"})
 	wired.BroadcastChildUpdateToGuardians(1, 2)

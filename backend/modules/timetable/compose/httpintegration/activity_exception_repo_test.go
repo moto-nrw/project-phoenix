@@ -17,7 +17,7 @@ import (
 
 func activityExceptionRepository(t *testing.T, db *bun.DB) activityExceptionQueryRepository {
 	t.Helper()
-	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return factory.ActivityException.(activityExceptionQueryRepository)
 }
 

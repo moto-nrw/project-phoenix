@@ -156,6 +156,12 @@ type InvitationPreview struct {
 	ExpiresAt            time.Time
 }
 
+// SchoolInvitationDeliveryRecorder records how an invitation mail fared; the
+// root's mail delivery reports through it.
+type SchoolInvitationDeliveryRecorder interface {
+	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+}
+
 // SchoolInvitations is the capability the invitation routes and the staff
 // import consume. Flow errors arrive in the AuthenticationError envelope.
 type SchoolInvitations interface {
@@ -170,7 +176,7 @@ type SchoolInvitations interface {
 	// school and returns how many it spent.
 	RevokeTenantSchoolInvitations(ctx context.Context, tenantID int64) (int, error)
 	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
-	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	SchoolInvitationDeliveryRecorder
 	// SchoolInvitationDeliverySent reports whether the invitation mail was
 	// accepted by the transport. Delivery uses it to order its welcome mail.
 	SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error)

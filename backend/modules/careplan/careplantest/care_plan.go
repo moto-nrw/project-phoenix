@@ -50,7 +50,11 @@ type CareParticipationResolver = carePlanCompose.CareParticipationResolver
 
 // NewCareDays binds native records and the fixture's existing participation source.
 func NewCareDays(records careplan.Capability, baselines careplan.PickupBaselineReader, participation carePlanCompose.CareParticipationResolver) careplan.CareDayQuery {
-	return carePlanCompose.NewCareDays(carePlanCompose.CareDayDependencies{Records: records, PickupBaselines: baselines, CareParticipation: participation})
+	careDays, err := carePlanCompose.NewCareDayQuery(carePlanCompose.CareDayDependencies{Records: records, PickupBaselines: baselines, CareParticipation: participation})
+	if err != nil {
+		panic(err)
+	}
+	return careDays
 }
 
 // NewOfferingBookings composes the effective-booking owner for workflow tests.

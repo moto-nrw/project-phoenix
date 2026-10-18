@@ -47,10 +47,11 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	instances := &fakeInstanceRepo{}
 	spy := &recordingOverdue{}
 	const room = 61
-	sched := unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{}),
-		logger: slog.Default()})
+	sched := unitScheduler(func(unit *Scheduler) {
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+	})
 
 	sched.instanceRepo = instances.read
 	sched.instanceRoomRepo = (&fakeOverdueRoomRepo{roomIDs: []int64{room}}).existing
@@ -220,22 +221,23 @@ func spyFilter(r *recordingOverdue, instanceID int64, kind overdueKind) int {
 // Day-rollover is a pure-memory behaviour — test it without the DB.
 func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 	t.Parallel()
-	sched := unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		done:   make(chan struct{}),
-		logger: slog.Default()})
+	sched := unitScheduler(func(unit *Scheduler) {
+		unit.tasks = make(map[string]*ScheduledTask)
+		unit.done = make(chan struct{})
+		unit.logger = slog.Default()
+	})
 
 	// Seed: mark "yesterday" as the cache day, store one emitted key.
 	yesterday := calendar.NewDate(2026, 4, 19)
-	sched.overdueEmittedDay = yesterday
+	sched.overdueEmitted.day = yesterday
 	key := overdueKey{tenantID: 1, instanceID: 42}
-	sched.overdueEmitted.Store(key, yesterday.UTCMidnight().Add(14*time.Hour))
+	sched.overdueEmitted.emitted.Store(key, yesterday.UTCMidnight().Add(14*time.Hour))
 
 	// Rotate using "today" → cache must clear and the day must advance.
 	today := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
 	sched.rotateOverdueCacheIfNewDay(today)
 
-	_, present := sched.overdueEmitted.Load(key)
+	_, present := sched.overdueEmitted.emitted.Load(key)
 	assert.False(t, present, "entry from yesterday must be evicted on day rollover")
-	assert.Equal(t, calendar.NewDate(2026, 4, 20), sched.overdueEmittedDay)
+	assert.Equal(t, calendar.NewDate(2026, 4, 20), sched.overdueEmitted.day)
 }

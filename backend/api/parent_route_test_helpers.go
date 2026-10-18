@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -17,10 +16,6 @@ type ParentRouteTestRepositories struct {
 	// ParentPortalRepositories carries the guardian child repository
 	// (ParentChild) without the school names.
 	carePlanCompose.ParentPortalRepositories
-	Student               peoplePorts.StudentRepository
-	Person                peoplePorts.PersonRepository
-	GuardianProfile       peoplePorts.GuardianProfileRepository
-	StudentGuardian       peoplePorts.StudentGuardianRepository
 	StudentStatusDay      *StudentStatusDayRepository
 	CareExceptions        careplan.Capability
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
@@ -67,8 +62,6 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
 			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, ParentPortalDirectory{People: people}),
 		},
-		Student: members.Student, Person: members.Person,
-		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
 		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,
 	}, nil

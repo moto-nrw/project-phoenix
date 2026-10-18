@@ -177,6 +177,9 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	ctx := testpkg.Ctx(t)
 	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
+	reposTimetable := api.NewEnrollmentTimetableRows(testpkg.NewDatabase(t, db))
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	schema, err := NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
@@ -203,12 +206,12 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
 		api.WithBookingSettings(offeringGuardSettings(false)),
 	).Bookings
-	decisions := newOfferingGuardDecisions(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
+	decisions := newOfferingGuardDecisions(repos, reposCare, reposTimetable, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
 	decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
 	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
-		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
-		SchoolRepo: capabilitySchools{schools: repos.School}, RateLimitRepo: repos.Enrollment(),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), Catalog: repos.Enrollment(),
+		SchoolRepo: capabilitySchools{schools: reposSchools.School}, RateLimitRepo: repos.Enrollment(),
 		LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
 		ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",
 		Logger: slog.Default(),

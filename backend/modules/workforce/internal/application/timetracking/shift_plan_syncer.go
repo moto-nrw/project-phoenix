@@ -8,11 +8,7 @@
 // effects half-applied is exactly the silent side effect #1843 forbids).
 package timetracking
 
-import (
-	"context"
-
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-)
+import "github.com/moto-nrw/project-phoenix/modules/workforce"
 
 // SickCascadeInput identifies one sick report and the range it covers. Both
 // cascade directions take the same shape; the dates are calendar days in
@@ -24,23 +20,3 @@ type SickCascadeInput = workforce.SickCascadeInput
 // application workflow implements it, because the two writes cross an
 // ownership line.
 type ShiftPlanSyncer = workforce.ShiftPlanSync
-
-// noopShiftPlanSyncer keeps the absence service functional when no syncer is
-// wired (unit tests construct the service bare).
-type noopShiftPlanSyncer struct{}
-
-func (noopShiftPlanSyncer) MarkSickForRange(context.Context, SickCascadeInput) error {
-	return nil
-}
-
-func (noopShiftPlanSyncer) ClearSickForRange(context.Context, SickCascadeInput) error {
-	return nil
-}
-
-func (noopShiftPlanSyncer) ReconcileSickRange(context.Context, SickCascadeInput, SickCascadeInput) error {
-	return nil
-}
-
-func (noopShiftPlanSyncer) ReassignSickStamps(context.Context, int64, int64) error {
-	return nil
-}

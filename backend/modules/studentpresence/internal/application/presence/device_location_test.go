@@ -15,10 +15,9 @@ import (
 
 func buildDeviceLocationService(t *testing.T, db *testpkg.DB) activeSvc.Service {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {

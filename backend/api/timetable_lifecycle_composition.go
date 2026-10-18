@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -20,29 +21,34 @@ import (
 // Platform's Änderungsprotokoll, Security Runtime's content fingerprint
 // and the realtime hub.
 
-// NewTimetableLifecycle composes the instance lifecycle over the retained
-// rows and binds the collaborators the owner may not name.
-func NewTimetableLifecycle(in TimetableLifecycleInputs) (timetablePorts.InstanceLifecycle, error) {
-	if in.Rows.Locks == nil {
+// NewTimetableLifecycle composes the instance lifecycle over deps and the
+// retained rows and binds the collaborators the owner may not name. deps
+// carries the planning repositories the rows do not (IdempotencyRepo,
+// ExceptionRepo, CalendarPeriodRepo), the database and the owners the
+// lifecycle reads directly; the rows (Instances, InstanceStaff,
+// Participants, Templates, Students, Rooms, DeviationEvents and the recovery
+// Locks), Care Plan's care days, Communication's cancellation notice, the
+// operational settings and the broadcaster are bound here. guardianNotices
+// and broadcaster are optional.
+func NewTimetableLifecycle(
+	deps timetablePorts.InstanceLifecycleDependencies, rows timetableCompose.OwnerRows, careDays careplan.CareDayQuery,
+	guardianNotices communication.CareCancellationPublisher, settings TimetableSettings, broadcaster realtime.Broadcaster,
+) (timetablePorts.InstanceLifecycle, error) {
+	if rows.Locks == nil {
 		return nil, errors.New("timetable instance lifecycle: the recovery locks are required")
 	}
-	var settings timetablePorts.LifecycleSettings
-	if in.Settings != nil {
-		settings = timetableOperationSettings{settings: in.Settings}
+	var lifecycleSettings timetablePorts.LifecycleSettings
+	if settings != nil {
+		lifecycleSettings = timetableOperationSettings{settings: settings}
 	}
-	deps := in.Planning
-	deps.InstanceRepo, deps.InstanceStaffRepo, deps.InstanceStudents = in.Rows.Instances, in.Rows.InstanceStaff, in.Rows.Participants
-	deps.RecoveryRepo, deps.ActivityGroupRepo, deps.StudentRepo = in.Rows.Locks, in.Rows.Templates, NewTimetableLifecycleStudents(in.Rows.Students)
-	deps.StaffRepo, deps.ActiveGroupRepo, deps.SupervisorRepo = in.Staff, in.Sessions, in.Supervisions
-	deps.Presence, deps.ActiveService, deps.Rooms = in.Presence, in.SessionEnder, in.Rows.Rooms
-	deps.CareDays, deps.CareDayLocks = newTimetableCareDays(in.CareDays), in.CareDayLocks
-	deps.Protocol = in.Rows.Deviations
-	deps.GuardianNotices = newTimetableGuardianNotices(in.GuardianNotices)
-	deps.Broadcaster, deps.Settings = newTimetableLifecycleBroadcaster(in.Broadcaster), settings
-	deps.Materialization, deps.RecurrenceLock = in.Materialization, in.RecurrenceLock
-	deps.StartConflicts, deps.SubstituteConflicts = in.StartConflicts, in.SubstituteConflicts
+	deps.InstanceRepo, deps.InstanceStaffRepo, deps.InstanceStudents = rows.Instances, rows.InstanceStaff, rows.Participants
+	deps.RecoveryRepo, deps.ActivityGroupRepo, deps.StudentRepo = rows.Locks, rows.Templates, NewTimetableLifecycleStudents(rows.Students)
+	deps.Rooms = rows.Rooms
+	deps.CareDays = newTimetableCareDays(careDays)
+	deps.Protocol = rows.Deviations
+	deps.GuardianNotices = newTimetableGuardianNotices(guardianNotices)
+	deps.Broadcaster, deps.Settings = newTimetableLifecycleBroadcaster(broadcaster), lifecycleSettings
 	deps.ContentHash = securityruntime.Fingerprint
-	deps.Logger, deps.Now, deps.EnforceTimePolicy = in.Logger, in.Now, in.EnforceTimePolicy
 	return timetableCompose.NewInstanceLifecycle(deps)
 }
 

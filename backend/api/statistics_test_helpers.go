@@ -10,7 +10,6 @@ import (
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -21,10 +20,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// StatisticsTestModule is Student Presence's statistics reports over the
+// test database.
 type StatisticsTestModule struct {
-	Statistics     studentpresence.StatisticsReports
-	SchoolCalendar schoolcalendar.Calendar
-	ListExport     *lists.RendererService
+	Statistics studentpresence.StatisticsReports
 	// CreateClosingDay stores a closure range through the calendar owner.
 	CreateClosingDay func(ctx context.Context, start, end timezone.Date, reason string) error
 }
@@ -38,7 +37,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	r, err := NewStatisticsTestRepositories(db, command, clocks...)
+	r, err := NewStatisticsTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
@@ -50,9 +49,8 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	students := OverlappingRosterGroupNames{StudentRepository: r.Timetable.Student, Groups: groups}
-	calendarAdministration := SchoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
-	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	students := OverlappingRosterGroupNames{StudentRepository: MustNewMembershipTestRepositories(db).Student, Groups: groups}
+	calendar, err := NewSchoolCalendarWithAdministration(db, settings.Settings, func(context.Context) error { return nil }, nil)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
@@ -61,7 +59,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
 		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
-		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
+		AccessLog: StatisticsAuditLog{Log: NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
@@ -69,5 +67,5 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		}})
 		return err
 	}
-	return StatisticsTestModule{Statistics: service, SchoolCalendar: calendar, ListExport: lists.NewRendererService(), CreateClosingDay: createClosingDay}, nil
+	return StatisticsTestModule{Statistics: service, CreateClosingDay: createClosingDay}, nil
 }

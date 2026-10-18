@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -40,12 +41,12 @@ type InvitationWiring struct {
 	// carries; nil leaves them out and /help asks.
 	Settings tenantSettingsResolver
 	// Outbox persists the staff welcome in the invitation transaction.
-	Outbox func() MailOutbox
+	Outbox MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
 }
 
-func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -56,10 +57,12 @@ func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 	return &identityaccessCompose.SchoolInvitationDependencies{
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
-		Delivery: invitationDelivery{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
-			identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-			settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
+			return invitationDelivery{
+				dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
+				identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+			}
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.Expiry,
@@ -80,6 +83,12 @@ func (RoleGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissi
 	}, actorPermissions)
 }
 
+// schoolInvitationRecords records an invitation mail's outcome in Identity &
+// Access.
+type schoolInvitationRecords interface {
+	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // invitationDelivery mails an invitation and records the outcome through the
 // module once the send settles.
 type invitationDelivery struct {
@@ -89,10 +98,10 @@ type invitationDelivery struct {
 	schoolURL    string
 	identity     email.ReplyToResolver
 	backoff      []time.Duration
-	invitations  func() identityaccess.SchoolInvitations
+	invitations  schoolInvitationRecords
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
-	outbox       func() MailOutbox
+	outbox       MailOutbox
 	welcomeDelay time.Duration
 }
 
@@ -143,7 +152,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 			slog.Int64("invitation_id", invitation.ID))
 		return nil
 	}
-	if d.outbox == nil || d.outbox() == nil {
+	if d.outbox == nil {
 		return fmt.Errorf("staff welcome outbox is not configured")
 	}
 	frontend := d.portalURL(portal)
@@ -165,7 +174,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)
 	}
-	if err := d.outbox().EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+	if err := d.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:              identityaccess.MailKindStaffWelcome,
 		Payload:           payload,
 		RelatedEntityType: identityaccess.MailRelatedSchoolInvitation,
@@ -194,7 +203,7 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
-	if err := d.invitations().RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.invitations.RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update invitation delivery status",
 			slog.Int64("invitation_id", meta.ReferenceID),
 			slog.Any("error", err),

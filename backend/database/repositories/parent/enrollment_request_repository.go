@@ -30,21 +30,16 @@ var errAccountDirectoryRequired = errors.New("parent repository: account directo
 // NewEnrollmentRequestRepository wires a fresh repository.
 //
 // accounts is the Identity & Access lookup the account's e-mail is read
-// through (#2720); auth.accounts is not read here.
-func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory) parentModels.EnrollmentRequestRepository {
+// through (#2720); auth.accounts is not read here. guardians is the People
+// Directory the account's guardian links are read from (#2663).
+func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory, guardians GuardianDirectory) parentModels.EnrollmentRequestRepository {
 	if commands == nil {
 		panic("parent repository: enrollment commands are required")
 	}
 	if accounts == nil {
 		panic(errAccountDirectoryRequired)
 	}
-	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts}
-}
-
-// BindGuardianDirectory installs the People Directory the account's guardian
-// links are read from (#2663).
-func (r *EnrollmentRequestRepository) BindGuardianDirectory(guardians GuardianDirectory) {
-	r.guardians = guardians
+	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts, guardians: guardians}
 }
 
 // ListByAccount composes Enrollment-owned applications with the account identity

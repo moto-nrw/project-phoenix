@@ -193,8 +193,8 @@ func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil
 // outside the demo environment.
-func NewDemoModule(engine Engine, runtime TenantRuntimeBinding, access *DemoAccess) *Module {
-	module := NewModule(engine, runtime)
+func NewDemoModule(engine Engine, access *DemoAccess) *Module {
+	module := NewModule(engine)
 	module.demoAccess = access
 	return module
 }

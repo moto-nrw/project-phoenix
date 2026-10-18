@@ -19,8 +19,19 @@ import (
 // Identity & Access role administration and school identity seam as well as
 // the operator school access.
 type CaregiverProfiles struct {
-	Persons    peopledirectory.Query
+	Persons    caregiverPersons
 	Membership schoolmembership.StaffIdentities
+}
+
+// caregiverPersons is the People Directory read behind an account's person.
+type caregiverPersons interface {
+	FindPersonByAccount(ctx context.Context, accountID int64) (peopledirectory.Person, error)
+}
+
+// liveCaregiverProfile is the Lehrkraft guard the staff seams read through
+// CaregiverProfiles.
+type liveCaregiverProfile interface {
+	hasLive(ctx context.Context, accountID int64) (bool, error)
 }
 
 func (c CaregiverProfiles) complete() bool { return c.Persons != nil && c.Membership != nil }
@@ -35,7 +46,7 @@ func (c CaregiverProfiles) hasLive(ctx context.Context, accountID int64) (bool, 
 
 // accountPersons serves School Membership's consumer-owned person port over
 // the People Directory; a missing person is the clean "no person" outcome.
-type accountPersons struct{ directory peopledirectory.Query }
+type accountPersons struct{ directory caregiverPersons }
 
 func (p accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
 	person, err := p.directory.FindPersonByAccount(ctx, accountID)

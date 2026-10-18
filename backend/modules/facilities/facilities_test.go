@@ -153,3 +153,8 @@ func TestNewModulePanicsWithoutEngine(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() { facilities.NewModule(nil) })
 }
+
+func TestNewRoomsPanicsWithoutEngine(t *testing.T) {
+	t.Parallel()
+	assert.Panics(t, func() { facilities.NewRooms(nil) })
+}

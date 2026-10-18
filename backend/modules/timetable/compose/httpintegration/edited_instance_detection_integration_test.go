@@ -117,7 +117,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{target}))
 }
@@ -270,7 +270,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 				ReportedAt: time.Now(),
 				Source:     absencerecords.StudentStatusSourcePlanned,
 			}
-			require.NoError(t, s.factory.StudentStatusDays.UpsertReported(s.ctx, statusDay))
+			require.NoError(t, s.statusDays.UpsertReported(s.ctx, statusDay))
 			s.extraCleanups = append(s.extraCleanups, func() {
 			})
 
@@ -285,7 +285,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 
 			assert.Empty(t, detect(t, s), "a status-owned absence does not change roster membership")
 
-			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			_, err = s.instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
 			require.NoError(t, err)
 			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 			require.Len(t, regenerated, 1)
@@ -341,7 +341,7 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 				"unrestored attendance is a lost edit, but not a roster-membership change")
 			assert.NotContains(t, edited[0].Changes, timetable.EditedChangeStudents)
 
-			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			_, err = s.instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
 			require.NoError(t, err)
 			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 			require.Len(t, regenerated, 1)
@@ -537,6 +537,6 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 }
 
 func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
-	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
+	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return factory.InstanceStudent
 }

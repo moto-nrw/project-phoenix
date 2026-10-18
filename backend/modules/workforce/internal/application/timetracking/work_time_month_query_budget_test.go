@@ -19,14 +19,14 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "CompTime", "Budget")
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, timetracking.DayMonday, 480, scheduleValidFrom)
 	service := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(owners.Workforce)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
+		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(workTime)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		wtmIntSettings{accountStart: "2020-01-01"}, nil,
 	)
 	first := calendar.TodayDate().AddDays(14)

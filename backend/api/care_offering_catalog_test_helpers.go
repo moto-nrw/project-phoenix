@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -48,7 +49,7 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 		}
 		settings = module.Settings
 	}
-	catalog, err := newTestCareOfferingCatalog(r, settings, options)
+	catalog, err := newTestCareOfferingCatalog(db, r, settings, options)
 	if err != nil {
 		return CareOfferingCatalogTestModule{}, err
 	}
@@ -56,16 +57,31 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 }
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
-// repository set.
-func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+// repository set, with the Care Plan and School Calendar owners over db.
+func newTestCareOfferingCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	care, err := NewTimetableCarePlanRows(db, r, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return nil, err
+	}
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return nil, err
+	}
+	var sourced careplanCompose.SourcedTemplateResyncer = noCareOfferingResync{}
+	if options.SourcedTemplates != nil {
+		sourced = options.SourcedTemplates
+	}
+	var pickup careplanCompose.PickupResyncer = noCareOfferingResync{}
+	if options.Pickup != nil {
+		pickup = options.Pickup
+	}
 	return newCareOfferingCatalog(careOfferingCatalogInputs{
-		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
-		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,
-		SourcedTemplates: func() careplanCompose.SourcedTemplateResyncer { return options.SourcedTemplates },
-		Pickup:           func() careplanCompose.PickupResyncer { return options.Pickup },
-		LockRecurrence:   options.LockRecurrence,
-		Today:            options.Today,
-		Logger:           slog.Default(),
+		Records: care.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
+		Timetable: r.Timetable, Calendar: calendar.SchoolCalendar(), Settings: settings,
+		SourcedTemplates: sourced, Pickup: pickup,
+		LockRecurrence: options.LockRecurrence,
+		Today:          options.Today,
+		Logger:         slog.Default(),
 	})
 }
 
@@ -117,4 +133,42 @@ func NewCareOfferingCatalog(db transactionruntime.Database, unit tenant.UnitOfWo
 		option(&chosen)
 	}
 	return NewCareOfferingCatalogTestModule(db, unit, chosen)
+}
+
+// noCareOfferingResync is the roster and pickup resync of a suite that binds
+// neither: an offering edit leaves the sourced rosters and the pickup
+// projection as they are.
+type noCareOfferingResync struct{}
+
+func (noCareOfferingResync) ResyncTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
+	return nil
+}
+
+func (noCareOfferingResync) DetachTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
+	return nil
+}
+
+func (noCareOfferingResync) ReconcileOfferingPickupForOffering(context.Context, int64) error {
+	return nil
+}
+
+func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
+	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
+		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")
+	}
+	return careplanCompose.NewCareOfferingCatalog(careplanCompose.CareOfferingCatalogDependencies{
+		Records:                inputs.Records,
+		Phases:                 careOfferingCatalogPhases{phases: inputs.Phases},
+		Timetable:              careOfferingCatalogTimetable{timetable: inputs.Timetable},
+		Calendar:               careOfferingCatalogCalendar{calendar: inputs.Calendar},
+		Bookings:               careOfferingCatalogBookings{bookings: inputs.Bookings},
+		Settings:               careOfferingCatalogSettings{settings: inputs.Settings},
+		Translations:           careOfferingCatalogTranslations{},
+		SourceRules:            careOfferingSourceRules{},
+		SourcedTemplates:       inputs.SourcedTemplates,
+		Pickup:                 inputs.Pickup,
+		LockTemplateRecurrence: inputs.LockRecurrence,
+		Today:                  inputs.Today,
+		Logger:                 inputs.Logger,
+	})
 }

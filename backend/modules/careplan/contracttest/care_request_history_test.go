@@ -38,7 +38,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 2, "arrival": "07:30"},
 	))
 	// Withdrawal is retired (#2267); the status stays valid for historic rows.
-	err = careplantest.NewScheduleRecords(f.repos.CarePlan()).CareScheduleChangeRequest.Decide(
+	err = careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Decide(
 		f.staffCtx(f.chain.AccountID), second.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)

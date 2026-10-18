@@ -117,7 +117,13 @@ func newUnitScheduler(
 	return scheduler
 }
 
-func unitScheduler(scheduler *Scheduler) *Scheduler {
+// unitScheduler builds a scheduler with the fields configure sets and the
+// unit defaults for every runtime dependency configure leaves unset.
+func unitScheduler(configure func(*Scheduler)) *Scheduler {
+	scheduler := &Scheduler{}
+	if configure != nil {
+		configure(scheduler)
+	}
 	configured := newUnitScheduler(nil, nil, nil, nil, nil, nil, scheduler.logger)
 	if scheduler.tenantRuntime == nil {
 		scheduler.tenantRuntime = configured.tenantRuntime

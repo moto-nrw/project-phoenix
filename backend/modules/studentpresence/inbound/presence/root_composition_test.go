@@ -13,12 +13,17 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveTestModule) {
+func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveSettings, api.ActivePresence, api.ActivePeople, api.ActiveEducation, *api.CallerRows, api.ActiveTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	modulePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	modulePeople := api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	return db, moduleSettings, modulePresence, modulePeople, moduleEducation, moduleCaller, module
 }
 
 // The root imports this package, so the internal tests reach its settings

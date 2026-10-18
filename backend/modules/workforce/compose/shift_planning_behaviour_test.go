@@ -88,15 +88,16 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 // retained staff repository in ctx's tenant.
 func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability workforce.Capability, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	staffByID, err := api.NewPlanStaffDirectory(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
+	ownersRooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
+	staffByID, err := api.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
 	require.NoError(t, err)
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
-		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewTimetableRoomNames(owners.Rooms), ActivityGroups: planningGroups{},
+		CalendarPeriods: calendarOwner, Instances: planningTimetable{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }

@@ -73,7 +73,7 @@
       "scripts/backend-repository-factory-callers/main.go",
       "backend/architecture/composition.json",
       "backend/architecture/policy.json",
-      "backend/api/service_graph_compose.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose.go",
       "backend/modules/timetable/ports/care_plan_records.go",
       "backend/modules/timetable/internal/application/workforce_shift_records.go",
       "docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md"

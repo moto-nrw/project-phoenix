@@ -19,39 +19,6 @@ import (
 
 type Observation = ports.Observation
 
-type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
-	// Administration resolves the owner collaborators of the period
-	// administration on every call. The root binds it to a value it fills
-	// once the legacy services factory exists, because the care-offering
-	// guard is an Enrollment service that itself reads this calendar.
-	// Optional: without it the administration runs without gate and guard
-	// and the tenant holiday reads report a configuration error.
-	Administration func() AdministrationRuntime
-	// Today names the current calendar day in YYYY-MM-DD. Nil means the
-	// Berlin calendar day, the school's day.
-	Today func() string
-}
-
-// AdministrationRuntime is everything the period administration and the
-// tenant holiday reads need from other owners.
-type AdministrationRuntime struct {
-	// FederalState resolves the tenant's federal-state ISO code for the
-	// statutory-holiday reads (the operations.federal_state setting).
-	// Nil: the tenant holiday reads report a configuration error.
-	FederalState func(context.Context) (string, error)
-	// RecurrenceGate serializes period administration against every
-	// recurrence-derived write of the tenant. Nil: no gate (graphs without
-	// planning); production binds the shared tenant recurrence lock.
-	RecurrenceGate func(context.Context) error
-	// CareOfferingGuard refuses a period change (replacement set) or
-	// removal (replacement nil) a linked care offering still needs. It
-	// reports the refusal as schoolcalendar.ErrCalendarPeriodRequiredByCareOffering
-	// in the error chain. Nil: no guard.
-	CareOfferingGuard func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error
-}
-
 // PersistenceRuntime exposes the compose-owned ambient tenant transaction to
 // legacy School Calendar persistence adapters during the migration.
 type PersistenceRuntime struct {
@@ -87,20 +54,72 @@ func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
 	}
 }
 
-// New composes the School Calendar module. Every operation runs on the
-// caller's ambient tenant transaction when one exists (tenant middleware,
-// recurrence gate, scheduler loops) and otherwise on the shared connection,
-// exactly like the legacy repositories' base.GetDB resolution, so RLS
-// visibility and the explicit tenant predicate are unchanged.
-func New(dependencies Dependencies) (*schoolcalendar.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil {
+// RecordsDependencies are the bindings of the Records: the database and,
+// for the tenant holiday reads, the federal state.
+type RecordsDependencies struct {
+	DB      *bun.DB
+	Observe func(Observation)
+	// FederalState resolves the tenant's federal-state ISO code (the
+	// operations.federal_state setting).
+	FederalState func(context.Context) (string, error)
+}
+
+// NewRecords composes the School Calendar without the period
+// administration, for the owners a root builds before the ones the
+// administration asks (#4080). NewAdministration adds the administration
+// once its gate and guard exist.
+func NewRecords(dependencies RecordsDependencies) (*schoolcalendar.Records, error) {
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.FederalState == nil {
 		return nil, errors.New("school calendar compose: all dependencies are required")
 	}
+	// The records serve no period administration, so its gate and guard
+	// are never asked.
+	service := newService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: berlinToday})
+	return schoolcalendar.NewRecords(engine{service: service, federalState: dependencies.FederalState}), nil
+}
+
+// AdministrationDependencies are the collaborators of the period
+// administration.
+type AdministrationDependencies struct {
+	DB      *bun.DB
+	Observe func(Observation)
+	// RecurrenceGate serializes period administration against every
+	// recurrence-derived write of the tenant: the shared tenant recurrence
+	// lock.
+	RecurrenceGate func(context.Context) error
+	// CareOfferingGuard refuses a period change (replacement set) or
+	// removal (replacement nil) a linked care offering still needs, as
+	// schoolcalendar.ErrCalendarPeriodRequiredByCareOffering in the chain.
+	CareOfferingGuard func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error
+	// Today names the current calendar day in YYYY-MM-DD. Nil means the
+	// Berlin calendar day, the school's day.
+	Today func() string
+}
+
+// NewAdministration adds the period administration to the Records: the
+// whole School Calendar, which the period editor drives.
+func NewAdministration(records *schoolcalendar.Records, dependencies AdministrationDependencies) (*schoolcalendar.Module, error) {
+	if records == nil || dependencies.DB == nil || dependencies.Observe == nil ||
+		dependencies.RecurrenceGate == nil || dependencies.CareOfferingGuard == nil {
+		return nil, errors.New("school calendar compose: all dependencies are required")
+	}
+	today := dependencies.Today
+	if today == nil {
+		today = berlinToday
+	}
+	service := newService(dependencies.DB, dependencies.Observe, application.Administration{
+		Transaction: writeTransaction, RecurrenceGate: dependencies.RecurrenceGate,
+		CareOfferingGuard: careOfferingGuard(dependencies.CareOfferingGuard), Today: today,
+	})
+	return schoolcalendar.NewAdministeredModule(records, engine{service: service}), nil
+}
+
+func newService(db *bun.DB, observe func(Observation), administration application.Administration) *application.Service {
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
 		tenantID := tenant.FromContext(ctx)
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return dependencies.DB, tenantID, nil
+			return db, tenantID, nil
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -109,51 +128,26 @@ func New(dependencies Dependencies) (*schoolcalendar.Module, error) {
 			if tx != nil {
 				return tx, tenantID, nil
 			}
-			return dependencies.DB, tenantID, nil
+			return db, tenantID, nil
 		default:
 			return nil, 0, fmt.Errorf("school calendar postgres: unsupported transaction %T", transaction)
 		}
 	})
-	resolve := dependencies.Administration
-	if resolve == nil {
-		resolve = func() AdministrationRuntime { return AdministrationRuntime{} }
-	}
-	service := application.New(store, func(observation Observation) {
+	return application.New(store, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
-		dependencies.Observe(observation)
-	}, administrationPorts(resolve, dependencies.Today))
-	return schoolcalendar.NewModule(engine{service: service, federalState: resolve}), nil
+		observe(observation)
+	}, administration)
 }
 
-// administrationPorts binds the application's administration ports to the
-// runtime the resolver answers with on every call; a missing gate or guard
-// is skipped, a missing clock means the Berlin calendar day.
-func administrationPorts(resolve func() AdministrationRuntime, today func() string) application.Administration {
-	if today == nil {
-		today = berlinToday
-	}
-	return application.Administration{
-		Transaction: writeTransaction,
-		RecurrenceGate: func(ctx context.Context) error {
-			gate := resolve().RecurrenceGate
-			if gate == nil {
-				return nil
-			}
-			return gate(ctx)
-		},
-		CareOfferingGuard: func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error {
-			guard := resolve().CareOfferingGuard
-			if guard == nil {
-				return nil
-			}
-			var fields *schoolcalendar.CalendarPeriodFields
-			if replacement != nil {
-				value := periodFieldsToPublic(*replacement)
-				fields = &value
-			}
-			return guard(ctx, periodID, fields)
-		},
-		Today: today,
+// careOfferingGuard hands the guard the proposed period in public words.
+func careOfferingGuard(guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error) func(context.Context, int64, *domain.CalendarPeriodFields) error {
+	return func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error {
+		var fields *schoolcalendar.CalendarPeriodFields
+		if replacement != nil {
+			value := periodFieldsToPublic(*replacement)
+			fields = &value
+		}
+		return guard(ctx, periodID, fields)
 	}
 }
 
@@ -181,17 +175,13 @@ func writeTransaction(ctx context.Context, fn func(context.Context) error) error
 
 type engine struct {
 	service      *application.Service
-	federalState func() AdministrationRuntime
+	federalState func(context.Context) (string, error)
 }
 
-// FederalState resolves the tenant's federal state through the runtime's
-// settings port; an unbound runtime is a configuration error.
+// FederalState resolves the tenant's federal state through the settings
+// port.
 func (e engine) FederalState(ctx context.Context) (string, error) {
-	federalState := e.federalState().FederalState
-	if federalState == nil {
-		return "", errors.New("school calendar: federal state resolver is not bound")
-	}
-	return federalState(ctx)
+	return e.federalState(ctx)
 }
 
 func (e engine) AddCalendarPeriod(ctx context.Context, input schoolcalendar.CreateCalendarPeriod) (schoolcalendar.CalendarPeriod, error) {

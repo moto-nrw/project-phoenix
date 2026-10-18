@@ -19,17 +19,24 @@ func init() {
 	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(error) bool) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
-		svc, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		_, listExport, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		require.NoError(t, err)
+		svcFacilities := api.NewActiveTestFacilities(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svcSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svcCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svcPresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svcPeople := api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		svcEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		prefetch, constraintViolation := api.RoomsHTTPBindingsForTest()
 		return db, httpadapter.RoomsComposition{
 			Dependencies: httpadapter.Dependencies{
-				Facilities: svc.Facilities, RoomHistorySettings: api.NewRoomHistorySettings(svc.Settings, slog.Default(), prefetch),
-				UserContext: svc.UserContext, Active: svc.Active, Users: api.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
-				ListExport: svc.ListExport,
+				Facilities:          svcFacilities.Facilities,
+				RoomHistorySettings: api.NewRoomHistorySettings(svcSettings.Settings, slog.Default(), prefetch),
+				UserContext:         svcCaller, Active: svcPresence.Active, Users: api.NewRoomSnapshotPeople(svcPeople.Users), Education: svcEducation.Education,
+				ListExport: listExport,
 			},
-			Settings: svc.Settings,
-			Usage:    svc.RoomUsage,
+			Settings: svcSettings.Settings,
+			Usage:    svcFacilities.RoomUsage,
 		}, api.ProtectedTenantRoutes, constraintViolation
 	}
 }

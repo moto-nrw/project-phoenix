@@ -62,11 +62,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	case administration == nil:
 		return nil, nil, errors.New("identity access compose: the account administration is required")
 	}
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
-	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
+	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
 	roles, err := newRoleAdministration(auth, runtime, postgres.NewRoleStore(store), administration, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {

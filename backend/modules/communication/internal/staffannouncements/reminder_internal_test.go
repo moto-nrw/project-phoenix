@@ -93,8 +93,8 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		Outbox:           h.outbox,
 		ParentsURL:       "https://parents.example.test",
 		Logger:           slog.Default(),
+		Attachments:      &stubPurger{},
 	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
-	h.svc.SetAttachmentPurger(&stubPurger{})
 	return h
 }
 

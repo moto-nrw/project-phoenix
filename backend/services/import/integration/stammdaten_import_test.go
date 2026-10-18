@@ -22,10 +22,9 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, api.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
@@ -37,11 +36,11 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 		Roles:               identity,
 		FindRolePermissions: identity.FindRolePermissions,
 		SchoolName:          api.NewImportSchoolName(organizations),
-		Persons:             owners.Students,
-		Membership:          owners.Membership,
-		Records:             owners.Workforce,
+		Persons:             api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		Membership:          api.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
+		Records:             api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 	})
-	return config, repos, owners
+	return config, reposPeople
 }
 
 func inTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) {
@@ -62,7 +61,8 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 			return nil
 		},
 	}
-	config, repos, owners := newStammdatenStaffConfig(t, db, invitations)
+	config, repos := newStammdatenStaffConfig(t, db, invitations)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", testpkg.Tenant(t))
 
 	email := fmt.Sprintf("import.%d@example.test", role.ID)
@@ -102,7 +102,7 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 	require.NotNil(t, teacher, "a caregiver-tier role gets its profile")
 	assert.Equal(t, "Gruppenleitung", teacher.Role)
 
-	master, err := api.FindStaffMasterData(ctx, owners.Workforce, staffID)
+	master, err := api.FindStaffMasterData(ctx, workTime, staffID)
 	require.NoError(t, err)
 	require.NotNil(t, master)
 	assert.Equal(t, "female", *master.Gender)
@@ -111,7 +111,7 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 	assert.InDelta(t, 19.5, *master.WeeklyHours, 0.001)
 	assert.Equal(t, timezone.NewDate(2023, 8, 1).String(), master.EntryDate)
 
-	quals, err := owners.Workforce.ListStaffQualifications(ctx, staffID)
+	quals, err := workTime.ListStaffQualifications(ctx, staffID)
 	require.NoError(t, err)
 	require.Len(t, quals, 2)
 	assert.Equal(t, "Erste Hilfe", quals[0].Name)
@@ -144,7 +144,8 @@ func TestStaffImportConfig_Create_WithoutEmailSkipsInvitation(t *testing.T) {
 			return nil
 		},
 	}
-	config, repos, owners := newStammdatenStaffConfig(t, db, invitations)
+	config, repos := newStammdatenStaffConfig(t, db, invitations)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	role := testpkg.CreateTestRoleForTenant(t, db, "Kueche", testpkg.Tenant(t))
 
 	var staffID int64
@@ -160,7 +161,7 @@ func TestStaffImportConfig_Create_WithoutEmailSkipsInvitation(t *testing.T) {
 	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffID)
 	require.NoError(t, err)
 	assert.Equal(t, "Yilmaz", staff.Person.LastName)
-	master, err := api.FindStaffMasterData(testpkg.Ctx(t), owners.Workforce, staffID)
+	master, err := api.FindStaffMasterData(testpkg.Ctx(t), workTime, staffID)
 	require.NoError(t, err)
 	assert.Nil(t, master, "no master data row without master data columns")
 }
@@ -168,7 +169,8 @@ func TestStaffImportConfig_Create_WithoutEmailSkipsInvitation(t *testing.T) {
 func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	config, repos, owners := newStammdatenStaffConfig(t, db, nil)
+	config, repos := newStammdatenStaffConfig(t, db, nil)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	person := testpkg.CreateTestPerson(t, db, "Bernd", "Schulz")
@@ -201,7 +203,7 @@ func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 	assert.Equal(t, "P-9", *updated.PersonnelNumber)
 	assert.Equal(t, ports.EmploymentTypeFullTime, *updated.EmploymentType)
 
-	master, err := api.FindStaffMasterData(ctx, owners.Workforce, staff.ID)
+	master, err := api.FindStaffMasterData(ctx, workTime, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Bonn", *master.AddressCity, "empty address cell keeps the stored city")
 	assert.InDelta(t, 39, *master.WeeklyHours, 0.001)
@@ -210,7 +212,7 @@ func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 func TestStaffImportConfig_FindExisting_RefusesAmbiguousName(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	config, _, _ := newStammdatenStaffConfig(t, db, nil)
+	config, _ := newStammdatenStaffConfig(t, db, nil)
 	testpkg.CreateTestStaff(t, db, "Doppel", "Name")
 	testpkg.CreateTestStaff(t, db, "Doppel", "Name")
 
@@ -223,14 +225,15 @@ func TestStaffImportConfig_FindExisting_RefusesAmbiguousName(t *testing.T) {
 	})
 }
 
-func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *api.RepositoryTestFactory) {
+func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	// Guardian commands need the owner's provider, which the legacy root
 	// binds; the guardian-bearing cutover tests therefore live in the
 	// services package (import_cutover_test.go). This config covers the
 	// person, student, schedule and consent paths.
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
@@ -239,14 +242,14 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 	rfid, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStudentImportConfig(importService.StudentImportDeps{Transactions: dataImportCompose.NewTransactions(),
-		Persons:         owners.Students,
-		Students:        owners.Students,
+		Persons:         students,
+		Students:        students,
 		Schedules:       repos.CarePlan(),
 		PrivacyConsents: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)),
 		FindRFIDCard:    rfid.FindRFIDCard,
 		Resolver:        importService.NewRelationshipResolver(references.Groups, references.Rooms),
 	})
-	return config, repos
+	return config, reposPeople
 }
 
 func TestStudentImportConfig_Validate_RejectsUnknownOrTakenTag(t *testing.T) {

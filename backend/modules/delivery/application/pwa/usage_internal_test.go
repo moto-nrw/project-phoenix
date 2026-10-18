@@ -99,7 +99,7 @@ func TestUsageServiceReportParent(t *testing.T) {
 		repo := &recordingUsageRepository{}
 		mappings := accountTenantStub{mappings: []int64{11, 12}}
 		service := NewUsageService(db, repo, nil, mappings, nil, nil)
-		testpkg.SetTenantRuntime(t, service, db)
+		service.(*usageService).tenantRuntime = new(testpkg.TenantRuntime(t, db))
 
 		require.NoError(t, service.ReportParent(context.Background(), 42))
 		require.Len(t, repo.recorded, 2)
@@ -114,21 +114,21 @@ func TestUsageServiceReportParent(t *testing.T) {
 	t.Run("zero mappings is a no-op, not an error", func(t *testing.T) {
 		repo := &recordingUsageRepository{}
 		service := NewUsageService(db, repo, nil, accountTenantStub{}, nil, nil)
-		testpkg.SetTenantRuntime(t, service, db)
+		service.(*usageService).tenantRuntime = new(testpkg.TenantRuntime(t, db))
 		require.NoError(t, service.ReportParent(context.Background(), 42))
 		assert.Empty(t, repo.recorded)
 	})
 
 	t.Run("forwards mapping and repository errors", func(t *testing.T) {
 		service := NewUsageService(db, nil, nil, accountTenantStub{err: errUsageRepo}, nil, nil)
-		testpkg.SetTenantRuntime(t, service, db)
+		service.(*usageService).tenantRuntime = new(testpkg.TenantRuntime(t, db))
 		err := service.ReportParent(context.Background(), 42)
 		require.ErrorIs(t, err, errUsageRepo)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 
 		repo := &recordingUsageRepository{recordErr: errUsageRepo}
 		service = NewUsageService(db, repo, nil, accountTenantStub{mappings: []int64{11}}, nil, nil)
-		testpkg.SetTenantRuntime(t, service, db)
+		service.(*usageService).tenantRuntime = new(testpkg.TenantRuntime(t, db))
 		err = service.ReportParent(context.Background(), 42)
 		require.ErrorIs(t, err, errUsageRepo)
 		assert.ErrorContains(t, err, "recording pwa usage for tenant 11")

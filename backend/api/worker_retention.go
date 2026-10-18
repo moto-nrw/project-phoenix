@@ -41,48 +41,25 @@ type workerRetention struct {
 	runs  schedulerPorts.CleanupRunLedger
 }
 
-// retentionOwners are the owner capabilities whose data the nightly cleanup
-// deletes, and the deletion log. Each owner resolves its own window.
-type retentionOwners struct {
-	deletionLog interface {
-		LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error
-	}
-	// settings resolves the retention windows of the school in context.
-	settings interface {
-		ResolveInt(ctx context.Context, key string) (int, error)
-	}
-	unregisteredTagScans devicefleet.UnregisteredTagScanRetention
-	statusDays           carePlanModule.StudentStatusDayRetention
-	parentMessages       communicationModule.ParentMessageCleanup
-	// settledEnrollments deletes the withdrawn and lapsed enrollments no
-	// child was created from (#3960).
-	settledEnrollments enrollmentModule.SettledEnrollmentRetention
-	// staffSickNotes deletes the sick notes (AU-Bescheinigungen) after the
-	// school's window and queues their files (#3961).
-	staffSickNotes workforceModule.SickNoteRetention
-	// auditLedgers deletes the expired rows of the append-only audit ledgers
-	// through their fixed database functions (#3956).
-	auditLedgers interface {
-		DeleteExpiredAuthEvents(ctx context.Context) (deleted, retentionDays int, err error)
-		DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
-		DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
-		// DeleteExpiredProtocol deletes the protocol of one of
-		// auditModels.ProtocolRetentionTypes after its fixed window (#4044).
-		DeleteExpiredProtocol(ctx context.Context, kind string) (deleted, retentionDays int, err error)
-	}
-	// deliveries deletes the delivered mail and push intents and the mail
-	// delivery logs after their fixed window (#3955).
-	deliveries deliveryModule.Retention
-	// The finished cleanup jobs, care-withdrawal completions and enrollment
-	// rate-limit buckets of their owners, each after its fixed window (#4046).
-	fileCleanups     fileStorageModule.CleanupRetention
-	staffCleanups    workforceModule.CleanupRetention
-	carePlanCleanups carePlanModule.CleanupRetention
-	submissionLimits enrollmentModule.SubmissionRateLimitRetention
-	// The setting protocol and the export journal of their owners, each
-	// after its fixed window (#4044).
-	settingAudit    settingsModule.AuditRetention
-	exportTransfers exportTransferModule.JournalRetention
+// retentionDeletionLog is the deletion log every retention step reports to.
+type retentionDeletionLog interface {
+	LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error
+}
+
+// retentionSettings resolves the retention windows of the school in context.
+type retentionSettings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// retentionAuditLedgers deletes the expired rows of the append-only audit
+// ledgers through their fixed database functions (#3956).
+type retentionAuditLedgers interface {
+	DeleteExpiredAuthEvents(ctx context.Context) (deleted, retentionDays int, err error)
+	DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
+	DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
+	// DeleteExpiredProtocol deletes the protocol of one of
+	// auditModels.ProtocolRetentionTypes after its fixed window (#4044).
+	DeleteExpiredProtocol(ctx context.Context, kind string) (deleted, retentionDays int, err error)
 }
 
 // studentRetention deletes the children whose last care day lies more than
@@ -99,20 +76,26 @@ type staffRetention interface {
 	DeleteExpiredStaff(ctx context.Context) (staffoffboarding.RetentionResult, error)
 }
 
-// newWorkerRetention composes the nightly retention. attendance deletes the
-// daily attendance after the school's window (#3957); like the workflows it
+// newWorkerRetention composes the nightly cleanup over the deletion log, the
+// settings the windows resolve from, the subject deletions and the owner
+// steps, in the order dataRetentionSteps, protocolRetentionSteps and
+// cleanupJobRetentionSteps list them. attendance deletes the daily
+// attendance after the school's window (#3957); like the workflows it
 // reaches the Worker as an argument, not as a field of the owners (ADR 0059).
-func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention, attendance studentpresence.AttendanceRetention) (workerRetention, error) {
-	if owners.deletionLog == nil || owners.settings == nil {
+func newWorkerRetention(
+	deletionLog retentionDeletionLog, settings retentionSettings, students studentRetention, staff staffRetention,
+	steps []schedulerPorts.RetentionStep, attendance studentpresence.AttendanceRetention,
+) (workerRetention, error) {
+	if deletionLog == nil || settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
 	if err := settingsCompose.VerifyPreloadKeys(settingsModule.RetentionWindowKeys()); err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
-	deletions := owners.deletionLog
+	deletions := deletionLog
 	return workerRetention{
 		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
-			append(retentionSteps(owners), attendanceRetentionSteps(attendance, owners.settings)...)),
+			append(steps, attendanceRetentionSteps(attendance, settings)...)),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -120,19 +103,28 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 	}, nil
 }
 
-// retentionSteps lists the deletions of the nightly cleanup of one school.
-// A missing owner leaves its step out.
-func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+// dataRetentionSteps lists the owner data deletions of the nightly cleanup of
+// one school; each owner resolves its own window, the status days theirs
+// from settings. The settled enrollments are the withdrawn and lapsed ones no
+// child was created from (#3960), the sick notes (AU-Bescheinigungen) queue
+// their files (#3961), and the deliveries are the delivered mail and push
+// intents and the mail delivery logs (#3955). A missing owner leaves its step
+// out.
+func dataRetentionSteps(
+	settings retentionSettings, unregisteredTagScans devicefleet.UnregisteredTagScanRetention,
+	statusDays carePlanModule.StudentStatusDayRetention, parentMessages communicationModule.ParentMessageCleanup,
+	settledEnrollments enrollmentModule.SettledEnrollmentRetention, staffSickNotes workforceModule.SickNoteRetention,
+	auditLedgers retentionAuditLedgers, deliveries deliveryModule.Retention,
+) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
-	if owners.unregisteredTagScans != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeUnregisteredTagScanRetention, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
+	if unregisteredTagScans != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeUnregisteredTagScanRetention, unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
-	if owners.statusDays != nil {
-		statusDays := owners.statusDays
+	if statusDays != nil {
 		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: auditModels.DeletionTypeStatusDayRetention,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				window := settingsModule.NewStatusDayRetention(owners.settings)
+				window := settingsModule.NewStatusDayRetention(settings)
 				days, err := window.Days(ctx)
 				if err != nil {
 					return schedulerPorts.RetentionOutcome{}, err
@@ -145,42 +137,38 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 			},
 		})
 	}
-	if owners.parentMessages != nil {
-		messages := owners.parentMessages
+	if parentMessages != nil {
 		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: auditModels.DeletionTypeParentMessageRetention,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				result, err := messages.CleanupExpiredParentMessages(ctx)
+				result, err := parentMessages.CleanupExpiredParentMessages(ctx)
 				return schedulerPorts.RetentionOutcome{Deleted: result.Deleted(), RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
-	if owners.settledEnrollments != nil {
-		enrollments := owners.settledEnrollments
+	if settledEnrollments != nil {
 		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: auditModels.DeletionTypeSettledEnrollmentRetention,
 			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				result, err := enrollments.CleanupSettledEnrollments(ctx)
+				result, err := settledEnrollments.CleanupSettledEnrollments(ctx)
 				return schedulerPorts.RetentionOutcome{Deleted: result.Deleted(), RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
-	if owners.staffSickNotes != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffSickNoteRetention, owners.staffSickNotes.DeleteExpiredStaffSickNotes))
+	if staffSickNotes != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffSickNoteRetention, staffSickNotes.DeleteExpiredStaffSickNotes))
 	}
-	if owners.auditLedgers != nil {
-		ledgers := owners.auditLedgers
+	if auditLedgers != nil {
 		steps = append(steps,
-			ownerRetentionStep(auditModels.DeletionTypeAuthEventRetention, ledgers.DeleteExpiredAuthEvents),
-			ownerRetentionStep(auditModels.DeletionTypeDataAccessLogRetention, ledgers.DeleteExpiredDataAccessLog),
-			ownerRetentionStep(auditModels.DeletionTypeDeletionLogRetention, ledgers.DeleteExpiredDeletionLog),
+			ownerRetentionStep(auditModels.DeletionTypeAuthEventRetention, auditLedgers.DeleteExpiredAuthEvents),
+			ownerRetentionStep(auditModels.DeletionTypeDataAccessLogRetention, auditLedgers.DeleteExpiredDataAccessLog),
+			ownerRetentionStep(auditModels.DeletionTypeDeletionLogRetention, auditLedgers.DeleteExpiredDeletionLog),
 		)
 	}
-	if owners.deliveries != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeDeliveryRetention, owners.deliveries.DeleteExpiredDeliveries))
+	if deliveries != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeDeliveryRetention, deliveries.DeleteExpiredDeliveries))
 	}
-	steps = append(steps, protocolRetentionSteps(owners)...)
-	return append(steps, cleanupJobRetentionSteps(owners)...)
+	return steps
 }
 
 // attendanceRetentionSteps is the deletion of the daily attendance after the
@@ -323,43 +311,46 @@ func newStudentRetention(workflow *studentdeletion.Workflow, settings interface 
 
 // protocolRetentionSteps are the fixed-window deletions of the protocols of
 // #4044: one step per protocol, so each logs its own data kind.
-func protocolRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+func protocolRetentionSteps(auditLedgers retentionAuditLedgers, settingAudit settingsModule.AuditRetention, exportTransfers exportTransferModule.JournalRetention) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
-	if owners.auditLedgers != nil {
-		ledgers := owners.auditLedgers
+	if auditLedgers != nil {
 		for _, kind := range auditModels.ProtocolRetentionTypes() {
 			steps = append(steps, ownerRetentionStep(kind, func(ctx context.Context) (int, int, error) {
-				return ledgers.DeleteExpiredProtocol(ctx, kind)
+				return auditLedgers.DeleteExpiredProtocol(ctx, kind)
 			}))
 		}
 	}
-	if owners.settingAudit != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSettingAuditRetention, owners.settingAudit.DeleteExpiredSettingChanges))
+	if settingAudit != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSettingAuditRetention, settingAudit.DeleteExpiredSettingChanges))
 	}
-	if owners.exportTransfers != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeExportTransferRetention, owners.exportTransfers.DeleteExpiredTransfers))
+	if exportTransfers != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeExportTransferRetention, exportTransfers.DeleteExpiredTransfers))
 	}
 	return steps
 }
 
 // cleanupJobRetentionSteps are the fixed-window deletions of the technical
-// remains (#4046).
-func cleanupJobRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+// remains (#4046): the finished cleanup jobs, care-withdrawal completions and
+// enrollment rate-limit buckets of their owners.
+func cleanupJobRetentionSteps(
+	fileCleanups fileStorageModule.CleanupRetention, staffCleanups workforceModule.CleanupRetention,
+	carePlanCleanups carePlanModule.CleanupRetention, submissionLimits enrollmentModule.SubmissionRateLimitRetention,
+) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
-	if owners.fileCleanups != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeFileCleanupRetention, owners.fileCleanups.DeleteFinishedCleanups))
+	if fileCleanups != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeFileCleanupRetention, fileCleanups.DeleteFinishedCleanups))
 	}
-	if owners.staffCleanups != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffCleanupRetention, owners.staffCleanups.DeleteFinishedStaffCleanups))
+	if staffCleanups != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeStaffCleanupRetention, staffCleanups.DeleteFinishedStaffCleanups))
 	}
-	if owners.carePlanCleanups != nil {
+	if carePlanCleanups != nil {
 		steps = append(steps,
-			ownerRetentionStep(auditModels.DeletionTypeStudentDocumentCleanupRetention, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
-			ownerRetentionStep(auditModels.DeletionTypeCareWithdrawalRetention, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
+			ownerRetentionStep(auditModels.DeletionTypeStudentDocumentCleanupRetention, carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
+			ownerRetentionStep(auditModels.DeletionTypeCareWithdrawalRetention, carePlanCleanups.DeleteFinishedWithdrawalCompletions),
 		)
 	}
-	if owners.submissionLimits != nil {
-		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSubmissionRateLimitRetention, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
+	if submissionLimits != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeSubmissionRateLimitRetention, submissionLimits.DeleteExpiredSubmissionRateLimits))
 	}
 	return steps
 }

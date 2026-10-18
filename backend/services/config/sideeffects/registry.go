@@ -5,6 +5,7 @@ package sideeffects
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -16,31 +17,43 @@ type KeyHandler func(ctx context.Context, tenantID int64, value any) (postCommit
 type FailureObserver func(key string)
 
 // Registry maps setting keys to their domain-owned handlers. Construct via
-// NewRegistry, populate at boot via Register, then pass Dispatch to the
-// settings/operator resources.
+// NewRegistryWith, then pass Dispatch to the settings/operator resources.
 type Registry struct {
 	handlers       map[string]KeyHandler
 	observeFailure FailureObserver
 }
 
-// NewRegistry constructs an empty registry.
-func NewRegistry() *Registry {
-	return &Registry{handlers: make(map[string]KeyHandler)}
+// Handler binds one setting key to its handler.
+type Handler struct {
+	Key    string
+	Handle func(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
 }
 
-func (r *Registry) SetFailureObserver(observer FailureObserver) {
-	r.observeFailure = observer
+// NewRegistryWith constructs a registry with its failure observer and every
+// handler at construction (ADR 0059). A missing observer, a nil handler and
+// a key bound twice are construction errors.
+func NewRegistryWith(observer FailureObserver, handlers ...Handler) (*Registry, error) {
+	if observer == nil {
+		return nil, errors.New("sideeffects: failure observer is required")
+	}
+	bound := make(map[string]KeyHandler, len(handlers))
+	for _, handler := range handlers {
+		if err := checkHandler(bound, handler.Key, handler.Handle); err != nil {
+			return nil, err
+		}
+		bound[handler.Key] = handler.Handle
+	}
+	return &Registry{handlers: bound, observeFailure: observer}, nil
 }
 
-// Register binds a handler to a setting key.
-func (r *Registry) Register(key string, handler KeyHandler) {
+func checkHandler(handlers map[string]KeyHandler, key string, handler KeyHandler) error {
 	if handler == nil {
-		panic(fmt.Sprintf("sideeffects: nil handler for key %q", key))
+		return fmt.Errorf("sideeffects: nil handler for key %q", key)
 	}
-	if _, exists := r.handlers[key]; exists {
-		panic(fmt.Sprintf("sideeffects: handler already registered for key %q", key))
+	if _, exists := handlers[key]; exists {
+		return fmt.Errorf("sideeffects: handler already registered for key %q", key)
 	}
-	r.handlers[key] = handler
+	return nil
 }
 
 // Dispatch matches the settings resources' ValueSetCallback signature.
@@ -51,7 +64,7 @@ func (r *Registry) Dispatch(ctx context.Context, tenantID int64, key string, val
 		return nil, nil
 	}
 	postCommit, err := handler(ctx, tenantID, value)
-	if err != nil && r.observeFailure != nil {
+	if err != nil {
 		r.observeFailure(key)
 	}
 	return postCommit, err

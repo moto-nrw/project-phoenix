@@ -7,7 +7,6 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	render "github.com/go-chi/render"
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -70,12 +69,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 		cfg.Now = time.Now
 	}
 	return &Resource{ResourceConfig: cfg}
-}
-func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protected(r, rs.Register)
-	return r
 }
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)

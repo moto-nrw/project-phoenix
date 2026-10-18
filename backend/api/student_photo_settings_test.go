@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,10 +28,11 @@ func (f *fakeStudentPhotoService) HandleFeatureToggle(_ context.Context, _ int64
 func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testing.T) {
 	t.Parallel()
 
-	registry := settingsCompose.NewSideEffectRegistry()
 	service := &fakeStudentPhotoService{}
 
-	RegisterStudentPhotoSettingsSideEffects(registry, service)
+	registry, err := settingsCompose.NewSideEffects(func(string) {},
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: service.HandleFeatureToggle})
+	require.NoError(t, err)
 
 	post, err := registry.Dispatch(context.Background(), 1, "operations.student_photos_enabled", true)
 	require.NoError(t, err)
@@ -42,10 +44,11 @@ func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testin
 func TestRegisterStudentPhotoSettingsSideEffectsIgnoresOtherKeys(t *testing.T) {
 	t.Parallel()
 
-	registry := settingsCompose.NewSideEffectRegistry()
 	service := &fakeStudentPhotoService{}
 
-	RegisterStudentPhotoSettingsSideEffects(registry, service)
+	registry, err := settingsCompose.NewSideEffects(func(string) {},
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: service.HandleFeatureToggle})
+	require.NoError(t, err)
 
 	post, err := registry.Dispatch(context.Background(), 1, "operations.session_end_time", "18:00")
 	require.NoError(t, err)

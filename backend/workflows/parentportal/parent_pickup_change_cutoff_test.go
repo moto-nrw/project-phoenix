@@ -345,9 +345,9 @@ func TestPickupChangeCutoffIsTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	d := newCutoffServiceDeps(t)
-	sf, err := api.NewServiceGraphForTests(d.repos, testpkg.NewDatabase(t, d.db), slog.Default())
+	_, _, _, _, _, sfSettings, err := api.NewTestCareRequests(testpkg.NewDatabase(t, d.db), slog.Default())
 	require.NoError(t, err)
-	settings := sf.Settings
+	settings := sfSettings
 	runtimeCtx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, d.db)

@@ -27,3 +27,10 @@ func SchulhofRoomColor(ctx context.Context, rooms Query) (*string, error) {
 	}
 	return nil, nil
 }
+
+// YardRoomColor reads the colour of the system yard for attendance.
+func YardRoomColor(rooms Query) func(context.Context) (*string, error) {
+	return func(ctx context.Context) (*string, error) {
+		return SchulhofRoomColor(ctx, rooms)
+	}
+}

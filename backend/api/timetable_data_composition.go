@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -12,36 +13,43 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewTimetableData composes the planner's reads of the Timetable owner and
-// binds the collaborators it may not name itself: Care Plan's baselines, the
-// Student Presence room occupancy and the tenant runtime's advisory locks;
-// the retained rows bind the Facilities rooms and the Audit Platform's
-// Änderungsprotokoll.
-func NewTimetableData(in TimetableDataInputs) (timetable.TimetableDataCapability, error) {
-	templates, err := in.Rows.DataTemplates()
+// NewTimetableData composes the planner's reads of the Timetable owner
+// (#3551) over the retained rows and binds the collaborators it may not name
+// itself: Care Plan's baselines, the Student Presence room occupancy and the
+// tenant runtime's advisory locks; the retained rows bind the Facilities
+// rooms and the Audit Platform's Änderungsprotokoll. arrivalBaselines and
+// pickupBaselines are optional; blockMetadata is the block display
+// projection the composition root binds; transactional binds the tenant
+// runtime's advisory locks a spontaneous start takes.
+func NewTimetableData(
+	rows timetableCompose.OwnerRows, arrivalBaselines careplan.ArrivalBaselineReader, pickupBaselines careplan.PickupBaselineReader,
+	visits timetablePorts.OperationVisits, groups timetablePorts.DataGroups, sessions studentpresence.SessionRecords,
+	conflictAcks timetable.ConflictAckCapability, blockMetadata timetablePorts.BlockDisplayMetadata, transactional bool, logger *slog.Logger,
+) (timetable.TimetableDataCapability, error) {
+	templates, err := rows.DataTemplates()
 	if err != nil {
 		return nil, err
 	}
 	return timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
-		Instances:         in.Rows.Instances,
-		InstanceStaff:     in.Rows.InstanceStaff,
-		Participants:      in.Rows.Participants,
-		PickupExceptions:  in.Rows.PickupExceptions,
-		ArrivalExceptions: in.Rows.ArrivalExceptions,
-		ArrivalBaselines:  newArrivalBaselineProjector(in.ArrivalBaselines),
-		PickupBaselines:   newPickupBaselineProjector(in.PickupBaselines),
-		Visits:            in.Visits,
+		Instances:         rows.Instances,
+		InstanceStaff:     rows.InstanceStaff,
+		Participants:      rows.Participants,
+		PickupExceptions:  rows.PickupExceptions,
+		ArrivalExceptions: rows.ArrivalExceptions,
+		ArrivalBaselines:  newArrivalBaselineProjector(arrivalBaselines),
+		PickupBaselines:   newPickupBaselineProjector(pickupBaselines),
+		Visits:            visits,
 		Templates:         templates,
-		Groups:            in.Groups,
-		BlockMetadata:     in.BlockMetadata,
-		Categories:        in.Rows.Categories,
-		Rooms:             in.Rows.Rooms,
-		RoomOccupancy:     TimetableRoomOccupancy{Sessions: in.Sessions},
-		DeviationEvents:   in.Rows.DeviationEvents,
-		ConflictAcks:      in.ConflictAcks,
-		Locks:             in.Rows.Locks,
-		Advisory:          newTenantAdvisoryLocks(in.Transactional),
-		Logger:            in.Logger,
+		Groups:            groups,
+		BlockMetadata:     blockMetadata,
+		Categories:        rows.Categories,
+		Rooms:             rows.Rooms,
+		RoomOccupancy:     TimetableRoomOccupancy{Sessions: sessions},
+		DeviationEvents:   rows.DeviationEvents,
+		ConflictAcks:      conflictAcks,
+		Locks:             rows.Locks,
+		Advisory:          newTenantAdvisoryLocks(transactional),
+		Logger:            logger,
 	})
 }
 

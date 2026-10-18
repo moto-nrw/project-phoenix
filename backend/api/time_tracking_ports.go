@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"log/slog"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -12,7 +11,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // timeTrackingStaffRecords are the retained staff reads and the schedule
@@ -48,62 +46,45 @@ type timeTrackingAudits struct {
 	TimeTrackingAuditLog timeTrackingAuditFeed
 }
 
-// timeTrackingPortDependencies are the owners the root binds the Workforce
-// time-tracking ports over (#3413).
-type timeTrackingPortDependencies struct {
-	Workforce workforceModule.Capability
-	// Bound are the ports the caller binds before timeTrackingPorts runs:
-	// the staff absences and their audit, the work-session staff, the
-	// supervisions and session records, the holidays, the events, the
-	// absence mail and the shift-plan sync. timeTrackingPorts sets every
-	// other port and leaves these alone.
-	Bound           workforceCompose.TimeTrackingPorts
-	Audits          timeTrackingAudits
-	Staff           timeTrackingStaffRecords
-	People          timeTrackingStaffLookup
-	StaffEmployment workforceCompose.StaffEmploymentQuery
-	WorkSchedules   interface {
-		WorkSessionScheduleRecords
-		WorkScheduleTargetRecords
-	}
-	WorkTimeModels interface {
-		WorkSessionTimeModelRecords
-		WorkTimeTargetModelRecords
-	}
-	Settings timeTrackingSettings
-	Payroll  settingsCompose.PayrollStatusGetter
-	DB       transactionruntime.Database
-	Logger   *slog.Logger
-	Today    func() timezone.Date
+// timeTrackingWorkSchedules are the staff work schedules the session and
+// target ports read.
+type timeTrackingWorkSchedules interface {
+	WorkSessionScheduleRecords
+	WorkScheduleTargetRecords
 }
 
-// newTimeTracking composes the Workforce time-tracking side over the root's
-// port bindings.
-func newTimeTracking(deps timeTrackingPortDependencies) (*workforceCompose.TimeTracking, error) {
-	return workforceCompose.NewTimeTracking(deps.Workforce, timeTrackingPorts(deps), staffScheduleBindings(deps.People))
+// timeTrackingWorkTimeModels are the work time models the session and target
+// ports read.
+type timeTrackingWorkTimeModels interface {
+	WorkSessionTimeModelRecords
+	WorkTimeTargetModelRecords
 }
 
 // timeTrackingPorts binds the time-tracking services' consumer-owned ports to
 // the retained repositories, audit trails, settings and renderers.
-func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeTrackingPorts {
-	ports := deps.Bound
-	ports.EditAudit = NewWorkSessionAudit(deps.Audits.WorkSessionEdit)
-	ports.DeletionAudit = NewTimeTrackingDeletionAudit(deps.Audits.TimeTrackingDeletion)
-	ports.DataAccessAudit = NewTimeTrackingDataAccessAudit(deps.Audits.DataAccessLog)
-	ports.AuditReader = NewTimeTrackingAuditReader(deps.Audits.TimeTrackingAuditLog)
-	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(deps.StaffEmployment)
-	ports.MonthCloseStaff, ports.OverviewStaff = MonthCloseStaff(deps.Staff), OverviewStaff(deps.Staff)
-	ports.ExportStaff, ports.StaffNames = TimeExportStaff(deps.Staff), StaffDisplayNames(deps.Staff)
-	ports.Schedules = NewWorkSessionSchedules(deps.WorkSchedules)
-	ports.TimeModels = NewWorkSessionTimeModels(deps.WorkTimeModels)
-	ports.ScheduleTargets = NewWorkScheduleTargets(deps.WorkSchedules)
-	ports.TargetModels = NewWorkTimeTargetModels(deps.WorkTimeModels)
-	ports.Shifts = workforceCompose.NewTimeTrackingShifts(deps.Workforce)
-	ports.Settings = settingsCompose.PresenceSettings(deps.Settings)
-	ports.Payroll = PayrollExportSettings{Source: deps.Payroll}
+func timeTrackingPorts(
+	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits timeTrackingAudits,
+	staff timeTrackingStaffRecords, employment workforceCompose.StaffEmploymentQuery,
+	schedules timeTrackingWorkSchedules, timeModels timeTrackingWorkTimeModels,
+	settings timeTrackingSettings, payroll settingsCompose.PayrollStatusGetter, db transactionruntime.Database,
+) workforceCompose.TimeTrackingPorts {
+	ports := bound
+	ports.EditAudit = NewWorkSessionAudit(audits.WorkSessionEdit)
+	ports.DeletionAudit = NewTimeTrackingDeletionAudit(audits.TimeTrackingDeletion)
+	ports.DataAccessAudit = NewTimeTrackingDataAccessAudit(audits.DataAccessLog)
+	ports.AuditReader = NewTimeTrackingAuditReader(audits.TimeTrackingAuditLog)
+	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(employment)
+	ports.MonthCloseStaff, ports.OverviewStaff = MonthCloseStaff(staff), OverviewStaff(staff)
+	ports.ExportStaff, ports.StaffNames = TimeExportStaff(staff), StaffDisplayNames(staff)
+	ports.Schedules = NewWorkSessionSchedules(schedules)
+	ports.TimeModels = NewWorkSessionTimeModels(timeModels)
+	ports.ScheduleTargets = NewWorkScheduleTargets(schedules)
+	ports.TargetModels = NewWorkTimeTargetModels(timeModels)
+	ports.Shifts = workforceCompose.NewTimeTrackingShifts(workforce)
+	ports.Settings = settingsCompose.PresenceSettings(settings)
+	ports.Payroll = PayrollExportSettings{Source: payroll}
 	ports.RenderPDF, ports.RenderWorkbook = RenderTimeTrackingPDF, RenderTimeTrackingWorkbook
-	ports.Logger, ports.Today = deps.Logger, deps.Today
-	if pool := deps.DB.Pool(); pool != nil {
+	if pool := db.Pool(); pool != nil {
 		ports.DB = pool
 	}
 	return ports
@@ -119,11 +100,4 @@ func staffScheduleBindings(people timeTrackingStaffLookup) workforceCompose.Staf
 		}
 		return workforceCompose.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, nil
 	}
-}
-
-// timeTrackingStaffRows are the staff rows the time-tracking ports and the
-// absence request mails read.
-type timeTrackingStaffRows interface {
-	timeTrackingStaffRecords
-	absenceEmailStaffRecords
 }

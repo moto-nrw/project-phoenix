@@ -21,8 +21,12 @@ import (
 // does (#3950): the steps the root composes, inside the school's tenant
 // transaction on the least-privilege Serve pool, and seeds and inspects rows
 // as the superuser.
+// retentionDB is the superuser pool of the suite the fixtures backdate
+// rows through.
+type retentionDB = *bun.DB
+
 type retentionSuite struct {
-	admin     *bun.DB
+	admin     retentionDB
 	serve     *bun.DB
 	retention workerRetention
 }
@@ -34,31 +38,15 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	t.Cleanup(func() { require.NoError(t, serve.Close()) })
 	db, err := transactionruntime.NewDatabase(admin)
 	require.NoError(t, err)
-	owners, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
+	audit, settings, steps, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
-	students, err := NewStudentTestRetention(db, owners.Audit, owners.Settings)
+	students, err := NewStudentTestRetention(db, audit, settings)
 	require.NoError(t, err)
-	staff, err := newStaffRetention(db, owners.Audit, owners.Settings, nil)
+	staff, err := newStaffRetention(db, audit, settings, nil)
 	require.NoError(t, err)
 	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: admin, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	retention, err := newWorkerRetention(retentionOwners{
-		deletionLog:          owners.Audit,
-		settings:             owners.Settings,
-		unregisteredTagScans: owners.UnregisteredTagScans,
-		statusDays:           owners.StatusDays,
-		parentMessages:       owners.ParentMessages,
-		settledEnrollments:   owners.SettledEnrollments,
-		staffSickNotes:       owners.StaffSickNotes,
-		auditLedgers:         owners.Audit,
-		deliveries:           owners.Deliveries,
-		fileCleanups:         owners.FileCleanups,
-		staffCleanups:        owners.StaffCleanups,
-		carePlanCleanups:     owners.CarePlanCleanups,
-		submissionLimits:     owners.SubmissionLimits,
-		settingAudit:         owners.SettingAudit,
-		exportTransfers:      owners.ExportTransfers,
-	}, students, staff, attendance)
+	retention, err := newWorkerRetention(audit, settings, students, staff, steps, attendance)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }

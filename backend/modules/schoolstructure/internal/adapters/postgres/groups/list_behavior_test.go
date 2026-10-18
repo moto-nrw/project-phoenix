@@ -15,7 +15,7 @@ func TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice(t 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Group list behavior")
 	alpha := &schoolStructureCompose.Group{Name: "Group list alpha", RoomID: &room.ID}

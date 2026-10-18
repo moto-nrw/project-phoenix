@@ -101,7 +101,17 @@ func catalogDependencies() CareOfferingCatalogDependencies {
 		SourceRules:  catalogSourceRulesStub{},
 		MarkRollback: func(context.Context) {},
 		Today:        func() calendar.Date { return bookingStatsTestToday },
+
+		SourcedTemplates: catalogResyncStub{},
+		Pickup:           catalogResyncStub{},
 	}
+}
+
+// catalogResyncStub is the roster and pickup resync of a catalog whose edits
+// under test never reach it.
+type catalogResyncStub struct {
+	ports.SourcedTemplateResyncer
+	ports.PickupResyncer
 }
 
 func newTestCatalog(t *testing.T, deps CareOfferingCatalogDependencies) *CareOfferingCatalog {
@@ -334,6 +344,23 @@ func TestNewCareOfferingCatalog_RequiresItsPorts(t *testing.T) {
 	withoutPhases.Phases = nil
 	_, err = NewCareOfferingCatalog(withoutPhases)
 	require.ErrorContains(t, err, "phases")
+}
+
+// An offering edit resyncs the sourced rosters and the pickup projection, so
+// a catalog without either resyncer is refused at composition instead of
+// saving an edit that leaves them stale.
+func TestNewCareOfferingCatalog_RequiresTheResyncers(t *testing.T) {
+	t.Parallel()
+
+	withoutSourced := catalogDependencies()
+	withoutSourced.SourcedTemplates = nil
+	_, err := NewCareOfferingCatalog(withoutSourced)
+	require.ErrorContains(t, err, "resyncers are required")
+
+	withoutPickup := catalogDependencies()
+	withoutPickup.Pickup = nil
+	_, err = NewCareOfferingCatalog(withoutPickup)
+	require.ErrorContains(t, err, "resyncers are required")
 }
 
 func TestListBookingStats_PropagatesRepositoryFailures(t *testing.T) {

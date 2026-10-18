@@ -64,24 +64,18 @@ func NewRetentionCleanupRepositories(db transactionruntime.Database, command aud
 	}
 }
 
-// SessionCleanupRepositories are the Student Presence session and
-// supervision records the session cleanup runs on, the devices of the
-// sessions and the Timetable completion of their planned instances.
-type SessionCleanupRepositories struct {
-	Sessions        studentpresence.SessionRecords
-	Device          devicefleetLegacy.SessionDeviceRecords
-	TimetableBridge SessionCleanupTimetableBridge
-}
-
 // SessionCleanupTimetableBridge completes the planned activity instances of
 // the sessions the cleanup ends.
 type SessionCleanupTimetableBridge interface {
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
 
-// NewSessionCleanupRepositories composes the session cleanup's records over
-// the unobserved Device Fleet and Facilities owners and the given Timetable.
-func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) SessionCleanupRepositories {
+// NewSessionCleanupRepositories composes the records the session cleanup runs
+// on over the unobserved Device Fleet and Facilities owners and the given
+// Timetable: the Student Presence session and supervision records, the
+// devices of the sessions and the Timetable completion of their planned
+// instances.
+func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) (studentpresence.SessionRecords, devicefleetLegacy.SessionDeviceRecords, SessionCleanupTimetableBridge) {
 	if timetableCapability == nil {
 		panic("session cleanup repositories: timetable capability is required")
 	}
@@ -93,10 +87,8 @@ func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapa
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	return SessionCleanupRepositories{
-		Sessions: NewSessionRecords(db, SessionRecordOwners{Devices: fleet, Rooms: rooms, Timetable: timetableCapability}),
-		Device:   devicefleetRepositoryAdapter.NewDeviceRepository(fleet),
-		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db.Pool(), timetableCapability,
-			NewUnloggedStudentPresence(db)),
-	}
+	sessions := NewSessionRecords(db, nil, fleet, rooms, timetableCapability, nil, nil)
+	devices := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
+	completion := timetableCompose.NewActivityInstanceRepository(db.Pool(), timetableCapability, NewUnloggedStudentPresence(db))
+	return sessions, devices, completion
 }

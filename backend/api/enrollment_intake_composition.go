@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
@@ -120,4 +121,81 @@ func (s enrollmentIntakeSettings) LegalSettings(ctx context.Context) (enrollment
 		return enrollmentCompose.LegalSettings{}, err
 	}
 	return enrollmentCompose.LegalSettings(legal), nil
+}
+
+// EnrollmentIntakeSettings resolves the tenant settings of the intake by key.
+// A resolver that also answers ResolveMany is read through one snapshot.
+type EnrollmentIntakeSettings interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// EnrollmentIntakeSources are the owners and retained repositories the root
+// binds the intake to. A nil source skips the work that needs it, the way
+// the intake always treated an unwired repository.
+type EnrollmentIntakeSources struct {
+	Requests           enrollmentCompose.IntakeRequests
+	Children           enrollmentCompose.IntakeChildren
+	Bookings           enrollmentOwner.CareBookingCommands
+	Guardians          enrollmentCompose.IntakeGuardians
+	LateInviteRepo     enrollmentCompose.IntakeLateInvites
+	CareOfferingRepo   enrollmentCompose.IntakeOfferings
+	Capacity           enrollmentOwner.OfferingCapacity
+	Catalog            enrollmentCompose.IntakeCatalog
+	SchoolRepo         enrollmentOwner.SchoolDirectory
+	Notifications      enrollmentOwner.Notifications
+	StudentRepo        enrollmentCompose.StudentMatches
+	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
+	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
+	OutboxEnqueuer     enrollmentCompose.MailOutbox
+	Settings           EnrollmentIntakeSettings
+	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
+	// mail (#3780); nil keeps the configured address list only.
+	AdminSubscribers enrollmentCompose.AdminMailSubscribers
+	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
+	// ParentChanges makes a request unread again after a parent edit (#3778).
+	ParentChanges enrollmentCompose.RequestParentChanges
+	// FrontendURL is the base of the staff links, ParentsURL of the
+	// parent-facing ones; it falls back to FrontendURL.
+	FrontendURL string
+	ParentsURL  string
+	Logger      *slog.Logger
+}
+
+// EnrollmentChangeRequestSources are the owners and retained repositories the
+// root binds the change requests to.
+type EnrollmentChangeRequestSources struct {
+	Bookings            enrollmentCompose.CareBookingChanges
+	Requests            enrollmentCompose.ChangeRequestRecords
+	Children            enrollmentCompose.IntakeChildren
+	Guardians           enrollmentCompose.IntakeGuardians
+	LateInviteRepo      enrollmentCompose.DecisionLateInvites
+	CareOfferingRepo    enrollmentCompose.IntakeOfferings
+	Capacity            enrollmentOwner.OfferingCapacity
+	Catalog             enrollmentCompose.IntakeCatalog
+	Notifications       enrollmentOwner.Notifications
+	GuardianProfileRepo enrollmentGuardianProfileRows
+	GuardianPhoneRepo   enrollmentGuardianPhoneRows
+	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
+	PersonRepo          EnrollmentReviewerPersons
+	StudentRepo         enrollmentCompose.StudentMatches
+	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
+	// Decisions applies an approved change to a child the decision flow
+	// already approved; BookingGates wrap those writes. A nil Decisions
+	// leaves every child to the booking replacement.
+	Decisions            enrollmentOwner.ApprovedChildChanges
+	BookingGates         enrollmentCompose.CareBookingGates
+	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
+	Settings             EnrollmentIntakeSettings
+	OutboxEnqueuer       enrollmentCompose.MailOutbox
+	FrontendURL          string
+	ParentsURL           string
+	Logger               *slog.Logger
+}
+
+// EnrollmentReviewerPersons resolves the persons behind reviewer accounts.
+type EnrollmentReviewerPersons interface {
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*peopledirectory.DirectoryPersonSnapshot, error)
 }

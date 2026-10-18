@@ -48,7 +48,7 @@ func newSynchronousDeliveryMFAService(
 		// fails the issuance, not how long the retries take.
 		api.WithAuthTestMFABackoff(time.Millisecond),
 	)
-	return module.MFA, module.Repos, db, challengeTokenAuth(t, module)
+	return module.MFA, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db, challengeTokenAuth(t, module)
 }
 
 func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *testing.T) {

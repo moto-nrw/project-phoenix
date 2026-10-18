@@ -91,9 +91,7 @@ type Ports struct {
 	Events         EventPublisher
 	// AbsenceEmail is optional: nil sends no absence email.
 	AbsenceEmail *AbsenceEmailDeps
-	// ShiftPlanSync is optional: nil leaves the shift plans untouched.
-	ShiftPlanSync ShiftPlanSyncer
-	Logger        *slog.Logger
+	Logger       *slog.Logger
 	// Today is optional and pins the absence and ledger calendar day.
 	Today func() calendar.Date
 }
@@ -118,18 +116,25 @@ type Services struct {
 	AuditLog TimeTrackingAuditLogService
 }
 
-// New builds the work session, month, absence, ledger, month-close,
-// overview, export and audit-log services over one dependency set and binds
-// them to each other.
-func New(deps Dependencies) (*Services, error) {
+// Clock is every service but the absence lifecycle. The absence lifecycle
+// cascades a sick report through the plans (#1843), and the cascade's
+// Timetable side reaches Student Presence, which stamps through the work
+// sessions; the clock exists first so the cascade can be built over it.
+// WithAbsences takes the cascade.
+type Clock struct {
+	deps     Dependencies
+	services Services
+}
+
+// NewClock builds the work session, month, ledger, month-close, overview,
+// export and audit-log services.
+func NewClock(deps Dependencies) (*Clock, error) {
 	if err := deps.validate(); err != nil {
 		return nil, err
 	}
 	logger := loggerOrDefault(deps.Logger)
 	snapshots, absenceTypes := deps.MonthSnapshots, deps.AbsenceTypes
 	sessions, months := deps.sessionsAndMonths(absenceTypes, snapshots, logger)
-	absences := NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, months,
-		deps.absenceOptions(absenceTypes, snapshots, logger)...)
 	ledger := deps.ledger(months, snapshots, logger)
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
@@ -143,10 +148,24 @@ func New(deps Dependencies) (*Services, error) {
 	// keyset-paginated view. Read-only; permission gating at the route.
 	auditLog := NewTimeTrackingAuditLogService(deps.AuditReader, deps.StaffNames, deps.Settings)
 
-	return &Services{
-		Sessions: sessions, Months: months, Absences: absences, Ledger: ledger,
+	return &Clock{deps: deps, services: Services{
+		Sessions: sessions, Months: months, Ledger: ledger,
 		Closing: closing, Overview: overview, Export: export, AuditLog: auditLog,
-	}, nil
+	}}, nil
+}
+
+// Sessions is the work session service of the clock.
+func (c *Clock) Sessions() WorkSessionService {
+	return c.services.Sessions
+}
+
+// WithAbsences builds the absence lifecycle over the clock's month service
+// and the required sick cascade, and returns every service.
+func (c *Clock) WithAbsences(syncer ShiftPlanSyncer) *Services {
+	deps, services := c.deps, c.services
+	services.Absences = NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, services.Months,
+		deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger), syncer)...)
+	return &services
 }
 
 // sessionsAndMonths builds the work session service and the Monatskarte
@@ -213,7 +232,7 @@ func (deps Dependencies) overview(snapshots MonthSnapshots, logger *slog.Logger)
 	)
 }
 
-func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger) []StaffAbsenceOption {
+func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger, syncer ShiftPlanSyncer) []StaffAbsenceOption {
 	options := []StaffAbsenceOption{
 		WithAbsenceTypes(types),
 		WithAbsenceEvents(deps.Events),
@@ -236,10 +255,8 @@ func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots Month
 		// Absence email notifications (#1419 4d).
 		options = append(options, WithAbsenceEmail(*deps.AbsenceEmail))
 	}
-	if deps.ShiftPlanSync != nil {
-		// The #1843 sick cascade.
-		options = append(options, WithAbsenceShiftPlanSyncer(deps.ShiftPlanSync))
-	}
+	// The #1843 sick cascade.
+	options = append(options, WithAbsenceShiftPlanSyncer(syncer))
 	return options
 }
 

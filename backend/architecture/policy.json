@@ -6334,28 +6334,6 @@
       "target_role": "port"
     },
     {
-      "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its own HTTP adapter (#4064).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "http"
-    },
-    {
-      "id": "reminder-delivery.compose.permissions",
-      "description": "Reminder composition binds the users:read permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "reminder-delivery.compose.orm",
       "description": "Reminder composition supplies the transaction runtime database.",
       "scopes": [
@@ -6364,16 +6342,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "reminder-delivery.compose.router",
-      "description": "Reminder composition binds HTTP middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "http-router"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
@@ -7591,17 +7559,6 @@
       "source_owner": "communication",
       "source_role": "adapter",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "communication.messages.adapter-identity-adapter",
-      "description": "The retained message implementation reads authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "communication.messages.adapter-delivery-public",
@@ -13961,17 +13918,6 @@
       ],
       "source_owner": "test-support",
       "source_role": "test-support",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "identity-access.compose.session-runtime",
-      "description": "Identity & Access compose reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
       "target_owner": "identity-access",
       "target_role": "http"
     },

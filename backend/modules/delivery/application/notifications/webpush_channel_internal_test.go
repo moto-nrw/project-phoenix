@@ -102,7 +102,6 @@ type fakeSender struct {
 type sentPush struct {
 	endpoint string
 	payload  []byte
-	options  *webpush.Options
 }
 
 type fakePushOutbox struct {
@@ -121,12 +120,12 @@ func (f *fakePushOutbox) EnqueuePush(ctx context.Context, intent PushIntent) (bo
 	return true, nil
 }
 
-func (f *fakeSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, opts *webpush.Options) (*http.Response, error) {
+func (f *fakeSender) Send(ctx context.Context, sub *webpush.Subscription, payload []byte, _ *webpush.Options) (*http.Response, error) {
 	if f.sendFn != nil {
 		f.sendFn(ctx)
 	}
 	f.mu.Lock()
-	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload, options: opts})
+	f.sent = append(f.sent, sentPush{endpoint: sub.Endpoint, payload: payload})
 	f.mu.Unlock()
 	if f.done != nil {
 		close(f.done)
@@ -167,7 +166,7 @@ func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
 		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 		outbox:    &fakePushOutbox{},
 	}
-	channel.SetTenantRuntime(newMockTenantRuntime(nil, nil))
+	channel.tenantRuntime = new(newMockTenantRuntime(nil, nil))
 	return channel
 }
 
@@ -368,7 +367,7 @@ func TestWebPushDeliverEnqueuesInsideTenantTransaction(t *testing.T) {
 	}}
 	channel := testChannel(repo, sender)
 	channel.db = db
-	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
+	channel.tenantRuntime = new(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.Deliver(context.Background(), Event{
 		Type: "test", IdempotencyKey: "test:1",
@@ -396,7 +395,7 @@ func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		db, mock := mockTenantTx(t)
 		channel.db = db
-		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
+		channel.tenantRuntime = new(newMockTenantRuntime(t, db))
 
 		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -411,7 +410,7 @@ func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
 	}}, &fakeSender{})
 	db, mock := mockTenantTx(t)
 	channel.db = db
-	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
+	channel.tenantRuntime = new(newMockTenantRuntime(t, db))
 
 	deadline := time.Now().Add(time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)

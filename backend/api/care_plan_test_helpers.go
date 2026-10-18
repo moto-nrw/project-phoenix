@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
@@ -57,12 +59,13 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	return capability, nil
 }
 
-// NewUnobservedCarePlan composes Care Plan over the People Directory of
-// dependencies, reading the participant slots through the Timetable adapter
-// over an unobserved Student Presence owner, as the test graphs need it.
-func NewUnobservedCarePlan(db transactionruntime.Database, dependencies TimetableDependencies) (careplan.Capability, error) {
-	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), dependencies.Capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
-	return NewCarePlan(db, dependencies.Students, slots)
+// NewUnobservedCarePlan composes Care Plan over the People Directory
+// students, reading the participant slots through the Timetable adapter over
+// the Timetable capability and an unobserved Student Presence owner, as the
+// test graphs need it.
+func NewUnobservedCarePlan(db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability) (careplan.Capability, error) {
+	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
+	return NewCarePlan(db, students, slots)
 }
 
 // CreateParentPickupExceptionFixture keeps the native owner's validation,

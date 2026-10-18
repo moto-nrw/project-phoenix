@@ -31,16 +31,18 @@ import (
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
 func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 // failingSchemaRepo wraps the owner reader but makes Schema
@@ -66,29 +68,33 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
 func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   failingSchemaRepo{env.repos.Enrollment()},
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        failingPhaseRepo{env.repos.Enrollment()},
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    failingPhaseRepo{env.repos.Enrollment()},
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstName, lastName string) int64 {

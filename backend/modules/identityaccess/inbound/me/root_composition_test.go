@@ -12,7 +12,7 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupUserContextModule(t *testing.T) (*bun.DB, api.UserContextTestModule) {
+func setupUserContextModule(t *testing.T) (*bun.DB, *api.CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))

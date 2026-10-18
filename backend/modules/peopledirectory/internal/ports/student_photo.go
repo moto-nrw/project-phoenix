@@ -42,5 +42,12 @@ type StudentPhotoRuntime interface {
 	BroadcastPhotoChange(tenantID, studentID int64, source string)
 	// RecordPhotoConsent appends the Audit Platform trail entry for a
 	// consent that changed with the photo.
-	RecordPhotoConsent(ctx context.Context, before, after domain.StudentConsentSnapshot, actorAccountID *int64, changedAt time.Time) error
+	RecordPhotoConsent(ctx context.Context, before, after StudentPhotoConsentSnapshot, actorAccountID *int64, changedAt time.Time) error
+}
+
+// StudentPhotoConsentSnapshot is the photo slice of a consent change the
+// consent trail records.
+type StudentPhotoConsentSnapshot struct {
+	StudentID           int64
+	PhotoConsentGivenAt *time.Time
 }

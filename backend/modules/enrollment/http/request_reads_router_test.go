@@ -47,6 +47,8 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	ctx := testpkg.Ctx(t)
 	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	settings := stubTakeoverSettings{}
 
 	_, author := testpkg.CreateTestPersonWithAccount(t, db, "Uta", "Ungelesen")
@@ -66,7 +68,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	offerings := enrollmentCompose.NewCareOfferingRecords(repos.CarePlan)
+	offerings := enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan)
 	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		ParentChanges:    repos.Enrollment(),
@@ -75,8 +77,8 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		CareOfferingRepo: offerings,
 		Capacity:         api.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -84,11 +86,17 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
-		Requests: repos.Enrollment(), Children: repos.Enrollment(),
-		Guardians: repos.Enrollment(), LateInvites: repos.Enrollment(), CareOfferings: offerings,
-		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Settings: settings,
-		ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:    repos.Enrollment(),
+		Children:    repos.Enrollment(),
+		Guardians:   repos.Enrollment(),
+		LateInvites: repos.Enrollment(),
+		Phases:      repos.Enrollment(),
+		Schemas:     repos.Enrollment(),
+		Offerings:   offerings,
+		ParentsURL:  api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:    api.EnrollmentDecisionSettingValues(settings),
+		Logger:      slog.Default(),
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,

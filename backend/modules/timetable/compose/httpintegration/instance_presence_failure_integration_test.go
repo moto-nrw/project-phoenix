@@ -54,7 +54,7 @@ func TestInstanceReopenPreservesCompletedStateOnSupervisionFailure(t *testing.T)
 	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, stored.Status)
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.NotNil(t, group.EndTime)
 	fault.err = nil

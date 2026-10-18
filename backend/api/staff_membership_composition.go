@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
@@ -152,7 +154,7 @@ type StaffMembershipRuntime struct {
 // offboarding carries the database and the employment owner the caller
 // composed; the access, the cleanup, the broadcaster, the logger and the
 // authorization of the offboarding workflow are bound here.
-func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
@@ -162,17 +164,17 @@ func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.
 	if identity == nil {
 		panic("staff membership runtime: identity offboarding and role administration are required")
 	}
-	workflow := newStaffOffboardingWorkflow(f, identity, offboarding, logger, hooks)
-	person, persons := staffDirectoryPersons(f)
-	activeCaregivers, staffByRoles := membershipRoleRows(f)
-	createStaff, updateStaff := staffDirectoryWrites(f)
+	workflow := newStaffOffboardingWorkflow(hub, identity, offboarding, logger, hooks)
+	person, persons := staffDirectoryPersons(users)
+	activeCaregivers, staffByRoles := membershipRoleRows(users)
+	createStaff, updateStaff := staffDirectoryWrites(users)
 	return StaffMembershipRuntime{
 		Person: person, Persons: persons,
 
-		PresentStaffIDs: f.WorkSession.StaffDay.GetStaffIDsWithSupervisionToday,
-		WorkStatusMap:   f.WorkSession.StaffDay.GetTodayPresenceMap,
-		AbsenceMap:      f.WorkSession.StaffDay.GetTodayAbsenceMap,
-		AbsenceLabelMap: f.WorkSession.StaffDay.GetTodayAbsenceLabelMap,
+		PresentStaffIDs: staffDay.GetStaffIDsWithSupervisionToday,
+		WorkStatusMap:   staffDay.GetTodayPresenceMap,
+		AbsenceMap:      staffDay.GetTodayAbsenceMap,
+		AbsenceLabelMap: staffDay.GetTodayAbsenceLabelMap,
 		AccountRoles:    identity.GetAccountRoleNames,
 		AccountEmails:   identity.GetAccountEmails,
 		AccountAvatars:  identity.GetAccountAvatars,
@@ -182,9 +184,9 @@ func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.
 			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, securityruntime.DefaultStaffAccountPermission)
 		},
 
-		TeacherGroups:    membershipTeacherGroups(f),
-		SchoolClasses:    f.Education.GetStaffSchoolClasses,
-		SetSchoolClasses: f.Education.SetStaffSchoolClasses,
+		TeacherGroups:    membershipTeacherGroups(education),
+		SchoolClasses:    education.GetStaffSchoolClasses,
+		SetSchoolClasses: education.SetStaffSchoolClasses,
 		ActiveCaregivers: activeCaregivers,
 		StaffByRoles:     staffByRoles,
 
@@ -203,9 +205,9 @@ func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.
 // newStaffOffboardingWorkflow composes the offboarding workflow with the
 // Identity & Access step, the document cleanup, the realtime hub, the logger
 // and the editor authorization.
-func newStaffOffboardingWorkflow(f *serviceGraph, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
+func newStaffOffboardingWorkflow(hub *realtime.Hub, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
 	offboarding.Access, offboarding.Cleanup = StaffOffboardingAccess(identity), hooks.QueueOffboardedDocumentCleanup
-	offboarding.Broadcaster, offboarding.Logger = f.RealtimeHub, logger
+	offboarding.Broadcaster, offboarding.Logger = hub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
 		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
 		return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
@@ -218,16 +220,16 @@ func newStaffOffboardingWorkflow(f *serviceGraph, identity *identityaccess.Modul
 }
 
 // staffDirectoryPersons reads the People Directory entries behind staff rows.
-func staffDirectoryPersons(f *serviceGraph) (func(context.Context, int64) (StaffDirectoryPerson, error), func(context.Context, []int64) ([]StaffDirectoryPerson, error)) {
+func staffDirectoryPersons(users peoplePorts.PersonDirectory) (func(context.Context, int64) (StaffDirectoryPerson, error), func(context.Context, []int64) ([]StaffDirectoryPerson, error)) {
 	person := func(ctx context.Context, id int64) (StaffDirectoryPerson, error) {
-		person, err := f.Users.Get(ctx, id)
+		person, err := users.Get(ctx, id)
 		if err != nil {
 			return StaffDirectoryPerson{}, err
 		}
 		return toStaffDirectoryPerson(person.ID, person.FirstName, person.LastName, person.TagID, person.AccountID, person.CreatedAt, person.UpdatedAt), nil
 	}
 	persons := func(ctx context.Context, ids []int64) ([]StaffDirectoryPerson, error) {
-		persons, err := f.Users.GetByIDs(ctx, ids)
+		persons, err := users.GetByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
@@ -241,9 +243,9 @@ func staffDirectoryPersons(f *serviceGraph) (func(context.Context, int64) (Staff
 }
 
 // membershipTeacherGroups lists the groups a Betreuungskraft is assigned to.
-func membershipTeacherGroups(f *serviceGraph) func(context.Context, int64) ([]StaffGroup, error) {
+func membershipTeacherGroups(education schoolstructure.GroupManagement) func(context.Context, int64) ([]StaffGroup, error) {
 	return func(ctx context.Context, teacherID int64) ([]StaffGroup, error) {
-		groups, err := f.Education.GetTeacherGroups(ctx, teacherID)
+		groups, err := education.GetTeacherGroups(ctx, teacherID)
 		if err != nil {
 			return nil, err
 		}
@@ -256,9 +258,9 @@ func membershipTeacherGroups(f *serviceGraph) func(context.Context, int64) ([]St
 }
 
 // membershipRoleRows lists the active caregivers and the staff selected by role.
-func membershipRoleRows(f *serviceGraph) (func(context.Context) ([]StaffRoleRow, error), func(context.Context, []string) ([]StaffRoleRow, error)) {
+func membershipRoleRows(users peoplePorts.PersonDirectory) (func(context.Context) ([]StaffRoleRow, error), func(context.Context, []string) ([]StaffRoleRow, error)) {
 	activeCaregivers := func(ctx context.Context) ([]StaffRoleRow, error) {
-		caregivers, err := f.Users.ListActiveCaregivers(ctx)
+		caregivers, err := users.ListActiveCaregivers(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +276,7 @@ func membershipRoleRows(f *serviceGraph) (func(context.Context) ([]StaffRoleRow,
 		return result, nil
 	}
 	staffByRoles := func(ctx context.Context, roles []string) ([]StaffRoleRow, error) {
-		rows, err := f.Users.ListStaffByRoles(ctx, roles)
+		rows, err := users.ListStaffByRoles(ctx, roles)
 		if err != nil {
 			return nil, err
 		}
@@ -294,22 +296,22 @@ func membershipRoleRows(f *serviceGraph) (func(context.Context) ([]StaffRoleRow,
 
 // staffDirectoryWrites creates and updates staff records with their teacher
 // profile through the person service.
-func staffDirectoryWrites(f *serviceGraph) (func(context.Context, StaffCreateInput) (StaffCreateResult, error), func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)) {
+func staffDirectoryWrites(users peoplePorts.PersonDirectory) (func(context.Context, StaffCreateInput) (StaffCreateResult, error), func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)) {
 	createStaff := func(ctx context.Context, input StaffCreateInput) (StaffCreateResult, error) {
-		staff, teacher, teacherCreationFailed, err := f.Users.CreateStaffWithTeacher(ctx, StaffDirectoryCreateInput(input))
+		staff, teacher, teacherCreationFailed, err := users.CreateStaffWithTeacher(ctx, StaffDirectoryCreateInput(input))
 		if err != nil {
 			return StaffCreateResult{}, err
 		}
 		return StaffCreateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), TeacherCreationFailed: teacherCreationFailed}, nil
 	}
 	updateStaff := func(ctx context.Context, input StaffUpdateInput) (StaffUpdateResult, error) {
-		staff, err := f.Users.GetStaffByID(ctx, input.StaffID)
+		staff, err := users.GetStaffByID(ctx, input.StaffID)
 		if err != nil {
 			return StaffUpdateResult{}, err
 		}
 		staff.StaffNotes = input.StaffNotes
 		staff.PersonID = input.PersonID
-		teacher, action, err := f.Users.UpdateStaffWithTeacher(ctx, staff, input.IsTeacher, input.Specialization, input.Role, input.Qualifications)
+		teacher, action, err := users.UpdateStaffWithTeacher(ctx, staff, input.IsTeacher, input.Specialization, input.Role, input.Qualifications)
 		if err != nil {
 			return StaffUpdateResult{}, err
 		}
@@ -347,16 +349,16 @@ func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 // sentinel, without the "education: {Op}:" prefix), else internal with the
 // wrapped error kept for the logs.
 func ClassifyStaffSchoolClassFailure(err error) (StaffFailureKind, error) {
-	var wrapped *educationSvc.EducationError
+	var wrapped *schoolstructure.EducationError
 	inner := err
 	if errors.As(err, &wrapped) && wrapped.Err != nil {
 		inner = wrapped.Err
 	}
 	switch {
-	case errors.Is(inner, educationSvc.ErrStaffNotFound):
-		return StaffFailureNotFound, educationSvc.ErrStaffNotFound
-	case errors.Is(inner, educationSvc.ErrEmptySchoolClass):
-		return StaffFailureInvalidRequest, educationSvc.ErrEmptySchoolClass
+	case errors.Is(inner, schoolstructure.ErrStaffNotFound):
+		return StaffFailureNotFound, schoolstructure.ErrStaffNotFound
+	case errors.Is(inner, schoolstructure.ErrEmptySchoolClass):
+		return StaffFailureInvalidRequest, schoolstructure.ErrEmptySchoolClass
 	default:
 		return StaffFailureInternal, err
 	}

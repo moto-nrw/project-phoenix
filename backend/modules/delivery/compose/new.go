@@ -23,21 +23,25 @@ type GuardianDisplayResolver interface {
 	ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error)
 }
 
-type Dependencies struct {
-	DB       *bun.DB
-	Provider Provider
-	People   GuardianDisplayResolver
-	Observe  func(delivery.Observation)
+// ModuleDependencies are the enqueue and state side of Delivery, which the
+// producers and Identity & Access need before the mail renderers exist.
+type ModuleDependencies struct {
+	DB      *bun.DB
+	People  GuardianDisplayResolver
+	Observe func(delivery.Observation)
 }
 
+// Runtime is the composed Delivery module; NewWorker adds the worker.
 type Runtime struct {
-	Module *delivery.Module
-	Worker *delivery.Worker
-	store  *postgres.Store
+	Module  *delivery.Module
+	store   *postgres.Store
+	observe func(domain.Observation)
 }
 
-func New(dependencies Dependencies) (*Runtime, error) {
-	if dependencies.DB == nil || dependencies.Provider == nil || dependencies.People == nil || dependencies.Observe == nil {
+// NewModule composes the enqueue facade and the e-mail state without the
+// worker; NewWorker adds the worker once the mail renderers exist.
+func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
+	if dependencies.DB == nil || dependencies.People == nil || dependencies.Observe == nil {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	store := postgres.New(
@@ -55,16 +59,20 @@ func New(dependencies Dependencies) (*Runtime, error) {
 		})
 	}
 	service := application.NewService(store, guardianDirectoryAdapter{resolver: dependencies.People}, observe)
-	worker := application.NewWorker(store, providerAdapter{provider: dependencies.Provider}, observe)
-	return &Runtime{
-		Module: delivery.NewModule(moduleEngine{service: service, store: store}),
-		Worker: delivery.NewWorker(workerEngine{worker: worker, store: store}),
-		store:  store,
-	}, nil
+	return &Runtime{Module: delivery.NewModule(moduleEngine{service: service, store: store}), store: store, observe: observe}, nil
 }
 
-// EmailStatus reports the durable state of an e-mail intent while the root
-// binds a renderer that depends on an earlier delivery.
+// NewWorker composes the outbox worker over the store of runtime, sending
+// through provider.
+func NewWorker(runtime *Runtime, provider Provider) (*delivery.Worker, error) {
+	if runtime == nil || runtime.store == nil || runtime.observe == nil || provider == nil {
+		return nil, errors.New("delivery compose: runtime and provider are required")
+	}
+	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
+	return delivery.NewWorker(workerEngine{worker: worker, store: runtime.store}), nil
+}
+
+// EmailStatus reports the durable state of an e-mail intent.
 func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.State, bool, error) {
 	if r == nil || r.store == nil {
 		return "", false, errors.New("delivery compose: service is not initialized")

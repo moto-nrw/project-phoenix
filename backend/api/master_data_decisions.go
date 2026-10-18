@@ -3,15 +3,18 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are
@@ -19,34 +22,46 @@ import (
 // the People Directory rows and change history, the realtime hub, the parent
 // chat and the identity-owned review scope; they decide nothing.
 
-func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.MasterDataDecisions, error) {
-	if wiring.Students == nil || wiring.Persons == nil || wiring.Fields == nil {
+// NewMasterDataDecisions composes the Stammdaten decision. Nil effects are
+// skipped.
+func NewMasterDataDecisions(
+	carePlan careplan.Capability, fields MasterDataPeople, students masterDataStudentRows, persons masterDataPersonRows,
+	audit peoplePorts.StudentChangeRecorder, scope carePlanCompose.ReviewScopeResolver,
+	emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents,
+	shares carePlanCompose.ShareVisibility, logger *slog.Logger, today func() timezone.Date,
+) (*carePlanCompose.MasterDataDecisions, error) {
+	if students == nil || persons == nil || fields == nil {
 		return nil, errors.New("master data decisions: student and person repositories and the field review are required")
 	}
 	deps := carePlanCompose.MasterDataDecisionDependencies{
-		CarePlan: wiring.CarePlan, People: masterDataFieldReviews{fields: wiring.Fields}, Scope: wiring.Scope, Shares: wiring.Shares,
+		CarePlan: carePlan, People: masterDataFieldReviews{fields: fields}, Scope: scope, Shares: shares,
 		Records: masterDataRecords{
-			students: wiring.Students, persons: wiring.Persons, details: wiring.Fields,
-			writes: peopleCompose.NewAuditedStudentUpdates(wiring.Students, wiring.Audit),
+			students: students, persons: persons, details: fields,
+			writes: peopleCompose.NewAuditedStudentUpdates(students, audit),
 		},
-		Today: carePlanCompose.Today, Logger: wiring.Logger,
+		Today: carePlanCompose.Today, Logger: logger,
 	}
-	if wiring.Today != nil {
-		deps.Today = func() careplan.Date { return careplan.Date(wiring.Today()) }
+	if today != nil {
+		deps.Today = func() careplan.Date { return careplan.Date(today()) }
 	}
-	if wiring.Emitter != nil {
-		deps.Messenger = NewExcusedRequestMessenger(wiring.Emitter)
+	if emitter != nil {
+		deps.Messenger = NewExcusedRequestMessenger(emitter)
 	}
-	if wiring.Broadcaster != nil {
-		deps.Broadcaster = masterDataBroadcaster{broadcaster: wiring.Broadcaster}
+	if broadcaster != nil {
+		deps.Broadcaster = masterDataBroadcaster{broadcaster: broadcaster}
 	}
-	if wiring.Events != nil {
-		deps.Ledger = NewParentRequestLedger(wiring.Events)
+	if events != nil {
+		deps.Ledger = NewParentRequestLedger(events)
 	}
 	return carePlanCompose.NewMasterDataDecisions(deps)
 }
 
-func NewParentRequestCoordinator(masterData *carePlanCompose.MasterDataDecisions, excused careplan.ExcusedAbsenceRequests, careRequests any, offering carePlanCompose.ParentRequestConflicts, events peopledirectory.ParentRequestEvents, permissions func(context.Context) []string) (parentrequests.Coordinator, error) {
+// NewParentRequestCoordinator composes the cross-kind commands over the four
+// request queues; permissions reads the permissions of the request claims.
+func NewParentRequestCoordinator(
+	masterData *carePlanCompose.MasterDataDecisions, excused careplan.ExcusedAbsenceRequests, careRequests any,
+	offering carePlanCompose.ParentRequestConflicts, events peopledirectory.ParentRequestEvents, permissions func(context.Context) []string,
+) (parentrequests.Coordinator, error) {
 	care, ok := careRequests.(carePlanCompose.ParentRequestConflicts)
 	if !ok {
 		return nil, errors.New("parent request coordinator: the care request service is not a conflict port")

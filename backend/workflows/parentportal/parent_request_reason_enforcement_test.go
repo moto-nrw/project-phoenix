@@ -48,10 +48,11 @@ func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64,
 func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Portal, careplan.ExcusedAbsenceRequests, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person, Events: reposPeople.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:    api.ParentGuardianChanges(),
@@ -66,7 +67,7 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 		CareProfiles:       careProfiles(t, db),
 		ChildRepo:          repos.ParentChildReads(),
 		StatusDayRepo:      repos.StudentStatusDay,
-		StudentRepo:        api.NewParentStudentReads(repos.Student),
+		StudentRepo:        api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:     api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:           reasonPolicySettings{policy: policy},
 		ExcusedRequests:    api.NewParentExcusedAbsenceRequests(excused),

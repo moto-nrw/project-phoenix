@@ -229,6 +229,9 @@ func newDecisionsForTestWithBookings(
 	outboxes ...testMailOutbox,
 ) *TestDecisions {
 	repoFactory := env.repos
+	repoFactoryCare := env.reposCare
+	repoFactoryTimetable := env.reposTimetable
+	repoFactoryAudit := env.reposAudit
 	var outbox testMailOutbox = env.outbox
 	if len(outboxes) > 0 {
 		outbox = outboxes[0]
@@ -240,38 +243,33 @@ func newDecisionsForTestWithBookings(
 	}
 	var pickupAutoExcusal careplan.PickupAutoExcusal
 	if t != nil {
-		pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
-		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
+		pickupBaselines := newPickupBaselineService(repoFactoryCare.CarePlan, approvedOfferingTestProjection(repoFactory))
+		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactoryCare.CarePlan, pickupBaselines, env.timetable, true)
 	}
-	return newTestDecisions(api.EnrollmentDecisionSources{
-		Requests:               repoFactory.Enrollment(),
-		Children:               repoFactory.Enrollment(),
-		Guardians:              repoFactory.Enrollment(),
-		LateInvites:            repoFactory.Enrollment(),
-		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:                 repoFactory.Enrollment(),
-		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
-		Restorations:           repoFactory.EnrollmentRestorationAudit,
-		Persons:                repoFactory.Person,
-		Staff:                  repoFactory.Staff,
-		Students:               repoFactory.Student,
-		StudentGuardians:       repoFactory.StudentGuardian,
-		GuardianProfiles:       repoFactory.GuardianProfile,
-		GuardianPhones:         repoFactory.GuardianPhoneNumber,
-		PickupSchedules:        repoFactory.EnrollmentPickupSchedules(),
-		ArrivalSchedules:       repoFactory.EnrollmentArrivalSchedules(),
-		CareBookings:           bookings,
-		GuardianAccess:         testGuardianAccess(env.db),
-		StudentEnrollment:      testStudentEnrollment(env.db),
-		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor),
-		StudentConsents:        studentConsents,
+	studentEnrollment := testStudentEnrollment(env.db)
+	return newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		LateInvites:    repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
+		Bookings:       bookings,
+		GuardianAccess: testGuardianAccess(env.db),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment:      studentEnrollment,
+		Companions:             api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:        repoFactoryTimetable.EnrollmentPickupSchedules(),
+		ArrivalSchedules:       repoFactoryTimetable.EnrollmentArrivalSchedules(),
+		Adjustments:            api.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
+		Restorations:           api.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
+		StudentAudit:           api.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor)),
+		StudentConsents:        api.EnrollmentDecisionStudentConsents(studentConsents),
 		CareWithdrawal:         careWithdrawal,
-		FrontendURL:            "http://localhost:3000",
-		ParentsURL:             "http://parents.localhost:3000",
-		Settings:               settings,
+		ParentsURL:             api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		LockTemplateRecurrence: lockTemplateRecurrence,
 		Pickups: TestWeeklyPickupHooks{
 			Snapshot:      snapshotPickupWeekdayChanges(pickupAutoExcusal),
@@ -279,7 +277,7 @@ func newDecisionsForTestWithBookings(
 		},
 		Logger: slog.Default(),
 		Today:  func() calendar.Date { return decisionTestToday },
-	}, outbox)
+	}, settings, outbox)
 }
 
 func snapshotPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, calendar.Date) (map[int]string, error) {
@@ -2463,7 +2461,7 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	for _, row := range rows {
@@ -2496,7 +2494,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	studentID := *outcome.Child.CreatedStudentID
 
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 
@@ -2514,7 +2512,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 	})
 	require.NoError(t, err)
 
-	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err = env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "replacement sync must delete pickup schedules removed from the approved snapshot")
 }
@@ -2630,7 +2628,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	studentID := *outcome.Child.CreatedStudentID
 
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 
@@ -2643,7 +2641,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(
 	})
 	require.NoError(t, err)
 
-	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	rows, err = env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, 2, "omitted duplicate pickup target must not delete rows recreated by the visible target")
 }
@@ -2681,7 +2679,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	studentID := *outcome.Child.CreatedStudentID
 
-	rows, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	rows, err := env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 
@@ -2694,7 +2692,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce
 	})
 	require.NoError(t, err)
 
-	rows, err = env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	rows, err = env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, 1, "omitted duplicate arrival target must not delete rows recreated by the visible target")
 }
@@ -2788,7 +2786,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 	})
 	require.NoError(t, err)
 
-	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	history, err := env.reposAudit.StudentFieldEdit.GetByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
@@ -2862,7 +2860,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	require.NotNil(t, student.HealthInfo)
 	assert.Equal(t, "Diabetes", *student.HealthInfo)
 
-	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
+	history, err := env.reposAudit.StudentFieldEdit.GetByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
@@ -2894,7 +2892,7 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 
-	rows, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	rows, err := env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, reviewerStaff.ID, rows[0].CreatedBy,
@@ -2927,7 +2925,7 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	assert.Equal(t, enrollmentModels.ChildStatusApproved, outcome.Child.Status)
 
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "without a staff author, schedule dispatch should skip before inserting")
 }
@@ -2982,7 +2980,7 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 	require.Error(t, decideErr, "a schedule-replacement dispatch failure must abort the existing-student approval")
 
 	// The rollback must preserve the student's original pickup schedule.
-	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, existing.ID)
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, existing.ID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "the live pickup schedule must survive the rolled-back approval")
 	assert.Equal(t, seededPickup.Weekday, rows[0].Weekday)
@@ -3383,7 +3381,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 
 	req := enrollmentAPI.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3493,7 +3491,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		AvailableDays: []string{"mon"}, IsActive: true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
@@ -3590,7 +3588,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3671,7 +3669,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3721,7 +3719,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	require.NotNil(t, rolled.RolloverSourceChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
 
-	clones, err := newCareOfferingFixtures(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
+	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
 	clone := clones[0]
@@ -3816,7 +3814,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 	// Simulate a legacy row saved before #1885 made available_days
 	// mandatory: clear the days directly, bypassing Validate. Such rows
 	// still exist in production and Decide must keep rejecting them.
@@ -4041,13 +4039,13 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
-	repoFactory := flowRepositories(t, env.db)
-	degraded := newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      repoFactory.Enrollment(),
-		Children:      repoFactory.Enrollment(),
-		CareOfferings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan())},
-		Phases:        repoFactory.Enrollment(),
-	})
+	repoFactory, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
+	degraded := newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  repoFactory.Enrollment(),
+		Children:  repoFactory.Enrollment(),
+		Phases:    repoFactory.Enrollment(),
+		Offerings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan)},
+	}, nil)
 
 	rows, err := degraded.ListChildOfferings(ctx, reqID)
 	require.NoError(t, err, "a catalog outage must not fail the whole lookup")
@@ -4417,7 +4415,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	`, manualEnrollment.ID).Exec(ctx)
 	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentAPI.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4521,7 +4519,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	require.NoError(t, err)
 
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentAPI.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4540,7 +4538,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	for _, row := range rows {
 		assert.NotEqual(t, initialRows[0].ID, row.ID, "legacy materialized row must be removed")
 	}
-	manual, err := env.repos.StudentEnrollment.FindByID(ctx, manualEnrollment.ID)
+	manual, err := env.reposTimetable.StudentEnrollment.FindByID(ctx, manualEnrollment.ID)
 	require.NoError(t, err)
 	assert.Nil(t, manual.EnrollmentRequestChildID)
 	newRows := 0
@@ -4735,7 +4733,7 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	if mutate != nil {
 		mutate(offering)
 	}
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 	return offering
 }
 

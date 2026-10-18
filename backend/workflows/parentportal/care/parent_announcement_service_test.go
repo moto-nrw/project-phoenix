@@ -28,31 +28,33 @@ import (
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
-func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
 	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
-func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Runtime:               api.ParentPortalRuntime{},
-		Children:              childResolver(db, repos),
+		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
-		StudentRepo:           api.NewParentStudentReads(repos.Student),
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement),
+		StudentRepo:           api.NewParentStudentReads(reposPeople.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},
 		},
 		Logger: slog.Default(),
 	})
-	return svc, db, repos
+	return svc, db, reposMessages
 }
 
 // seedPublishedAnnouncement creates a school-wide announcement in the tenant,

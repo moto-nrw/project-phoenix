@@ -27,7 +27,8 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -41,7 +42,7 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
@@ -74,31 +75,32 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []api.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	_, schedules, sfServices, caller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	careRequests := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
-		sf.PeopleDirectory,
-		sf.ArrivalSchedule,
-		sf.PickupSchedule,
+		persons,
+		schedules.Arrivals,
+		schedules.Pickups,
 		presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
-			timetableDeps.Capability, false,
+			timetableOwner, false,
 		),
 		repos.CarePlan(),
-		sf.UserContext,
+		caller,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.NewRequestReviewPolicy(sf.UserContext, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
+		testpkg.NewRequestReviewPolicy(caller, reposPeople.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
-		sf.StudentAudit,
+		sfServices.StudentAudit,
 		requestOptions...,
 	)
 
@@ -115,7 +117,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Attendance:      parentAttendance(t, db),
 		CareRequests:    careRequests,

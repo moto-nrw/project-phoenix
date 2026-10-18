@@ -31,52 +31,13 @@ type careOfferingCatalogInputs struct {
 	Timetable careOfferingTimetableReads
 	Calendar  careOfferingCalendarReads
 	Settings  careOfferingSettingsReads
-	// SourcedTemplates and Pickup resolve Enrollment's decision service,
-	// which is composed after the catalog; they return nil until then.
-	SourcedTemplates func() careplanCompose.SourcedTemplateResyncer
-	Pickup           func() careplanCompose.PickupResyncer
+	// SourcedTemplates and Pickup resync the sourced rosters and the pickup
+	// projection after an offering edit.
+	SourcedTemplates careplanCompose.SourcedTemplateResyncer
+	Pickup           careplanCompose.PickupResyncer
 	LockRecurrence   func(context.Context) error
 	Today            func() calendar.Date
 	Logger           *slog.Logger
-}
-
-// lateCareOfferingResync resolves the booking materialization composed after
-// the catalog: both halves read it at call time and return nil until then.
-func lateCareOfferingResync(resync func() careplan.BookingMaterializationCapability) (func() careplanCompose.SourcedTemplateResyncer, func() careplanCompose.PickupResyncer) {
-	sourced := func() careplanCompose.SourcedTemplateResyncer {
-		if bookings := resync(); bookings != nil {
-			return bookings
-		}
-		return nil
-	}
-	pickup := func() careplanCompose.PickupResyncer {
-		if bookings := resync(); bookings != nil {
-			return bookings
-		}
-		return nil
-	}
-	return sourced, pickup
-}
-
-func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
-	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
-		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")
-	}
-	return careplanCompose.NewCareOfferingCatalog(careplanCompose.CareOfferingCatalogDependencies{
-		Records:                inputs.Records,
-		Phases:                 careOfferingCatalogPhases{phases: inputs.Phases},
-		Timetable:              careOfferingCatalogTimetable{timetable: inputs.Timetable},
-		Calendar:               careOfferingCatalogCalendar{calendar: inputs.Calendar},
-		Bookings:               careOfferingCatalogBookings{bookings: inputs.Bookings},
-		Settings:               careOfferingCatalogSettings{settings: inputs.Settings},
-		Translations:           careOfferingCatalogTranslations{},
-		SourceRules:            careOfferingSourceRules{},
-		SourcedTemplates:       inputs.SourcedTemplates,
-		Pickup:                 inputs.Pickup,
-		LockTemplateRecurrence: inputs.LockRecurrence,
-		Today:                  inputs.Today,
-		Logger:                 inputs.Logger,
-	})
 }
 
 // careOfferingPhaseGuard binds the catalog's phase-window check to the phase

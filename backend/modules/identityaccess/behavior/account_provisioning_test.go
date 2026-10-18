@@ -21,7 +21,7 @@ func TestRegisterSchoolAccountNormalisesTheAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	provisioning := setupAuthFactory(t, db).AccountAuthentication()
+	provisioning := setupAuthFactory(t, db)
 
 	unique := time.Now().UnixNano()
 	mixed := fmt.Sprintf("  Register-%d@Test.Local  ", unique)
@@ -52,7 +52,7 @@ func TestRegisterSchoolAccountRefusesAnEmptyAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	provisioning := setupAuthFactory(t, db).AccountAuthentication()
+	provisioning := setupAuthFactory(t, db)
 
 	_, err := provisioning.RegisterSchoolAccount(context.Background(), identityaccess.SchoolAccountRegistration{
 		Username: fmt.Sprintf("register-nameless-%d", time.Now().UnixNano()),
@@ -77,7 +77,7 @@ func TestLinkSchoolAccountLeavesADeactivatedMembershipAlone(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	provisioning := setupAuthFactory(t, db).AccountAuthentication()
+	provisioning := setupAuthFactory(t, db)
 	tenantID := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "link-offboarded")
