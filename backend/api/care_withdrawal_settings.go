@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

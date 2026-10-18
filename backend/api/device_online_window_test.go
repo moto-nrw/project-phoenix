@@ -1,12 +1,10 @@
-package httpadapter_test
+package api
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 )
 
 // deviceOnlineWindowMinutesKey is the Settings Platform registry key the
@@ -79,7 +77,7 @@ func TestNewOnlineWindowResolver(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resolve := legacy.NewOnlineWindowResolver(tt.resolver, nil)
+			resolve := NewOnlineWindowResolver(tt.resolver, nil)
 			if got := resolve(context.Background()); got != tt.want {
 				t.Errorf("online window = %v, want %v", got, tt.want)
 			}

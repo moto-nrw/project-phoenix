@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ func TestWorkTimeTargetModelPreservesRotationAndPartialReadError(t *testing.T) {
 		{WeekIndex: 1, DayOfWeek: 0, TargetMinutes: 420},
 	}}
 	readErr := errors.New("partial model read")
-	reader := workforceCompose.NewWorkTimeTargetModels(settingstest.Templates(template, readErr))
+	reader := api.NewWorkTimeTargetModels(settingstest.Templates(template, readErr))
 	model, err := reader.FindByID(context.Background(), template.ID)
 	require.ErrorIs(t, err, readErr)
 	require.Equal(t, template.ID, model.ID)

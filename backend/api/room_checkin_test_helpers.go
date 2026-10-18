@@ -59,7 +59,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Rosters:    rosters,
 		Education:  module.Education,
 		Pickups:    module.PickupSchedule,
-		Settings:   module.Settings,
+		Settings:   newDeviceScanSettings(module.Settings),
 		Now:        OptionalClock(clocks),
 		Logger:     logger,
 	})

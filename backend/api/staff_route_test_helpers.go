@@ -7,7 +7,6 @@ import (
 	"time"
 
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -123,7 +122,7 @@ func NewDeviceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork)
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	fleet, err := NewDeviceFleet(db, devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
+	fleet, err := NewDeviceFleet(db, NewOnlineWindowResolver(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}

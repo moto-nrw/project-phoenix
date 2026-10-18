@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"

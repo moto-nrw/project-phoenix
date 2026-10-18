@@ -5,7 +5,7 @@ package api
 import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 

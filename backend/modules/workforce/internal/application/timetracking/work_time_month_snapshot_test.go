@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -57,7 +56,7 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))), workforceCompose.NewWorkSessionSchedules(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkSessionTimeModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)),
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))), api.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
 		snapshotSessionSettings{}, nil, f.db, api.RenderTimeTrackingPDF,
 		api.RenderTimeTrackingWorkbook,
 	)
@@ -115,7 +114,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
+		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(owners.Workforce)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(owners.Workforce)),
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments),

@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 

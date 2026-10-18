@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"

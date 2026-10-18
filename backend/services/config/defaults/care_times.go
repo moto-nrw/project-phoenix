@@ -1,6 +1,6 @@
 package defaults
 
-import "github.com/moto-nrw/project-phoenix/models/config"
+import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 
 // Care time presets (#3371). The weekly plan copies the clock time into an
 // empty field on one click; nothing applies to a child until the team saves.

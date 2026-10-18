@@ -13,7 +13,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )

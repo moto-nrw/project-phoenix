@@ -1,4 +1,4 @@
-package config
+package records
 
 import (
 	"fmt"
@@ -142,6 +142,18 @@ var TabOrder = []string{
 
 // Validate checks that a Definition has all required fields and consistent configuration.
 func (d *Definition) Validate() error {
+	if err := d.validateShape(); err != nil {
+		return err
+	}
+	if err := d.compilePattern(); err != nil {
+		return err
+	}
+	return d.validateDefaultRange()
+}
+
+// validateShape checks the definition's key, type, placement, options and
+// access policy.
+func (d *Definition) validateShape() error {
 	if d.Key == "" {
 		return fmt.Errorf("setting key is required")
 	}
@@ -163,23 +175,36 @@ func (d *Definition) Validate() error {
 	if d.AccessPolicy != "" && !validAccessPolicies[d.AccessPolicy] {
 		return fmt.Errorf("invalid AccessPolicy %q for setting %s", d.AccessPolicy, d.Key)
 	}
-	if d.Validation != nil && d.Validation.Pattern != nil {
-		compiled, err := regexp.Compile(*d.Validation.Pattern)
-		if err != nil {
-			return fmt.Errorf("invalid validation pattern for %s: %w", d.Key, err)
-		}
-		d.Validation.CompiledPattern = compiled
+	return nil
+}
+
+// compilePattern compiles the validation pattern onto the definition.
+func (d *Definition) compilePattern() error {
+	if d.Validation == nil || d.Validation.Pattern == nil {
+		return nil
 	}
-	// Validate default against min/max rules
-	if d.Validation != nil && d.Default != nil && d.Type == FieldNumber {
-		if num, ok := toFloat(d.Default); ok {
-			if d.Validation.Min != nil && num < *d.Validation.Min {
-				return fmt.Errorf("default value %v for %s is below minimum %v", num, d.Key, *d.Validation.Min)
-			}
-			if d.Validation.Max != nil && num > *d.Validation.Max {
-				return fmt.Errorf("default value %v for %s exceeds maximum %v", num, d.Key, *d.Validation.Max)
-			}
-		}
+	compiled, err := regexp.Compile(*d.Validation.Pattern)
+	if err != nil {
+		return fmt.Errorf("invalid validation pattern for %s: %w", d.Key, err)
+	}
+	d.Validation.CompiledPattern = compiled
+	return nil
+}
+
+// validateDefaultRange checks a numeric default against the min/max rules.
+func (d *Definition) validateDefaultRange() error {
+	if d.Validation == nil || d.Default == nil || d.Type != FieldNumber {
+		return nil
+	}
+	num, ok := toFloat(d.Default)
+	if !ok {
+		return nil
+	}
+	if d.Validation.Min != nil && num < *d.Validation.Min {
+		return fmt.Errorf("default value %v for %s is below minimum %v", num, d.Key, *d.Validation.Min)
+	}
+	if d.Validation.Max != nil && num > *d.Validation.Max {
+		return fmt.Errorf("default value %v for %s exceeds maximum %v", num, d.Key, *d.Validation.Max)
 	}
 	return nil
 }

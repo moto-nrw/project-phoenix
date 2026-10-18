@@ -11,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -28,6 +24,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via
@@ -58,8 +57,8 @@ func (s displaySettings) Enable(ctx context.Context) error {
 func (s displaySettings) Reset(ctx context.Context) error {
 	return s.service.ResetValue(ctx, settings.KeyDisplayEnabled, nil, nil)
 }
-func (s displaySettings) TenantFacts(schools devicefleetLegacy.SchoolDirectory) devicefleetCompose.TenantFacts {
-	return devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{Schools: schools, Settings: s.service})
+func (s displaySettings) TenantFacts(schools DisplaySchoolDirectory) devicefleetCompose.TenantFacts {
+	return NewDisplayTenantFacts(schools, s.service)
 }
 
 // Retain the existing fixture call sites and assertions without a mutable hook.
