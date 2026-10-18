@@ -14,6 +14,12 @@ func (e *recordingEngine) RenamePerson(context.Context, int64, *string, *string)
 	return nil
 }
 
+func (e *recordingEngine) SetPersonDetails(_ context.Context, _ int64, details peopledirectory.PersonDetails) error {
+	e.calls++
+	e.details = details
+	return nil
+}
+
 // The profile flow's person keeps its names as typed apart from the
 // surrounding spaces: no length cap, both required.
 func TestCreateAccountPersonTrimsWithoutCapping(t *testing.T) {
@@ -59,5 +65,28 @@ func TestRenamePersonRefusesAnEmptyName(t *testing.T) {
 	}
 	if engine.calls != 1 {
 		t.Fatalf("rename reached the engine %d times, want 1", engine.calls)
+	}
+}
+
+// A staff record or Stammdaten write keeps both names, trimmed and uncapped.
+func TestSetPersonDetailsRequiresBothNames(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{}
+	module := peopledirectory.NewModule(engine)
+	if err := module.SetPersonDetails(context.Background(), 5, peopledirectory.PersonDetails{FirstName: "", LastName: "Kraft"}); !errors.Is(err, peopledirectory.ErrInvalidPerson) {
+		t.Fatalf("empty first name: %v, want ErrInvalidPerson", err)
+	}
+	if engine.calls != 0 {
+		t.Fatalf("a refused write reached the engine")
+	}
+	longName := strings.Repeat("b", peopledirectory.MaxNameLength+1)
+	details := peopledirectory.PersonDetails{FirstName: " " + longName, LastName: " Kraft ", Birthday: "2015-04-01"}
+	if err := module.SetPersonDetails(context.Background(), 5, details); err != nil {
+		t.Fatalf("set details: %v", err)
+	}
+	want := peopledirectory.PersonDetails{FirstName: longName, LastName: "Kraft", Birthday: "2015-04-01"}
+	if engine.details != want {
+		t.Errorf("details = %+v, want %+v", engine.details, want)
 	}
 }

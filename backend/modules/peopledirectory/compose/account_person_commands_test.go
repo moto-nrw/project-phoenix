@@ -52,3 +52,43 @@ func TestRenamePersonStaysInTheSchool(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT first_name FROM users.persons WHERE id = ?`, foreign.ID).Scan(ctx, &firstName))
 	assert.Equal(t, "Ina", firstName)
 }
+
+// A staff record or Stammdaten write replaces the names and the birthday,
+// clears an omitted birthday and keeps the person's tag and account.
+func TestSetPersonDetailsReplacesNamesAndBirthday(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Lea", "Kraft")
+
+	require.NoError(t, module.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: "Leonie", LastName: "Kraft-Berg", Birthday: "2015-04-01"}))
+	stored, err := module.FindPerson(ctx, person.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Leonie", stored.FirstName)
+	assert.Equal(t, "Kraft-Berg", stored.LastName)
+	assert.Equal(t, "2015-04-01", stored.Birthday)
+	require.NotNil(t, stored.AccountID)
+	assert.Equal(t, account.ID, *stored.AccountID)
+
+	require.NoError(t, module.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: "Leonie", LastName: "Kraft-Berg"}))
+	stored, err = module.FindPerson(ctx, person.ID)
+	require.NoError(t, err)
+	assert.Empty(t, stored.Birthday)
+
+	err = module.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: "Leonie", LastName: "Kraft", Birthday: "2015-02-30"})
+	require.Error(t, err, "a date that does not exist is refused")
+}
+
+// A person of another school is out of reach.
+func TestSetPersonDetailsStaysInTheSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	foreign := testpkg.CreateTestPersonForTenant(t, db, otherTenant, "Ina", "Fremd")
+
+	err := module.SetPersonDetails(ctx, foreign.ID, peopledirectory.PersonDetails{FirstName: "X", LastName: "Y"})
+	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound)
+}

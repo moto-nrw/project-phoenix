@@ -683,7 +683,7 @@ type ParentRequestScopePolicy interface {
 // dependencies. Nil effects are skipped.
 type MasterDataDecisionWiring struct {
 	CarePlan    careplan.Capability
-	Fields      peopledirectory.StudentFieldReviewQuery
+	Fields      MasterDataPeople
 	Students    masterDataStudentRows
 	Persons     masterDataPersonRows
 	Audit       peoplePorts.StudentChangeRecorder

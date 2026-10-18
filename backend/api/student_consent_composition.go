@@ -22,24 +22,22 @@ type studentConsentHistory struct {
 	}
 }
 
-// LatestPhotoWithdrawal reports the newest photo consent event only when it is
-// a withdrawal; a later grant means the child's consent stands.
+// LatestPhotoWithdrawal reads the trail newest first and lets the People
+// Directory decide whether the photo consent stands withdrawn.
 func (h studentConsentHistory) LatestPhotoWithdrawal(ctx context.Context, studentID int64) (*time.Time, error) {
 	changes, err := h.repo.ListByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("student consent history: list changes: %w", err)
 	}
+	events := make([]peopleModule.StudentConsentEvent, 0, len(changes))
 	for _, change := range changes {
-		if change == nil || change.ConsentKey != auditModels.StudentConsentPhoto {
-			continue
+		if change != nil {
+			events = append(events, peopleModule.StudentConsentEvent{
+				Key: change.ConsentKey, Withdrawn: change.Action == auditModels.StudentConsentWithdrawn, At: change.CreatedAt,
+			})
 		}
-		if change.Action != auditModels.StudentConsentWithdrawn {
-			return nil, nil
-		}
-		withdrawnAt := change.CreatedAt
-		return &withdrawnAt, nil
 	}
-	return nil, nil
+	return peopleModule.PhotoConsentWithdrawnAt(events), nil
 }
 
 // StudentConsentCapability is the People Directory surface behind the shared
@@ -86,11 +84,6 @@ func (s *StudentConsents) CurrentStates(
 	return result, nil
 }
 
-type studentConsentField struct {
-	key           string
-	before, after *time.Time
-}
-
 // RecordTransitions appends one trail entry per effective change to one of the
 // four consent timestamps. A field that did not move records nothing.
 func (s *StudentConsents) RecordTransitions(
@@ -127,7 +120,8 @@ func (s *StudentConsents) CurrentStudentConsents(
 }
 
 // RecordStudentConsentTransitions is RecordTransitions over the owner's
-// consent snapshots: one trail entry per consent timestamp that moved.
+// consent snapshots: one trail entry per transition the People Directory
+// reads from them.
 func (s *StudentConsents) RecordStudentConsentTransitions(
 	ctx context.Context,
 	before, after peopleModule.StudentConsentSnapshot,
@@ -141,41 +135,28 @@ func (s *StudentConsents) RecordStudentConsentTransitions(
 	if after.StudentID <= 0 {
 		return fmt.Errorf("student consent recorder: persisted student is required")
 	}
-	for _, field := range consentFields(before, after) {
-		if (field.before != nil) == (field.after != nil) {
-			continue
-		}
+	for _, transition := range peopleModule.StudentConsentTransitions(before, after, changedAt) {
 		action := auditModels.StudentConsentWithdrawn
-		eventTime := changedAt
-		if field.after != nil {
+		if transition.Granted {
 			action = auditModels.StudentConsentGranted
-			eventTime = *field.after
 		}
+		// The People Directory's consent keys are the trail's discriminators.
 		entry := &auditModels.StudentConsentChange{
 			Model: auditModels.Model{
-				CreatedAt: eventTime,
-				UpdatedAt: eventTime,
+				CreatedAt: transition.At,
+				UpdatedAt: transition.At,
 			},
 			StudentID:      after.StudentID,
-			ConsentKey:     field.key,
+			ConsentKey:     transition.Key,
 			Action:         action,
 			Source:         source,
 			ActorAccountID: actorAccountID,
 		}
 		if err := s.trail.Create(ctx, entry); err != nil {
-			return fmt.Errorf("student consent recorder: record %s transition: %w", field.key, err)
+			return fmt.Errorf("student consent recorder: record %s transition: %w", transition.Key, err)
 		}
 	}
 	return nil
-}
-
-func consentFields(before, after peopleModule.StudentConsentSnapshot) []studentConsentField {
-	return []studentConsentField{
-		{key: auditModels.StudentConsentAGB, before: before.AGBAcceptedAt, after: after.AGBAcceptedAt},
-		{key: auditModels.StudentConsentDataProcessing, before: before.DataProcessingAcceptedAt, after: after.DataProcessingAcceptedAt},
-		{key: auditModels.StudentConsentEmailContact, before: before.EmailContactAcceptedAt, after: after.EmailContactAcceptedAt},
-		{key: auditModels.StudentConsentPhoto, before: before.PhotoConsentGivenAt, after: after.PhotoConsentGivenAt},
-	}
 }
 
 func studentConsentSnapshot(student *userModels.Student) peopleModule.StudentConsentSnapshot {

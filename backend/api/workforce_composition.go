@@ -59,7 +59,7 @@ func NewUnobservedWorkforce(db transactionruntime.Database) (workforceModule.Cap
 // 0053): the adapters over the owners the root composes come built, and the
 // bindings over the staff rows, audit trails, settings and mail only the
 // service graph builds come as functions the graph calls with them.
-func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Query, organizations organizationtenancy.Query, staff staffWithPersonReader) WorkforceWiring {
+func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability, organizations organizationtenancy.Query, staff staffWithPersonReader) WorkforceWiring {
 	staffAbsences := NewStaffAbsenceRepository(workTime, membership, persons)
 	return WorkforceWiring{
 		ShiftRows:       newWorkforceShiftRows(workTime),
@@ -69,7 +69,7 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 			return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 				DB: db.Pool(), Logger: sources.Logger, Now: sources.Now,
 			}, staffAdminOwners{
-				Staff: sources.Staff, Persons: sources.Persons, Membership: membership,
+				Staff: sources.Staff, Persons: staffAdminPersons{rows: sources.Persons, details: persons}, Membership: membership,
 				MasterDataAudit: sources.Audits.StaffMasterDataChange, PersonnelNumber: sources.Audits.PersonnelNumberChange, DataAccessLog: sources.Audits.DataAccessLog,
 			})
 		},

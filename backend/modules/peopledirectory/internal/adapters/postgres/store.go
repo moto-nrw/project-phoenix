@@ -324,6 +324,25 @@ func (s *Store) SetNames(ctx context.Context, personID int64, firstName, lastNam
 	return execOne(ctx, query, "set person names")
 }
 
+// SetDetails leaves updated_at to the row trigger, like SetNames.
+func (s *Store) SetDetails(ctx context.Context, personID int64, firstName, lastName, birthday string) (domain.OperationStats, error) {
+	date, err := optionalDate(birthday)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*personRow)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(`first_name = ?`, firstName).
+		Set(`last_name = ?`, lastName).
+		Set(`birthday = ?`, date).
+		Where(`"person".id = ?`, personID), tenantID)
+	return execOne(ctx, query, "set person details")
+}
+
 func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

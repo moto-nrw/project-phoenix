@@ -29,6 +29,9 @@ type Store interface {
 	SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error)
 	// SetNames writes the names of the person, deleted or not, as given.
 	SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error)
+	// SetDetails writes the names and the birthday (YYYY-MM-DD, empty for
+	// none) of the person, deleted or not, as given.
+	SetDetails(ctx context.Context, personID int64, firstName, lastName, birthday string) (domain.OperationStats, error)
 	SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error)
 	LockHeldTags(context.Context, []int64) ([]domain.ReleasedTag, domain.OperationStats, error)
 	ClearTags(context.Context, []int64) (domain.OperationStats, error)

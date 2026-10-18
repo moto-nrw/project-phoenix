@@ -118,6 +118,34 @@ func (m *Module) RenamePerson(ctx context.Context, personID int64, firstName, la
 	return m.engine.RenamePerson(ctx, personID, firstName, lastName)
 }
 
+// PersonDetails are the names and the birthday of a person; Birthday is a
+// calendar date in BirthdayLayout, empty when unknown.
+type PersonDetails struct {
+	FirstName string
+	LastName  string
+	Birthday  string
+}
+
+// PersonDetailsCommand writes the details a staff record or an approved
+// Stammdaten request changes on the person behind it.
+type PersonDetailsCommand interface {
+	// SetPersonDetails replaces the names and the birthday of a person of the
+	// school; its tag and account stay. ErrPersonNotFound when the school
+	// has no such person.
+	SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error
+}
+
+// SetPersonDetails requires both names and stores them trimmed but not
+// capped, the way the staff record and the Stammdaten decision always wrote
+// them.
+func (m *Module) SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error {
+	if details.FirstName == "" || details.LastName == "" {
+		return invalid("first name and last name are required")
+	}
+	details.FirstName, details.LastName = strings.TrimSpace(details.FirstName), strings.TrimSpace(details.LastName)
+	return m.engine.SetPersonDetails(ctx, personID, details)
+}
+
 // GuardianLifecycleCommand are the guardian profile and relationship writes
 // of the guardian invitation, approval and revocation flows. A relationship
 // write covers its Care Plan pickup and Identity & Access portal halves in

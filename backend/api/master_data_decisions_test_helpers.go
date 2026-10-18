@@ -10,7 +10,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,7 +20,7 @@ import (
 // calendar day. Nil effects are skipped.
 type MasterDataDecisionTestOptions struct {
 	CarePlan    careplan.Capability
-	People      peopledirectory.StudentFieldReviewQuery
+	People      MasterDataPeople
 	Students    peoplePorts.StudentRepository
 	Persons     peoplePorts.PersonRepository
 	Audit       peoplePorts.StudentChangeRecorder
