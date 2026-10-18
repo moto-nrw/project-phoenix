@@ -118,7 +118,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 	)
 	assert.Equal(t, http.StatusConflict, staleRec.Code, staleRec.Body.String())
 	assert.Contains(t, staleRec.Body.String(), `"code":"pickup.preview_stale"`)
-	stored, err := repoFactory.StudentPickupSchedule.FindByStudentIDAndWeekday(
+	stored, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).StudentPickupSchedule.FindByStudentIDAndWeekday(
 		testpkg.Ctx(t), student.ID, 1,
 	)
 	require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, futureRec.Code, futureRec.Body.String())
 	assert.Contains(t, futureRec.Body.String(), `"code":"pickup.future_manual_reset"`)
-	futureLinks, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Enrollment().
+	futureLinks, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Enrollment().
 		RequestChildOfferingsAtDate(testpkg.Ctx(t), fixture.child.ID, owner.Date(futureDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
@@ -310,7 +310,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, http.StatusConflict, staleArrivalRec.Code, staleArrivalRec.Body.String())
 	assert.Contains(t, staleArrivalRec.Body.String(), `"code":"pickup.preview_stale"`)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
-	arrivalRowsBefore, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(
+	arrivalRowsBefore, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(
 		testpkg.Ctx(t), student.ID,
 	)
 	require.NoError(t, err)
@@ -338,7 +338,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		Where("source <> ?", careplan.ScheduleSourceCareOffering).
 		Scan(t.Context(), &manualRows))
 	assert.Empty(t, manualRows, "the selected offering must replace every lasting manual pickup time")
-	arrivalRows, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
+	arrivalRows, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, arrivalRowsBefore, arrivalRows,
 		"an offering change must leave the existing arrival plan unchanged")

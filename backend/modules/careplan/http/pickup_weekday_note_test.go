@@ -150,7 +150,7 @@ func TestReplaceWeekdayPickupNotesWaitsForStudentLock(t *testing.T) {
 	lockDone := make(chan error, 1)
 	go func() {
 		lockDone <- testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			if _, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
+			if _, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
 				return err
 			}
 			close(locked)

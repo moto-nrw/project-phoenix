@@ -50,12 +50,16 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	students, repos, err := NewStudentTestRepositories(db, auditCommand)
+	if err != nil {
+		return nil, err
+	}
+	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
 	deps, err := offeringChangeOwners(
-		repos.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, repos.CareWithdrawal, options.Settings,
+		students.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, studentPeople.CareWithdrawal, options.Settings,
 		offeringChangeTestScope(options.Scope), requestTokenReads.Permissions, nil, nil,
 	)
 	if err != nil {

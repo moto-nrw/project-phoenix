@@ -128,24 +128,15 @@ func NewCareLifecycleTestRepositories(db transactionruntime.Database, command au
 	return result, nil
 }
 
-// NewStudentTestRepositories composes the student test graph with its audit
-// trails.
-func NewStudentTestRepositories(db transactionruntime.Database, command auditModels.Command) (StudentTestRepositories, error) {
-	result, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+// NewStudentTestRepositories composes the student suites' Care Plan rows
+// and returns them with the Enrollment graph and its access log. The audit
+// trails the suites read back come from NewStudentAuditRows.
+func NewStudentTestRepositories(db transactionruntime.Database, command auditModels.Command) (StudentTestRepositories, EnrollmentTestRepositories, error) {
+	result, enrollment, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return StudentTestRepositories{}, err
+		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	result.EnrollmentTestRepositories = withEnrollmentTestAudit(db, command, result.EnrollmentTestRepositories)
-	audits := NewTestAuditPersistence(db, command)
-	result.EnrollmentOfferingAdjustment = audits.EnrollmentOfferingAdjustment
-	result.EnrollmentRestorationAudit = audits.EnrollmentRestorationAudit
-	result.GuardianFinancialChange = audits.GuardianFinancialChange
-	result.SubstitutionChange = audits.SubstitutionChange
-	result.StudentDeletionAudit = audits.StudentDeletionAudit
-	result.StudentFieldEdit = audits.StudentFieldEdit
-	result.StudentConsentChange = audits.StudentConsentChange
-	result.DataDeletion = audits.DataDeletion
-	return result, nil
+	return result, withEnrollmentTestAudit(db, command, enrollment), nil
 }
 
 // NewGuardianTestRepositories composes the guardian test repositories with

@@ -62,17 +62,21 @@ func setupStudentsRouteWithCareLifecycle(t *testing.T, authoritative bool, clock
 }
 func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.Time) *testContext {
 	t.Helper()
-	db, svc := setupStudentModule(t, clocks...)
+	db := testpkg.SetupTestDB(t)
+	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	svc, live, people, audit, decisions, groupLive, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	require.NoError(t, err)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	_, resource, _, presenceSubject, _, _, mount, err := api.NewStudentHTTPTestResources(
-		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, broadcaster, tenantScopedCaller{svc.UserContext},
+		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, live, people, audit, groupLive, broadcaster, tenantScopedCaller{live.UserContext},
 		testpkg.StudentDirectory{}, &testpkg.FeedbackEntryCounterMock{}, testpkg.RequestAuditActor,
-		deviceAuthenticator(t, db, svc), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
+		deviceAuthenticator(t, db, live), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
 	)
 	require.NoError(t, err)
 	router := func() chi.Router { return mount(resource.Now) }
-	return &testContext{statusDays: presenceSubject.StudentStatusDayService, careRequests: svc.CareRequests, enrollmentDecision: svc.EnrollmentDecision, db: db, resource: resource,
-		settingsService: svc.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
+	return &testContext{statusDays: presenceSubject.StudentStatusDayService, careRequests: svc.CareRequests, enrollmentDecision: decisions, db: db, resource: resource,
+		settingsService: live.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
 }
 
 type tenantScopedCaller struct{ *api.CallerRows }
@@ -103,6 +107,13 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 // newStudentTestRepositories composes the retained repositories the suites
 // arrange through, recording into the test audit store.
 var newStudentTestRepositories = api.MustNewStudentHTTPTestRows
+
+// newStudentTestEnrollment composes the Enrollment graph the suites arrange
+// through, and newStudentTestPeopleRows the People Directory rows.
+var (
+	newStudentTestEnrollment = api.MustNewStudentHTTPTestEnrollment
+	newStudentTestPeopleRows = api.MustNewStudentHTTPTestPeopleRows
+)
 
 // previewStudentDeletion reads the delete-impact preview the confirmed
 // deletion has to quote back (#2710): the permanent deletion is never
@@ -140,21 +151,11 @@ func deleteStudentConfirmed(t *testing.T, tc *testContext, claims sessiontoken.A
 
 // deviceAuthenticator is the kiosk device authentication over the module's
 // fleet and settings, with the root's guard against deleted schools.
-func deviceAuthenticator(t testing.TB, db *bun.DB, svc api.StudentTestModule) common.Middleware {
+func deviceAuthenticator(t testing.TB, db *bun.DB, live api.ActiveTestModule) common.Middleware {
 	t.Helper()
 	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), schools, svc.Settings, testDevicePIN).Device()
-}
-
-func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.StudentTestModule) {
-	t.Helper()
-	db := testpkg.SetupTestDB(t)
-	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
-	module, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
-	require.NoError(t, err)
-	return db, module
+	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, live.Settings, testDevicePIN).Device()
 }
 
 const testDevicePIN = "1234"

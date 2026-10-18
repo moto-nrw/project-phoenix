@@ -9,7 +9,7 @@ import (
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 )
 
-func NewStudentEnrollmentHTTPTestResource(module StudentTestModule) *enrollmentHTTP.StudentResource {
-	directory := studentsAPI.NewResource(studentsAPI.ResourceConfig{PeopleDirectory: module.PeopleDirectory, UserContextService: module.UserContext})
+func NewStudentEnrollmentHTTPTestResource(people StudentTestPeople, userContext *CallerRows) *enrollmentHTTP.StudentResource {
+	directory := studentsAPI.NewResource(studentsAPI.ResourceConfig{PeopleDirectory: people.PeopleDirectory, UserContextService: userContext})
 	return &enrollmentHTTP.StudentResource{StudentReadAccess: directory.StudentReadAccess, Logger: slog.Default()}
 }
