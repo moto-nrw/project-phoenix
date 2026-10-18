@@ -159,7 +159,7 @@ func (s *Service) scanStaff(ctx context.Context, device *ports.Device, person *p
 
 // addSupervisor adds the staff member to the device's running session
 // (idempotent) and returns the session context for the response.
-func (s *Service) addSupervisor(ctx context.Context, device *ports.Device, staffID int64) (*ports.Session, error) {
+func (s *Service) addSupervisor(ctx context.Context, device *ports.Device, staffID int64) (*devicescan.Session, error) {
 	session, err := s.sessions.Current(ctx, device.ID)
 	if err != nil || session == nil {
 		s.logger.InfoContext(ctx, "no active session for supervisor scan",

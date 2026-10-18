@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -21,7 +20,7 @@ import (
 // blocksRunning reports that sessions other than Freispiel run in the yard.
 // Without them, or without the roster and activity seams, the candidates are
 // the given sessions unchanged.
-func (s *Service) routeYardScan(ctx context.Context, sessions []ports.Session, room facilities.Room, studentID, deviceID int64) (selection *selectedSession, candidates []ports.Session, blocksRunning bool, err error) {
+func (s *Service) routeYardScan(ctx context.Context, sessions []devicescan.Session, room facilities.Room, studentID, deviceID int64) (selection *selectedSession, candidates []devicescan.Session, blocksRunning bool, err error) {
 	if s.rosters == nil || s.activities == nil || len(sessions) == 0 {
 		return nil, sessions, false, nil
 	}
@@ -44,7 +43,7 @@ func (s *Service) routeYardScan(ctx context.Context, sessions []ports.Session, r
 	candidates = slices.Clone(freeplay)
 	for _, session := range sessions {
 		ownBlock := session.DeviceID != nil && *session.DeviceID == deviceID &&
-			!slices.ContainsFunc(freeplay, func(f ports.Session) bool { return f.ID == session.ID })
+			!slices.ContainsFunc(freeplay, func(f devicescan.Session) bool { return f.ID == session.ID })
 		if ownBlock {
 			candidates = append(candidates, session)
 		}
@@ -63,7 +62,7 @@ func (s *Service) openFreeplayNextToBlocks(ctx context.Context, room facilities.
 		s.logger.ErrorContext(ctx, "failed to find Schulhof activity", slog.String("error", err.Error()))
 		return nil, devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured)
 	}
-	session, err := s.sessions.EnsureRoomSession(ctx, ports.NewSession{ActivityID: activity.ID, RoomID: room.ID})
+	session, err := s.sessions.EnsureRoomSession(ctx, devicescan.NewSession{ActivityID: activity.ID, RoomID: room.ID})
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to open Schulhof session next to running blocks",
 			slog.Int64("room_id", room.ID),
@@ -84,8 +83,8 @@ func (s *Service) openFreeplayNextToBlocks(ctx context.Context, room facilities.
 // session without a template is a spontaneous block the kiosk cannot book,
 // so it lands in neither list. The loaded activity stays on the session for
 // the capacity check.
-func (s *Service) splitYardSessions(ctx context.Context, sessions []ports.Session) (freeplay, blocks []ports.Session, err error) {
-	loaded := make(map[int64]*ports.Activity, len(sessions))
+func (s *Service) splitYardSessions(ctx context.Context, sessions []devicescan.Session) (freeplay, blocks []devicescan.Session, err error) {
+	loaded := make(map[int64]*devicescan.Activity, len(sessions))
 	for _, session := range sessions {
 		if session.TemplateID == nil {
 			continue
@@ -115,7 +114,7 @@ func (s *Service) splitYardSessions(ctx context.Context, sessions []ports.Sessio
 
 // rosteredBlock returns the newest block whose day roster lists the
 // student, or nil when none does.
-func (s *Service) rosteredBlock(ctx context.Context, blocks []ports.Session, room facilities.Room, studentID, deviceID int64) (*selectedSession, error) {
+func (s *Service) rosteredBlock(ctx context.Context, blocks []devicescan.Session, room facilities.Room, studentID, deviceID int64) (*selectedSession, error) {
 	if len(blocks) == 0 {
 		return nil, nil
 	}
@@ -136,7 +135,7 @@ func (s *Service) rosteredBlock(ctx context.Context, blocks []ports.Session, roo
 	for _, id := range rostered {
 		matched[id] = true
 	}
-	var selected *ports.Session
+	var selected *devicescan.Session
 	for i := range blocks {
 		if matched[blocks[i].ID] && (selected == nil || blocks[i].StartTime.After(selected.StartTime)) {
 			selected = &blocks[i]

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	auditRepo "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )

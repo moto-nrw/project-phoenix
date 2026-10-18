@@ -52,9 +52,9 @@ type Dependencies struct {
 	Principals ports.Principals
 	People     ports.People
 	Visits     ports.Visits
-	Sessions   ports.Sessions
+	Sessions   SessionOperations
 	Attendance ports.Attendance
-	Activities ports.Activities
+	Activities ActivityCatalog
 	Rosters    ports.Rosters
 	Groups     ports.Groups
 	Pickups    ports.Pickups
@@ -75,9 +75,9 @@ type Service struct {
 	principals ports.Principals
 	people     ports.People
 	visits     ports.Visits
-	sessions   ports.Sessions
+	sessions   SessionOperations
 	attendance ports.Attendance
-	activities ports.Activities
+	activities ActivityCatalog
 	rosters    ports.Rosters
 	groups     ports.Groups
 	pickups    ports.Pickups

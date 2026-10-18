@@ -91,31 +91,7 @@ func appendEventOnce(ctx context.Context, db bun.IDB, event any) (string, bool, 
 func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 	var query *bun.InsertQuery
 	var table string
-	switch value := event.(type) {
-	case *classlist.ClassListEntryChange:
-		row := classListChangeRow(value)
-		table, query = "audit.class_list_entry_changes", db.NewInsert().Model(row).ModelTableExpr("audit.class_list_entry_changes")
-	case *auditImports.DataImport:
-		row := &auditModels.DataImport{
-			EntityType: value.EntityType, Filename: value.Filename, TotalRows: value.TotalRows,
-			CreatedCount: value.CreatedCount, UpdatedCount: value.UpdatedCount, SkippedCount: value.SkippedCount,
-			ErrorCount: value.ErrorCount, WarningCount: value.WarningCount, DryRun: value.DryRun,
-			ImportedBy: value.ImportedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt,
-			Metadata: auditModels.JSONBMap{},
-		}
-		row.SetTenantID(value.TenantID)
-		if value.Checkpoint != nil {
-			row.Metadata["import_checkpoint"] = value.Checkpoint
-		}
-		table, query = "audit.data_imports", db.NewInsert().Model(row).ModelTableExpr("audit.data_imports")
-	case *consents.ConsentChange:
-		row := &auditModels.StudentConsentChange{
-			Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
-			StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
-			Source: value.Source, ActorAccountID: value.ActorAccountID,
-		}
-		row.SetTenantID(value.TenantID)
-		table, query = "audit.student_consent_changes", db.NewInsert().Model(row).ModelTableExpr("audit.student_consent_changes")
+	switch value := appendRow(event).(type) {
 	case *auditModels.AttendanceCorrection:
 		table, query = "audit.attendance_corrections", db.NewInsert().Model(value).ModelTableExpr("audit.attendance_corrections")
 	case *auditModels.AuthEvent:
@@ -164,6 +140,41 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		return "event", nil, fmt.Errorf("unsupported event type %T", event)
 	}
 	return table, query, nil
+}
+
+// appendRow maps public event values onto the existing ledger rows.
+func appendRow(event any) any {
+	switch value := event.(type) {
+	case *classlist.ClassListEntryChange:
+		return classListChangeRow(value)
+	case *auditImports.DataImport:
+		return importEventRow(value)
+	case *consents.ConsentChange:
+		row := &auditModels.StudentConsentChange{
+			Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
+			StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
+			Source: value.Source, ActorAccountID: value.ActorAccountID,
+		}
+		row.SetTenantID(value.TenantID)
+		return row
+	default:
+		return event
+	}
+}
+
+func importEventRow(value *auditImports.DataImport) *auditModels.DataImport {
+	row := &auditModels.DataImport{
+		EntityType: value.EntityType, Filename: value.Filename, TotalRows: value.TotalRows,
+		CreatedCount: value.CreatedCount, UpdatedCount: value.UpdatedCount, SkippedCount: value.SkippedCount,
+		ErrorCount: value.ErrorCount, WarningCount: value.WarningCount, DryRun: value.DryRun,
+		ImportedBy: value.ImportedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt,
+		Metadata: auditModels.JSONBMap{},
+	}
+	row.SetTenantID(value.TenantID)
+	if value.Checkpoint != nil {
+		row.Metadata["import_checkpoint"] = value.Checkpoint
+	}
+	return row
 }
 
 func validateEvent(event any) error {

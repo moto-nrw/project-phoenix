@@ -3,22 +3,17 @@ package compose
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ActivityGroupWithOccupancy wraps an activity group with its occupancy status
-type ActivityGroupWithOccupancy struct {
-	*activities.Group
-	IsOccupied bool
-}
-
 // ActivityService defines operations for activity management
 type ActivityService interface {
 	// Category operations
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
-	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
 	// CategoryUsageCounts reports how many activity groups reference each
 	// category, keyed by category id, for the Stammdaten management screen
@@ -86,5 +81,5 @@ type ActivityService interface {
 	// Device operations for RFID teacher selection
 
 	// ListGroupsWithOccupancy returns all activity groups with their active session status
-	ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error)
+	timetable.OccupancyQuery
 }

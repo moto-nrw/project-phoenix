@@ -10,18 +10,18 @@ import (
 )
 
 type WCService interface {
-	EnsureInfrastructure(context.Context) (*SystemActivity, error)
+	EnsureInfrastructure(context.Context) (*facilitiesModule.SystemActivity, error)
 }
 
 type wcService struct {
 	rooms      Service
-	activities ActivityCatalog
+	activities facilitiesModule.ActivityCatalog
 	logger     *slog.Logger
 }
 
 var errWCActivityNotFound = errors.New("WC activity not found")
 
-func NewWCService(rooms Service, activities ActivityCatalog, logger *slog.Logger) WCService {
+func NewWCService(rooms Service, activities facilitiesModule.ActivityCatalog, logger *slog.Logger) WCService {
 	if rooms == nil || activities == nil {
 		panic("WC service: rooms and activities are required")
 	}
@@ -30,7 +30,7 @@ func NewWCService(rooms Service, activities ActivityCatalog, logger *slog.Logger
 
 func (s *wcService) getLogger() *slog.Logger { return loggerOrDefault(s.logger) }
 
-func (s *wcService) EnsureInfrastructure(ctx context.Context) (*SystemActivity, error) {
+func (s *wcService) EnsureInfrastructure(ctx context.Context) (*facilitiesModule.SystemActivity, error) {
 	activity, err := s.findActivity(ctx)
 	if err == nil {
 		return activity, nil
@@ -46,7 +46,7 @@ func (s *wcService) EnsureInfrastructure(ctx context.Context) (*SystemActivity, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure WC category: %w", err)
 	}
-	created, err := s.activities.CreateActivity(ctx, SystemActivity{
+	created, err := s.activities.CreateActivity(ctx, facilitiesModule.SystemActivity{
 		Name: facilitiesModule.WCActivityName, MaxParticipants: facilitiesModule.WCMaxParticipants,
 		IsOpen: true, CategoryID: category.ID, PlannedRoomID: &room.ID, IsSystem: true,
 	})
@@ -66,7 +66,7 @@ func (s *wcService) EnsureInfrastructure(ctx context.Context) (*SystemActivity, 
 	return &created, nil
 }
 
-func (s *wcService) findActivity(ctx context.Context) (*SystemActivity, error) {
+func (s *wcService) findActivity(ctx context.Context) (*facilitiesModule.SystemActivity, error) {
 	groups, err := s.activities.ListActivities(ctx, facilitiesModule.WCActivityName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query WC activity: %w", err)
@@ -98,7 +98,7 @@ func (s *wcService) ensureRoom(ctx context.Context) (*facilitiesModule.Room, err
 	return room, nil
 }
 
-func (s *wcService) ensureCategory(ctx context.Context) (*SystemCategory, error) {
+func (s *wcService) ensureCategory(ctx context.Context) (*facilitiesModule.SystemCategory, error) {
 	categories, err := s.activities.ListCategories(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list activity categories: %w", err)
@@ -108,7 +108,7 @@ func (s *wcService) ensureCategory(ctx context.Context) (*SystemCategory, error)
 			return &categories[index], nil
 		}
 	}
-	created, err := s.activities.CreateCategory(ctx, SystemCategory{
+	created, err := s.activities.CreateCategory(ctx, facilitiesModule.SystemCategory{
 		Name: facilitiesModule.WCCategoryName, Description: facilitiesModule.WCCategoryDescription,
 		Color: facilitiesModule.WCColor, IsSystem: true,
 	})

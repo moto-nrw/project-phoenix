@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 76,
+  "policy_epoch": 77,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -401,7 +401,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/audit/integration",
+      "path": "modules/auditlog/internal/adapters/auditpostgres/integration",
       "owner": "audit-platform",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -1003,7 +1003,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/audit",
+      "path": "modules/auditlog/internal/adapters/auditpostgres",
       "owner": "audit-platform",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1080,7 +1080,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/users",
+      "path": "modules/peopledirectory/internal/adapters/peoplepostgres",
       "owner": "people-directory",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1486,13 +1486,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/activities",
-      "owner": "timetable-activities",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/communication/internal/staffannouncements",
       "owner": "communication",
       "role": "adapter",
@@ -1647,7 +1640,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/facilities",
+      "path": "modules/facilities/internal/application/roomservice",
       "owner": "facilities",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1731,7 +1724,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/iot",
+      "path": "modules/devicefleet/internal/application/deviceservice",
       "owner": "device-fleet",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -2207,7 +2200,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/workforce/legacy",
+      "path": "modules/workforce/internal/adapters/substitutions",
       "owner": "workforce",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -8531,17 +8524,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "timetable-activities.compatibility-application.compose",
-      "description": "The retained activities service name delegates to owner composition.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "application",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.internal-test.tenant-runtime",
@@ -15367,6 +15349,16 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "database/repositories/audit",
+      "to": "modules/auditlog/internal/adapters/auditpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "database/repositories/audit/integration",
+      "to": "modules/auditlog/internal/adapters/auditpostgres/integration",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/delivery",
       "to": "modules/delivery/internal/adapters/deliverypostgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15417,9 +15409,24 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/workforce/legacy",
+      "to": "modules/workforce/internal/adapters/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "services/education",
       "to": "modules/schoolstructure/internal/application/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "services/facilities",
+      "to": "modules/facilities/internal/application/roomservice",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/iot",
+      "to": "modules/devicefleet/internal/application/deviceservice",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]
 }

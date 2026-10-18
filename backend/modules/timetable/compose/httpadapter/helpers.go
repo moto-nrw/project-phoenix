@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // errNotStaff reports a caller without a staff record.

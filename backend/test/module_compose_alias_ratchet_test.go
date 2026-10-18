@@ -36,16 +36,12 @@ import (
 // Form: a budget per composition package, keyed by its backend-relative
 // directory. A package without aliases has no entry.
 var moduleComposeAliasBudgets = map[string]int{
-	"modules/auditlog/compose":                   16,
+	"modules/auditlog/compose":                   8,
 	"modules/communication/composition":          4,
 	"modules/dataimport/compose/retained":        16,
 	"modules/delivery/compose":                   2,
 	"modules/delivery/compose/email":             23,
 	"modules/delivery/compose/realtime":          17,
-	"modules/devicefleet/compose":                1,
-	"modules/facilities/compose":                 11,
-	"modules/facilities/compose/legacy":          1,
-	"modules/peopledirectory/compose":            16,
 	"modules/peopledirectory/compose/vocabulary": 88,
 	"modules/requestreview/compose":              6,
 	"modules/schoolstructure/compose":            2,
@@ -56,7 +52,7 @@ var moduleComposeAliasBudgets = map[string]int{
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 253
+const moduleComposeAliasBudgetTotal = 216
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

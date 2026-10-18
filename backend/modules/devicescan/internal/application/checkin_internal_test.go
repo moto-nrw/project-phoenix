@@ -130,35 +130,35 @@ func TestCheckActivityCapacity(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.presence.groupErr = errBoom
-		require.NoError(t, h.service().checkActivityCapacity(context.Background(), &ports.Session{Activity: &ports.Activity{Name: "Sporthalle"}}))
+		require.NoError(t, h.service().checkActivityCapacity(context.Background(), &devicescan.Session{Activity: &devicescan.Activity{Name: "Sporthalle"}}))
 	})
 	t.Run("a template is loaded when the session did not carry it", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		h.activities.byID[301] = &ports.Activity{ID: 301, Name: "Hausaufgaben", MaxParticipants: 1}
+		h.activities.byID[301] = &devicescan.Activity{ID: 301, Name: "Hausaufgaben", MaxParticipants: 1}
 		h.presence.groupCounts[201] = 1
-		err := h.service().checkActivityCapacity(context.Background(), &ports.Session{ID: 201, TemplateID: ptr(int64(301))})
+		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, TemplateID: ptr(int64(301))})
 		_, ok := errors.AsType[*devicescan.ActivityCapacityExceededError](err)
 		assert.True(t, ok, "got %v", err)
 	})
 	t.Run("a spontaneous session is unsupported", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		err := h.service().checkActivityCapacity(context.Background(), &ports.Session{ID: 201})
+		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201})
 		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageSpontaneousUnsupported)
 	})
 	t.Run("a template lookup failure is the pinned text", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.activities.findErr = errBoom
-		err := h.service().checkActivityCapacity(context.Background(), &ports.Session{ID: 201, TemplateID: ptr(int64(301))})
+		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, TemplateID: ptr(int64(301))})
 		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageGetActivityFailed)
 	})
 	t.Run("an occupancy failure is the pinned text", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.presence.groupErr = errBoom
-		err := h.service().checkActivityCapacity(context.Background(), &ports.Session{ID: 201, Activity: &ports.Activity{MaxParticipants: 3}})
+		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, Activity: &devicescan.Activity{MaxParticipants: 3}})
 		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageCheckActivityCapFailed)
 	})
 }
@@ -172,10 +172,10 @@ func TestUseExistingSession_CannotSelectPreviousDaySession(t *testing.T) {
 	s := h.service()
 	room := facilities.Room{ID: 42, Name: "Schulhof"}
 	deviceID := testDeviceID
-	stale := ports.Session{ID: 100, RoomID: room.ID, DeviceID: &deviceID, StartTime: fixedNow.AddDate(0, 0, -1)}
-	current := ports.Session{ID: 101, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour)}
+	stale := devicescan.Session{ID: 100, RoomID: room.ID, DeviceID: &deviceID, StartTime: fixedNow.AddDate(0, 0, -1)}
+	current := devicescan.Session{ID: 101, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour)}
 
-	selection := s.useExistingSession(context.Background(), s.sessionsStartedToday([]ports.Session{stale, current}, fixedNow), room, deviceID)
+	selection := s.useExistingSession(context.Background(), s.sessionsStartedToday([]devicescan.Session{stale, current}, fixedNow), room, deviceID)
 
 	assert.Equal(t, current.ID, selection.Session.ID)
 	assert.False(t, selection.DeviceScoped, "yesterday's device match must not win")
@@ -185,7 +185,7 @@ func TestEndPreviousDaySessions(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	endedAt := fixedNow.Add(-time.Hour)
-	sessions := []ports.Session{
+	sessions := []devicescan.Session{
 		{ID: 100, StartTime: fixedNow.AddDate(0, 0, -1)},
 		{ID: 101, StartTime: fixedNow.Add(-time.Hour)},
 		{ID: 102, StartTime: fixedNow.AddDate(0, 0, -2), EndTime: &endedAt},
@@ -200,16 +200,16 @@ func TestFindOrCreateSession_SpecialRoomEndsStaleSessionBeforeCreate(t *testing.
 	t.Parallel()
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.WCRoomName}
-	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
+	h.sessions.open = []devicescan.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 	h.rooms.toilet = &room
-	h.activities.byName[facilities.WCActivityName] = []ports.Activity{{ID: 300, Name: facilities.WCActivityName}}
+	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 300, Name: facilities.WCActivityName}}
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100}, h.sessions.ended)
 	require.Len(t, h.sessions.started, 1)
-	assert.Equal(t, ports.NewSession{ActivityID: 300, RoomID: 42}, h.sessions.started[0])
+	assert.Equal(t, devicescan.NewSession{ActivityID: 300, RoomID: 42}, h.sessions.started[0])
 	assert.Equal(t, int64(201), selection.Session.ID)
 	assert.True(t, selection.created)
 }
@@ -218,7 +218,7 @@ func TestFindOrCreateSession_RegularRoomReusesPreviousDaySession(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: "Klassenraum 1a"}
-	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
+	h.sessions.open = []devicescan.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
@@ -232,7 +232,7 @@ func TestFindOrCreateSession_SpecialRoomEndsStaleSessionBeforeSelectingCurrent(t
 	h := newHarness(t)
 	// Released, like every provisioned yard (#3064).
 	room := facilities.Room{ID: 42, Name: facilities.SchulhofRoomName, IsOpenRoom: true}
-	h.sessions.open = []ports.Session{
+	h.sessions.open = []devicescan.Session{
 		{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)},
 		{ID: 101, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour)},
 	}
@@ -248,7 +248,7 @@ func TestFindOrCreateSession_StaleSessionEndFailure(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.SchulhofRoomName, IsOpenRoom: true}
-	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
+	h.sessions.open = []devicescan.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 	h.sessions.endErr = errBoom
 
 	_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
@@ -263,7 +263,7 @@ func TestProcessCheckin_RejectedCapacityRemovesNewSpecialRoomSession(t *testing.
 	h.rooms.rooms[room.ID] = room
 	h.rooms.toilet = &room
 	h.sessions.open = nil
-	h.activities.byName[facilities.WCActivityName] = []ports.Activity{{ID: 300, Name: "WC", MaxParticipants: 999}}
+	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 300, Name: "WC", MaxParticipants: 999}}
 	h.visits.recordErr = &ports.RoomCapacityExceeded{RoomID: 42, RoomName: facilities.WCRoomName, CurrentOccupancy: 1, MaxCapacity: 1}
 
 	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID)
@@ -296,7 +296,7 @@ func TestDeactivatedSchulhofFollowsRegularRoomRules(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.SchulhofRoomName}
-	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
+	h.sessions.open = []devicescan.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
@@ -310,7 +310,7 @@ func TestDeactivatedSchulhofDoesNotAutoCreateASession(t *testing.T) {
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.SchulhofRoomName}
 	h.sessions.open = nil
-	h.activities.byName[facilities.SchulhofActivityName] = []ports.Activity{{ID: 300}}
+	h.activities.byName[facilities.SchulhofActivityName] = []devicescan.Activity{{ID: 300}}
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
@@ -390,7 +390,7 @@ func TestCreateSpecialRoomSession_StartFailure(t *testing.T) {
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.WCRoomName}
 	h.rooms.toilet = &room
-	h.activities.byName[facilities.WCActivityName] = []ports.Activity{{ID: 300, Name: facilities.WCActivityName}}
+	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 300, Name: facilities.WCActivityName}}
 	h.sessions.startErr = errBoom
 
 	_, err := h.service().createSpecialRoomSession(context.Background(), room)
@@ -420,12 +420,12 @@ func yardHarness(t *testing.T) (*harness, facilities.Room) {
 	room := facilities.Room{ID: testRoomID, Name: facilities.SchulhofRoomName, IsSystem: true, IsOpenRoom: true}
 	h.rooms.rooms[room.ID] = room
 	h.rooms.byName[room.Name] = room
-	freeplay := ports.Activity{ID: yardFreeplayActivityID, Name: facilities.SchulhofActivityName, MaxParticipants: 300, PlannedRoomID: ptr(room.ID), IsSystem: true, IsOpen: true}
+	freeplay := devicescan.Activity{ID: yardFreeplayActivityID, Name: facilities.SchulhofActivityName, MaxParticipants: 300, PlannedRoomID: ptr(room.ID), IsSystem: true, IsOpen: true}
 	h.activities.byID[freeplay.ID] = &freeplay
-	h.activities.byName[freeplay.Name] = []ports.Activity{freeplay}
-	h.activities.byID[yardBlockAActivityID] = &ports.Activity{ID: yardBlockAActivityID, Name: "Fußball"}
-	h.activities.byID[yardBlockBActivityID] = &ports.Activity{ID: yardBlockBActivityID, Name: "Seilspringen"}
-	h.sessions.open = []ports.Session{
+	h.activities.byName[freeplay.Name] = []devicescan.Activity{freeplay}
+	h.activities.byID[yardBlockAActivityID] = &devicescan.Activity{ID: yardBlockAActivityID, Name: "Fußball"}
+	h.activities.byID[yardBlockBActivityID] = &devicescan.Activity{ID: yardBlockBActivityID, Name: "Seilspringen"}
+	h.sessions.open = []devicescan.Session{
 		{ID: yardFreeplaySessionID, RoomID: room.ID, StartTime: fixedNow.Add(-3 * time.Hour), TemplateID: ptr(yardFreeplayActivityID)},
 		{ID: yardBlockASessionID, RoomID: room.ID, StartTime: fixedNow.Add(-2 * time.Hour), TemplateID: ptr(yardBlockAActivityID)},
 		{ID: yardBlockBSessionID, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour), TemplateID: ptr(yardBlockBActivityID)},
@@ -523,7 +523,7 @@ func TestYardScan_UnrosteredChildPrefersTheFreeplaySessionTheKioskTookOver(t *te
 	t.Parallel()
 	h, room := yardHarness(t)
 	h.sessions.open[0].DeviceID = ptr(testDeviceID)
-	h.sessions.open = append(h.sessions.open, ports.Session{
+	h.sessions.open = append(h.sessions.open, devicescan.Session{
 		ID: 113, RoomID: room.ID, StartTime: fixedNow.Add(-30 * time.Minute), TemplateID: ptr(yardFreeplayActivityID),
 	})
 
@@ -537,8 +537,8 @@ func TestYardScan_UnrosteredChildPrefersTheFreeplaySessionTheKioskTookOver(t *te
 func TestYardScan_UnrosteredChildGetsAFreshDevicelessFreeplaySession(t *testing.T) {
 	t.Parallel()
 	h, room := yardHarness(t)
-	yesterday := ports.Session{ID: 109, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1), TemplateID: ptr(yardFreeplayActivityID)}
-	h.sessions.open = append([]ports.Session{yesterday}, h.sessions.open[1:]...)
+	yesterday := devicescan.Session{ID: 109, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1), TemplateID: ptr(yardFreeplayActivityID)}
+	h.sessions.open = append([]devicescan.Session{yesterday}, h.sessions.open[1:]...)
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
@@ -549,7 +549,7 @@ func TestYardScan_UnrosteredChildGetsAFreshDevicelessFreeplaySession(t *testing.
 	// blocks.
 	assert.Empty(t, h.sessions.started)
 	require.Len(t, h.sessions.ensured, 1)
-	assert.Equal(t, ports.NewSession{ActivityID: yardFreeplayActivityID, RoomID: room.ID}, h.sessions.ensured[0])
+	assert.Equal(t, devicescan.NewSession{ActivityID: yardFreeplayActivityID, RoomID: room.ID}, h.sessions.ensured[0])
 	assert.Equal(t, int64(201), selection.Session.ID)
 	assert.False(t, selection.created, "a shared room session is never deleted on a refused visit")
 	assert.False(t, selection.DeviceScoped)
@@ -582,7 +582,7 @@ func TestYardScan_WithoutAnySessionStartsTheFreeplaySessionAsBefore(t *testing.T
 func TestYardScan_WithoutBlocksKeepsTheFormerChoice(t *testing.T) {
 	t.Parallel()
 	h, room := yardHarness(t)
-	h.sessions.open = []ports.Session{
+	h.sessions.open = []devicescan.Session{
 		{ID: yardFreeplaySessionID, RoomID: room.ID, StartTime: fixedNow.Add(-3 * time.Hour), TemplateID: ptr(yardFreeplayActivityID), DeviceID: ptr(testDeviceID)},
 		{ID: 113, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour), TemplateID: ptr(yardFreeplayActivityID)},
 	}
@@ -598,7 +598,7 @@ func TestYardScan_WithoutBlocksKeepsTheFormerChoice(t *testing.T) {
 func TestYardScan_SpontaneousBlockIsNeverAScanTarget(t *testing.T) {
 	t.Parallel()
 	h, room := yardHarness(t)
-	h.sessions.open = []ports.Session{
+	h.sessions.open = []devicescan.Session{
 		h.sessions.open[0],
 		{ID: 114, RoomID: room.ID, StartTime: fixedNow.Add(-time.Minute)},
 	}

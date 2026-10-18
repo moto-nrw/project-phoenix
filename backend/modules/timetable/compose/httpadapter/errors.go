@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/activities"
+	activities "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 func onlySupervisorConflict(err error) render.Renderer {

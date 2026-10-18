@@ -117,11 +117,11 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 1105
+const moduleLegacyBudgetTotal = 555
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 2992
+const moduleLegacyFileBudgetTotal = 2898
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -135,27 +135,25 @@ const moduleLegacyFileBudgetTotal = 2992
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
 var moduleLegacyFileBudgets = map[string]int{
-	"database/repositories/users/legacy_composition_support.go":               25,
-	"database/repositories/users/legacy_types.go":                             14,
 	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
 	"modules/presenceprojection/legacy_rows.go":                               353,
 	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
 	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
 	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 167,
 	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    537,
-	"modules/timetable/compose/legacy_category_operations.go":                 138,
+	"modules/timetable/compose/legacy_activity_service.go":                    527,
+	"modules/timetable/compose/legacy_category_operations.go":                 98,
 	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
 	"modules/timetable/compose/legacy_errors.go":                              121,
 	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_interface.go":                           90,
+	"modules/timetable/compose/legacy_interface.go":                           85,
 	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
 	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 33112
+const moduleComposeBudgetTotal = 32777
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -177,11 +175,11 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose/realtime":             30,
 	"modules/devicefleet/compose":                   369,
 	"modules/devicefleet/compose/repositoryadapter": 298,
-	"modules/devicescan/compose":                    1441,
+	"modules/devicescan/compose":                    1272,
 	"modules/emergencysnapshot/compose":             13,
 	"modules/enrollment/compose":                    716,
 	"modules/exporttransfer/compose":                323,
-	"modules/facilities/compose":                    394,
+	"modules/facilities/compose":                    273,
 	"modules/facilities/compose/httpadapter":        473,
 	"modules/facilities/compose/repositoryadapter":  242,
 	"modules/feedback/compose":                      219,
@@ -214,7 +212,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       4218,
+	"modules/timetable/compose":                       4173,
 	"modules/timetable/compose/httpadapter":           3563,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
@@ -238,17 +236,9 @@ var moduleComposeBudgets = map[string]int{
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
-	"modules/devicefleet/compose/legacy": 143,
+	"modules/devicefleet/compose/legacy": 109,
 	// No ticket today.
-	"modules/facilities/compose/legacy": 517,
-	// No ticket today — and the largest tree of the twelve.
-	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
-	// moved the group substitution relations to the legacy root's binding,
-	// #3413 the time-tracking services and the work-session shim out, #3996
-	// the staff absence adapters, #4076 the test-only personnel record
-	// adapters.
-	"modules/workforce/legacy": 445,
-	// No ticket today.
+	"modules/facilities/compose/legacy": 446,
 }
 
 func TestModuleLegacyBudgetRatchet(t *testing.T) {

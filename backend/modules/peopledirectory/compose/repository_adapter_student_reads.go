@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
