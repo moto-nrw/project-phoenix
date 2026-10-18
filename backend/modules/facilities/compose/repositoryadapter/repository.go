@@ -29,6 +29,14 @@ func (r *Repository) capability() (facilities.Capability, error) {
 	return r.rooms, nil
 }
 
+func (r *Repository) records() (*Records, error) {
+	rooms, err := r.capability()
+	if err != nil {
+		return nil, err
+	}
+	return &Records{rooms: rooms}, nil
+}
+
 func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) error {
 	if room == nil {
 		return errors.New("room cannot be nil")
@@ -49,19 +57,11 @@ func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) er
 }
 
 func (r *Repository) FindByID(ctx context.Context, rawID any) (*facilitiesModels.Room, error) {
-	id, err := roomID(rawID)
+	records, err := r.records()
 	if err != nil {
 		return nil, err
 	}
-	rooms, err := r.capability()
-	if err != nil {
-		return nil, err
-	}
-	room, err := rooms.FindRoom(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointer(room), nil
+	return records.FindByID(ctx, rawID)
 }
 
 func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) error {
@@ -100,55 +100,35 @@ func (r *Repository) Delete(ctx context.Context, rawID any) error {
 }
 
 func (r *Repository) List(ctx context.Context, filters map[string]any) ([]*facilitiesModels.Room, error) {
-	filter, err := roomFilter(filters)
+	records, err := r.records()
 	if err != nil {
 		return nil, err
 	}
-	rooms, err := r.capability()
-	if err != nil {
-		return nil, err
-	}
-	values, err := rooms.ListRooms(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointers(values), nil
+	return records.List(ctx, filters)
 }
 
 func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
-	rooms, err := r.capability()
+	records, err := r.records()
 	if err != nil {
 		return nil, err
 	}
-	values, err := rooms.ListRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointers(values), nil
+	return records.FindByIDs(ctx, ids)
 }
 
 func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
-	rooms, err := r.capability()
+	records, err := r.records()
 	if err != nil {
 		return nil, err
 	}
-	room, err := rooms.FindRoomForUpdate(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointer(room), nil
+	return records.FindByIDForUpdate(ctx, id)
 }
 
 func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {
-	rooms, err := r.capability()
+	records, err := r.records()
 	if err != nil {
 		return nil, err
 	}
-	room, err := rooms.FindRoomByName(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointer(room), nil
+	return records.FindByName(ctx, name)
 }
 
 func roomID(value any) (int64, error) {

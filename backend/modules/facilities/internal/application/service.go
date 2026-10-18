@@ -21,10 +21,22 @@ type Service struct {
 }
 
 func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, usage ports.RoomUsage, observe ports.Observer) *Service {
-	if store == nil || tx == nil || lockDeletion == nil || usage == nil || observe == nil {
+	if lockDeletion == nil || usage == nil {
 		panic("facilities application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, lockDeletion: lockDeletion, usage: usage, observe: observe}
+	service := NewRooms(store, tx, observe)
+	service.lockDeletion, service.usage = lockDeletion, usage
+	return service
+}
+
+// NewRooms wires the service for every room operation except Delete, which
+// needs the deletion lock and guard of New. Only facilities.Rooms, which has
+// no deletion, may serve it.
+func NewRooms(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {
+	if store == nil || tx == nil || observe == nil {
+		panic("facilities application: all dependencies are required")
+	}
+	return &Service{store: store, tx: tx, observe: observe}
 }
 
 func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result domain.Room, err error) {
