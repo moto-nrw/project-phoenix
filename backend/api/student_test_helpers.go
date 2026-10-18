@@ -157,7 +157,6 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		})
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
-	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)

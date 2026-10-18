@@ -45,9 +45,8 @@ func (e *bookingRowNotFound) Error() string { return e.err.Error() }
 func (e *bookingRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrBookingRowNotFound} }
 
 // BookingMaterializationDependencies bind the booking materialization (#3560)
-// to its owners. Catalog is the care-offering catalog composed by
-// NewCareOfferingCatalog, unset for NewCareOfferingCatalogWithBookings; the
-// hooks are nil-safe.
+// to its owners. Catalog comes from NewCareOfferingCatalog, unset for
+// NewCareOfferingCatalogWithBookings; the hooks are nil-safe.
 type BookingMaterializationDependencies struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Rosters     BookingRosters

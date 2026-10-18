@@ -58,14 +58,21 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
 // repository set.
 func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	var sourced careplanCompose.SourcedTemplateResyncer = noCareOfferingResync{}
+	if options.SourcedTemplates != nil {
+		sourced = options.SourcedTemplates
+	}
+	var pickup careplanCompose.PickupResyncer = noCareOfferingResync{}
+	if options.Pickup != nil {
+		pickup = options.Pickup
+	}
 	return newCareOfferingCatalog(careOfferingCatalogInputs{
 		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
 		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,
-		SourcedTemplates: func() careplanCompose.SourcedTemplateResyncer { return options.SourcedTemplates },
-		Pickup:           func() careplanCompose.PickupResyncer { return options.Pickup },
-		LockRecurrence:   options.LockRecurrence,
-		Today:            options.Today,
-		Logger:           slog.Default(),
+		SourcedTemplates: sourced, Pickup: pickup,
+		LockRecurrence: options.LockRecurrence,
+		Today:          options.Today,
+		Logger:         slog.Default(),
 	})
 }
 
@@ -117,4 +124,21 @@ func NewCareOfferingCatalog(db transactionruntime.Database, unit tenant.UnitOfWo
 		option(&chosen)
 	}
 	return NewCareOfferingCatalogTestModule(db, unit, chosen)
+}
+
+// noCareOfferingResync is the roster and pickup resync of a suite that binds
+// neither: an offering edit leaves the sourced rosters and the pickup
+// projection as they are.
+type noCareOfferingResync struct{}
+
+func (noCareOfferingResync) ResyncTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
+	return nil
+}
+
+func (noCareOfferingResync) DetachTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
+	return nil
+}
+
+func (noCareOfferingResync) ReconcileOfferingPickupForOffering(context.Context, int64) error {
+	return nil
 }

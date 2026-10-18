@@ -19,6 +19,14 @@ type bookingCommandsStub struct{ ports.BookingCommands }
 type adjustmentAuditStub struct{ ports.AdjustmentAudit }
 type bookingPickupStub struct{ ports.BookingPickup }
 
+// unboundCatalogDependencies are the catalog's ports without the resyncers
+// NewCareOfferingCatalogWithBookings binds itself.
+func unboundCatalogDependencies() CareOfferingCatalogDependencies {
+	deps := catalogDependencies()
+	deps.SourcedTemplates, deps.Pickup = nil, nil
+	return deps
+}
+
 func bookingDependencies() BookingMaterializationDependencies {
 	return BookingMaterializationDependencies{
 		Rosters: bookingRostersStub{}, Templates: bookingTemplatesStub{}, Periods: bookingPeriodsStub{},
@@ -34,40 +42,40 @@ func bookingDependencies() BookingMaterializationDependencies {
 func TestNewCareOfferingCatalogWithBookings_BindsTheResyncers(t *testing.T) {
 	t.Parallel()
 
-	catalog, bookings, err := NewCareOfferingCatalogWithBookings(catalogDependencies(), bookingDependencies())
+	catalog, bookings, err := NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), bookingDependencies())
 	require.NoError(t, err)
 	require.Same(t, catalog, bookings.catalog)
-	require.Same(t, bookings, catalog.sourcedTemplateResyncer())
-	require.Same(t, bookings, catalog.pickupResyncer())
+	require.Same(t, bookings, catalog.deps.SourcedTemplates)
+	require.Same(t, bookings, catalog.deps.Pickup)
 }
 
 // A missing dependency of either half is a construction error, and the
-// late resolvers and the catalog the constructor binds itself are refused.
+// resyncers and the catalog the constructor binds itself are refused.
 func TestNewCareOfferingCatalogWithBookings_RequiresItsDependencies(t *testing.T) {
 	t.Parallel()
 
-	withoutPhases := catalogDependencies()
+	withoutPhases := unboundCatalogDependencies()
 	withoutPhases.Phases = nil
 	_, _, err := NewCareOfferingCatalogWithBookings(withoutPhases, bookingDependencies())
 	require.ErrorContains(t, err, "phases")
 
 	withoutPickup := bookingDependencies()
 	withoutPickup.Pickup = nil
-	_, _, err = NewCareOfferingCatalogWithBookings(catalogDependencies(), withoutPickup)
+	_, _, err = NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), withoutPickup)
 	require.ErrorContains(t, err, "pickup")
 
-	lateSourced := catalogDependencies()
-	lateSourced.SourcedTemplates = func() ports.SourcedTemplateResyncer { return nil }
+	lateSourced := unboundCatalogDependencies()
+	lateSourced.SourcedTemplates = catalogResyncStub{}
 	_, _, err = NewCareOfferingCatalogWithBookings(lateSourced, bookingDependencies())
 	require.ErrorContains(t, err, "must be unset")
 
-	latePickup := catalogDependencies()
-	latePickup.Pickup = func() ports.PickupResyncer { return nil }
+	latePickup := unboundCatalogDependencies()
+	latePickup.Pickup = catalogResyncStub{}
 	_, _, err = NewCareOfferingCatalogWithBookings(latePickup, bookingDependencies())
 	require.ErrorContains(t, err, "must be unset")
 
 	presetCatalog := bookingDependencies()
 	presetCatalog.Catalog = newTestCatalog(t, catalogDependencies())
-	_, _, err = NewCareOfferingCatalogWithBookings(catalogDependencies(), presetCatalog)
+	_, _, err = NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), presetCatalog)
 	require.ErrorContains(t, err, "must be unset")
 }

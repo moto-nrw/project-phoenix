@@ -39,7 +39,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 	participation := newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 	})
-	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+	careDays, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{
 		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
 		Records:          env.repos.CarePlan(),
 
@@ -47,6 +47,8 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 
 		CareParticipation: participation,
 	})
+	require.NoError(t, err)
+	return careDays
 }
 
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careplan.PickupBaselineReader {
