@@ -34,7 +34,7 @@ type TimetableOwner struct {
 // Enrollment's period usage.
 func buildTimetableOwner(
 	db transactionruntime.Database, logger *slog.Logger, now func() time.Time,
-	owner timetable.Capability, repos TimetableRepositories, calendar schoolcalendar.Calendar,
+	owner timetable.Capability, repos TimetableRepositories, calendar schoolcalendar.Days,
 	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRepository,
 ) (TimetableOwner, error) {
 	pool := db.Pool()

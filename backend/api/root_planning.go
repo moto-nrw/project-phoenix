@@ -53,7 +53,7 @@ func buildFacilitiesYard(env RootEnvironment, rooms FacilitiesRooms, activities 
 // Änderungsprotokoll entry (#1884) and the SSE invalidation are bound here.
 func buildShiftPlanning(
 	db transactionruntime.Database, env RootEnvironment, transport MailTransport, workTime workforceModule.Capability,
-	people PeopleRows, calendar schoolcalendar.Calendar, audit AuditOwner, owner TimetableOwner, rooms facilitiesModule.Catalog,
+	people PeopleRows, calendar schoolcalendar.Days, audit AuditOwner, owner TimetableOwner, rooms facilitiesModule.Catalog,
 	activities arrivalTimetable.ActivityService,
 ) (*workforceCompose.ShiftPlanning, error) {
 	repos := owner.Repositories

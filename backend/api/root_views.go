@@ -114,7 +114,7 @@ type PresenceReports struct {
 // student history and the statistics.
 func buildPresenceReports(
 	db transactionruntime.Database, env RootEnvironment, presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability,
-	users peoplePorts.PersonDirectory, owner TimetableOwner, rooms facilitiesModule.Catalog, calendar schoolcalendar.Calendar,
+	users peoplePorts.PersonDirectory, owner TimetableOwner, rooms facilitiesModule.Catalog, calendar schoolcalendar.Days,
 	people PeopleRows, audit AuditOwner, settings settingsCompose.SettingsService,
 ) PresenceReports {
 	_, sessionSupervisors := presenceCompose.SessionRepositories(presence.SessionRecords)
@@ -136,7 +136,7 @@ func buildCalendarApp(
 	db transactionruntime.Database, env RootEnvironment, people PeopleRows, structure StructureRows, portal carePlanCompose.ParentPortalRepositories,
 	owner TimetableOwner, rooms facilitiesModule.Catalog, workTime workforce.Capability, organizations organizationtenancy.Query,
 	identity *identityaccess.Module, caller identityaccess.CallerContext, appointments appointmentsModule.Capability,
-	calendar schoolcalendar.Calendar, delivery DeliveryRuntime, notifications DeliveryNotifications, settings settingsCompose.BatchSettingsService,
+	calendar schoolcalendar.Days, delivery DeliveryRuntime, notifications DeliveryNotifications, settings settingsCompose.BatchSettingsService,
 	persons peopledirectory.GuardianPortalContacts,
 ) calendarCompose.Application {
 	repos, links := owner.Repositories, env.Links
@@ -262,7 +262,7 @@ func buildEmergencySnapshot(env RootEnvironment, presence PresenceOwner, active 
 // buildPlanExport binds the printable weekly plans (#2079, #2706): a pure
 // projection over the reads the two planning screens use. It renders, it
 // never writes.
-func buildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning, workTime workforce.Capability, owner TimetableOwner, rooms facilitiesModule.Catalog, people PeopleRows, timetableOwner timetable.Capability, calendar schoolcalendar.Calendar, renderer *lists.RendererService) planexport.Service {
+func buildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning, workTime workforce.Capability, owner TimetableOwner, rooms facilitiesModule.Catalog, people PeopleRows, timetableOwner timetable.Capability, calendar schoolcalendar.Days, renderer *lists.RendererService) planexport.Service {
 	repos := owner.Repositories
 	return newPlanExport(planExportSources{
 		Overview: shifts.Overview, ShiftTypes: workTime,

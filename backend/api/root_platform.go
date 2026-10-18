@@ -55,9 +55,9 @@ type MailTransport struct {
 	VAPID       deliveryCompose.VAPIDConfig
 }
 
-// buildMailTransport builds the realtime hub, the mail transport and the
-// web push configuration. An invalid VAPID configuration fails startup.
-func buildMailTransport(env RootEnvironment) (MailTransport, error) {
+// buildMailTransport binds the process's realtime hub, builds the mail
+// transport and the web push configuration. An invalid VAPID configuration fails startup.
+func buildMailTransport(env RootEnvironment, hub *realtime.Hub) (MailTransport, error) {
 	cfg, logger := env.Config, env.Logger
 	mailer, err := email.NewMailer(email.MailerConfig{
 		Host: cfg.EmailSMTPHost, Port: cfg.EmailSMTPPort, User: cfg.EmailSMTPUser, Password: cfg.EmailSMTPPassword,
@@ -77,7 +77,7 @@ func buildMailTransport(env RootEnvironment) (MailTransport, error) {
 		return MailTransport{}, fmt.Errorf("invalid VAPID configuration: %w", err)
 	}
 	return MailTransport{
-		Hub:         deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub")),
+		Hub:         hub,
 		Mailer:      mailer,
 		Dispatcher:  email.NewDispatcher(mailer, logger.With("component", "email"), email.DeliveryObserver(env.Observe.Delivery)),
 		DefaultFrom: email.NewEmail(deliveryModule.SenderOrDefault(cfg.EmailFromName, cfg.EmailFromAddress)),

@@ -29,7 +29,7 @@ func NewStatistics(logger *slog.Logger, deps presenceCompose.StatisticsDependenc
 // newStatisticsReports binds the Statistik report to the owners it reads;
 // the service graph calls the result with its access log and retention
 // settings. now fixes the report clock; nil is the Berlin clock.
-func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, calendar schoolcalendar.Calendar, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(accessLogLedger, RetentionSettings) studentpresence.StatisticsReports {
+func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(accessLogLedger, RetentionSettings) studentpresence.StatisticsReports {
 	return func(accessLog accessLogLedger, settings RetentionSettings) studentpresence.StatisticsReports {
 		return NewStatistics(logger, presenceCompose.StatisticsDependencies{
 			DB:          db.Pool(),

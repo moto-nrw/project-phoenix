@@ -41,7 +41,7 @@ type TimetableLifecycle struct {
 // for a date window, for the scheduler task and the manual admin endpoint.
 // Holidays and closing days carry no series occurrences unless the series
 // opts into closing days (#3594); the School Calendar answers.
-func buildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, transport MailTransport, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Calendar) (timetable.MaterializationCapability, error) {
+func buildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, transport MailTransport, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Days) (timetable.MaterializationCapability, error) {
 	deps := TimetableMaterializationDependencies(owner.TemplateRows, people.Students, calendar,
 		owner.RecurrenceLock, transport.Hub, env.Logger.With("service", "materialization"))
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
