@@ -8,7 +8,7 @@ import (
 
 func TestHTTPHostPermissionsRequireReviewedEpoch(t *testing.T) {
 	t.Parallel()
-	candidate := repositoryPolicy(t)
+	candidate := historicalHTTPHostPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), reviewedHTTPHostRule)
@@ -98,4 +98,12 @@ func TestHTTPHostRuleRejectsBroadenedSelectors(t *testing.T) {
 			t.Fatalf("accepted rule outside the HTTP host: %+v", broadened)
 		}
 	}
+}
+
+// historicalHTTPHostPolicy retains the original epoch contract after its live rule retires.
+func historicalHTTPHostPolicy(t *testing.T) *Policy {
+	t.Helper()
+	policy := historicalCommonHTTPPolicy(t)
+	policy.Rules = append(policy.Rules, Rule{ID: "root-composition.http-host.inbound-common", Description: "ADR 0056: the HTTP host builds the global middleware chain and binds owner failure kinds from the shared HTTP runtime (ADR 0046).", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "inbound-common", TargetRole: "http", Scopes: []string{"production"}})
+	return policy
 }

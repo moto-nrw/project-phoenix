@@ -20,13 +20,13 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
 			switch access {
 			case settingsHTTP.AccessRead:
-				return apiCommon.RequireConfigRead()
+				return RequireConfigRead()
 			case settingsHTTP.AccessManage:
-				return apiCommon.RequireConfigManage()
+				return RequireConfigManage()
 			case settingsHTTP.AccessReadOrWrite:
-				return apiCommon.RequireConfigReadOrWrite()
+				return RequireConfigReadOrWrite()
 			default:
-				return apiCommon.RequireConfigWrite()
+				return RequireConfigWrite()
 			}
 		},
 		TenantGuard: apiCommon.TenantOperationMiddleware,
@@ -37,7 +37,7 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 			}
 			return principal.TenantID(), principal.AccountID(), principal.Permissions()
 		},
-		Editable:  apiCommon.CanEditConfig,
+		Editable:  CanEditConfig,
 		Success:   apiCommon.Respond,
 		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
