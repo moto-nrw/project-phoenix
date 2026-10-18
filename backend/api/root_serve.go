@@ -509,7 +509,7 @@ func composeServeRoot(
 	if err != nil {
 		return nil, nil, err
 	}
-	registerRuntimeStatsProviders(db, hub, deliveryDevices.PWAUsage)
+	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
 	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service)
 	if err != nil {

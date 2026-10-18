@@ -251,6 +251,18 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 	hub := deliveryCompose.NewRealtimeHub(config.Logger.With("component", "sse-hub"))
 	metrics, tracer := newHTTPMetrics(), newRuntimeTracer(config.Logger)
 	capacity := newRuntimeCapacityLogger(db, hub, metrics, config.Logger)
+	observability.RegisterDBStatsProvider(func() observability.DBStats {
+		stats := db.Capacity()
+		return observability.DBStats{
+			OpenConnections:   stats.OpenConnections,
+			InUse:             stats.InUse,
+			Idle:              stats.Idle,
+			WaitCount:         stats.WaitCount,
+			WaitDuration:      stats.WaitDuration,
+			MaxIdleClosed:     stats.MaxIdleClosed,
+			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+		}
+	})
 	if config.Process == ServeWorkerOnly {
 		worker, err := composeWorkerRoot(db, env, hub, tracer, tracker)
 		return nil, worker, capacity, err

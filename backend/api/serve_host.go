@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -87,21 +86,9 @@ func mountServeMiddleware(
 	return sessionAuth, nil
 }
 
-// registerRuntimeStatsProviders hands the pool, the live streams and the PWA
-// usage to the metrics endpoint.
-func registerRuntimeStatsProviders(db transactionruntime.Database, hub *realtime.Hub, usage deliveryCompose.PWAUsageService) {
-	observability.RegisterDBStatsProvider(func() observability.DBStats {
-		stats := db.Capacity()
-		return observability.DBStats{
-			OpenConnections:   stats.OpenConnections,
-			InUse:             stats.InUse,
-			Idle:              stats.Idle,
-			WaitCount:         stats.WaitCount,
-			WaitDuration:      stats.WaitDuration,
-			MaxIdleClosed:     stats.MaxIdleClosed,
-			MaxLifetimeClosed: stats.MaxLifetimeClosed,
-		}
-	})
+// registerRuntimeStatsProviders hands the live streams and the PWA usage to
+// the metrics endpoint; the shared process setup registers the pool.
+func registerRuntimeStatsProviders(hub *realtime.Hub, usage deliveryCompose.PWAUsageService) {
 	observability.RegisterSSEStatsProvider(hub)
 	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
 		rows, err := usage.SnapshotUsage()
