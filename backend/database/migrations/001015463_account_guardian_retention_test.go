@@ -156,7 +156,7 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 	}
 
 	require.NoError(t, accountGuardianRetentionDown(ctx, db))
-	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.461 the data kind needs a subject")
+	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.463 the data kind needs a subject")
 	_, err := db.ExecContext(ctx, `INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)
 		VALUES (?, 'attendance_retention', 1, 'system')`, school)
 	require.NoError(t, err, "the rollback keeps the data kinds of 1.15.460")
