@@ -84,11 +84,17 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
-		Requests: repos.Enrollment(), Children: repos.Enrollment(),
-		Guardians: repos.Enrollment(), LateInvites: repos.Enrollment(), CareOfferings: offerings,
-		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Settings: settings,
-		ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:    repos.Enrollment(),
+		Children:    repos.Enrollment(),
+		Guardians:   repos.Enrollment(),
+		LateInvites: repos.Enrollment(),
+		Phases:      repos.Enrollment(),
+		Schemas:     repos.Enrollment(),
+		Offerings:   offerings,
+		ParentsURL:  api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:    api.EnrollmentDecisionSettingValues(settings),
+		Logger:      slog.Default(),
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,

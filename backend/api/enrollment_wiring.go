@@ -137,3 +137,14 @@ func newEnrollmentPhaseExpiry(students peopledirectory.StudentQuery, carePlan ca
 		bookings, phaseExpiryStudents{query: students}, phaseExpiryCarePlanDirectory{query: carePlan}, bookings,
 	))
 }
+
+// EnrollmentPhaseSources are the values of this graph the phase
+// administration is bound over.
+type EnrollmentPhaseSources struct {
+	LockTemplateRecurrence          func(context.Context) error
+	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
+	// SourcedTemplates resolves the booking materialization on every edit.
+	SourcedTemplates func() enrollmentOwner.SourcedTemplateResyncer
+	Settings         EnrollmentSettings
+	Logger           *slog.Logger
+}

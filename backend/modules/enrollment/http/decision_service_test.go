@@ -243,35 +243,30 @@ func newDecisionsForTestWithBookings(
 		pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
 		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
 	}
-	return newTestDecisions(api.EnrollmentDecisionSources{
-		Requests:               repoFactory.Enrollment(),
-		Children:               repoFactory.Enrollment(),
-		Guardians:              repoFactory.Enrollment(),
-		LateInvites:            repoFactory.Enrollment(),
-		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:                 repoFactory.Enrollment(),
-		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
-		Restorations:           repoFactory.EnrollmentRestorationAudit,
-		Persons:                repoFactory.Person,
-		Staff:                  repoFactory.Staff,
-		Students:               repoFactory.Student,
-		StudentGuardians:       repoFactory.StudentGuardian,
-		GuardianProfiles:       repoFactory.GuardianProfile,
-		GuardianPhones:         repoFactory.GuardianPhoneNumber,
+	studentEnrollment := testStudentEnrollment(env.db)
+	return newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		LateInvites:    repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		Bookings:       bookings,
+		GuardianAccess: testGuardianAccess(env.db),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment:      studentEnrollment,
+		Companions:             api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactory.CarePlan()), repoFactory.CarePlan().DeleteCompanionEdges),
 		PickupSchedules:        repoFactory.EnrollmentPickupSchedules(),
 		ArrivalSchedules:       repoFactory.EnrollmentArrivalSchedules(),
-		CareBookings:           bookings,
-		GuardianAccess:         testGuardianAccess(env.db),
-		StudentEnrollment:      testStudentEnrollment(env.db),
-		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor),
-		StudentConsents:        studentConsents,
+		Adjustments:            api.EnrollmentDecisionAdjustments(repoFactory.EnrollmentOfferingAdjustment),
+		Restorations:           api.EnrollmentDecisionRestorations(repoFactory.EnrollmentRestorationAudit),
+		StudentAudit:           api.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor)),
+		StudentConsents:        api.EnrollmentDecisionStudentConsents(studentConsents),
 		CareWithdrawal:         careWithdrawal,
-		FrontendURL:            "http://localhost:3000",
-		ParentsURL:             "http://parents.localhost:3000",
-		Settings:               settings,
+		ParentsURL:             api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		LockTemplateRecurrence: lockTemplateRecurrence,
 		Pickups: TestWeeklyPickupHooks{
 			Snapshot:      snapshotPickupWeekdayChanges(pickupAutoExcusal),
@@ -279,7 +274,7 @@ func newDecisionsForTestWithBookings(
 		},
 		Logger: slog.Default(),
 		Today:  func() calendar.Date { return decisionTestToday },
-	}, outbox)
+	}, settings, outbox)
 }
 
 func snapshotPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, calendar.Date) (map[int]string, error) {
@@ -4042,12 +4037,12 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
 	repoFactory := flowRepositories(t, env.db)
-	degraded := newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      repoFactory.Enrollment(),
-		Children:      repoFactory.Enrollment(),
-		CareOfferings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan())},
-		Phases:        repoFactory.Enrollment(),
-	})
+	degraded := newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  repoFactory.Enrollment(),
+		Children:  repoFactory.Enrollment(),
+		Phases:    repoFactory.Enrollment(),
+		Offerings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan())},
+	}, nil)
 
 	rows, err := degraded.ListChildOfferings(ctx, reqID)
 	require.NoError(t, err, "a catalog outage must not fail the whole lookup")

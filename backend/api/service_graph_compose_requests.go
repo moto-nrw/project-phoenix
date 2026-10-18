@@ -235,7 +235,7 @@ func composeEnrollmentDecisions(b graphBuild) (graphBuild, error) {
 	// Care Plan's offerings in the enrollment rows the decision flow, the
 	// intake, the change requests, the capacity gate and the reports read.
 	b.enrollmentCareOfferings = enrollmentCompose.NewCareOfferingRecords(b.CarePlan)
-	b.enrollmentDecisions = b.Enrollment.Decisions(b.enrollmentDecisionSources())
+	b.enrollmentDecisions = b.Enrollment.Decisions(b.enrollmentDecisionDependencies())
 	b.graph.EnrollmentDecision = enrollmentCompose.PublicDecisions(b.enrollmentDecisions)
 	structure, presence, err := NewGradeTransitionOwners(b.DB)
 	if err != nil {
@@ -259,23 +259,32 @@ func composeEnrollmentDecisions(b graphBuild) (graphBuild, error) {
 	return b, nil
 }
 
-// enrollmentDecisionSources are the owners and retained rows the decision
-// flow is bound over.
-func (b *graphBuild) enrollmentDecisionSources() EnrollmentDecisionSources {
+// enrollmentDecisionDependencies are the owners and retained rows the
+// decision flow is bound over.
+func (b *graphBuild) enrollmentDecisionDependencies() enrollmentCompose.DecisionDependencies {
 	people, records := b.People, b.Enrollment.Bookings
-	return EnrollmentDecisionSources{
+	return enrollmentCompose.DecisionDependencies{
 		Requests: records, Children: records, Guardians: records, LateInvites: records, Phases: records, Schemas: records,
-		CareOfferings: b.enrollmentCareOfferings, DataAccessLog: b.audits.DataAccessLog,
-		OfferingAdjustments: b.audits.EnrollmentOfferingAdjustment, Restorations: b.audits.EnrollmentRestorationAudit,
-		Notifications: b.enrollmentNotifications, Persons: people.Persons, Staff: people.Staff, Students: people.Students,
-		StudentEnrollment: b.Persons, Companions: NewStudentCompanionRepository(b.CarePlan), DeleteCompanions: b.CarePlan.DeleteCompanionEdges,
-		StudentGuardians: people.StudentGuardians, GuardianFinancialAudit: b.audits.GuardianFinancialChange,
-		GuardianProfiles: people.GuardianProfiles, GuardianPhones: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
-		PickupSchedules:  arrivalTimetable.NewEnrollmentPickupSchedules(people.PickupSchedules),
-		ArrivalSchedules: arrivalTimetable.NewEnrollmentArrivalSchedules(people.ArrivalSchedules),
-		CareBookings:     b.late.careBookings, GuardianAccess: b.identityAccess, StudentAudit: b.graph.StudentAudit,
-		StudentConsents: b.graph.StudentConsents, CareWithdrawal: b.graph.CareLifecycle, Broadcaster: b.graph.RealtimeHub,
-		FrontendURL: b.frontendURL, ParentsURL: b.parentsURL, Settings: b.settingsService,
+		Offerings: b.enrollmentCareOfferings, Notifications: b.enrollmentNotifications,
+		AccessLog:    EnrollmentDecisionAccessLog(b.audits.DataAccessLog),
+		Adjustments:  EnrollmentDecisionAdjustments(b.audits.EnrollmentOfferingAdjustment),
+		Restorations: EnrollmentDecisionRestorations(b.audits.EnrollmentRestorationAudit),
+		Payers:       EnrollmentDecisionPayers(b.audits.GuardianFinancialChange),
+		People: EnrollmentDecisionPeopleDirectory(
+			people.Persons, people.Staff, people.Students, people.StudentGuardians, people.GuardianProfiles,
+			peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()), b.Persons,
+		),
+		StudentEnrollment: b.Persons,
+		Companions:        EnrollmentDecisionCompanions(NewStudentCompanionRepository(b.CarePlan), b.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:   arrivalTimetable.NewEnrollmentPickupSchedules(people.PickupSchedules),
+		ArrivalSchedules:  arrivalTimetable.NewEnrollmentArrivalSchedules(people.ArrivalSchedules),
+		Bookings:          b.late.careBookings, GuardianAccess: b.identityAccess,
+		StudentAudit:           EnrollmentDecisionStudentAudit(b.graph.StudentAudit),
+		StudentConsents:        EnrollmentDecisionStudentConsents(b.graph.StudentConsents),
+		CareWithdrawal:         b.graph.CareLifecycle,
+		Broadcasts:             EnrollmentDecisionBroadcasts(b.graph.RealtimeHub),
+		ParentsURL:             EnrollmentDecisionParentsURL(b.parentsURL, b.frontendURL),
+		Settings:               EnrollmentDecisionSettingValues(b.settingsService),
 		LockTemplateRecurrence: b.TimetableWiring.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                b.weeklyPickupHooks(),
 		Logger:                 b.Logger.With("service", "enrollment-decision"), Today: b.today,

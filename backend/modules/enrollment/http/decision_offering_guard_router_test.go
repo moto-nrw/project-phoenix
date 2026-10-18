@@ -246,18 +246,26 @@ func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offer
 // newOfferingGuardDecisions composes the decision flow the guard suites
 // drive, the way the root binds it.
 func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
-	return api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
-		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
-		LateInvites: repos.Enrollment(), CareOfferings: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Persons: repos.Person, Staff: repos.Staff,
-		Students: repos.Student, StudentGuardians: repos.StudentGuardian, GuardianProfiles: repos.GuardianProfile,
-		GuardianPhones: repos.GuardianPhoneNumber, PickupSchedules: repos.EnrollmentPickupSchedules(),
-		ArrivalSchedules: repos.EnrollmentArrivalSchedules(), CareBookings: bookings,
-		GuardianAccess:    guardianAccess,
+	return api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repos.Enrollment(),
+		Children:       children,
+		Guardians:      repos.Enrollment(),
+		LateInvites:    repos.Enrollment(),
+		Phases:         repos.Enrollment(),
+		Schemas:        repos.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
+		Bookings:       bookings,
+		GuardianAccess: guardianAccess,
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
+		),
 		StudentEnrollment: studentEnrollment,
-		Settings:          offeringGuardSettings(offeringsEnabled),
-		Notifications:     NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
-		ParentsURL:        "http://parents.localhost:3000", Logger: slog.Default(),
+		PickupSchedules:   repos.EnrollmentPickupSchedules(),
+		ArrivalSchedules:  repos.EnrollmentArrivalSchedules(),
+		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:          api.EnrollmentDecisionSettingValues(offeringGuardSettings(offeringsEnabled)),
+		Logger:            slog.Default(),
 	})
 }
 

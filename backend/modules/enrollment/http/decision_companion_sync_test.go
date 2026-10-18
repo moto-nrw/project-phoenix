@@ -42,32 +42,28 @@ func newCompanionSyncApplier(
 	t.Helper()
 	repoFactory := testRepositories(t, env.db)
 	bookings := testBookings(t, env.rolloverTestEnv, nil)
-	decisions := newTestDecisions(api.EnrollmentDecisionSources{
-		Requests:            repoFactory.Enrollment(),
-		Children:            repoFactory.Enrollment(),
-		Guardians:           repoFactory.Enrollment(),
-		CareBookings:        bookings,
-		CareOfferings:       enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:              repoFactory.Enrollment(),
-		Schemas:             repoFactory.Enrollment(),
-		OfferingAdjustments: repoFactory.EnrollmentOfferingAdjustment,
-		Persons:             repoFactory.Person,
-		Staff:               repoFactory.Staff,
-		Students:            repoFactory.Student,
-		StudentGuardians:    repoFactory.StudentGuardian,
-		GuardianProfiles:    repoFactory.GuardianProfile,
-		GuardianPhones:      repoFactory.GuardianPhoneNumber,
-		PickupSchedules:     repoFactory.EnrollmentPickupSchedules(),
-		ArrivalSchedules:    repoFactory.EnrollmentArrivalSchedules(),
-		GuardianAccess:      testGuardianAccess(env.db),
-		StudentEnrollment:   testStudentEnrollment(env.db),
-		Companions:          api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
-		Broadcaster:         bc,
-		FrontendURL:         "http://localhost:3000",
-		ParentsURL:          "http://parents.localhost:3000",
-		Logger:              slog.Default(),
-	}, env.outbox)
+	studentEnrollment := testStudentEnrollment(env.db)
+	decisions := newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		Bookings:       bookings,
+		GuardianAccess: testGuardianAccess(env.db),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment: studentEnrollment,
+		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactory.CarePlan()), repoFactory.CarePlan().DeleteCompanionEdges),
+		PickupSchedules:   repoFactory.EnrollmentPickupSchedules(),
+		ArrivalSchedules:  repoFactory.EnrollmentArrivalSchedules(),
+		Adjustments:       api.EnrollmentDecisionAdjustments(repoFactory.EnrollmentOfferingAdjustment),
+		Broadcasts:        api.EnrollmentDecisionBroadcasts(bc),
+		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		Logger:            slog.Default(),
+	}, nil, env.outbox)
 	return enrollmentAPI.ChangeRequestApplierForTest(decisions)
 }
 

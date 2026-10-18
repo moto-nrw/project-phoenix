@@ -217,14 +217,14 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentAPI.DecisionService {
 	t.Helper()
 	repoFactory := flowRepositories(t, env.db)
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      repoFactory.Enrollment(),
-		Children:      repoFactory.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:        repoFactory.Enrollment(),
-		Restorations:  repoFactory.EnrollmentRestorationAudit,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:     repoFactory.Enrollment(),
+		Children:     repoFactory.Enrollment(),
+		Phases:       repoFactory.Enrollment(),
+		Offerings:    enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
+		Restorations: api.EnrollmentDecisionRestorations(repoFactory.EnrollmentRestorationAudit),
+		Logger:       slog.Default(),
+	}, nil)
 }
 
 func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testing.T) {
