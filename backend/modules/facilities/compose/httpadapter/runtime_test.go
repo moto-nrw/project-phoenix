@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // init seeds JWT viper defaults before any test (and before setupRoomsRoute
@@ -35,19 +36,12 @@ type testContext struct {
 	router   chi.Router
 }
 
-// RoomSettings is the settings service the suites toggle the room history
-// with.
-type RoomSettings interface {
-	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
-	ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
-}
-
 // RoomsComposition is what the route suites take from the root's Rooms
 // composition: the route dependencies, the settings service the suites
 // toggle, and the room usage the deletion asks.
 type RoomsComposition struct {
 	Dependencies Dependencies
-	Settings     RoomSettings
+	Settings     testpkg.SettingsWriter
 	Usage        facilitiesCompose.RoomUsage
 }
 
