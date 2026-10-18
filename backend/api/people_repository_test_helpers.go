@@ -128,20 +128,21 @@ func (f *CarePlanSuiteRepositories) CarePlan() careplan.Capability { return f.ca
 // school names and eligibility through schools, as the service graph's own
 // do.
 func (f *CarePlanSuiteRepositories) WithSchoolProjections(schools organizationtenancy.Query) *CarePlanSuiteRepositories {
+	if schools == nil {
+		panic("parent portal repositories: organization tenancy query is required")
+	}
 	bound := *f
-	bound.ParentPortalRepositories = ParentPortalRepositories{ParentPortalRepositories: f.ParentPortalRepositories}.WithSchools(schools).ParentPortalRepositories
+	bound.ParentPortalRepositories = f.ParentPortalRepositories.WithSchools(ParentPortalSchools{Schools: schools})
 	return &bound
 }
 
 // NewCarePlanSuiteRepositories composes the Care Plan suite repositories over
 // the unobserved owners of db.
-func NewCarePlanSuiteRepositories(db transactionruntime.Database, clocks ...func() time.Time) *CarePlanSuiteRepositories {
+func NewCarePlanSuiteRepositories(db transactionruntime.Database) *CarePlanSuiteRepositories {
 	students := MustNewPeopleDirectory(db)
 	carePlan := mustNewSuiteCarePlan(db, MustNewUnobservedTimetable(db), students)
-	portal := NewParentPortalRepositories(db, students, MustNewSchoolStructure(db), MustNewSchoolMembership(db),
-		NewPeopleIdentityAccess(db, nil), enrollmentCompose.New(), OptionalClock(clocks))
 	return &CarePlanSuiteRepositories{
-		ParentPortalRepositories: portal.ParentPortalRepositories,
+		ParentPortalRepositories: newParentPortalReads(db, students, NewPeopleIdentityAccess(db, nil), enrollmentCompose.New()),
 		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
 		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		carePlan:                 carePlan,
@@ -157,17 +158,20 @@ type ParentMessagingSuiteRepositories struct {
 // WithSchoolProjections returns a copy whose announcement and inbox rows
 // resolve school names through schools.
 func (r *ParentMessagingSuiteRepositories) WithSchoolProjections(schools organizationtenancy.Query) *ParentMessagingSuiteRepositories {
+	if schools == nil {
+		panic("parent portal repositories: organization tenancy query is required")
+	}
 	bound := *r
-	bound.MessagingRepositories = ParentPortalRepositories{MessagingRepositories: r.MessagingRepositories}.WithSchools(schools).MessagingRepositories
+	bound.MessagingRepositories = r.MessagingRepositories.WithSchoolNames(ParentPortalSchools{Schools: schools})
 	return &bound
 }
 
 // NewParentMessagingSuiteRepositories composes the guardian portal's
 // Communication stores over the unobserved owners of db.
 func NewParentMessagingSuiteRepositories(db transactionruntime.Database, clocks ...func() time.Time) *ParentMessagingSuiteRepositories {
-	portal := NewParentPortalRepositories(db, MustNewPeopleDirectory(db), MustNewSchoolStructure(db), MustNewSchoolMembership(db),
-		NewPeopleIdentityAccess(db, nil), enrollmentCompose.New(), OptionalClock(clocks))
-	return &ParentMessagingSuiteRepositories{MessagingRepositories: portal.MessagingRepositories}
+	return &ParentMessagingSuiteRepositories{MessagingRepositories: newParentMessagingRepositories(
+		db, MustNewSchoolStructure(db), MustNewSchoolMembership(db), NewPeopleIdentityAccess(db, nil), enrollmentCompose.New(), OptionalClock(clocks),
+	)}
 }
 
 // PresenceSuiteRepositories are the Student Presence session rows and
@@ -373,15 +377,15 @@ func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelati
 	})
 }
 
-// RepositoryTestFactory is the repository factory the legacy service graph
-// suites compose: since #4080 the Care Plan rows; the People Directory and
-// the other owners' rows come from the suite repositories above.
+// RepositoryTestFactory names the Care Plan suite repositories for the
+// suites that compose the retained repositories; the People Directory and
+// the other owners' rows come from the suite repositories above (#4080).
 type RepositoryTestFactory = CarePlanSuiteRepositories
 
 // NewRepositoryTestFactory composes the Care Plan suite repositories over the
 // unobserved owners of db.
-func NewRepositoryTestFactory(db transactionruntime.Database, clocks ...func() time.Time) *RepositoryTestFactory {
-	return NewCarePlanSuiteRepositories(db, clocks...)
+func NewRepositoryTestFactory(db transactionruntime.Database) *RepositoryTestFactory {
+	return NewCarePlanSuiteRepositories(db)
 }
 
 // NewRepositoryTestFactoryWithPeopleDirectory is NewPeopleRepositorySuiteFactory
