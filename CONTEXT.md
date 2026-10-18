@@ -747,3 +747,30 @@ AU-Bescheinigung. moto ist dafür Ablage, kein gesetzliches Archiv: Gesetzliche
 Aufbewahrungspflichten erfüllt der Träger in seinem eigenen Lohn- und
 Aktensystem.
 _Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv).
+
+## Mittagessen: Anmeldung und Bestellung
+
+Die **Anmeldung zum Mittagessen** sagt je Kind und Tag, ob es mitisst. Sie
+besteht aus festen Wochentagen und Ausnahmen für einzelne Tage. Eine Woche ist
+nur eine Ansicht, kein eigener Datensatz.
+
+Das **Anmeldemodell** einer Schule legt fest, wie Eltern anmelden: laufend mit
+einer Frist, laufend mit eigener Abmeldefrist oder einmal für das Schuljahr.
+Die **Anmeldefrist** und die **Abmeldefrist** liegen eine Anzahl Tage vor dem
+Essenstag oder an einem Wochentag der Vorwoche, jeweils zu einer Uhrzeit. Die
+Schule ändert eine Anmeldung auch nach der Frist.
+
+Ein **Caterer** ist ein Betrieb, der eine oder mehrere Schulen mit Essen
+beliefert, auch über Träger hinweg. Er meldet sich mit eigenen
+**Caterer-Konten** im Caterer-Portal an und gehört zu keiner Schule.
+
+Eine **Belieferung** verbindet eine Schule mit einem Caterer. Die Schule lädt
+den Caterer ein und beendet die Belieferung jederzeit. Eine Schule hat
+höchstens eine aktive Belieferung; der Bestellweg (Anmeldemodell, Fristen,
+Rhythmus, Detailgrad) ist deshalb eine Einstellung der Schule.
+
+Eine **Bestellung** ist der eingefrorene Stand eines Tages oder einer Woche zur
+Frist. Sie ändert sich danach nicht mehr. Eine **Nachmeldung** ist eine
+Änderung nach der Frist: ein Kind mehr oder weniger an einem Tag, fortlaufend
+nummeriert. Der Caterer sieht Zahlen, Namen nur mit Freigabe der Schule und
+nie den Grund einer Abmeldung.
