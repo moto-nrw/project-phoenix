@@ -9,7 +9,7 @@ import (
 
 	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
@@ -43,7 +43,7 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 }
 
 func newStudentPhotoTestUnlinker() peoplePorts.PhotoUnlinker {
-	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
+	return peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
 }
 
 func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {

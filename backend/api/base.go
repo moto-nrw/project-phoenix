@@ -412,7 +412,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		ObserveDelivery: observability.ObserveSynchronousDelivery, ObserveDurableDelivery: observability.ObserveDurableDelivery,
 		ObserveDeviceFleet: observability.ObserveDeviceFleetOperation, ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 		StudentPhotoSlot: studentPhotoRuntime,
-		PhotoUnlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{}),
+		PhotoUnlinker:    peopleModule.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{}),
 		Workforce:        newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
 		People:           people, Platform: platform, Presence: presence, TimetableWiring: timetableWiring,
 		Enrollment: newEnrollmentWiring(enrollmentWiringOwners{

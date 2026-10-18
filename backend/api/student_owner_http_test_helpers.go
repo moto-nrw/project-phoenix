@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
@@ -53,7 +54,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	parentEventEmitter := NewParentEventEmitter(store, unit, repoFactory.ParentMessageThread, repoFactory.ParentMessage, svc.Settings, broadcaster, slog.Default())
-	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleStudentsHTTP.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
+	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
 	schoolGroups := studentSchoolGroups{GroupManagement: svc.Education}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: store.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
