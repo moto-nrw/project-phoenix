@@ -24,3 +24,13 @@ func TestMissingPersonnelNumbersCountsAbsentAndEmpty(t *testing.T) {
 	assert.Equal(t, 2, MissingPersonnelNumbers([]*string{nil, &empty, &number}))
 	assert.Zero(t, MissingPersonnelNumbers(nil))
 }
+
+func TestParseTimeTrackingDateRefusesMalformedDays(t *testing.T) {
+	t.Parallel()
+	day, err := ParseTimeTrackingDate("2026-09-21", "from")
+	require.NoError(t, err)
+	assert.Equal(t, "2026-09-21", day.String())
+	_, err = ParseTimeTrackingDate("21.09.2026", "to")
+	require.ErrorIs(t, err, ErrTimeTrackingInvalid)
+	assert.EqualError(t, err, "to must be YYYY-MM-DD")
+}

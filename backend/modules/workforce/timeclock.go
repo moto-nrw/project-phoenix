@@ -3,7 +3,10 @@ package workforce
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Time-tracking failures. The wording of a wrapped cause is the message the
@@ -126,4 +129,14 @@ type TimeClock interface {
 	// Workday returns the day's blocks, breaks and labor-time figures as of
 	// now.
 	Workday(ctx context.Context, staffID int64, day string, now time.Time) (Workday, error)
+}
+
+// ParseTimeTrackingDate reads a public YYYY-MM-DD day of a time-tracking
+// request; a malformed day is an invalid request naming the field.
+func ParseTimeTrackingDate(value, field string) (calendar.Date, error) {
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		return calendar.Date(""), &TimeTrackingError{Kind: ErrTimeTrackingInvalid, Cause: fmt.Errorf("%s must be YYYY-MM-DD", field)}
+	}
+	return date, nil
 }
