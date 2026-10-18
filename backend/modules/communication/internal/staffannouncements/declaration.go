@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
@@ -32,7 +31,7 @@ var (
 // stored hash re-checked.
 type DeclarationStatus struct {
 	Title            string
-	Settings         usersModels.AnnouncementDeclarationSettings
+	Settings         AnnouncementDeclarationSettings
 	Deadline         *time.Time
 	CurrentVersion   *DeclarationVersionView
 	Versions         []DeclarationVersionView
@@ -106,7 +105,7 @@ type DeclarationChildView struct {
 // DeclarationSupport is the Erklärung part of the staff service.
 type DeclarationSupport interface {
 	ParentDeclarationStatus(ctx context.Context, id int64) (*DeclarationStatus, error)
-	DeclarationFrozen(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error)
+	DeclarationFrozen(ctx context.Context, a *ParentAnnouncement) (bool, error)
 }
 
 const declarationReminderKicker = "Einverständnis: Ihre Antwort fehlt"
@@ -114,17 +113,17 @@ const declarationReminderKicker = "Einverständnis: Ihre Antwort fehlt"
 // normalizeDeclaration validates and completes the declaration settings. It
 // runs inside normalizeDelivery, after the delivery mode is known.
 func normalizeDeclaration(in *Input) error {
-	if in.DeliveryMode != usersModels.ParentAnnouncementDeliveryDeclaration {
-		in.Declaration = usersModels.AnnouncementDeclarationSettings{}
+	if in.DeliveryMode != ParentAnnouncementDeliveryDeclaration {
+		in.Declaration = AnnouncementDeclarationSettings{}
 		return nil
 	}
 	// An Einverständnis is the only kind; the stored kind keeps every proof
 	// naming what was asked.
 	if in.Declaration.Kind == "" {
-		in.Declaration.Kind = usersModels.DeclarationKindConsent
+		in.Declaration.Kind = DeclarationKindConsent
 	}
 	if in.Declaration.Signers == "" {
-		in.Declaration.Signers = usersModels.DeclarationSignersAny
+		in.Declaration.Signers = DeclarationSignersAny
 	}
 	d := in.Declaration
 	if err := declarations.ValidateDeclarationSettings(d.Kind, d.Signers); err != nil {
@@ -133,18 +132,18 @@ func normalizeDeclaration(in *Input) error {
 	// A declaration is answered per child by guardians who may declare; it is
 	// neither a poll nor a read confirmation, and an applicant without a
 	// linked child has nothing to declare for.
-	if in.ResponseType != "" && in.ResponseType != usersModels.ParentAnnouncementResponseNone {
+	if in.ResponseType != "" && in.ResponseType != ParentAnnouncementResponseNone {
 		return fmt.Errorf("%w: an Erklärung cannot also be a poll", ErrValidation)
 	}
 	for _, t := range in.Targets {
-		if t.TargetType == usersModels.AnnouncementTargetPendingEnrollment {
+		if t.TargetType == AnnouncementTargetPendingEnrollment {
 			return fmt.Errorf("%w: an Erklärung cannot target pending enrollments", ErrValidation)
 		}
 	}
-	if in.EmailAudience != usersModels.EmailAudiencePortalOnly {
+	if in.EmailAudience != EmailAudiencePortalOnly {
 		return fmt.Errorf("%w: an Erklärung is mailed to the portal audience only", ErrValidation)
 	}
-	in.ResponseType = usersModels.ParentAnnouncementResponseNone
+	in.ResponseType = ParentAnnouncementResponseNone
 	in.RequiresAcknowledgement = false
 	if in.ResponseDeadline != nil && !in.ResponseDeadline.After(time.Now()) {
 		return fmt.Errorf("%w: the deadline must lie in the future", ErrValidation)
@@ -163,7 +162,7 @@ func normalizeDeclaration(in *Input) error {
 // between the pre-publish check and the flip; publishing then is invalid
 // (invisible to parents, immutable), so it fails with a 5xx and the tenant
 // tx rolls the flip back for staff to retry.
-func (s *service) settlePublication(ctx context.Context, fresh *usersModels.ParentAnnouncement) error {
+func (s *service) settlePublication(ctx context.Context, fresh *ParentAnnouncement) error {
 	now := time.Now()
 	if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(now) {
 		return fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
@@ -181,7 +180,7 @@ func (s *service) settlePublication(ctx context.Context, fresh *usersModels.Pare
 // publish transaction. A republication without a change to title, body, kind
 // or attachments keeps the current version, so declarations already given
 // stay valid; any change makes a new version and asks everybody again.
-func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) freezeDeclaration(ctx context.Context, a *ParentAnnouncement) error {
 	if !a.IsDeclaration() {
 		return nil
 	}
@@ -192,13 +191,13 @@ func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAn
 	if err != nil {
 		return fmt.Errorf("announcement: digest declaration attachments: %w", err)
 	}
-	version := &usersModels.DeclarationVersion{
+	version := &DeclarationVersion{
 		TenantID: a.GetTenantID(), AnnouncementID: a.ID, Title: a.Title, Body: a.Body,
 		Kind: a.Declaration.Kind, PublishedAt: time.Now(),
-		Attachments: make([]usersModels.DeclarationAttachmentDigest, 0, len(digests)),
+		Attachments: make([]DeclarationAttachmentDigest, 0, len(digests)),
 	}
 	for _, d := range digests {
-		version.Attachments = append(version.Attachments, usersModels.DeclarationAttachmentDigest(d))
+		version.Attachments = append(version.Attachments, DeclarationAttachmentDigest(d))
 	}
 	version.ContentHash = s.declarationContentHash(version)
 	latest, err := s.repo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)
@@ -226,7 +225,7 @@ func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAn
 // guardDeclarationRetention keeps evidence reachable. A declaration with
 // submissions cannot be deleted or changed into another delivery mode, because
 // the status and proof routes deliberately address it as a declaration.
-func (s *service) guardDeclarationRetention(ctx context.Context, a *usersModels.ParentAnnouncement, remainsDeclaration bool) error {
+func (s *service) guardDeclarationRetention(ctx context.Context, a *ParentAnnouncement, remainsDeclaration bool) error {
 	if !a.IsDeclaration() || remainsDeclaration {
 		return nil
 	}
@@ -243,22 +242,22 @@ func (s *service) guardDeclarationRetention(ctx context.Context, a *usersModels.
 // guardDeclarationDelete refuses to delete a declaration with submissions.
 // The foreign keys would refuse it too; this turns the refusal into a clear
 // conflict instead of a server error.
-func (s *service) guardDeclarationDelete(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+func (s *service) guardDeclarationDelete(ctx context.Context, a *ParentAnnouncement) error {
 	return s.guardDeclarationRetention(ctx, a, false)
 }
 
 // guardDeclarationModeChange keeps a withdrawn declaration as a declaration
 // after somebody has answered it, so its status and proof remain reachable.
-func (s *service) guardDeclarationModeChange(ctx context.Context, a *usersModels.ParentAnnouncement, deliveryMode string) error {
-	return s.guardDeclarationRetention(ctx, a, deliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration)
+func (s *service) guardDeclarationModeChange(ctx context.Context, a *ParentAnnouncement, deliveryMode string) error {
+	return s.guardDeclarationRetention(ctx, a, deliveryMode == ParentAnnouncementDeliveryDeclaration)
 }
 
 // guardDeclarationSettingsChange keeps the rules a parent acted under stable
 // once a declaration has a submission. Wording changes still create a new
 // version after retracting, but changing the signer rule, revocability,
 // password confirmation or deadline would otherwise reinterpret stored proof.
-func (s *service) guardDeclarationSettingsChange(ctx context.Context, a *usersModels.ParentAnnouncement, in *Input) error {
-	if !a.IsDeclaration() || in.DeliveryMode != usersModels.ParentAnnouncementDeliveryDeclaration ||
+func (s *service) guardDeclarationSettingsChange(ctx context.Context, a *ParentAnnouncement, in *Input) error {
+	if !a.IsDeclaration() || in.DeliveryMode != ParentAnnouncementDeliveryDeclaration ||
 		(a.Declaration == in.Declaration && sameDeclarationDeadline(a.ResponseDeadline, in.ResponseDeadline)) {
 		return nil
 	}
@@ -278,7 +277,7 @@ func sameDeclarationDeadline(left, right *time.Time) bool {
 
 // DeclarationFrozen reports whether a declaration has been published before,
 // which fixes its attachments.
-func (s *service) DeclarationFrozen(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+func (s *service) DeclarationFrozen(ctx context.Context, a *ParentAnnouncement) (bool, error) {
 	if !a.IsDeclaration() {
 		return false, nil
 	}
@@ -289,7 +288,7 @@ func (s *service) DeclarationFrozen(ctx context.Context, a *usersModels.ParentAn
 	return version != nil, nil
 }
 
-func declarationRules(a *usersModels.ParentAnnouncement) declarations.DeclarationRules {
+func declarationRules(a *ParentAnnouncement) declarations.DeclarationRules {
 	return declarations.DeclarationRules{
 		Kind: a.Declaration.Kind, Signers: a.Declaration.Signers,
 		Revocable: a.Declaration.Revocable, Deadline: a.ResponseDeadline,
@@ -298,11 +297,11 @@ func declarationRules(a *usersModels.ParentAnnouncement) declarations.Declaratio
 
 // declarationFacts is everything the status is derived from.
 type declarationFacts struct {
-	announcement *usersModels.ParentAnnouncement
-	versions     []*usersModels.DeclarationVersion
-	children     []*usersModels.DeclarationChild
-	signers      map[int64][]*usersModels.DeclarationSigner
-	submissions  []*usersModels.DeclarationSubmission
+	announcement *ParentAnnouncement
+	versions     []*DeclarationVersion
+	children     []*DeclarationChild
+	signers      map[int64][]*DeclarationSigner
+	submissions  []*DeclarationSubmission
 }
 
 func (s *service) loadDeclarationFacts(ctx context.Context, id int64) (*declarationFacts, error) {
@@ -317,7 +316,7 @@ func (s *service) loadDeclarationFacts(ctx context.Context, id int64) (*declarat
 		return nil, ErrNotDeclaration
 	}
 	tenantID := a.GetTenantID()
-	facts := &declarationFacts{announcement: a, signers: map[int64][]*usersModels.DeclarationSigner{}}
+	facts := &declarationFacts{announcement: a, signers: map[int64][]*DeclarationSigner{}}
 	if facts.versions, err = s.repo.ListDeclarationVersions(ctx, tenantID, id); err != nil {
 		return nil, fmt.Errorf("announcement: list declaration versions: %w", err)
 	}
@@ -342,7 +341,7 @@ func (s *service) loadDeclarationFacts(ctx context.Context, id int64) (*declarat
 }
 
 // currentVersion is the newest version, or nil before the first publication.
-func (f *declarationFacts) currentVersion() *usersModels.DeclarationVersion {
+func (f *declarationFacts) currentVersion() *DeclarationVersion {
 	if len(f.versions) == 0 {
 		return nil
 	}
@@ -351,8 +350,8 @@ func (f *declarationFacts) currentVersion() *usersModels.DeclarationVersion {
 
 // latestActions maps student → account → latest action on the current
 // version. Submissions arrive newest first.
-func (f *declarationFacts) latestActions() map[int64]map[int64]*usersModels.DeclarationSubmission {
-	out := map[int64]map[int64]*usersModels.DeclarationSubmission{}
+func (f *declarationFacts) latestActions() map[int64]map[int64]*DeclarationSubmission {
+	out := map[int64]map[int64]*DeclarationSubmission{}
 	current := f.currentVersion()
 	if current == nil {
 		return out
@@ -363,7 +362,7 @@ func (f *declarationFacts) latestActions() map[int64]map[int64]*usersModels.Decl
 		}
 		byAccount := out[sub.StudentID]
 		if byAccount == nil {
-			byAccount = map[int64]*usersModels.DeclarationSubmission{}
+			byAccount = map[int64]*DeclarationSubmission{}
 			out[sub.StudentID] = byAccount
 		}
 		if _, seen := byAccount[*sub.AccountID]; !seen {
@@ -404,7 +403,7 @@ func (s *service) ParentDeclarationStatus(ctx context.Context, id int64) (*Decla
 	}
 	out.Children = declarationChildStatuses(facts, now)
 	out.ChildrenTotal = len(out.Children)
-	names := map[int64]*usersModels.DeclarationChild{}
+	names := map[int64]*DeclarationChild{}
 	for _, c := range facts.children {
 		names[c.StudentID] = c
 	}
@@ -448,7 +447,7 @@ func declarationChildStatuses(facts *declarationFacts, now time.Time) []Declarat
 	return out
 }
 
-func (s *service) publicVersion(v *usersModels.DeclarationVersion) DeclarationVersionView {
+func (s *service) publicVersion(v *DeclarationVersion) DeclarationVersionView {
 	version := DeclarationVersionView{
 		ID: v.ID, VersionNo: v.VersionNo, Title: v.Title, Body: v.Body, Kind: v.Kind,
 		ContentHash: v.ContentHash, PublishedAt: v.PublishedAt,
@@ -463,7 +462,7 @@ func (s *service) publicVersion(v *usersModels.DeclarationVersion) DeclarationVe
 	return version
 }
 
-func (s *service) publicSubmission(sub *usersModels.DeclarationSubmission, versionNo int, child *usersModels.DeclarationChild) DeclarationSubmissionView {
+func (s *service) publicSubmission(sub *DeclarationSubmission, versionNo int, child *DeclarationChild) DeclarationSubmissionView {
 	record := DeclarationSubmissionView{
 		ID: sub.ID, StudentID: sub.StudentID, AccountID: sub.AccountID, SignerName: sub.SignerName,
 		GuardianRole: sub.GuardianRole, Action: sub.Action, Method: sub.Method,
@@ -480,7 +479,7 @@ func (s *service) publicSubmission(sub *usersModels.DeclarationSubmission, versi
 // remindDeclaration reaches every guardian who still owes a declaration for
 // a child that is not settled yet. Guardians who already declared are left
 // alone, and so are children somebody else already settled under "any".
-func (s *service) remindDeclaration(ctx context.Context, a *usersModels.ParentAnnouncement) (int, error) {
+func (s *service) remindDeclaration(ctx context.Context, a *ParentAnnouncement) (int, error) {
 	if !a.IsPublished() || !a.Active {
 		return 0, ErrNotPublished
 	}
@@ -519,14 +518,14 @@ func (s *service) remindDeclaration(ctx context.Context, a *usersModels.ParentAn
 	return len(delivered), nil
 }
 
-func declarationReminderRecipients(facts *declarationFacts, now time.Time) []*usersModels.AnnouncementPollReminderRecipient {
+func declarationReminderRecipients(facts *declarationFacts, now time.Time) []*AnnouncementPollReminderRecipient {
 	rules := declarationRules(facts.announcement)
 	latest := facts.latestActions()
 	states := map[int64]string{}
 	for _, c := range declarationChildStatuses(facts, now) {
 		states[c.StudentID] = c.State
 	}
-	byAccount := map[int64]*usersModels.AnnouncementPollReminderRecipient{}
+	byAccount := map[int64]*AnnouncementPollReminderRecipient{}
 	for studentID, signers := range facts.signers {
 		for _, signer := range signers {
 			mine := ""
@@ -537,14 +536,14 @@ func declarationReminderRecipients(facts *declarationFacts, now time.Time) []*us
 				continue
 			}
 			if _, ok := byAccount[signer.AccountID]; !ok {
-				byAccount[signer.AccountID] = &usersModels.AnnouncementPollReminderRecipient{
+				byAccount[signer.AccountID] = &AnnouncementPollReminderRecipient{
 					AccountID: signer.AccountID, Email: strings.ToLower(signer.Email),
 					FirstName: signer.FirstName, LastName: signer.LastName, PortalLocale: signer.PortalLocale,
 				}
 			}
 		}
 	}
-	out := make([]*usersModels.AnnouncementPollReminderRecipient, 0, len(byAccount))
+	out := make([]*AnnouncementPollReminderRecipient, 0, len(byAccount))
 	for _, r := range byAccount {
 		out = append(out, r)
 	}
@@ -554,7 +553,7 @@ func declarationReminderRecipients(facts *declarationFacts, now time.Time) []*us
 
 // declarationMailSpec tells the family that an answer is expected. The mail
 // never carries the text: what they declare on is what the portal shows.
-func declarationMailSpec(a *usersModels.ParentAnnouncement, spec mailSpec) mailSpec {
+func declarationMailSpec(a *ParentAnnouncement, spec mailSpec) mailSpec {
 	if !a.IsDeclaration() {
 		return spec
 	}
@@ -585,20 +584,20 @@ type Fingerprints interface {
 }
 
 // declarationContentHash is the SHA-256 over a version's canonical content.
-func (s *service) declarationContentHash(version *usersModels.DeclarationVersion) string {
+func (s *service) declarationContentHash(version *DeclarationVersion) string {
 	return s.fingerprints.Content(version.CanonicalContent())
 }
 
 // declarationRecordHash is the SHA-256 over a submission's canonical record.
 // The parent flow computes the same value when it stores the row.
-func (s *service) declarationRecordHash(submission *usersModels.DeclarationSubmission) string {
+func (s *service) declarationRecordHash(submission *DeclarationSubmission) string {
 	return s.fingerprints.Content(submission.CanonicalRecord())
 }
 
 // deadlineWithoutPoll is the deadline an announcement without a poll keeps:
 // an Erklärung has its own Frist (#3430), every other mode none.
 func deadlineWithoutPoll(in *Input) *time.Time {
-	if in.DeliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration {
+	if in.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 		return in.ResponseDeadline
 	}
 	return nil

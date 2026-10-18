@@ -113,3 +113,32 @@ Measured on `01b434087e`, policy epoch 47:
   nightly performance run and the product screenshots.
 - A new package in `dev-tools`/`compose` needs an architecture decision: the
   rules above name the role, not the package.
+
+## Addendum 2026-10-18: tooling is not an inbound owner (#4078)
+
+The final two owners of kind `inbound` are engineering tools, not HTTP
+adapters. Schema 5 gives `architecture-check` and `dev-tools` the distinct
+kind `tool`. Their six package classifications keep their owner IDs,
+production roles and both test roles: the checker remains `application`,
+the binary `compose`, the commands `cli` and the two value packages
+`contract`. No package moves and no executable behavior changes.
+
+Tools own no writable data and stay outside the domain dependency DAG, as
+the binary already did. The existing, explicitly named dev-tools composition
+rules keep their IDs and reach. `own-test.tool.contract` is the same-scope,
+same-owner successor of `own-test.inbound.contract`. No other permission,
+legacy key, policy epoch, composition surface or budget changes.
+
+Live policies reject `inbound`, both as an owner kind and in rule selectors.
+The immutable-base reader first validates the old wire format. Only the
+final schema-4 inventory containing no actual inbound HTTP owner translates
+the two canonical engineering owners and their kind selectors to schema-5
+vocabulary. Earlier HTTP inventories remain historical data, not tools.
+This is a wire-format migration before the ordinary comparison, not an alias
+or a new ownership/permission acceptor. Existing kind changes, package-owner
+changes and widened scopes still fail the ordinary guards.
+
+The completed inbound-owner and epoch-47 role reclassification acceptors,
+their tests, and the retired Common-specific acceptor disappear. Parent and
+HTTP-host guards lose only their retired Common branches; current session,
+tenant, router and CLI guards and their negative coverage remain.

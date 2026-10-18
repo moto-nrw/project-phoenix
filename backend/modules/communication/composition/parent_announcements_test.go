@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/stretchr/testify/assert"
@@ -15,11 +14,11 @@ import (
 
 type parentAnnouncementServiceStub struct {
 	staff.Service
-	row *usersModels.ParentAnnouncement
+	row *staff.ParentAnnouncement
 	err error
 }
 
-func (s parentAnnouncementServiceStub) Get(context.Context, int64) (*usersModels.ParentAnnouncement, error) {
+func (s parentAnnouncementServiceStub) Get(context.Context, int64) (*staff.ParentAnnouncement, error) {
 	return s.row, s.err
 }
 
@@ -28,11 +27,11 @@ func TestParentAnnouncementFacadeMapsLegacyRows(t *testing.T) {
 	refID := int64(23)
 	refText := "2b"
 	deadline := time.Now().Add(time.Hour)
-	row := &usersModels.ParentAnnouncement{
-		Title: "Ausflug", Body: "Bitte Rucksack mitbringen", Priority: usersModels.ParentAnnouncementPriorityImportant,
-		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice, ResponseDeadline: &deadline,
-		Targets: []*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &refID, TargetRefText: &refText}},
-		Options: []*usersModels.ParentAnnouncementOption{{Label: "Ja"}},
+	row := &staff.ParentAnnouncement{
+		Title: "Ausflug", Body: "Bitte Rucksack mitbringen", Priority: staff.ParentAnnouncementPriorityImportant,
+		ResponseType: staff.ParentAnnouncementResponseSingleChoice, ResponseDeadline: &deadline,
+		Targets: []*staff.ParentAnnouncementTarget{{TargetType: staff.AnnouncementTargetStudent, TargetRefID: &refID, TargetRefText: &refText}},
+		Options: []*staff.ParentAnnouncementOption{{Label: "Ja"}},
 	}
 	row.ID = 41
 	optionID := time.Now().UnixNano()

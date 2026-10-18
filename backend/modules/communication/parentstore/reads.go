@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +38,7 @@ func (r *ParentMessageReads) MarkReadUpTo(ctx context.Context, tenantID, threadI
 	return r.cursors.MarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)
 }
 
-func (r *ParentMessageReads) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []usersModels.ReadCursorBound) ([]int64, error) {
+func (r *ParentMessageReads) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []communication.PortalReadCursorBound) ([]int64, error) {
 	selected := make([]domain.ReadCursorBound, 0, len(bounds))
 	for _, bound := range bounds {
 		selected = append(selected, domain.ReadCursorBound{
@@ -67,65 +68,85 @@ func (r *ParentMessageReads) UnreadMessageCountForStaffInGroups(ctx context.Cont
 	return r.inbox.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
 }
 
-func (r *ParentMessageReads) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (r *ParentMessageReads) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.inbox.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
-	return inboxModels(rows), err
+	mapped, mapErr := inboxModels(rows)
+	if err != nil {
+		return mapped, err
+	}
+	return mapped, mapErr
 }
 
-func (r *ParentMessageReads) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
+func (r *ParentMessageReads) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.inbox.ListThreadsForStudent(ctx, accountID, studentID)
-	return inboxModels(rows), err
+	mapped, mapErr := inboxModels(rows)
+	if err != nil {
+		return mapped, err
+	}
+	return mapped, mapErr
 }
 
-func (r *ParentMessageReads) ListThreadsForGuardianStudentWithStaff(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*usersModels.InboxThread, error) {
+func (r *ParentMessageReads) ListThreadsForGuardianStudentWithStaff(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.inbox.ListThreadsForGuardianStudent(ctx, accountID, studentID, staffAccounts)
-	return inboxModels(rows), err
+	mapped, mapErr := inboxModels(rows)
+	if err != nil {
+		return mapped, err
+	}
+	return mapped, mapErr
 }
 
-func (r *ParentMessageReads) ListThreadsForGuardianTenantsWithStaff(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*usersModels.InboxThread, error) {
+func (r *ParentMessageReads) ListThreadsForGuardianTenantsWithStaff(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*communication.PortalInboxThread, error) {
 	rows, err := r.inbox.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs, staffAccounts)
-	return inboxModels(rows), err
+	mapped, mapErr := inboxModels(rows)
+	if err != nil {
+		return mapped, err
+	}
+	return mapped, mapErr
 }
 
 func (r *ParentMessageReads) UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	return r.inbox.UnreadMessageCountForGuardianTenants(ctx, accountID, tenantIDs)
 }
 
-func (r *ParentMessageReads) FindThreadHeader(ctx context.Context, threadID int64) (*usersModels.ThreadHeader, error) {
+func (r *ParentMessageReads) FindThreadHeader(ctx context.Context, threadID int64) (*communication.ParentThreadHeaderRecord, error) {
 	header, err := r.inbox.FindThreadHeader(ctx, threadID)
 	if err != nil || header == nil {
 		return nil, err
 	}
-	return &usersModels.ThreadHeader{
+	return &communication.ParentThreadHeaderRecord{
 		StudentName: header.StudentName, GuardianName: header.GuardianName,
 		RelationshipType: header.RelationshipType,
 	}, nil
 }
 
-func (r *ParentMessageReads) LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*usersModels.ReadCursor, error) {
+func (r *ParentMessageReads) LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*communication.ParentReadCursorRecord, error) {
 	cursor, err := r.inbox.LatestReadCursorByOtherStaff(ctx, threadID, excludeAccountID, staffAccounts)
 	return cursorModel(cursor), err
 }
 
-func (r *ParentMessageReads) GuardianReadCursor(ctx context.Context, threadID int64) (*usersModels.ReadCursor, error) {
+func (r *ParentMessageReads) GuardianReadCursor(ctx context.Context, threadID int64) (*communication.ParentReadCursorRecord, error) {
 	cursor, err := r.inbox.GuardianReadCursor(ctx, threadID)
 	return cursorModel(cursor), err
 }
 
-func cursorModel(cursor *parentinbox.ParentReadCursor) *usersModels.ReadCursor {
+func cursorModel(cursor *parentinbox.ParentReadCursor) *communication.ParentReadCursorRecord {
 	if cursor == nil {
 		return nil
 	}
-	return &usersModels.ReadCursor{LastReadAt: cursor.LastReadAt, LastReadMessageID: cursor.LastReadMessageID}
+	return &communication.ParentReadCursorRecord{LastReadAt: cursor.LastReadAt, LastReadMessageID: cursor.LastReadMessageID}
 }
 
-func inboxModels(rows []*parentinbox.ParentInboxThread) []*usersModels.InboxThread {
+func inboxModels(rows []*parentinbox.ParentInboxThread) ([]*communication.PortalInboxThread, error) {
 	if rows == nil {
-		return nil
+		return nil, nil
 	}
-	threads := make([]*usersModels.InboxThread, 0, len(rows))
+	threads := make([]*communication.PortalInboxThread, 0, len(rows))
 	for _, row := range rows {
-		thread := &usersModels.InboxThread{
+		payload, err := values.ParentPayloadFromFacts(row.LastMessagePayload)
+		if err != nil {
+			return nil, err
+		}
+		thread := &communication.PortalInboxThread{
 			ThreadID: row.ThreadID, TenantID: row.TenantID, StudentID: row.StudentID,
 			StudentName: row.StudentName, SchoolClass: row.SchoolClass, GroupID: row.GroupID,
 			GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
@@ -133,14 +154,14 @@ func inboxModels(rows []*parentinbox.ParentInboxThread) []*usersModels.InboxThre
 			LastSenderKind: row.LastSenderKind, LastMessageBody: row.LastMessageBody,
 			LastMessageKind: row.LastMessageKind, LastEventType: row.LastEventType,
 			LastRequestType: row.LastRequestType, LastRequestStatus: row.LastRequestStatus,
-			LastMessagePayload:     row.LastMessagePayload,
+			LastMessagePayload:     payload,
 			LastMessageReadByStaff: row.LastMessageReadByStaff,
 			UnreadCount:            row.UnreadCount,
 		}
 		if row.ReadBoundAt != nil && row.ReadBoundMessageID != nil {
-			thread.ReadBound = &usersModels.ReadCursorBound{ThreadID: row.ThreadID, ReadAt: *row.ReadBoundAt, MessageID: *row.ReadBoundMessageID}
+			thread.ReadBound = &communication.PortalReadCursorBound{ThreadID: row.ThreadID, ReadAt: *row.ReadBoundAt, MessageID: *row.ReadBoundMessageID}
 		}
 		threads = append(threads, thread)
 	}
-	return threads
+	return threads, nil
 }

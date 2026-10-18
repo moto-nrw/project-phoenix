@@ -8,12 +8,12 @@ import (
 
 func TestParentHTTPPermissionsRequireReviewedEpoch(t *testing.T) {
 	t.Parallel()
-	candidate := historicalParentHTTPPolicy(t)
+	candidate := repositoryPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), reviewedParentHTTPRule)
-	if len(candidate.Rules)-len(base.Rules) != 4 {
-		t.Fatal("expected four standing guardian portal HTTP rules")
+	if len(candidate.Rules)-len(base.Rules) != 3 {
+		t.Fatal("expected three standing guardian portal HTTP rules")
 	}
 	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
 		t.Fatalf("reviewed guardian portal HTTP rules: %v", err)
@@ -32,11 +32,11 @@ func TestParentHTTPEpochGrantsOnlyTheNamedRuntimes(t *testing.T) {
 		{ID: "parent.orm", Description: "test", SourceOwner: "parent-portal", SourceRole: "http", TargetClass: "orm-sql", Scopes: []string{"production"}},
 		{ID: "parent.models", Description: "test", SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 		{ID: "parent.composition", Description: "test", SourceOwner: "parent-portal", SourceRole: "adapter-test", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: []string{"external_test"}},
-		{ID: "other.http", Description: "test", SourceOwner: "other-inbound", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
+		{ID: "other.http", Description: "test", SourceOwner: "other-tool", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
 	} {
 		candidate := repositoryPolicy(t)
-		// Keep the unrelated owner independent of production inbound retirements.
-		candidate.Owners = append(candidate.Owners, Owner{ID: "other-inbound", Kind: "inbound"})
+		// Keep the unrelated owner independent of production owner retirements.
+		candidate.Owners = append(candidate.Owners, Owner{ID: "other-tool", Kind: "tool"})
 		base := *candidate
 		base.PolicyEpoch--
 		widened := *candidate
@@ -50,13 +50,13 @@ func TestParentHTTPEpochGrantsOnlyTheNamedRuntimes(t *testing.T) {
 
 func TestParentHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 	t.Parallel()
-	original := Rule{SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "inbound-common", TargetRole: "http", Scopes: []string{"production"}}
+	original := Rule{SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}
 	for _, mutate := range []func(*Rule){
 		func(r *Rule) { r.SourceOwner = "" },
-		func(r *Rule) { r.SourceOwner = "inbound-common" },
-		func(r *Rule) { r.SourceOwnerKind = "inbound" },
+		func(r *Rule) { r.SourceOwner = "tenant-runtime" },
+		func(r *Rule) { r.SourceOwnerKind = "tool" },
 		func(r *Rule) { r.SourceRole = "" },
-		func(r *Rule) { r.TargetOwnerKind = "inbound" },
+		func(r *Rule) { r.TargetOwnerKind = "tool" },
 		func(r *Rule) { r.TargetRole = "adapter" },
 		func(r *Rule) { r.TargetClass = "orm-sql" },
 		func(r *Rule) { r.SameOwner = true },
@@ -82,12 +82,4 @@ func TestParentHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 	if reviewedParentHTTPRule(sessionTest) {
 		t.Fatal("session test rule gained production access")
 	}
-}
-
-// historicalParentHTTPPolicy retains the original epoch contract after its live rule retires.
-func historicalParentHTTPPolicy(t *testing.T) *Policy {
-	t.Helper()
-	policy := historicalCommonHTTPPolicy(t)
-	policy.Rules = append(policy.Rules, Rule{ID: "parent-portal.http.inbound-common", Description: "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).", SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "inbound-common", TargetRole: "http", Scopes: []string{"production"}})
-	return policy
 }

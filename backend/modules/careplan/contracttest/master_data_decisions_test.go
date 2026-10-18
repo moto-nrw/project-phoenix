@@ -522,28 +522,6 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 
 // requestStatusPill returns the last request_status pill the decision wrote
 // into the (child, guardian) thread, or nil when none was written.
-func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int64) *userModels.ParentMessage {
-	t.Helper()
-	var pill *userModels.ParentMessage
-	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
-		thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, guardianAccountID)
-		if err != nil || thread == nil {
-			return err
-		}
-		msgs, err := communicationtest.NewParentMessageRepository(f.db).ListByThread(ctx, thread.ID, 50)
-		if err != nil {
-			return err
-		}
-		for _, m := range msgs {
-			if m.EventType == userModels.ParentMessageEventRequestStatus {
-				pill = m
-			}
-		}
-		return nil
-	}))
-	return pill
-}
-
 // decisionsWithEmitter wires a REAL emitter, so the after-commit decision pill
 // actually lands in the thread.
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
@@ -564,7 +542,8 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill := f.requestStatusPill(t, f.chain.AccountID)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	require.NoError(t, err)
 	require.NotNil(t, pill, "an approved master-data request must drop a decision pill")
 	assert.Equal(t, userModels.ParentMessageRequestStatusDone, pill.RequestStatus)
 	assert.Equal(t, "Anfrage bestätigt, Stammdaten übernommen", pill.Body)
@@ -579,7 +558,8 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill := f.requestStatusPill(t, f.chain.AccountID)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	require.NoError(t, err)
 	require.NotNil(t, pill, "a rejected request must drop a decision pill")
 	assert.Equal(t, userModels.ParentMessageRequestStatusRejected, pill.RequestStatus)
 	assert.Equal(t, "Anfrage abgelehnt: Nachweis fehlt", pill.Body)
@@ -620,7 +600,8 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			pill := f.requestStatusPill(t, other.AccountID)
+			pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, userModels.ParentMessageEventRequestStatus)
+			require.NoError(t, err)
 			require.NotNil(t, pill, "the other guardian must hear that the child's data changed")
 			assert.Equal(t, tc.wantBody, pill.Body)
 			assert.Equal(t, tc.wantReason, pill.DecisionReason)

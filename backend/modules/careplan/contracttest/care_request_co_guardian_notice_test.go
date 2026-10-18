@@ -36,24 +36,6 @@ func (s staticShareVisibility) SharedRecipientAccountIDs(
 	return s.recipients, nil
 }
 
-func careCoGuardianPills(
-	t *testing.T, f *careFixture, guardianAccountID int64,
-) []*usersModels.ParentMessage {
-	t.Helper()
-	var msgs []*usersModels.ParentMessage
-	require.NoError(t, tenant.WithTenantTx(
-		testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID,
-		func(txCtx context.Context, _ bun.Tx) error {
-			thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(txCtx, f.chain.StudentID, guardianAccountID)
-			if err != nil || thread == nil {
-				return err
-			}
-			msgs, err = communicationtest.NewParentMessageRepository(f.db).ListByThread(txCtx, thread.ID, 100)
-			return err
-		}))
-	return msgs
-}
-
 // TestCareDecisionTellsTheOtherGuardian is story 47 for the care domain: a
 // decision on one parent's request changes the whole family's care, so the
 // other guardian hears about it — neutrally, unless the submitter explicitly
@@ -73,7 +55,10 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		pills := careCoGuardianPills(t, f, other.AccountID)
+		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
+			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
+		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		require.NoError(t, err)
 		require.Len(t, pills, 1, "the other guardian hears about the decision exactly once")
 		assert.Contains(t, pills[0].Body, "Betreuungsstand geändert")
 		assert.Empty(t, pills[0].DecisionReason, "the staff reason belongs to the submitting guardian")
@@ -92,7 +77,10 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		pills := careCoGuardianPills(t, f, other.AccountID)
+		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
+			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
+		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		require.NoError(t, err)
 		require.Len(t, pills, 1)
 		assert.Equal(t, "Passt so", pills[0].DecisionReason,
 			"a guardian the request was shared with sees the same decision the submitter does")

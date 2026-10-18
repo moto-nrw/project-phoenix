@@ -284,7 +284,7 @@ func TestTargetOnlyRuleKeepsCompositionGlueInTheRoot(t *testing.T) {
 		{"workflow composition", map[string]any{"id": "flow.compose.beta-compose", "source_owner": "flow", "source_role": "compose", "target_owner": "beta", "target_role": "compose"}},
 		{"projection composition", map[string]any{"id": "board.compose.beta-http", "source_owner": "board", "source_role": "compose", "target_owner": "beta", "target_role": "http"}},
 		{"platform composition", map[string]any{"id": "runtime.compose.clock-compose", "source_owner": "runtime", "source_role": "compose", "target_owner": "clock", "target_role": "compose"}},
-		{"composition into an inbound owner", map[string]any{"id": "alpha.compose.portal-http", "source_owner": "alpha", "source_role": "compose", "target_owner": "portal", "target_role": "http"}},
+		{"composition into a tool owner", map[string]any{"id": "alpha.compose.tool-http", "source_owner": "alpha", "source_role": "compose", "target_owner": "tools", "target_role": "http"}},
 		{"any role of a domain", map[string]any{"id": "alpha.any.beta-compose", "source_owner": "alpha", "target_owner": "beta", "target_role": "compose"}},
 		{"compositions by kind", map[string]any{"id": "domain.compose.domain-compose", "source_owner_kind": "domain", "source_role": "compose", "target_owner_kind": "domain", "target_role": "compose"}},
 		{"composition into a root in production", map[string]any{"id": "alpha.compose.root-compose", "source_owner": "alpha", "source_role": "compose", "target_owner": "root", "target_role": "compose"}},
@@ -301,7 +301,7 @@ func TestTargetOnlyRuleKeepsCompositionGlueInTheRoot(t *testing.T) {
 		{"id": "alpha.compose.own-http", "source_owner": "alpha", "source_role": "compose", "target_owner": "alpha", "target_role": "http"},
 		{"id": "alpha.compose.beta-contract", "source_owner": "alpha", "source_role": "compose", "target_owner": "beta", "target_role": "contract"},
 		{"id": "root.compose.beta-compose", "source_owner": "root", "source_role": "compose", "target_owner": "beta", "target_role": "compose"},
-		{"id": "portal.compose.beta-http", "source_owner": "portal", "source_role": "compose", "target_owner": "beta", "target_role": "http"},
+		{"id": "tools.compose.beta-http", "source_owner": "tools", "source_role": "compose", "target_owner": "beta", "target_role": "http"},
 		{"id": "alpha.test.root-compose", "source_owner": "alpha", "target_owner": "root", "target_role": "compose", "scopes": []any{"internal_test"}},
 	} {
 		if err := targetOnlyFixture(t, addFixtureRule(rule)); err != nil {
