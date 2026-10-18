@@ -186,7 +186,7 @@ func (e *recordingEngine) ListStudentDirectory(
 ) ([]peopledirectory.StudentRecord, error) {
 	e.calls++
 	e.directory = filter
-	return nil, nil
+	return e.directoryRows, nil
 }
 
 func (e *recordingEngine) CountStudentDirectory(
