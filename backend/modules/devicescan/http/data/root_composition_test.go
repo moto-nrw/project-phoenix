@@ -25,7 +25,7 @@ func composeFeedbackModule(t *testing.T) (*bun.DB, api.FeedbackTestModule, api.S
 func setupIoTDataModule(t *testing.T) (*bun.DB, api.IoTDataTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, _, _, _, _, _, err := api.NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return db, module
 }

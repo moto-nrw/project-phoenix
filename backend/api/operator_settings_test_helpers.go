@@ -37,7 +37,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	presence := NewActiveTestPresence(db, unit)
 	facilities := NewActiveTestFacilities(db, unit)
 	timetableRows := NewActiveTestTimetable(db, unit)
-	care, err := NewCareLifecycleTestModule(db, unit)
+	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}

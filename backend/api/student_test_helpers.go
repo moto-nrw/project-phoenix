@@ -59,6 +59,17 @@ type StudentTestModule struct {
 	NewPickupAdjustments func(careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error)
 }
 
+// BindStudentTestPeople hands out the active graph's person directory with
+// the student graph's care participation bound, as NewStudentTestModule
+// binds the copy it composes over.
+func BindStudentTestPeople(people ActivePeople, module StudentTestModule) ActivePeople {
+	lifecycle := module.CareLifecycle
+	people.Users = people.Users.WithCareParticipation(CareParticipationResolver(func() careplan.CareParticipation {
+		return lifecycle
+	}))
+	return people
+}
+
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
 func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) presenceservice.ManualPartialAbsenceReader {
 	return NewManualPartialAbsenceDates(source)
@@ -119,7 +130,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	liveEducation := NewActiveTestEducation(db, unit, clocks...)
 	livePresence := NewActiveTestPresence(db, unit, clocks...)
 	liveTimetable := NewActiveTestTimetable(db, unit, clocks...)
-	care, err := NewCareLifecycleTestModule(db, unit)
+	care, careAudit, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
@@ -155,7 +166,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	arrivalScheduleService := live.ArrivalSchedule
 	careDayService := live.CareDay
 	careLifecycleService := care.CareLifecycle
-	studentAuditService := care.StudentAudit
+	studentAuditService := careAudit
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := CurrentServiceConfig().FrontendURL
 	parentsURL := CurrentServiceConfig().ParentsURL

@@ -14,12 +14,12 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupActivitiesModule(t *testing.T) (*bun.DB, api.ActivitiesTestModule) {
+func setupActivitiesModule(t *testing.T) (*bun.DB, api.ActivitiesTestModule, api.ActivePeople, *api.CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewActivitiesTestModule(testpkg.NewDatabase(t, db))
+	module, users, caller, err := api.NewActivitiesTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return db, module
+	return db, module, api.ActivePeople{Users: users}, caller
 }
 
 func setupScheduleModule(t *testing.T) (*bun.DB, api.ScheduleTestModule, schedulesAPI.Dateframes) {

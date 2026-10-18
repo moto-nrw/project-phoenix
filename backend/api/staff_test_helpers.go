@@ -35,7 +35,7 @@ func NewStaffTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 	if err != nil {
 		return StaffTestModule{}, WorkforceTestModule{}, err
 	}
-	groups, err := NewGroupsTestModule(db, unit)
+	groups, _, _, _, err := NewGroupsTestModule(db, unit)
 	if err != nil {
 		return StaffTestModule{}, WorkforceTestModule{}, err
 	}

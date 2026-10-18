@@ -102,7 +102,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		ArrivalBaselines: arrival, Records: carePlan,
 		PickupBaselines: pickup,
 	})
-	care, err := NewCareLifecycleTestModule(db, unit)
+	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}

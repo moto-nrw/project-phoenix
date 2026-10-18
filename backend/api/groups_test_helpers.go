@@ -17,19 +17,17 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// GroupsTestModule is the School Structure side of the group routes; the
+// presence, the people and the caller rows come beside it from
+// NewGroupsTestModule (#4080).
 type GroupsTestModule struct {
-	Education   schoolstructure.GroupManagement
-	Active      studentpresence.Presence
-	Users       peoplePorts.PersonDirectory
-	People      peopleCompose.GroupRoutePeople
-	UserContext *CallerRows
+	Education schoolstructure.GroupManagement
 }
 
 // TeacherGroupIDs exposes the same assignment projection as attendance composition.
@@ -37,27 +35,27 @@ func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) 
 	return NewAttendanceTeacherGroups(m.Education).TeacherGroupIDs(ctx, teacherID)
 }
 
-func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, error) {
+func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, ActivePresence, ActivePeople, *CallerRows, error) {
 	members := MustNewMembershipTestRepositories(db)
 	r, _, err := NewUserContextTestRepositories(db, members)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	identity, err := NewUserContextTestModule(db, unit)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	ttRooms, err := NewTimetableRoomRows(db)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	ttPresence, err := NewTimetablePresenceRows(db, tt, members)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	var publisher deliveryCompose.RealtimePublisher = deliveryCompose.NewRealtimeHub(slog.Default())
 	if len(publishers) > 0 {
@@ -76,7 +74,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(ttPresence.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
@@ -89,7 +87,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
 	})
 
-	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity}, nil
+	return GroupsTestModule{Education: groups}, ActivePresence{Active: presence}, ActivePeople{Users: persons, People: peopleCompose.NewGroupRoutePeople(persons)}, identity, nil
 }
 
 // NewAttendanceTeacherGroups supplies assignment IDs the way the active route

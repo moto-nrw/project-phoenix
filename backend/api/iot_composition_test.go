@@ -35,12 +35,12 @@ func setupIoTSettingsModule(t *testing.T) (*bun.DB, settingsCompose.SettingsServ
 	return db, module.Settings
 }
 
-func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule) {
+func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule, DeviceTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, _, _, devices, _, _, err := NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	return db, module, devices
 }
 
 func setupIoTTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, TimetableTestModule) {
