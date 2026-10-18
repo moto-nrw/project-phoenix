@@ -46,7 +46,7 @@ func TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 	fx := newActivityInstanceFixtures(t, db, "cutover-uow")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
@@ -73,7 +73,7 @@ func TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 	fx := newActivityInstanceFixtures(t, db, "cutover-failure")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)

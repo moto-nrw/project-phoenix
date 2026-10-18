@@ -46,7 +46,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -106,7 +106,7 @@ func TestStoredArrivalScheduleStatusCountsOnlyOwnTimes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -126,7 +126,7 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -176,7 +176,7 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Mitte", "Woche", "8f")
@@ -192,7 +192,7 @@ func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ganz", "Woche", "8j")
@@ -207,7 +207,7 @@ func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Buchung", "8k")
@@ -238,7 +238,7 @@ func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Woche", "Dienstag", "8h")
@@ -258,7 +258,7 @@ func TestArrivalScheduleForWeekdayProjectsBookedDayWithoutStoredRow(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Zeile", "8i")
@@ -273,7 +273,7 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Bereich", "Woche", "8g")
@@ -318,7 +318,7 @@ func TestArrivalDataForWeekendRangeReadsFridayRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), weekendFridayArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Wochenende", "Freitag", "8n")
@@ -364,7 +364,7 @@ func TestArrivalDataForDateRangeDropsCareDayAfterBookingEnds(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), firstMondayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ende", "Buchung", "8l")
@@ -415,7 +415,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	wantErr := errors.New("class-time lookup failed")
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), failingClassArrivalPlans{ArrivalClassPlans: nativeClassArrivalPlans(t), err: wantErr}, nil)
@@ -441,7 +441,7 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), bookingMondayBaseline{}, nativeClassArrivalPlans(t), nil)
 
@@ -468,7 +468,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 

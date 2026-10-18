@@ -56,7 +56,7 @@ func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]
 func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsenceRequests) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),

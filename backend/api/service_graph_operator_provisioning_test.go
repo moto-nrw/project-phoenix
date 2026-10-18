@@ -30,7 +30,7 @@ var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 // field is the production composition over db.
 func buildOperatorProvisioning(t *testing.T, db *bun.DB) *TestServiceGraph {
 	t.Helper()
-	repoFactory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	graph, err := NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service graph")
 	require.NoError(t, graph.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

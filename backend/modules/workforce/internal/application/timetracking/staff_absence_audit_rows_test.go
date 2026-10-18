@@ -20,7 +20,7 @@ func TestStaffAbsenceAuditRowsWriteTheRecordedAuditBack(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.Ctx(t)
 	day := calendar.NewDate(2026, time.March, 2).String()
@@ -53,7 +53,7 @@ func TestStaffAbsenceAuditRowsRejectAnAuditWithoutAbsence(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 
 	err := workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(testpkg.Ctx(t), &timetracking.StaffAbsenceAudit{
 		ToStatus: workforce.AbsenceStatusApproved,

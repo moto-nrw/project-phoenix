@@ -38,7 +38,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *api.Guar
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := api.GuardianInvitationTestConfig{
 		Outbox: api.NewCapturingOutbox(),
@@ -744,7 +744,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ParentEnrollmentRequest
+	realBackfiller := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")

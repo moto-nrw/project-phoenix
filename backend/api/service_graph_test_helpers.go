@@ -185,10 +185,7 @@ func (owners OwnerCapabilities) EnrollmentWiring(db transactionruntime.Database,
 // class-day wiring over the test owners, the given Care Plan and People
 // wiring, as the serving root does (#4010).
 func (owners OwnerCapabilities) PresenceWiring(db transactionruntime.Database, carePlan careplan.Capability, people PeopleWiring, logger *slog.Logger, clocks ...func() time.Time) (PresenceWiring, error) {
-	rows := NewTimetableRepositories(db, TimetableDependencies{
-		Capability: owners.Timetable, Students: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
-		Calendar: owners.Calendar, Membership: owners.Membership, Workforce: owners.Workforce,
-	})
+	rows := NewTimetableRepositories(db, owners.Timetable, owners.Persons, owners.Groups, owners.Rooms, owners.Calendar, owners.Membership, owners.Workforce)
 	return NewPresenceWiring(PresenceWiringOwners{
 		DB: db, Logger: logger, Persons: owners.Persons, Rooms: owners.Rooms, Membership: owners.Membership,
 		CarePlan: carePlan, Calendar: owners.Calendar, Timetable: owners.Timetable, TimetableRows: rows,
@@ -200,10 +197,7 @@ func (owners OwnerCapabilities) PresenceWiring(db transactionruntime.Database, c
 // over the test owners and the given People wiring, as the serving root does
 // (#4009).
 func (owners OwnerCapabilities) TimetableWiring(db transactionruntime.Database, people PeopleWiring, logger *slog.Logger) (TimetableWiring, error) {
-	repositories := NewTimetableRepositories(db, TimetableDependencies{
-		Capability: owners.Timetable, Students: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
-		Calendar: owners.Calendar, Membership: owners.Membership, Workforce: owners.Workforce,
-	})
+	repositories := NewTimetableRepositories(db, owners.Timetable, owners.Persons, owners.Groups, owners.Rooms, owners.Calendar, owners.Membership, owners.Workforce)
 	return NewTimetableWiring(TimetableWiringOwners{
 		DB: db, Logger: logger, Repositories: repositories, Timetable: owners.Timetable, Calendar: owners.Calendar,
 		Rooms: owners.Rooms, Membership: owners.Membership, Persons: owners.Persons, People: people,

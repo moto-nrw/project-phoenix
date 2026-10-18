@@ -25,7 +25,7 @@ import (
 func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},

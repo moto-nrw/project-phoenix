@@ -34,7 +34,7 @@ func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, store
 func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{

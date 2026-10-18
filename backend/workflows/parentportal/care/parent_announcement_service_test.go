@@ -36,7 +36,7 @@ func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Por
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
 func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},

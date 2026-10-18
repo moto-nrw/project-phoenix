@@ -93,7 +93,7 @@ func parseMoveClock(t *testing.T, hhmm string) time.Time {
 func makeMoveSetup(t *testing.T) *moveSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 

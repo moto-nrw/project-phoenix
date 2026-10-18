@@ -25,7 +25,7 @@ import (
 func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),

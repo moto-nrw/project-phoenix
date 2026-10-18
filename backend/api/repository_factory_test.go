@@ -13,12 +13,11 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NotNil(t, factory)
 	// The retained activities and schedule repositories belong to Timetable
 	// and are built where they are used (#2743).
-	timetable := NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	timetable := NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 
 	// Verify users repositories are initialized
 	t.Run("users repositories", func(t *testing.T) {

@@ -78,8 +78,8 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Mitarbeiter")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Leitung")
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -109,28 +109,28 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		CreatedBy: staff.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions.Create(ctx, session))
+	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, session))
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(owners.Workforce)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
+		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(workTime)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		settings, nil,
-		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(owners.Workforce)),
-		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(workTime)),
+		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments),
 	)
 
 	closeSvc := timetracking.NewStaffMonthCloseService(
-		timetracking.MonthSnapshotCapability(owners.Workforce), monthSvc, api.MonthCloseStaff(repos.Staff), settings, nil,
+		timetracking.MonthSnapshotCapability(workTime), monthSvc, api.MonthCloseStaff(repos.Staff), settings, nil,
 	)
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(
-		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments, monthSvc, settings, nil,
-		timetracking.WithAdjustmentSnapshots(timetracking.MonthSnapshotCapability(owners.Workforce)),
+		workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, monthSvc, settings, nil,
+		timetracking.WithAdjustmentSnapshots(timetracking.MonthSnapshotCapability(workTime)),
 	)
 
 	return &snapshotFixture{
 		tenantID: tenantID, staff: staff.ID, admin: admin.ID,
-		session: session, schedule: schedule, repos: repos, workforce: owners.Workforce, db: db, ctx: ctx,
+		session: session, schedule: schedule, repos: repos, workforce: workTime, db: db, ctx: ctx,
 		monthSvc: monthSvc, closeSvc: closeSvc, adjustSvc: adjustSvc,
 	}
 }

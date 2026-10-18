@@ -100,12 +100,8 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := NewTimetableRepositoriesWithPresence(db, TimetableDependencies{
-		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
-	}, NewUnloggedStudentPresence(db))
-	sessions := NewSessionRecords(db, SessionRecordOwners{
-		Now: now, Rooms: rooms, Timetable: bookings, Membership: membership, Persons: persons,
-	})
+	adapters := NewTimetableRepositoriesWithPresence(db, bookings, persons, groups, rooms, calendar, membership, workTime, NewUnloggedStudentPresence(db))
+	sessions := NewSessionRecords(db, now, nil, rooms, bookings, membership, persons)
 	carePlan, err := NewCarePlan(db, persons, adapters.InstanceStudent)
 	if err != nil {
 		return TimetableTestRepositories{}, err

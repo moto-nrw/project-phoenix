@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -324,7 +326,7 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 // staffing capability over the retained repositories, the way the root does.
 func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
-	detection, err := api.NewTimetableConflictDetection(api.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         repos.ActivityInstance,
 		InstanceStaff:     repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
@@ -336,7 +338,7 @@ func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) tim
 		Sessions:          repos.ActiveGroup,
 		Shifts:            repos.StaffShift,
 		Presence:          planningOnlyPresence{},
-	})
+	}, nil)
 	require.NoError(t, err)
 	return detection
 }

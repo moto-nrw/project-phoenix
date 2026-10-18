@@ -328,14 +328,10 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	timetableDependencies := TimetableDependencies{
-		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
-		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
-	}
 	// The retained activities and schedule repositories belong to Timetable
 	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
 	// read the same adapters.
-	timetableRepositories := NewTimetableRepositories(db, timetableDependencies)
+	timetableRepositories := NewTimetableRepositories(db, timetableCapability, persons, groups, rooms, calendar, membership, workTime)
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: pool,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -452,10 +448,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		Audit:          factory.Audit,
 		Observe:        observeDataImport,
 	})
-	databaseStats := newDatabaseStats(databaseStatsSources{
-		people: people, rooms: rooms, timetable: timetableRepositories, identity: identityModule,
-		devices: platform.DeviceFleet, logger: logger,
-	})
+	databaseStats := newDatabaseStats(people.Repositories, people.Groups, rooms, timetableRepositories, identityModule, platform.DeviceFleet, logger)
 	return moduleServices{organizations: organizations, listExport: platform.ListExport, imports: imports, databaseStats: databaseStats, carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 

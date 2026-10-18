@@ -51,13 +51,13 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := calendar.TodayDate()
 
 	f := &overviewFixture{
-		tenantID: tenantID, db: db, repos: repos, workforce: owners.Workforce, ctx: ctx, today: today,
+		tenantID: tenantID, db: db, repos: repos, workforce: workTime, ctx: ctx, today: today,
 	}
 
 	t.Cleanup(func() {
@@ -87,11 +87,11 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	monthStart := calendar.NewDate(today.Year(), today.Month(), 1)
 	settings := wtmIntSettings{accountStart: monthStart.String()}
 	f.monthSvc = timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
-		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(owners.Workforce)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(owners.Workforce)), workforceCompose.NewTimeTrackingShifts(owners.Workforce),
+		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(workTime)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		settings, nil,
-		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments),
-		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(owners.Workforce)),
+		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(workTime)),
 	)
 
 	f.svc = f.newOverviewService(settings)

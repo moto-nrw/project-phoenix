@@ -37,7 +37,7 @@ import (
 func buildCareScheduleService(t *testing.T, notesEnabled bool) (*parentportal.ChildFlows, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
 }
 

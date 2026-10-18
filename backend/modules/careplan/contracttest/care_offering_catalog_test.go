@@ -30,7 +30,7 @@ func setupCareTest(t *testing.T, options ...api.CareOfferingCatalogOption) (*bun
 	// LIFO order, so groups/periods created later are deleted while the pool is
 	// still open instead of leaking into subsequent package tests.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := careOfferingRows(t, db, options...)
 
 	phase := &enrollmentTest.Phase{
@@ -395,7 +395,7 @@ func TestCareOfferingCatalog_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 21)) // Tuesday
 	phase.ServiceEndDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 22))   // Wednesday
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-zero-occurrence-period",
 		calendar.NewDate(2026, 4, 1), calendar.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-zero-occurrence-template")
@@ -455,7 +455,7 @@ func TestCareOfferingCatalog_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 17)) // Friday
 	phase.ServiceEndDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 26))   // Sunday
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-boundary-period",
 		calendar.NewDate(2026, 4, 1), calendar.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-boundary-template")
@@ -485,7 +485,7 @@ func TestCareOfferingCatalog_Create_ActiveOfferingRequiresActivePeriod(t *testin
 		WeekCycleLength: 1, IsActive: false,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod.Create(testpkg.Ctx(t), period))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	group := createCareOfferingTemplateGroup(t, db, "inactive-care-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 	offering := baseLinkedOffering(t, phase.ID, group.ID)
@@ -670,7 +670,7 @@ func TestCareOfferingCatalog_Clone_RepointsToTargetPhase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Build a second phase as the clone target.
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -724,7 +724,7 @@ func TestCareOfferingCatalog_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	created, err := svc.Create(ctx, source)
 	require.NoError(t, err)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -975,7 +975,7 @@ func TestCareOfferingCatalog_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 
 func testRepositories(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return factory
 }
@@ -983,7 +983,7 @@ func testRepositories(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 // testTimetableRepositories builds the retained Timetable adapters over the
 // unobserved owners of the test database (#2743).
 func testTimetableRepositories(db *bun.DB) api.TimetableRepositories {
-	return api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
+	return api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {
@@ -1009,7 +1009,7 @@ func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, 
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod.Create(testpkg.Ctx(t), period))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	return period
 }
 

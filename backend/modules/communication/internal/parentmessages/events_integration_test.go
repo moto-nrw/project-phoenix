@@ -73,7 +73,7 @@ func countEventType(msgs []*messaging.ParentMessage, eventType string) int {
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
@@ -145,7 +145,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
@@ -172,7 +172,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
@@ -198,7 +198,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()

@@ -15,7 +15,7 @@ import (
 
 func createActiveServiceWithCrossTenant(t *testing.T, db *testpkg.DB) active.Service {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	return composedEngine(t, serviceFactory.Active)
@@ -129,7 +129,7 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	// Visitor names come from the People Directory composition (#2661), so
 	// the test drives the composed repository the service graph uses.
-	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	repo := factory.CrossTenant
 

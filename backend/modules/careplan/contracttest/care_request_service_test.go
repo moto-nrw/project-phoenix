@@ -98,13 +98,13 @@ func newCareFixture(t *testing.T, options ...api.CareRequestOption) *careFixture
 func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...api.CareRequestOption) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
-	autoExcusal := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), timetableDeps.Capability, false)
+	autoExcusal := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), timetableOwner, false)
 	svc := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
 		sf.PeopleDirectory,
@@ -131,7 +131,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 		svc:          svc,
 		sf:           sf,
 		repos:        repos,
-		timetable:    api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
+		timetable:    api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		chain:        chain,
 		staffAccount: staffAccount.ID,
 		staffID:      staff.ID,

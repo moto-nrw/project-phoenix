@@ -63,7 +63,7 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (*parentService.P
 func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (*parentService.Portal, careplan.ExcusedAbsenceRequests, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Broadcaster: bc, Logger: slog.Default(),

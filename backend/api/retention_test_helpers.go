@@ -69,7 +69,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
-	carePlan, err := NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
+	carePlan, err := NewUnobservedCarePlan(db, MustNewUnobservedTimetable(db), MustNewPeopleDirectory(db))
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
@@ -128,8 +128,8 @@ func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings 
 // owners, logging into audit. The Feedback owner is not part of this graph;
 // its count stays zero.
 func NewStudentTestRetention(db transactionruntime.Database, audit *auditCompose.Command, settings settingsCompose.BatchSettingsService) (*studentdeletion.Retention, error) {
-	timetable := NewUnobservedTimetableDependencies(db)
-	carePlan, err := NewUnobservedCarePlan(db, timetable)
+	timetableOwner := MustNewUnobservedTimetable(db)
+	carePlan, err := NewUnobservedCarePlan(db, timetableOwner, MustNewPeopleDirectory(db))
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func NewStudentTestRetention(db transactionruntime.Database, audit *auditCompose
 		return nil, err
 	}
 	workflow, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: db.Pool(), Owners: owners, Directory: people, CarePlan: carePlan, Timetable: timetable.Capability, Feedback: noFeedback{},
+		DB: db.Pool(), Owners: owners, Directory: people, CarePlan: carePlan, Timetable: timetableOwner, Feedback: noFeedback{},
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return false, nil },
 		LockCareBookingWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 		Audit:                 audit,

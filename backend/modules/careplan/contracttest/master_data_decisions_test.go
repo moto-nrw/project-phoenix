@@ -42,7 +42,7 @@ func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 	t.Helper()
 	return masterDataFixture{
 		db:    db,
-		repos: api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))),
+		repos: api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)),
 		chain: testpkg.CreateTestParentGuardianChain(t, db),
 	}
 }

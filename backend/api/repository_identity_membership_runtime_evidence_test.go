@@ -21,7 +21,7 @@ import (
 func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

@@ -35,7 +35,7 @@ func accountPasswordHash(t *testing.T, db *bun.DB, accountID int64) string {
 
 // setupAuthServiceWithDB creates an auth service with real database connection
 func setupAuthServiceWithDB(t *testing.T, db *bun.DB) testAuthService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return newFixtureAuthService(t, db, serviceFactory.Auth)

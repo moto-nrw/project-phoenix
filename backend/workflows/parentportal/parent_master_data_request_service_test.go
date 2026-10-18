@@ -22,7 +22,7 @@ import (
 func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
@@ -65,7 +65,7 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, parentService.DataChangeStatusPending, rows[0].Status)
 
 	// The live person record is NOT changed by a Track B submission.
-	person, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
+	person, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, "Felix", person.FirstName)
 }
@@ -99,7 +99,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
 	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
 
-	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass)
 }
@@ -134,7 +134,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
 
@@ -287,7 +287,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := api.NewParentEventEmitter(
 		testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),

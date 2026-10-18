@@ -35,7 +35,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
 	// it before the school projections, as the service graph does.
-	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	organizationTenancy, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

@@ -63,8 +63,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -93,7 +92,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		presence:  newInstancePresence(t, db),
 		factory:   serviceFactory,
 		repos:     repoFactory,
-		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies),
+		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		db:        db,
 		ctx:       ctx,
 		roomID:    room.ID,
@@ -185,12 +184,12 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // over the lifecycle's repositories and its (possibly fault-injecting)
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	detection, err := api.NewTimetableConflictDetection(api.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.repos.Staff),
 		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
 		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
-	})
+	}, nil)
 	if err != nil {
 		panic(err)
 	}

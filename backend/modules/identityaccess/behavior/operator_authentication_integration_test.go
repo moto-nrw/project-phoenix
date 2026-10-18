@@ -241,7 +241,7 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 // Identity & Access module the operator routes call.
 func buildOperatorIdentity(t *testing.T, db *bun.DB) *identityaccess.Module {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(false))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

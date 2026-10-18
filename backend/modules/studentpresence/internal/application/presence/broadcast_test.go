@@ -43,9 +43,8 @@ func newServiceWithBroadcaster(
 func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
@@ -220,9 +219,8 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

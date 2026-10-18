@@ -13,34 +13,18 @@ import (
 )
 
 // NewTimetableConflictDetection composes the Timetable owner's conflict
-// detection and staffing capability over the retained readers. It binds the
-// two collaborators the owner may not name itself: Security Runtime's content
-// fingerprint for the persisted conflict fingerprints and Care Plan's
-// arrival baseline for the exception conflicts.
-func NewTimetableConflictDetection(readers TimetableConflictReaders) (timetable.ConflictDetectionCapability, error) {
-	return timetableCompose.NewConflictDetection(timetableConflictDependencies(readers))
-}
-
-func timetableConflictDependencies(r TimetableConflictReaders) timetablePorts.ConflictDetectionDependencies {
-	deps := timetablePorts.ConflictDetectionDependencies{
-		Instances:         r.Instances,
-		InstanceStaff:     r.InstanceStaff,
-		InstanceStudents:  r.InstanceStudents,
-		Exceptions:        r.Exceptions,
-		Schedules:         r.Schedules,
-		Shifts:            r.Shifts,
-		Staff:             r.Staff,
-		CalendarPeriods:   r.CalendarPeriods,
-		ArrivalExceptions: r.ArrivalExceptions,
-		Presence:          r.Presence,
-		Sessions:          r.Sessions,
-		ContentHash:       securityruntime.Fingerprint,
-		Logger:            r.Logger,
+// detection and staffing capability over deps, the retained readers the
+// caller fills (#3550). It binds the two collaborators the owner may not
+// name itself: Security Runtime's content fingerprint for the persisted
+// conflict fingerprints and Care Plan's arrival baseline for the exception
+// conflicts. arrivalBaselines is optional (the exception-conflict read fails
+// without it).
+func NewTimetableConflictDetection(deps timetablePorts.ConflictDetectionDependencies, arrivalBaselines careplan.ArrivalBaselineReader) (timetable.ConflictDetectionCapability, error) {
+	deps.ContentHash = securityruntime.Fingerprint
+	if arrivalBaselines != nil {
+		deps.ArrivalBaselines = ArrivalBaselineProjector{Reader: arrivalBaselines}
 	}
-	if r.ArrivalBaselines != nil {
-		deps.ArrivalBaselines = ArrivalBaselineProjector{Reader: r.ArrivalBaselines}
-	}
-	return deps
+	return timetableCompose.NewConflictDetection(deps)
 }
 
 // ArrivalBaselineProjector serves the Timetable conflict detection's arrival

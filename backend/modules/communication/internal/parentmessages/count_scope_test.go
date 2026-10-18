@@ -60,7 +60,7 @@ func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
 func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},

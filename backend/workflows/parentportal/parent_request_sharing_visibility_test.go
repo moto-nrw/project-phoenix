@@ -24,7 +24,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)

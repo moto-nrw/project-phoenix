@@ -60,7 +60,7 @@ type emailFixture struct {
 func newEmailFixture(t *testing.T, preferences communication.NotificationPreferences) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	outbox := api.NewCapturingOutbox()

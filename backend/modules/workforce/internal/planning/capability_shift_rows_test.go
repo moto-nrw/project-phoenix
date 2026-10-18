@@ -30,7 +30,7 @@ func TestShiftRowsKeepTheRepositoryErrorShapes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	rows := planning.NewShiftRows(api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce)
+	rows := planning.NewShiftRows(api.MustNewWorkforce(testpkg.MustDatabase(db)))
 	ctx := testpkg.Ctx(t)
 
 	_, err := rows.FindByID(ctx, int64(987654321))

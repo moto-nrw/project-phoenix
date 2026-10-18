@@ -68,7 +68,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
 	require.NoError(t, err)
 	dir := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{

@@ -42,7 +42,7 @@ type deletionFixture struct {
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) peoplePorts.StudentCompanionRepository {
-	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
+	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
@@ -70,8 +70,8 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // owners and replaces only the HTTP principal with a fixed actor.
 func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
@@ -79,7 +79,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	owners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
-		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
+		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableOwner, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
 		LockCareBookingWrites: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
 	})

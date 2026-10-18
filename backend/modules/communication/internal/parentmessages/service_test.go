@@ -103,7 +103,7 @@ func newPersons(repos *api.RepositoryTestFactory, db *bun.DB) messaging.PersonLo
 func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *api.RepositoryTestFactory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
@@ -305,14 +305,14 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 
 	allMessages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), messaging.NewReadRepository(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).ParentMessageRead), nil, started.ThreadID, f.chain.AccountID, allMessages)
+	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), messaging.NewReadRepository(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db)).ParentMessageRead), nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	readRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).ParentMessageRead
+	readRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db)).ParentMessageRead
 	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
@@ -660,7 +660,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
 	// Rebuild the service with the feature OFF, same DB.
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(repos.ParentMessageRead),

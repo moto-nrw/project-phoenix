@@ -90,12 +90,8 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentClassWriteGateQuery: membershipCompose.StudentClassWriteGate(db.Pool()),
 		DB:                         db.Pool(),
 		Observe:                    observe,
-	}, PeopleDirectoryOwners{
-		Membership: membership, CareProfiles: careProfiles, Companions: companions,
-		Audit:               peopleDirectoryAudit(db),
-		GuardianLinks:       newGuardianLinkOwners(db),
-		GuardianMemberships: NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships,
-	})
+	}, membership, careProfiles, companions, peopleDirectoryAudit(db), newGuardianLinkOwners(db),
+		NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships)
 }
 
 // NewPeopleIdentityAccess composes the Identity & Access module the People

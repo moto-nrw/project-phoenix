@@ -27,7 +27,7 @@ import (
 func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		GuardianPolicy: api.NewParentGuardianPolicy(),
 
@@ -53,7 +53,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	arrivalRules, arrivalDeps, err := api.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil, nil, slog.Default())
 	require.NoError(t, err)
 	arrivals, err := careplanCompose.NewArrivalSchedules(db, repos.CarePlan(), nil, arrivalRules, arrivalDeps)
@@ -98,11 +98,11 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return api.CreateParentPickupScheduleFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), row)
+		return api.CreateParentPickupScheduleFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), row)
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
+			return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
 	return true
@@ -370,7 +370,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return api.CreateParentArrivalExceptionFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), exception)
+		return api.CreateParentArrivalExceptionFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), exception)
 	}))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)

@@ -10,6 +10,7 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,39 +62,25 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	logger := slog.Default()
 	cfg := CurrentServiceConfig()
-	calendarSvc := NewCalendarPortal(CalendarDependencies{
-		CalendarFacts: CalendarFacts{
-			StaffRepo:            repos.Staff,
-			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
-			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            parents.ParentChildLinks(),
-			GroupRepo:            repos.Group,
-			InstanceStaffRepo:    repos.InstanceStaff,
-			ActivityInstanceRepo: repos.ActivityInstance,
-			RoomRepo:             repos.Room,
-			StaffShiftRepo:       repos.StaffShift,
-			ShiftTypeRepo:        repos.ShiftType,
-			SchoolRepo:           repos.School,
-			AccountRepo:          feeds.ParentFeed,
-			StaffFeedRepo:        feeds.StaffFeed,
-			PersonRepo:           repos.Person,
-		},
-		Appointments:           appointments,
-		UserContext:            identity.UserContext.Caller(),
-		Runtime:                calendarCompose.NewTenantRuntime(db.Pool()),
-		CalendarRenderer:       calendarCompose.NewCalendarRenderer(schoolCalendar),
-		Outbox:                 newCalendarOutbox(delivery.EmailOutbox),
-		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
-		Settings:               settings.Settings,
-		StaffFeedTombstoneRepo: feeds.Tombstone,
-		ParentsURL:             cfg.ParentsURL,
-		FrontendURL:            cfg.FrontendURL,
-		Notifier:               newCalendarNotifier(delivery.Notifications),
-		ReminderNotifier:       newCalendarReminderNotifier(delivery.Notifications),
-		Preferences:            delivery.NotificationPreferences,
-		Logger:                 logger.With("service", "calendar"),
-	})
+	calendarConfig := NewCalendarFacts(repos.Staff, repos.Student, NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
+		repos.StudentGuardian, parents.ParentChildLinks(), repos.Group)
+	calendarConfig = BindCalendarScheduleFacts(calendarConfig, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
+	calendarConfig = BindCalendarFeedFacts(calendarConfig, repos.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
+	calendarConfig = BindCalendarCaller(calendarConfig, identity.UserContext.Caller())
+	calendarConfig.Appointments = appointments
+	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
+	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)
+	calendarConfig.Outbox = newCalendarOutbox(delivery.EmailOutbox)
+	calendarConfig.PushOutbox = deliveryCompose.NewDurablePushOutbox(delivery.Delivery)
+	calendarConfig.Settings = settings.Settings
+	calendarConfig.StaffFeedTombstoneRepo = feeds.Tombstone
+	calendarConfig.ParentsURL = cfg.ParentsURL
+	calendarConfig.FrontendURL = cfg.FrontendURL
+	calendarConfig.Notifier = newCalendarNotifier(delivery.Notifications)
+	calendarConfig.ReminderNotifier = newCalendarReminderNotifier(delivery.Notifications)
+	calendarConfig.Preferences = delivery.NotificationPreferences
+	calendarConfig.Logger = logger.With("service", "calendar")
+	calendarSvc := NewCalendarPortal(calendarConfig)
 
 	return CalendarTestModule{Calendar: calendarSvc}, nil
 }
@@ -105,8 +92,8 @@ func CalendarNoPushAudience() error { return deliveryCompose.ErrNoWebPushSubscri
 
 // RenderCalendarMailForTest renders one queued calendar mail of the tenant
 // the way the Delivery outbox worker does; rendered reports a message.
-func RenderCalendarMailForTest(ctx context.Context, d CalendarEmailDependencies, tenantID int64, kind string, payload map[string]any) (rendered bool, err error) {
-	message, err := NewCalendarAppointmentRenderer(d)(ctx, &deliveryCompose.MailIntent{TenantID: tenantID, Kind: kind, Payload: payload})
+func RenderCalendarMailForTest(ctx context.Context, runtime *calendarCompose.TenantRuntime, guardians CalendarMailGuardians, tenantID int64, kind string, payload map[string]any) (rendered bool, err error) {
+	message, err := NewCalendarAppointmentRenderer(email.Email{}, runtime, guardians)(ctx, &deliveryCompose.MailIntent{TenantID: tenantID, Kind: kind, Payload: payload})
 	return message != nil, err
 }
 
