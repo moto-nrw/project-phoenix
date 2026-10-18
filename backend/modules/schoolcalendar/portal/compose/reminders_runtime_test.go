@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -39,8 +39,8 @@ func TestReminderRuntimeEvidence(t *testing.T) {
 	effects.Push = func(context.Context, int64, []int64, []int64, string) (bool, error) { return true, nil }
 	command := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 	startsAt := berlinInstant(t, date, 18, 0)
-	_, reminders := setupRemindersModule(t, func() time.Time { return berlinInstant(t, date, 12, 0) })
-	require.NoError(t, reminders.Settings.SetValue(testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil))
+	_, reminders, settings := setupRemindersModule(t, func() time.Time { return berlinInstant(t, date, 12, 0) })
+	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil))
 	for index := range 8 {
 		testpkg.CreateTestRoom(t, db, fmt.Sprintf("Runtime room %d", index))
 	}

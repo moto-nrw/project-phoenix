@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -53,8 +55,6 @@ func New(database Database, applicants PendingApplicants, links GuardianLinks, c
 	}
 	return &Projection{database: database, applicants: applicants, links: links, today: calendar.CalendarDateClock(clocks...)}
 }
-
-func (p *Projection) day() string { return p.today().String() }
 
 func (p *Projection) pendingApplicants(ctx context.Context) (string, error) {
 	rows, err := p.applicants.PendingAnnouncementApplicants(ctx)
@@ -183,7 +183,7 @@ type recipientRow struct {
 
 // ResolveAudienceEmails returns the distinct guardian recipients (with a
 // non-empty e-mail) an announcement currently reaches.
-func (p *Projection) ResolveAudienceEmails(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementRecipient, error) {
+func (p *Projection) ResolveAudienceEmails(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementRecipient, error) {
 	applicants, err := p.pendingApplicants(ctx)
 	if err != nil {
 		return nil, err
@@ -201,9 +201,9 @@ func (p *Projection) ResolveAudienceEmails(ctx context.Context, schoolID, announ
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("resolve parent announcement audience emails: %w", err)
 	}
-	recipients := make([]*ParentAnnouncementRecipient, 0, len(rows))
+	recipients := make([]*contract.ParentAnnouncementRecipient, 0, len(rows))
 	for _, row := range rows {
-		recipients = append(recipients, &ParentAnnouncementRecipient{
+		recipients = append(recipients, &contract.ParentAnnouncementRecipient{
 			AccountID: row.AccountID, Email: row.Email, FirstName: row.FirstName, LastName: row.LastName,
 		})
 	}
@@ -255,7 +255,7 @@ type letterChildRow struct {
 
 // LetterChildStatuses returns every reached child with the derived fulfilment
 // state of an Elternbrief: who confirmed it for that child and when.
-func (p *Projection) LetterChildStatuses(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementLetterChildStatus, error) {
+func (p *Projection) LetterChildStatuses(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementLetterChildStatus, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -269,9 +269,9 @@ func (p *Projection) LetterChildStatuses(ctx context.Context, schoolID, announce
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement letter child statuses: %w", err)
 	}
-	statuses := make([]*ParentAnnouncementLetterChildStatus, 0, len(rows))
+	statuses := make([]*contract.ParentAnnouncementLetterChildStatus, 0, len(rows))
 	for _, row := range rows {
-		statuses = append(statuses, &ParentAnnouncementLetterChildStatus{
+		statuses = append(statuses, &contract.ParentAnnouncementLetterChildStatus{
 			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
 			SchoolClass: row.SchoolClass, CanConfirm: row.CanConfirm, AcknowledgedAt: row.AcknowledgedAt,
 			AckFirstName: row.AckFirstName, AckLastName: row.AckLastName,
@@ -320,7 +320,7 @@ type deliveryRecipientRow struct {
 // ResolveDeliveryRecipients returns every guardian linked to a child the
 // announcement's student-based targets reach, including those without an
 // address or portal access.
-func (p *Projection) ResolveDeliveryRecipients(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementDeliveryRecipient, error) {
+func (p *Projection) ResolveDeliveryRecipients(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementDeliveryRecipient, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -332,9 +332,9 @@ func (p *Projection) ResolveDeliveryRecipients(ctx context.Context, schoolID, an
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("resolve parent announcement delivery recipients: %w", err)
 	}
-	recipients := make([]*ParentAnnouncementDeliveryRecipient, 0, len(rows))
+	recipients := make([]*contract.ParentAnnouncementDeliveryRecipient, 0, len(rows))
 	for _, row := range rows {
-		recipients = append(recipients, &ParentAnnouncementDeliveryRecipient{
+		recipients = append(recipients, &contract.ParentAnnouncementDeliveryRecipient{
 			GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID, FirstName: row.FirstName,
 			LastName: row.LastName, Email: row.Email, HasPortalAccess: row.HasPortalAccess, PortalLocale: row.PortalLocale,
 		})
@@ -380,7 +380,7 @@ type recipientStatusRow struct {
 
 // AudienceRecipients returns the guardian accounts an announcement currently
 // reaches with name and read/ack state, ordered by name.
-func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementRecipientStatus, error) {
+func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementRecipientStatus, error) {
 	applicants, err := p.pendingApplicants(ctx)
 	if err != nil {
 		return nil, err
@@ -400,9 +400,9 @@ func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcem
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("resolve parent announcement audience recipients: %w", err)
 	}
-	statuses := make([]*ParentAnnouncementRecipientStatus, 0, len(rows))
+	statuses := make([]*contract.ParentAnnouncementRecipientStatus, 0, len(rows))
 	for _, row := range rows {
-		statuses = append(statuses, &ParentAnnouncementRecipientStatus{
+		statuses = append(statuses, &contract.ParentAnnouncementRecipientStatus{
 			AccountID: row.AccountID, FirstName: row.FirstName, LastName: row.LastName,
 			PortalLocale: row.PortalLocale, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
 		})
@@ -483,9 +483,9 @@ type feedRow struct {
 
 // ListFeedForAccount returns the guardian's cross-school feed. Run it under
 // the administrative transaction with the explicit school scope.
-func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, scope ParentAnnouncementFeedScope) ([]*ParentAnnouncementFeedItem, error) {
+func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, scope contract.ParentAnnouncementFeedScope) ([]*contract.ParentAnnouncementFeedItem, error) {
 	if scope.IsEmpty() {
-		return []*ParentAnnouncementFeedItem{}, nil
+		return []*contract.ParentAnnouncementFeedItem{}, nil
 	}
 	applicants, err := p.pendingApplicantsForSchools(ctx, scopeSchools(scope))
 	if err != nil {
@@ -504,9 +504,9 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent announcement feed: %w", err)
 	}
-	items := make([]*ParentAnnouncementFeedItem, 0, len(rows))
+	items := make([]*contract.ParentAnnouncementFeedItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &ParentAnnouncementFeedItem{
+		items = append(items, &contract.ParentAnnouncementFeedItem{
 			ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
 			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
@@ -518,7 +518,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 	return items, nil
 }
 
-func scopeSchools(scope ParentAnnouncementFeedScope) []int64 {
+func scopeSchools(scope contract.ParentAnnouncementFeedScope) []int64 {
 	ids := make([]int64, 0, len(scope.TenantIDs)+len(scope.SystemOnlyTenantIDs))
 	ids = append(ids, scope.TenantIDs...)
 	return append(ids, scope.SystemOnlyTenantIDs...)
@@ -542,7 +542,7 @@ const countOutstandingSQL = pendingApplicantsFeedCTE + `
 
 // CountOutstandingForAccount counts the account's live announcements that
 // still need attention across the given schools.
-func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID int64, scope ParentAnnouncementFeedScope) (int, error) {
+func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID int64, scope contract.ParentAnnouncementFeedScope) (int, error) {
 	if scope.IsEmpty() {
 		return 0, nil
 	}
@@ -581,7 +581,7 @@ const statsSQL = pendingApplicantsCTE + `, audience AS (` + audienceAccountsBoun
 						AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`
 
 // Stats returns the reach/read/ack counts for an announcement.
-func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) (*ParentAnnouncementStats, error) {
+func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) (*contract.ParentAnnouncementStats, error) {
 	applicants, err := p.pendingApplicants(ctx)
 	if err != nil {
 		return nil, err
@@ -591,7 +591,7 @@ func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) 
 		return nil, err
 	}
 	today := p.day()
-	stats := &ParentAnnouncementStats{}
+	stats := &contract.ParentAnnouncementStats{}
 	if err := db.NewRaw(statsSQL,
 		applicants,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID,
@@ -644,9 +644,9 @@ type pollChildRow struct {
 
 // AnswerableChildren returns, for each announcement, the children of the
 // account the poll reaches with the option ids selected for each child.
-func (p *Projection) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*ParentAnnouncementPollChild, error) {
+func (p *Projection) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*contract.ParentAnnouncementPollChild, error) {
 	if len(announcementIDs) == 0 {
-		return []*ParentAnnouncementPollChild{}, nil
+		return []*contract.ParentAnnouncementPollChild{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -659,9 +659,9 @@ func (p *Projection) AnswerableChildren(ctx context.Context, accountID int64, an
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list answerable children for parent announcements: %w", err)
 	}
-	children := make([]*ParentAnnouncementPollChild, 0, len(rows))
+	children := make([]*contract.ParentAnnouncementPollChild, 0, len(rows))
 	for _, row := range rows {
-		children = append(children, &ParentAnnouncementPollChild{
+		children = append(children, &contract.ParentAnnouncementPollChild{
 			AnnouncementID: row.AnnouncementID, StudentID: row.StudentID, FirstName: row.FirstName,
 			LastName: row.LastName, SelectedOptions: row.SelectedOptions,
 		})
@@ -766,13 +766,13 @@ type pollOptionResultRow struct {
 // the poll reaches and how many of them have answered. Answers are
 // intersected with the CURRENT answerable audience, so a child who left the
 // school or lost response permission stops counting toward completion.
-func (p *Projection) PollResults(ctx context.Context, schoolID, announcementID int64) (*ParentAnnouncementPollResults, error) {
+func (p *Projection) PollResults(ctx context.Context, schoolID, announcementID int64) (*contract.ParentAnnouncementPollResults, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	today := p.day()
-	results := &ParentAnnouncementPollResults{}
+	results := &contract.ParentAnnouncementPollResults{}
 	if err := db.NewRaw(pollCountsSQL,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID,
@@ -787,9 +787,9 @@ func (p *Projection) PollResults(ctx context.Context, schoolID, announcementID i
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement poll option results: %w", err)
 	}
-	results.Options = make([]*ParentAnnouncementPollOptionResult, 0, len(rows))
+	results.Options = make([]*contract.ParentAnnouncementPollOptionResult, 0, len(rows))
 	for _, row := range rows {
-		results.Options = append(results.Options, &ParentAnnouncementPollOptionResult{
+		results.Options = append(results.Options, &contract.ParentAnnouncementPollOptionResult{
 			OptionID: row.OptionID, Label: row.Label, Position: row.Position, Count: row.Count,
 		})
 	}
@@ -829,7 +829,7 @@ type pollChildStatusRow struct {
 
 // PollChildren returns every portal-visible child the poll reaches with the
 // option labels answered for them and whether someone may currently answer.
-func (p *Projection) PollChildren(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementPollChildStatus, error) {
+func (p *Projection) PollChildren(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementPollChildStatus, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -843,9 +843,9 @@ func (p *Projection) PollChildren(ctx context.Context, schoolID, announcementID 
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement poll children: %w", err)
 	}
-	children := make([]*ParentAnnouncementPollChildStatus, 0, len(rows))
+	children := make([]*contract.ParentAnnouncementPollChildStatus, 0, len(rows))
 	for _, row := range rows {
-		children = append(children, &ParentAnnouncementPollChildStatus{
+		children = append(children, &contract.ParentAnnouncementPollChildStatus{
 			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
 			SchoolClass: row.SchoolClass, AnswerLabels: row.AnswerLabels, RespondedAt: row.RespondedAt,
 			CanAnswer: row.CanAnswer,
@@ -901,7 +901,7 @@ type reminderRecipientRow struct {
 
 // UnansweredReminderRecipients returns the distinct guardians of reached
 // children that have no poll answer yet.
-func (p *Projection) UnansweredReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementReminderRecipient, error) {
+func (p *Projection) UnansweredReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementReminderRecipient, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -918,7 +918,7 @@ func (p *Projection) UnansweredReminderRecipients(ctx context.Context, schoolID,
 
 // UnacknowledgedReminderRecipients returns the guardians of reached children
 // for which nobody has confirmed the Elternbrief yet.
-func (p *Projection) UnacknowledgedReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*ParentAnnouncementReminderRecipient, error) {
+func (p *Projection) UnacknowledgedReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementReminderRecipient, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -933,10 +933,10 @@ func (p *Projection) UnacknowledgedReminderRecipients(ctx context.Context, schoo
 	return reminderRecipients(rows), nil
 }
 
-func reminderRecipients(rows []reminderRecipientRow) []*ParentAnnouncementReminderRecipient {
-	recipients := make([]*ParentAnnouncementReminderRecipient, 0, len(rows))
+func reminderRecipients(rows []reminderRecipientRow) []*contract.ParentAnnouncementReminderRecipient {
+	recipients := make([]*contract.ParentAnnouncementReminderRecipient, 0, len(rows))
 	for _, row := range rows {
-		recipients = append(recipients, &ParentAnnouncementReminderRecipient{
+		recipients = append(recipients, &contract.ParentAnnouncementReminderRecipient{
 			AccountID: row.AccountID, Email: row.Email, FirstName: row.FirstName,
 			LastName: row.LastName, PortalLocale: row.PortalLocale,
 		})

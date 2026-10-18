@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -207,11 +209,11 @@ func (r *absorbVisitRepo) EndGroup(_ context.Context, id int64, _ time.Time) err
 
 type absorbActivityGroupRepo struct {
 	activitiesModels.GroupRepository
-	byID map[int64]*activitiesModels.Group
+	byID map[int64]*activityContract.Group
 }
 
-func (r *absorbActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModels.Group, error) {
-	out := make([]*activitiesModels.Group, 0, len(ids))
+func (r *absorbActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activityContract.Group, error) {
+	out := make([]*activityContract.Group, 0, len(ids))
 	for _, id := range ids {
 		if group := r.byID[id]; group != nil {
 			out = append(out, group)
@@ -385,14 +387,14 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 			ActiveGroupID: &bridged.ID,
 		},
 	}}
-	systemActivity := &activitiesModels.Group{IsSystem: true}
+	systemActivity := &activityContract.Group{IsSystem: true}
 	systemActivity.ID = systemActivityID
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStudents:  instanceStudents,
 		ActiveGroupRepo:   groupRepo,
-		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*activitiesModels.Group{systemActivityID: systemActivity}},
+		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*activityContract.Group{systemActivityID: systemActivity}},
 		SupervisorRepo:    supervisorRepo,
 		Presence:          visitRepo,
 	})

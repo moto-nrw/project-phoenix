@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	configRepo "github.com/moto-nrw/project-phoenix/modules/settings/internal/adapters/configpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )

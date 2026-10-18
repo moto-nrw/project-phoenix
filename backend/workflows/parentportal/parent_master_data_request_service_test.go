@@ -22,7 +22,8 @@ import (
 func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
@@ -35,10 +36,10 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		PersonRepo:          api.NewParentPersonReads(repos.Person),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		StudentRepo:         api.NewParentStudentReads(reposPeople.Student),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:          api.NewParentPersonReads(reposPeople.Person),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            masterDataSettings(false, true, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
@@ -65,7 +66,7 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, parentService.DataChangeStatusPending, rows[0].Status)
 
 	// The live person record is NOT changed by a Track B submission.
-	person, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
+	person, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, "Felix", person.FirstName)
 }
@@ -99,7 +100,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
 	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
 
-	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass)
 }
@@ -134,7 +135,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
 
@@ -287,10 +288,12 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := api.NewParentEventEmitter(
-		testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
+		testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
@@ -305,10 +308,10 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		PersonRepo:          api.NewParentPersonReads(repos.Person),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		StudentRepo:         api.NewParentStudentReads(reposPeople.Student),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:          api.NewParentPersonReads(reposPeople.Person),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            settings,
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
@@ -333,7 +336,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	// Every created row must have its OWN request_created pill (found by its id),
 	// so the decision path (keyed on the decided row's id) can always resolve it.
 	err = testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, gErr := repos.ParentMessageThread.GetOrCreate(txCtx, chain.TenantID, chain.StudentID, chain.AccountID)
+		thread, gErr := reposMessages.ParentMessageThread.GetOrCreate(txCtx, chain.TenantID, chain.StudentID, chain.AccountID)
 		if gErr != nil {
 			return gErr
 		}

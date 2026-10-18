@@ -31,10 +31,6 @@ type sseChannel struct {
 	tenantRuntime *tenant.UnitOfWork
 }
 
-func (c *sseChannel) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	c.tenantRuntime = &runtime
-}
-
 func (c *sseChannel) withTenantRuntime(ctx context.Context) context.Context {
 	if c.tenantRuntime == nil {
 		return ctx

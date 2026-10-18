@@ -1,0 +1,56 @@
+package defaults
+
+import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+
+var parentAttendanceDefinitions = []config.Definition{
+	{
+		Key:             config.KeyParentSickNoteEnabled,
+		Label:           "Krankmeldung über Elternportal",
+		Description:     "Wenn aktiviert, können Eltern ihr Kind über das Elternportal für einen oder mehrere Tage krankmelden. Die Krankmeldung erscheint wie eine vom Team eingetragene Abwesenheit.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       60,
+	},
+	{
+		Key:             config.KeyParentSickRequiresApproval,
+		Label:           "Krankmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Krankmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
+	},
+	{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Abmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
+	},
+	{
+		Key:             config.KeyParentNotesEnabled,
+		Label:           "Nachrichten von Eltern",
+		Description:     "Eltern schreiben dem Team im Elternportal zu ihrem Kind. Das Team antwortet direkt. Die Nachrichten stehen unter „Nachrichten“ und beim Kind.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       61,
+	},
+}

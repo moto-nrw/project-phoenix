@@ -16,7 +16,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -50,26 +51,26 @@ func makeSeriesChain(t *testing.T, weekdays []int, firstBoundary, secondBoundary
 
 	s := makeScenario(t, weekdays[0], firstBoundary)
 	for _, weekday := range weekdays[1:] {
-		row := &activitiesModels.Schedule{
+		row := &activityContract.Schedule{
 			Weekday:         weekday,
 			TimeframeID:     &s.timeframe.ID,
 			ActivityGroupID: s.template.ID,
 			WeekPattern:     0,
 		}
 		row.SetTenantID(s.tenantID)
-		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
+		_, err := s.db.NewInsert().Model(activityScheduleFixture(row)).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 
 	middleInput := baseSplitInput(s, firstBoundary, fmt.Sprintf("Chain-Middle-%d", time.Now().UnixNano()))
 	middleInput.Weekdays = weekdays
-	middle, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, middleInput)
+	middle, err := s.timetableData.Templates.SplitTemplate(s.ctx, middleInput)
 	require.NoError(t, err)
 
 	livingInput := baseSplitInput(s, secondBoundary, fmt.Sprintf("Chain-Living-%d", time.Now().UnixNano()))
 	livingInput.TemplateID = middle.NewTemplateID
 	livingInput.Weekdays = weekdays
-	living, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, livingInput)
+	living, err := s.timetableData.Templates.SplitTemplate(s.ctx, livingInput)
 	require.NoError(t, err)
 
 	chain := &seriesChain{
@@ -115,19 +116,19 @@ func (c *seriesChain) assertShape(t *testing.T) {
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.rootID) {
 		assert.Nil(t, row.ValidFrom, "root segment keeps its open start")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidUntil)
+		assert.Equal(t, activityContract.Date(c.firstBoundary), *row.ValidUntil)
 	}
 	middle := loadSplitSchedules(t, c.scenarioSetup, c.middleID)
 	require.Len(t, middle, len(c.weekdays))
 	for _, row := range middle {
 		require.NotNil(t, row.ValidFrom)
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidFrom)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "middle segment must be fully bounded")
+		assert.Equal(t, activityContract.Date(c.firstBoundary), *row.ValidFrom)
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidUntil, "middle segment must be fully bounded")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidFrom)
-		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidFrom)
+		assert.Equal(t, activityContract.Date(c.secondBoundary), *row.ValidFrom)
 		assert.Nil(t, row.ValidUntil, "living segment stays open")
 	}
 }
@@ -135,15 +136,15 @@ func (c *seriesChain) assertShape(t *testing.T) {
 func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
-	resolved, changed, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
+	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved, "a bounded middle segment resolves to the living successor")
 	assert.True(t, changed)
 
-	resolved, changed, err = chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.rootID)
+	resolved, changed, err = chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.rootID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved, "the series root resolves to the living successor too")
 	assert.True(t, changed)
@@ -152,10 +153,10 @@ func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
-	resolved, changed, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.livingID)
+	resolved, changed, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.livingID)
 	require.NoError(t, err)
 	assert.Equal(t, chain.livingID, resolved)
 	assert.False(t, changed, "the living segment must not report a resolution")
@@ -164,25 +165,25 @@ func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 func TestResolveLivingTemplateSegment_ErrorsOnFullyEndedSeries(t *testing.T) {
 	t.Parallel()
 
-	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
+	chain := makeSeriesChain(t, []int{activityContract.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
 	t.Run("unknown template id", func(t *testing.T) {
 		// Far above every id this tenant's fixtures produced — an id that
 		// resolves to no lineage at all.
 		unknownID := chain.livingID + 1_000_000
-		_, _, err := chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, unknownID)
+		_, _, err := chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, unknownID)
 		assert.ErrorIs(t, err, timetable.ErrTemplateSeriesFullyEnded)
 	})
 
 	t.Run("every segment ended", func(t *testing.T) {
-		_, err := chain.factory.TimetableData.Templates.EndTemplateFromDate(chain.ctx, timetable.EndTemplateCommand{
+		_, err := chain.timetableData.Templates.EndTemplateFromDate(chain.ctx, timetable.EndTemplateCommand{
 			TemplateID:    chain.livingID,
 			EffectiveDate: chain.secondBoundary,
 		})
 		require.NoError(t, err)
 
-		_, _, err = chain.factory.TimetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
+		_, _, err = chain.timetableData.Templates.ResolveLivingTemplateSegment(chain.ctx, chain.middleID)
 		assert.ErrorIs(t, err, timetable.ErrTemplateSeriesFullyEnded,
 			"a lineage without an open segment has nothing left to edit")
 	})

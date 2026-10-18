@@ -97,14 +97,7 @@ func (s *StudentPhotoService) CommitPhoto(ctx context.Context, studentID int64, 
 			}
 		}
 
-		tenantID := s.tx.TenantID(txCtx)
-		s.tx.RegisterAfterCommit(txCtx, func() {
-			if capturedOld != "" && capturedOld != newURL {
-				s.runtime.UnlinkStoredPhoto(capturedOld)
-			}
-			s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
-		})
-		return nil
+		return s.finishPhotoReplacement(txCtx, studentID, capturedOld, newURL)
 	})
 }
 
@@ -142,6 +135,9 @@ func (s *StudentPhotoService) ClearPhoto(ctx context.Context, studentID int64) (
 			return err
 		}
 
+		if err := s.runtime.QueueUnlinkStoredPhoto(txCtx, clearedURL); err != nil {
+			return err
+		}
 		detached, tenantID := clearedURL, s.tx.TenantID(txCtx)
 		s.tx.RegisterAfterCommit(txCtx, func() {
 			s.runtime.UnlinkStoredPhoto(detached)
@@ -199,7 +195,17 @@ func (s *StudentPhotoService) PurgePhotos(ctx context.Context) (result []string,
 		var purgeStats domain.OperationStats
 		result, purgeStats, err = s.store.PurgePhotos(txCtx)
 		stats.Add(purgeStats)
-		return err
+		if err != nil {
+			return err
+		}
+		if s.runtime != nil {
+			for _, url := range result {
+				if err := s.runtime.QueueUnlinkStoredPhoto(txCtx, url); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	})
 	return result, err
 }
@@ -212,27 +218,34 @@ func (s *StudentPhotoService) ApplyPhotoConsent(
 	ctx context.Context,
 	current domain.StudentPhoto,
 	requestedConsent *bool,
-) domain.StudentPhoto {
+) (domain.StudentPhoto, error) {
 	if requestedConsent == nil || s.runtime == nil {
-		return current
+		return current, nil
 	}
 	updated, transition := domain.ApplyPhotoConsent(
 		requestedConsent, current, s.now(), s.runtime.ActingAccountID(ctx))
 	if transition.RemovedPhotoPath != "" {
+		if err := s.runtime.QueueUnlinkStoredPhoto(ctx, transition.RemovedPhotoPath); err != nil {
+			return current, err
+		}
 		detached := transition.RemovedPhotoPath
 		s.tx.RegisterAfterCommit(ctx, func() { s.runtime.UnlinkStoredPhoto(detached) })
 	}
-	return updated
+	return updated, nil
 }
 
 // ScheduleUnlink removes a detached file after the caller's commit. An empty
 // URL is a no-op so callers need no conditional.
-func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) {
+func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) error {
 	if storedURL == "" || s.runtime == nil {
-		return
+		return nil
+	}
+	if err := s.runtime.QueueUnlinkStoredPhoto(ctx, storedURL); err != nil {
+		return err
 	}
 	detached := storedURL
 	s.tx.RegisterAfterCommit(ctx, func() { s.runtime.UnlinkStoredPhoto(detached) })
+	return nil
 }
 
 // readPhoto loads the photo slice, refusing a missing child and a graduate
@@ -284,8 +297,8 @@ func (s *StudentPhotoService) recordConsent(
 	}
 	return s.runtime.RecordPhotoConsent(
 		ctx,
-		domain.StudentConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
-		domain.StudentConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
 		actorAccountID,
 		changedAt,
 	)
@@ -309,4 +322,20 @@ func (s *StudentPhotoService) LockFeature(ctx context.Context) error {
 			stats.Add(lockStats)
 			return err
 		})
+}
+
+func (s *StudentPhotoService) finishPhotoReplacement(ctx context.Context, studentID int64, capturedOld, newURL string) error {
+	if capturedOld != "" && capturedOld != newURL {
+		if err := s.runtime.QueueUnlinkStoredPhoto(ctx, capturedOld); err != nil {
+			return err
+		}
+	}
+	tenantID := s.tx.TenantID(ctx)
+	s.tx.RegisterAfterCommit(ctx, func() {
+		if capturedOld != "" && capturedOld != newURL {
+			s.runtime.UnlinkStoredPhoto(capturedOld)
+		}
+		s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
+	})
+	return nil
 }

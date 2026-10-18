@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 )
 
 func TestDienstplanByPersonRendersShiftAndTask(t *testing.T) {

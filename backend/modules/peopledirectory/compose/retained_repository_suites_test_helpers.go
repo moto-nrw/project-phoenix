@@ -80,3 +80,8 @@ func RetainedWithGuardianRelationshipOwners(pickup RetainedGuardianPickupCommand
 func RetainedWithGuardianDefaultRole(apply func(*peopleValues.GuardianRelationshipSnapshot)) RetainedGuardianRelationshipOption {
 	return usersRepo.WithGuardianDefaultRole(apply)
 }
+
+// DisabledStudentPhotos is the photo runtime of a root that serves no
+// photos: every photo route reports the feature as disabled and a consent
+// change fails.
+func DisabledStudentPhotos() StudentPhotoRuntime { return disabledStudentPhotos{} }

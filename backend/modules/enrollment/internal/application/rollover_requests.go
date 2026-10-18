@@ -7,8 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -29,7 +28,7 @@ func (s *Rollovers) rollSourceRequests(ctx context.Context, input rolloverReques
 	if err != nil {
 		return fmt.Errorf("rollover: load source requests: %w", err)
 	}
-	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	requestsByID := make(map[int64]*Request, len(requests))
 	for _, request := range requests {
 		requestsByID[request.ID] = request
 	}
@@ -61,7 +60,7 @@ func groupRolloverChildrenByRequest(sourceChildren []*RequestChild) ([]int64, ma
 // rollOneRequest creates the per-parent renewal envelope (new Request)
 // plus per-child rows + their care-offering copies, then enqueues the
 // renewal email.
-func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentModels.Request, sourceChildren []*RequestChild) error {
+func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *Request, sourceChildren []*RequestChild) error {
 	newRequest, err := s.createRolloverRequest(ctx, input, sourceRequest)
 	if err != nil {
 		return err
@@ -78,12 +77,12 @@ func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInp
 	return nil
 }
 
-func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentModels.Request) (*enrollmentModels.Request, error) {
-	statusToken, err := enrollment.NewStatusToken(s.deps.Random)
+func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *Request) (*Request, error) {
+	statusToken, err := enrollmentNative.NewStatusToken(s.deps.Random)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: generate status token: %w", err)
 	}
-	request := &enrollmentModels.Request{
+	request := &Request{
 		PhaseID:           input.newPhase.ID,
 		SchemaID:          input.newPhase.FormSchemaID,
 		GuardianFirstName: sourceRequest.GuardianFirstName,
@@ -104,7 +103,7 @@ func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverReq
 }
 
 // insertRequest encodes, inserts and decodes a request back into place.
-func (s *Rollovers) insertRequest(ctx context.Context, request *enrollmentModels.Request) error {
+func (s *Rollovers) insertRequest(ctx context.Context, request *Request) error {
 	value, err := requestInput(request)
 	if err != nil {
 		return err
@@ -120,7 +119,7 @@ func (s *Rollovers) insertRequest(ctx context.Context, request *enrollmentModels
 	return nil
 }
 
-func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentModels.Request, source *RequestChild) (string, error) {
+func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *Request, source *RequestChild) (string, error) {
 	attributes := rolloverAttributesForSource(input, source)
 	sourceID := source.ID
 	child := &RequestChild{
@@ -139,8 +138,8 @@ func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestIn
 	}
 	child.TenantID = input.tenantID
 	if err := s.insertChild(ctx, child); err != nil {
-		if errors.Is(err, enrollment.ErrRolloverSourceChildTaken) {
-			return "", fmt.Errorf("%w: source child %d", enrollment.ErrRolloverSourceAlreadyRolled, source.ID)
+		if errors.Is(err, enrollmentNative.ErrRolloverSourceChildTaken) {
+			return "", fmt.Errorf("%w: source child %d", enrollmentNative.ErrRolloverSourceAlreadyRolled, source.ID)
 		}
 		return "", fmt.Errorf("rollover: create request_child: %w", err)
 	}
@@ -179,7 +178,7 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChil
 		attributes.status = renewalInitialStatus(*input.newPhase.RolloverMode)
 		input.result.RolledCount++
 	} else {
-		attributes.status = enrollmentModels.ChildStatusPendingAdminReview
+		attributes.status = enrollmentNative.ChildStatusPendingAdminReview
 		attributes.reviewReason = &reviewReason
 		input.result.ReviewCount++
 		input.result.ReviewByReason[reviewReason]++
@@ -222,11 +221,11 @@ func (s *Rollovers) copyRolloverOfferings(ctx context.Context, input rolloverReq
 
 // rolloverOfferingCopies remaps the source child's offerings onto the target
 // phase's clones.
-func rolloverOfferingCopies(input rolloverRequestInput, sourceChildID int64, offerings []*enrollment.RequestChildOffering) ([]enrollment.SubmittedOfferingChoice, []enrollment.CareBookingInput, error) {
+func rolloverOfferingCopies(input rolloverRequestInput, sourceChildID int64, offerings []*enrollmentNative.RequestChildOffering) ([]enrollmentNative.SubmittedOfferingChoice, []enrollmentNative.CareBookingInput, error) {
 	start := calendar.Date(input.newPhase.ServiceStartDate)
 	until := calendar.Date(input.newPhase.ServiceEndDate).AddDays(1)
-	choices := make([]enrollment.SubmittedOfferingChoice, 0, len(offerings))
-	bookings := make([]enrollment.CareBookingInput, 0, len(offerings))
+	choices := make([]enrollmentNative.SubmittedOfferingChoice, 0, len(offerings))
+	bookings := make([]enrollmentNative.CareBookingInput, 0, len(offerings))
 	for _, offering := range offerings {
 		targetOfferingID, ok := input.offeringIDMap[offering.CareOfferingID]
 		if !ok {
@@ -239,10 +238,10 @@ func rolloverOfferingCopies(input rolloverRequestInput, sourceChildID int64, off
 		if len(manual) == 0 && len(offering.AutomaticSelectedDays) == 0 {
 			manual = offering.SelectedDays
 		}
-		choices = append(choices, enrollment.SubmittedOfferingChoice{
+		choices = append(choices, enrollmentNative.SubmittedOfferingChoice{
 			CareOfferingID: targetOfferingID, SelectedDays: manual, Notes: offering.Notes,
 		})
-		bookings = append(bookings, enrollment.CareBookingInput{
+		bookings = append(bookings, enrollmentNative.CareBookingInput{
 			CareOfferingID: targetOfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: offering.AutomaticSelectedDays,
 			ValidFrom: &start, ValidUntil: &until,
 		})
@@ -250,7 +249,7 @@ func rolloverOfferingCopies(input rolloverRequestInput, sourceChildID int64, off
 	return choices, bookings, nil
 }
 
-func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollment.Phase, req *enrollmentModels.Request, childNames []string, result *enrollment.RolloverResult) {
+func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string, result *enrollmentNative.RolloverResult) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -258,14 +257,14 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 		result.SkippedEmptyEmail++
 		return
 	}
-	kind := enrollment.MailKindRolloverOptOut
-	if *newPhase.RolloverMode == enrollment.PhaseRolloverModeOptIn {
-		kind = enrollment.MailKindRolloverOptIn
+	kind := enrollmentNative.MailKindRolloverOptOut
+	if *newPhase.RolloverMode == enrollmentNative.PhaseRolloverModeOptIn {
+		kind = enrollmentNative.MailKindRolloverOptIn
 	}
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind:              kind,
 		Payload:           s.renewalMailPayload(ctx, newPhase, req, childNames),
-		RelatedEntityType: enrollment.MailRelatedRequest,
+		RelatedEntityType: enrollmentNative.MailRelatedRequest,
 		RelatedEntityID:   req.ID,
 	}); err != nil {
 		s.deps.Logger.Warn("rollover: enqueue renewal email failed",
@@ -278,23 +277,23 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	result.EnqueuedEmails++
 }
 
-func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment.Phase, req *enrollmentModels.Request, childNames []string) map[string]any {
+func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) map[string]any {
 	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
 	}
 	return map[string]any{
-		enrollment.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
-		enrollment.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
-		enrollment.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollment.EnrollmentPayloadSchoolName:        schoolName,
-		enrollment.EnrollmentPayloadPhaseName:         newPhase.Name,
-		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
-		enrollment.EnrollmentPayloadChildNames:        childNames,
-		enrollment.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
-		enrollment.EnrollmentPayloadRolloverDeadline:  deadlineStr,
+		enrollmentNative.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
+		enrollmentNative.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
+		enrollmentNative.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
+		enrollmentNative.EnrollmentPayloadSchoolName:        schoolName,
+		enrollmentNative.EnrollmentPayloadPhaseName:         newPhase.Name,
+		enrollmentNative.EnrollmentPayloadStatusURL:         enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
+		enrollmentNative.EnrollmentPayloadLogoURL:           logoURL,
+		enrollmentNative.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollmentNative.EnrollmentPayloadChildNames:        childNames,
+		enrollmentNative.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
+		enrollmentNative.EnrollmentPayloadRolloverDeadline:  deadlineStr,
 	}
 }

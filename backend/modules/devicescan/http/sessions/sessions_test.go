@@ -29,10 +29,10 @@ type testContext struct {
 func setupSessionsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := setupActiveModule(t)
+	db, svc, svcSessionEnd := setupActiveModule(t)
 
 	// Create sessions resource
-	resource := sessionsAPI.NewResource(svc.SessionLifecycle, api.BindIoTSessionEnd(svc.SessionEnd), testRuntime())
+	resource := sessionsAPI.NewResource(svc.SessionLifecycle, api.BindIoTSessionEnd(svcSessionEnd.SessionEnd), testRuntime())
 
 	return &testContext{
 		db:       db,

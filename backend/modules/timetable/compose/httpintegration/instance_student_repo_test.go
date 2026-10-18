@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -20,17 +21,17 @@ import (
 )
 
 func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentPickupException
+	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentPickupException
 }
 
 func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 }
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStudentRepository {
 	t.Helper()
-	return api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).InstanceStudent
+	return api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).InstanceStudent
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
@@ -1043,7 +1044,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	instanceRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
@@ -1776,7 +1777,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	instanceRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -2191,13 +2192,13 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 
 	student := testpkg.CreateTestStudent(t, db, "Preview", fmt.Sprintf("Enrollment-%d", time.Now().UnixNano()), "3a")
 	group := testpkg.CreateTestActivityGroup(t, db, "Preview enrollment")
-	enrollment := &activitiesModels.StudentEnrollment{
+	enrollment := &activityContract.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       activitiesModels.Date(date.AddDays(-1)),
+		ValidFrom:       activityContract.Date(date.AddDays(-1)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(enrollment).Exec(ctx)
+	_, err := db.NewInsert().Model(activityStudentEnrollmentFixture(enrollment)).Exec(ctx)
 	require.NoError(t, err)
 
 	room := testpkg.CreateTestRoom(t, db, "Preview enrollment room")
@@ -2247,7 +2248,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	instRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")

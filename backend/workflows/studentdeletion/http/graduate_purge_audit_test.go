@@ -19,7 +19,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
+	repos := newStudentTestPeopleRows(testpkg.NewDatabase(t, tc.db))
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")

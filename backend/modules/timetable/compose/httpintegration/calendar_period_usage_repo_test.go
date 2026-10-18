@@ -40,7 +40,7 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	assignments := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability
+	assignments := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	tenantID := testpkg.Tenant(t)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Mandant", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
 	repo := compose.NewPlanningCalendarPeriodUsage(phaseCountQueries{counts: map[int64]int{period.ID: 2}}, assignments)

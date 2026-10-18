@@ -87,7 +87,8 @@ func (s careTestService) SubmitCareException(ctx context.Context, accountID, stu
 func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	var records api.ParentCareExceptionSource = repos.CarePlan()
 	if w.pickup != nil {
 		records = w.pickup(records)
@@ -109,7 +110,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(records),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
@@ -136,7 +137,8 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(api.ParentCareExcept
 func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -152,7 +154,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
@@ -337,7 +339,7 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
 	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 
-	persisted, err := api.FindParentPickupExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), chain.StudentID, date)
+	persisted, err := api.FindParentPickupExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 }
@@ -363,7 +365,7 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 		CreatedBy:     staff.ID,
 	}
 	staffEx.SetTenantID(chain.TenantID)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, api.CreateParentPickupExceptionFixture(tenantCtx, repos.CarePlan(), staffEx))
 
@@ -432,7 +434,7 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 		CreatedByGuardian: &guardianID,
 	}
 	arrival.SetTenantID(chain.TenantID)
-	require.NoError(t, api.CreateParentArrivalExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), arrival))
+	require.NoError(t, api.CreateParentArrivalExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), arrival))
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 45), wallClock(8, 15))
 	require.NoError(t, err)
 
@@ -484,7 +486,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 		CreatedByGuardian: &guardianID,
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, repos.CarePlan(), exception))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()),
@@ -522,7 +524,7 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 		CreatedByGuardian: &guardianID,
 	}
 	exception.SetTenantID(chain.TenantID)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, repos.CarePlan(), exception))
 
 	err := svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
@@ -546,7 +548,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -630,7 +632,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
@@ -672,7 +674,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
@@ -721,7 +723,7 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 		CreatedByGuardian: &guardianID,
 	}
 	arrival.SetTenantID(chain.TenantID)
-	require.NoError(t, api.CreateParentArrivalExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), arrival))
+	require.NoError(t, api.CreateParentArrivalExceptionFixture(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), arrival))
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 30), wallClock(8, 30))
 	require.NoError(t, err)
 
@@ -844,7 +846,8 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete via a service whose arrival reads fail.
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -858,7 +861,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(stubArrivalRepo{ParentCareExceptionSource: repos.CarePlan(), findErr: errBoom}),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
@@ -964,7 +967,7 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 	}
 	arrival.SetTenantID(chain.TenantID)
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	require.NoError(t, api.CreateParentArrivalExceptionFixture(tenantCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), arrival))
+	require.NoError(t, api.CreateParentArrivalExceptionFixture(tenantCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan(), arrival))
 
 	result, err := svc.SubmitCareExceptionWithReason(
 		tenantCtx,

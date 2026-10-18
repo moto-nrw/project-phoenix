@@ -1,11 +1,11 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -27,12 +27,14 @@ type InvitationOwnerTokens interface {
 // the session and lifecycle dependencies: the flows reuse the school
 // directory, the role storage and the identity chain.
 type SchoolInvitationDependencies struct {
-	Grants    identityPorts.InvitationGrantPolicy
-	Owners    InvitationOwnerTokens
-	Delivery  identityPorts.SchoolInvitationDelivery
-	Passwords PasswordPolicy
-	Expiry    time.Duration
-	Logger    *slog.Logger
+	Grants identityPorts.InvitationGrantPolicy
+	Owners InvitationOwnerTokens
+	// DeliveryFor builds the delivery over the recorder of its outcome; the
+	// composition calls it once.
+	DeliveryFor func(identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery
+	Passwords   PasswordPolicy
+	Expiry      time.Duration
+	Logger      *slog.Logger
 }
 
 func newSchoolInvitation(
@@ -49,12 +51,13 @@ func newSchoolInvitation(
 	if sessions == nil || lifecycleDeps == nil || roles == nil || lifecycle == nil {
 		return nil, errors.New("identity access compose: the invitation flows require the session and lifecycle dependencies")
 	}
-	if deps.Grants == nil || deps.Owners == nil || deps.Delivery == nil || deps.Passwords == nil {
-		return nil, errors.New("identity access compose: every invitation dependency is required")
-	}
 	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
+	var delivery identityPorts.SchoolInvitationDelivery
+	if deps.DeliveryFor != nil {
+		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach))
+	}
+	if deps.Grants == nil || deps.Owners == nil || delivery == nil || deps.Passwords == nil {
+		return nil, errors.New("identity access compose: every invitation dependency is required")
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
 		Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
@@ -64,7 +67,7 @@ func newSchoolInvitation(
 		Schools:   application.SchoolDirectory{Source: sessions.Schools},
 		Owners:    deps.Owners,
 		Passwords: deps.Passwords,
-		Delivery:  application.SchoolInvitationDelivery{Source: deps.Delivery},
+		Delivery:  application.SchoolInvitationDelivery{Source: delivery},
 		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Expiry:    deps.Expiry,
 		Logger:    deps.Logger,

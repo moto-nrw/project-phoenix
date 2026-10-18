@@ -10,8 +10,7 @@ import (
 )
 
 // The row-level guardian reads (#2663). The application-level guardian
-// flows are bound onto the module by the composition root through
-// Module.BindGuardianProvider once the owner's legacy service exists.
+// flows are the guardian provider the module is composed with.
 
 func (e Engine) ListGuardianLinksByAccount(ctx context.Context, accountID int64) ([]peopledirectory.GuardianLink, error) {
 	values, err := e.guardians.ListLinksByAccount(ctx, accountID)

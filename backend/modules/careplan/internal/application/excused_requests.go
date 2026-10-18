@@ -41,7 +41,7 @@ const (
 type ExcusedRequestDependencies struct {
 	CarePlan    careplan.Capability
 	Students    ports.ExcusedRequestStudents
-	Scope       ports.ReviewScopeResolver
+	Scope       careplan.ReviewScopeResolver
 	Hooks       ports.TransactionHooks
 	Today       func() careplan.Date
 	Observe     ports.Observer
@@ -60,7 +60,7 @@ type ExcusedRequestDependencies struct {
 type ExcusedRequests struct {
 	carePlan    careplan.Capability
 	students    ports.ExcusedRequestStudents
-	scope       ports.ReviewScopeResolver
+	scope       careplan.ReviewScopeResolver
 	hooks       ports.TransactionHooks
 	today       func() careplan.Date
 	observe     ports.Observer
@@ -199,7 +199,7 @@ func (w *ExcusedRequests) findMatchingPendingRequest(ctx context.Context, studen
 
 func (w *ExcusedRequests) emitCreatedRequestPill(ctx context.Context, req *careplan.ExcusedAbsenceRequest, guardianAccountID int64) error {
 	createdBody, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	return w.emitRequestPillAfterCommit(ctx, req, ports.RequestEvent{
+	return w.emitRequestPill(ctx, req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestCreated, ActorKind: careplan.ParentMessageActorGuardian,
 		ActorAccountID: guardianAccountID, Body: createdBody, RequestType: requestType,
 		RequestStatus: careplan.ParentMessageRequestStatusOpen,
@@ -595,18 +595,13 @@ func (w *ExcusedRequests) Decide(ctx context.Context, input careplan.ExcusedRequ
 	// Either decision clears the child's pending badge (approval also
 	// surfaces the confirmed absence). Wake staff tabs for both outcomes.
 	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	decisionEvent := ports.RequestEvent{
+	if err := w.notifyDecision(ctx, &req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
 		ActorAccountID: input.ReviewedBy, Body: pillBody, RequestType: requestType,
 		RequestStatus: pillStatus, DecisionReason: reason,
-	}
-	if err := w.emitRequestPillAfterCommit(ctx, &req, decisionEvent); err != nil {
+	}); err != nil {
 		return nil, err
 	}
-	// Every other guardian of this child gets a neutral line: the care
-	// changed, on these days. Explicit share recipients get the submitter's
-	// pill verbatim.
-	w.notifyOtherGuardiansAfterCommit(ctx, &req, decisionEvent)
 
 	row, err := w.carePlan.FindExcusedAbsenceRequest(ctx, req.ID, false)
 	if err != nil {
@@ -680,7 +675,7 @@ func (w *ExcusedRequests) MarkDone(ctx context.Context, requestID int64, expecte
 	}
 	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	return w.emitRequestPillAfterCommit(ctx, &req, ports.RequestEvent{
+	return w.emitRequestPill(ctx, &req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
 		ActorAccountID: reviewedBy, Body: parentRequestDoneBody, RequestType: requestType,
 		RequestStatus: careplan.ParentMessageRequestStatusDone, DecisionReason: trimmed,
@@ -759,7 +754,7 @@ func (w *ExcusedRequests) Correct(ctx context.Context, requestID int64, approve 
 	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	pillBody, pillStatus := correctedAbsencePill(req.AbsenceStatus, approve)
 	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	return w.emitRequestPillAfterCommit(ctx, &req, ports.RequestEvent{
+	return w.emitRequestPill(ctx, &req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
 		ActorAccountID: reviewedBy, Body: pillBody, RequestType: requestType,
 		RequestStatus: pillStatus, DecisionReason: trimmed,
@@ -919,15 +914,15 @@ func staffAbsenceStatus(value string) (string, error) {
 
 // --- guards
 
-func (w *ExcusedRequests) reviewScope(ctx context.Context) (ports.ReviewScope, error) {
+func (w *ExcusedRequests) reviewScope(ctx context.Context) (careplan.ReviewScope, error) {
 	scope, err := w.scope(ctx)
 	if err != nil {
-		return ports.ReviewScope{}, fmt.Errorf("care plan: resolve request reviewer scope: %w", err)
+		return careplan.ReviewScope{}, fmt.Errorf("care plan: resolve request reviewer scope: %w", err)
 	}
 	return scope, nil
 }
 
-func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *ports.ReviewStudent) error {
+func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *careplan.ReviewStudent) error {
 	scope, err := w.reviewScope(ctx)
 	if err != nil {
 		return err
@@ -941,7 +936,7 @@ func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *ports.Re
 // validateAbsenceApproval keeps every path that writes parent-sourced status
 // days behind the same lifecycle, conflict, and guardian-access checks.
 func (w *ExcusedRequests) validateAbsenceApproval(
-	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *ports.ReviewStudent,
+	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent,
 ) error {
 	today := w.today()
 	if student.Alumnus || student.CareEndedOn(today) {
@@ -980,7 +975,7 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 // excusedBulkEligibility answers whether this request can ride a bulk
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
-func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student ports.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
+func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
 	if !absenceBulkEligible(req.Dates, today) {
 		return false, careplan.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
 	}
@@ -1202,9 +1197,9 @@ func (w *ExcusedRequests) tenantOf(ctx context.Context, rowTenantID int64) int64
 	return w.hooks.TenantID(ctx)
 }
 
-// emitRequestPillAfterCommit writes the durable decision intent in the ambient
+// emitRequestPill writes the durable decision intent in the ambient
 // transaction, then schedules the best-effort chat pill after commit.
-func (w *ExcusedRequests) emitRequestPillAfterCommit(ctx context.Context, req *careplan.ExcusedAbsenceRequest, ev ports.RequestEvent) error {
+func (w *ExcusedRequests) emitRequestPill(ctx context.Context, req *careplan.ExcusedAbsenceRequest, ev ports.RequestEvent) error {
 	if w.messenger == nil {
 		return nil
 	}
@@ -1215,10 +1210,7 @@ func (w *ExcusedRequests) emitRequestPillAfterCommit(ctx context.Context, req *c
 	if err := w.messenger.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
 		return fmt.Errorf("care plan: enqueue absence request decision: %w", err)
 	}
-	w.hooks.AfterCommit(ctx, func() {
-		w.messenger.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
-	})
-	return nil
+	return w.messenger.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ev)
 }
 
 // broadcastRequestTransition wakes both audiences after any absence-request
@@ -1251,12 +1243,12 @@ func (w *ExcusedRequests) broadcastRequestTransition(ctx context.Context, tenant
 	})
 }
 
-// notifyOtherGuardiansAfterCommit posts the neutral „Betreuungsstand
+// notifyOtherGuardians posts the neutral „Betreuungsstand
 // geändert“ line to every other portal guardian of the child. The guardians
 // are resolved inside the transaction; only the pills are posted after commit.
-func (w *ExcusedRequests) notifyOtherGuardiansAfterCommit(ctx context.Context, req *careplan.ExcusedAbsenceRequest, ev ports.RequestEvent) {
+func (w *ExcusedRequests) notifyOtherGuardians(ctx context.Context, req *careplan.ExcusedAbsenceRequest, ev ports.RequestEvent) error {
 	if w.messenger == nil {
-		return
+		return nil
 	}
 	audience, err := w.messenger.ResolveDecisionAudience(ctx, req.StudentID, req.SubmittedBy, w.sharedRecipients(ctx, req))
 	if err != nil {
@@ -1265,18 +1257,16 @@ func (w *ExcusedRequests) notifyOtherGuardiansAfterCommit(ctx context.Context, r
 			slog.Int64("student_id", req.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
-		return
+		return nil
 	}
 	tenantID := w.tenantOf(ctx, req.TenantID)
 	neutral := ev
 	neutral.Body = coGuardianNoticeBody(req)
 	studentID := req.StudentID
-	w.hooks.AfterCommit(ctx, func() {
-		w.messenger.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
-	})
+	return w.messenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, ev, neutral)
 }
 
 // sharedRecipients resolves the explicit recipients of one request,
@@ -1320,7 +1310,7 @@ func (w *ExcusedRequests) listPendingForTenant(ctx context.Context, queue *carep
 	})
 }
 
-func (w *ExcusedRequests) loadStudentNames(ctx context.Context, studentIDs []int64, what string) (map[int64]ports.ReviewStudent, map[int64]ports.PersonName, error) {
+func (w *ExcusedRequests) loadStudentNames(ctx context.Context, studentIDs []int64, what string) (map[int64]careplan.ReviewStudent, map[int64]careplan.PersonName, error) {
 	students, err := w.students.FindStudents(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("care plan: load students for %s: %w", what, err)
@@ -1362,7 +1352,7 @@ func nextCursor[T any](rows []T, limit int, key func(T) (time.Time, int64)) ([]T
 // reviewerDisplayName resolves a nullable reviewer account id to a display
 // name. A decided row whose reviewer account was deleted still shows up, as
 // "Unbekannt", instead of losing the fact that somebody decided it.
-func reviewerDisplayName(reviewers map[int64]ports.PersonName, reviewedBy *int64) string {
+func reviewerDisplayName(reviewers map[int64]careplan.PersonName, reviewedBy *int64) string {
 	if reviewedBy == nil || *reviewedBy <= 0 {
 		return ""
 	}
@@ -1372,7 +1362,7 @@ func reviewerDisplayName(reviewers map[int64]ports.PersonName, reviewedBy *int64
 	return "Unbekannt"
 }
 
-func requestExtendsBeyondCare(req *careplan.ExcusedAbsenceRequest, student *ports.ReviewStudent) bool {
+func requestExtendsBeyondCare(req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent) bool {
 	if req == nil || student == nil || student.EnrolledUntil.IsZero() {
 		return false
 	}

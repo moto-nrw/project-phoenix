@@ -202,14 +202,12 @@ func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int
 		return err
 	}
 	if !granting && storedURL != "" {
-		var photos StudentPhotoUnlinker
-		if s.StudentPhotos != nil {
-			photos = s.StudentPhotos()
-		}
-		if photos == nil {
+		if s.StudentPhotos == nil {
 			return fmt.Errorf("parent: student photo service not wired")
 		}
-		photos.ScheduleUnlinkAfterCommit(ctx, storedURL)
+		if err := s.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, storedURL); err != nil {
+			return err
+		}
 	}
 	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(tenantID, student.ID)

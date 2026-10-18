@@ -140,10 +140,6 @@ type preferenceService struct {
 	tenantRuntime  *tenant.UnitOfWork
 }
 
-func (s *preferenceService) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	s.tenantRuntime = &runtime
-}
-
 func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Context {
 	if s.tenantRuntime == nil {
 		return ctx

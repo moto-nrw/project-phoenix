@@ -1,0 +1,104 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "https://github.com/moto-nrw/project-phoenix/blob/development/docs/adr/0058-owner-dependencies-form-a-dag.md",
+    "https://github.com/moto-nrw/project-phoenix/blob/development/docs/adr/0059-the-roots-hold-no-service-graph.md",
+    "https://github.com/moto-nrw/project-phoenix/issues/4080",
+    "https://github.com/moto-nrw/project-phoenix/issues/4083"
+  ],
+  "owner_and_capability": "Root composition (ADR 0059): the server root, the Worker root and the test roots build every owner as a local value in the build order of the owner graph and pass it as a constructor argument; api.serviceGraph, its stages, the *Wiring structs, IdentityMaterial, moduleServices and the test graph are deleted. Owner compositions take the values the old graph bound late at construction. Two compositions stop reaching root glue: the Timetable composition no longer builds the session token reads (the root hands its request session, api.TimetableRequestSession) and the reminder delivery composition no longer builds the shared HTTP runtime (the root hands api.ReminderHTTPRuntime).",
+  "affected_packages": [
+    "api",
+    "cmd",
+    "modules/timetable/compose",
+    "workflows/reminderdelivery/compose"
+  ],
+  "affected_tables": [
+    "None: the same owners run the same statements; only where and when they are constructed changes."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose|github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose|github.com/moto-nrw/project-phoenix/api/common"
+  ],
+  "atomic_cutover": "One PR: the roots build the owners as local values, the owner compositions take their dependencies at construction, the service graph and its wiring are deleted, and the two keys leave legacy.jsonl.",
+  "tests": [
+    "api: TestFullProductionRouterGolden (route table golden, 968 routes, middleware order, IoT auth matrix and error codes, error envelope, school scope matrix) passes unchanged over the new server root.",
+    "api, modules and workflows: the suites that drove NewServiceGraphForTests build the typed test roots (api/root_test_root.go), assertions unchanged.",
+    "modules/timetable/compose/httpintegration and workflows/reminderdelivery: the suites pass with the root-provided session and HTTP runtime, assertions unchanged.",
+    "test ratchets and internal/architecture; scripts/backend-architecture.sh check and validate-ticket --all against the development merge base; scripts/test-changed.sh origin/development."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch. The roots build the same owners with the same constructors over the same pool; only the place of construction changes. The evidence is the suites and the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/api/root_serve.go",
+      "backend/api/root_worker.go",
+      "backend/api/root_test_root.go",
+      "backend/api/server.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose.go",
+      "backend/modules/timetable/compose/new.go",
+      "backend/workflows/reminderdelivery/compose/command.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with unchanged assertion strength, the route table golden is byte-identical and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write path changes: the owners run the same commands."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query changes: the same owners are constructed in another place."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No query or handler changes; only the construction moves."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No query or handler changes; only the construction moves."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed every affected package, exit 0; scripts/backend-architecture.sh check passed."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The owners use the same pool."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No transaction or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The Worker runs the same jobs over the same owners; job IDs and schedules are unchanged (TestWorkerJobRegistryInventory)."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No retry policy changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No batching changes."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A missing dependency fails the root's construction; the constructor-error tests and the invalid runtime dependency checks of TestFullProductionRouterGolden pass."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No write path or data changes."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No route, handler or response changes; TestFullProductionRouterGolden drives the assembled server root."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the two keys return and the service graph composes the services again. No data cleanup.",
+  "exit_criterion": "scripts/backend-architecture.sh check reports a composition surface of 0, no root-composition package holds a func() owner slot or an owner setter, the route table golden is unchanged, and the two keys are absent from legacy.jsonl."
+}

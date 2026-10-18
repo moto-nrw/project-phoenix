@@ -212,7 +212,7 @@ func (r TeacherMembershipRepository) List(ctx context.Context, filters map[strin
 // owner and then loads those teachers from the membership owner.
 func (r TeacherMembershipRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*peopleValues.Teacher, error) {
 	const op = "find by group ID"
-	assignments, err := r.Deps.GroupTeachers().FindByGroup(ctx, groupID)
+	assignments, err := r.Deps.groupTeachers.FindByGroup(ctx, groupID)
 	if err != nil {
 		return nil, repositoryError(op, err)
 	}

@@ -5,17 +5,17 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,10 +30,10 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	sourceOffering := &enrollmentModels.CareOffering{
+	sourceOffering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		Name:            "Phase expiry source offering",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		IsActive:        true,
 		CountsAsCare:    false,
@@ -41,7 +41,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 		IncludesLunch:   true,
 	}
 	sourceOffering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, sourceOffering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, sourceOffering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -64,7 +64,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	sourceOutcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
-		Status:     enrollmentOwner.DecisionApproved,
+		Status:     enrollmentNative.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 
 	rolloverRequest := validRolloverRequest(
 		env.rolloverTestEnv,
-		enrollmentModels.PhaseRolloverModeOptOut,
+		enrollmentNative.PhaseRolloverModeOptOut,
 		false,
 	)
 	rolloverRequest.ServiceStartDate = calendar.NewDate(2027, 8, 1)
@@ -85,21 +85,21 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	rolledChildren, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx,
 		rollover.Phase.ID,
-		[]string{enrollmentModels.ChildStatusAutoRenewed},
+		[]string{enrollmentNative.ChildStatusAutoRenewed},
 	)
 	require.NoError(t, err)
 	require.Len(t, rolledChildren, 1)
-	targetOfferings, err := newCareOfferingFixtures(env.repos.CarePlan()).ListByPhase(ctx, rollover.Phase.ID)
+	targetOfferings, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, rollover.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, targetOfferings, 1)
 	targetOfferings[0].IsActive = false
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Update(ctx, targetOfferings[0]))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, targetOfferings[0]))
 
 	scheduledDecision := newDecisionServiceForTest(env.rolloverTestEnv, nil, nil)
 	targetOutcome, err := scheduledDecision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID:  rolledChildren[0].RequestID,
 		ChildID:    rolledChildren[0].ID,
-		Status:     enrollmentOwner.DecisionApproved,
+		Status:     enrollmentNative.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -112,16 +112,16 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	assert.Equal(t, calendar.Date(rollover.Phase.ServiceStartDate), *student.EnrolledFrom,
 		"the real approval must replace the student's source enrollment window")
 
-	warnings, err := NewTestPhaseExpiryWarnings(NewTestPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
+	warnings, err := NewTestPhaseExpiryWarnings(NewTestPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.reposCare.CarePlan}, env.repos.Enrollment())).
 		ListWarnings(ctx, calendar.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
-	assert.Equal(t, enrollmentOwner.PhaseExpiryStateIncomplete, warnings[0].State)
+	assert.Equal(t, enrollmentNative.PhaseExpiryStateIncomplete, warnings[0].State)
 	assert.Equal(t, 1, warnings[0].UnresolvedChildren)
 
 	targetOfferings[0].IsActive = true
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Update(ctx, targetOfferings[0]))
-	warnings, err = NewTestPhaseExpiryWarnings(NewTestPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, targetOfferings[0]))
+	warnings, err = NewTestPhaseExpiryWarnings(NewTestPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.reposCare.CarePlan}, env.repos.Enrollment())).
 		ListWarnings(ctx, calendar.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
@@ -133,12 +133,12 @@ type expiryDecisionStudents struct {
 	}
 }
 
-func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentOwner.PhaseExpiryStudent, error) {
+func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentNative.PhaseExpiryStudent, error) {
 	students, err := d.students.List(ctx, map[string]any{})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentOwner.PhaseExpiryStudent, 0, len(students))
+	result := make([]enrollmentNative.PhaseExpiryStudent, 0, len(students))
 	for _, student := range students {
 		if student.IsAlumnus() {
 			continue
@@ -148,8 +148,8 @@ func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enr
 	return result, nil
 }
 
-func toExpiryDecisionStudent(student *peopleValues.StudentState) enrollmentOwner.PhaseExpiryStudent {
-	row := enrollmentOwner.PhaseExpiryStudent{
+func toExpiryDecisionStudent(student *peopleValues.StudentState) enrollmentNative.PhaseExpiryStudent {
+	row := enrollmentNative.PhaseExpiryStudent{
 		ID: student.ID, Status: string(student.Status),
 	}
 	if student.EnrolledFrom != nil {
@@ -163,14 +163,14 @@ func toExpiryDecisionStudent(student *peopleValues.StudentState) enrollmentOwner
 
 type expiryDecisionOfferings struct{ query careplan.Query }
 
-func (d expiryDecisionOfferings) ListCareOfferings(ctx context.Context) ([]enrollmentOwner.PhaseExpiryOffering, error) {
+func (d expiryDecisionOfferings) ListCareOfferings(ctx context.Context) ([]enrollmentNative.PhaseExpiryOffering, error) {
 	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentOwner.PhaseExpiryOffering, 0, len(values))
+	result := make([]enrollmentNative.PhaseExpiryOffering, 0, len(values))
 	for _, value := range values {
-		result = append(result, enrollmentOwner.PhaseExpiryOffering{
+		result = append(result, enrollmentNative.PhaseExpiryOffering{
 			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
 			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
 		})

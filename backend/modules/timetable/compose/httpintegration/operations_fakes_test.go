@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -120,7 +122,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModels.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModels.InstanceStudent{}},
 		instanceService: &fakeOpsLifecycle{},
 		activeGroups:    &fakeOpsSessions{lastActivity: map[int64]time.Time{}},
-		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activitiesModels.Group{}, targetsByGroup: map[int64][]*activitiesModels.GroupTarget{}},
+		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activityContract.Group{}, targetsByGroup: map[int64][]*activityContract.GroupTarget{}},
 		activeService:   &fakeOpsAttendance{},
 		arrivalService:  &fakeOpsArrivals{byStudent: map[int64]*timetablePorts.ExpectedArrival{}},
 		pickupService:   &fakeOpsPickups{byStudent: map[int64]*time.Time{}},
@@ -139,7 +141,8 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, startScope: blockStartScopeOwn, completeScope: blockCompleteScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
 		announcer:     &fakeOpsAnnouncer{},
 	}
-	service, err := compose.NewOperations(deps.dependencies())
+	dependencies := deps.dependencies()
+	service, err := compose.NewOperations(dependencies, api.TimetableOperationCaller{RequestSession: dependencies.Session})
 	if err != nil {
 		panic(err)
 	}
@@ -169,6 +172,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 		Arrivals:             deps.arrivalService,
 		Pickups:              deps.pickupService,
 		Lifecycle:            deps.instanceService,
+		Session:              api.TimetableRequestSession{},
 		Announcer:            deps.announcer,
 		NormalizeSchoolClass: normalizeSchoolClass,
 		Now: func() time.Time {
@@ -369,20 +373,20 @@ func (r *fakeOpsSessions) UpdateLastActivity(_ context.Context, id int64, lastAc
 }
 
 type fakeOpsTemplates struct {
-	byID           map[int64]*activitiesModels.Group
-	targetsByGroup map[int64][]*activitiesModels.GroupTarget
+	byID           map[int64]*activityContract.Group
+	targetsByGroup map[int64][]*activityContract.GroupTarget
 	err            error
 }
 
-func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
-	result := make(map[int64][]*activitiesModels.GroupTarget, len(groupIDs))
+func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error) {
+	result := make(map[int64][]*activityContract.GroupTarget, len(groupIDs))
 	for _, groupID := range groupIDs {
 		result[groupID] = r.targetsByGroup[groupID]
 	}
 	return result, nil
 }
 
-func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activitiesModels.Group, error) {
+func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -393,11 +397,11 @@ func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activitiesModel
 	return group, nil
 }
 
-func (r *fakeOpsTemplates) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModels.Group, error) {
+func (r *fakeOpsTemplates) FindByIDs(_ context.Context, ids []int64) ([]*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	groups := make([]*activitiesModels.Group, 0, len(ids))
+	groups := make([]*activityContract.Group, 0, len(ids))
 	for _, id := range ids {
 		if group := r.byID[id]; group != nil {
 			groups = append(groups, group)

@@ -16,7 +16,7 @@ type (
 
 // TimeTrackingTestRows are the time-tracking row contracts over a Workforce
 // capability, for the suites that seed rows and build a single service
-// around fakes; production builds them inside NewTimeTracking.
+// around fakes; production builds them inside NewWorkSessionSide.
 type TimeTrackingTestRows struct {
 	Sessions         timetracking.WorkSessionRepository
 	Breaks           timetracking.WorkSessionBreakRepository

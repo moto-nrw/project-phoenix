@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -25,30 +24,10 @@ func contextWithTransaction(ctx context.Context, tx *bun.Tx) context.Context {
 	return context.WithValue(ctx, databaseTransactionKey{}, tx)
 }
 
-func (r *PostgresUnitOfWork) ContextWithTenant(ctx context.Context, tenantID int64) context.Context {
-	return modelBase.WithRepositoryTenantID(ctx, tenantID)
-}
-
-func (r *PostgresUnitOfWork) ContextWithTransaction(ctx context.Context, transaction any) context.Context {
-	switch tx := transaction.(type) {
-	case nil:
-		return modelBase.WithoutRepositoryTransaction(ctx)
-	case bun.Tx:
-		return modelBase.WithRepositoryContext(ctx, modelBase.RepositoryTenantID(ctx), tx)
-	case *bun.Tx:
-		if tx != nil {
-			return modelBase.WithRepositoryContext(ctx, modelBase.RepositoryTenantID(ctx), tx)
-		}
-		return modelBase.WithoutRepositoryTransaction(ctx)
-	default:
-		panic(fmt.Sprintf("unit of work: unsupported repository transaction type %T", transaction))
-	}
-}
-
 // ContextWithoutTransaction masks both adapter-owned transaction values.
 func (r *PostgresUnitOfWork) ContextWithoutTransaction(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, databaseTransactionKey{}, nil)
-	return modelBase.WithoutRepositoryTransaction(ctx)
+	return ctx
 }
 
 type transactionStartError struct{ err error }
@@ -134,7 +113,6 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 
 		txCtx = context.WithValue(txCtx, tenantTxKey{}, tenantID)
 		txCtx = contextWithTransaction(txCtx, &tx)
-		txCtx = modelBase.WithRepositoryContext(txCtx, tenantID, tx)
 		return fn(txCtx, tx)
 	})
 }
@@ -155,7 +133,6 @@ func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Co
 		}
 		txCtx = context.WithValue(txCtx, adminTxKey{}, true)
 		txCtx = contextWithTransaction(txCtx, &tx)
-		txCtx = modelBase.WithRepositoryContext(txCtx, 0, tx)
 		return fn(txCtx, tx)
 	})
 }

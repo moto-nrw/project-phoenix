@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // Identity & Access owns the password reset flows (#2722). This file binds
@@ -24,6 +25,7 @@ const cleanupResetExpiry = time.Hour
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type PasswordResetWiring struct {
 	Dispatcher       *email.Dispatcher
+	Durable          DurableMailOutbox
 	DefaultFrom      email.Email
 	StaffURL         string
 	ParentsURL       string
@@ -34,7 +36,7 @@ type PasswordResetWiring struct {
 	Backoff []time.Duration
 }
 
-func passwordResetDependencies(wiring *PasswordResetWiring, records func() identityaccess.PasswordResets, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
+func passwordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -42,15 +44,18 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
+	hosts := map[identityaccess.PasswordResetScope]string{
+		identityaccess.PasswordResetScopeStaff:  wiring.StaffURL,
+		identityaccess.PasswordResetScopeParent: wiring.ParentsURL,
+		identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
+	}
 	return &identityaccessCompose.PasswordResetDependencies{
-		Delivery: passwordResetDelivery{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
-			backoff: backoff,
-			hosts: map[identityaccess.PasswordResetScope]string{
-				identityaccess.PasswordResetScopeStaff:  wiring.StaffURL,
-				identityaccess.PasswordResetScopeParent: wiring.ParentsURL,
-				identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
-			},
+		DeliveryFor: func(records identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {
+			return passwordResetDelivery{
+				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, records: records, logger: logger,
+				backoff: backoff,
+				host:    func(scope identityaccess.PasswordResetScope) string { return hosts[scope] },
+			}
 		},
 		Passwords:        passwordPolicy{},
 		Expiry:           wiring.Expiry,
@@ -59,40 +64,33 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 	}
 }
 
+// passwordResetRecords records a reset mail's outcome in Identity & Access.
+type passwordResetRecords interface {
+	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // passwordResetDelivery mails a reset link and records the outcome through
 // the module once the send settles.
 type passwordResetDelivery struct {
 	dispatcher *email.Dispatcher
+	durable    DurableMailOutbox
 	from       email.Email
-	hosts      map[identityaccess.PasswordResetScope]string
-	backoff    []time.Duration
-	records    func() identityaccess.PasswordResets
-	logger     *slog.Logger
+	// host is the portal origin of a reset scope.
+	host    func(identityaccess.PasswordResetScope) string
+	backoff []time.Duration
+	records passwordResetRecords
+	logger  *slog.Logger
 }
 
-func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration) {
+func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping password reset email",
-			slog.Int64("account_id", link.AccountID))
-		return
+		return nil
 	}
-	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.hosts[scope], expiry))
-	meta := email.DeliveryMetadata{
-		Type:        "password_reset",
-		ReferenceID: link.ID,
-		Token:       link.Token,
-		Recipient:   recipient,
-	}
-	baseRetry := link.Delivery.RetryCount
-	// Async delivery must outlive the HTTP request without retaining its tx.
-	detached := identityaccessCompose.DetachedMailContext(ctx)
-	d.dispatcher.Dispatch(detached, email.WithInteractiveRetry(email.DeliveryRequest{
-		Message:  message,
-		Metadata: meta,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
-			d.recordDelivery(cbCtx, meta, baseRetry, result)
-		},
-	}, d.backoff))
+	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.host(scope), expiry))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: message, Type: "password_reset", ReferenceID: link.ID,
+		Backoff: d.backoff, BaseRetry: link.Delivery.RetryCount, ExpiresAt: link.Expiry,
+	})
 }
 
 func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
@@ -104,7 +102,7 @@ func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.De
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
-	if err := d.records().RecordPasswordResetDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.records.RecordPasswordResetDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update password reset delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

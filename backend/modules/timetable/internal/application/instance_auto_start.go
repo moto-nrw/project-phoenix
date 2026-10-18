@@ -7,7 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -60,7 +61,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 	}
 	for _, inst := range instances {
 		result.Checked++
-		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+		if inst.TemplateType == activityContract.GroupTypeDuty {
 			result.SkippedDuty++
 			continue
 		}
@@ -78,7 +79,7 @@ func (s *instanceAutoStart) plannedStaffCounts(ctx context.Context, instances []
 	plannedIDs := make([]int64, 0, len(instances))
 	plannedRoomIDs := make(map[int64]struct{})
 	for _, inst := range instances {
-		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+		if inst.TemplateType == activityContract.GroupTypeDuty {
 			continue
 		}
 		if inst.Status == scheduleModel.InstanceStatusPlanned {

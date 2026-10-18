@@ -97,10 +97,6 @@ type PushOutbox interface {
 	EnqueuePush(context.Context, PushIntent) (bool, error)
 }
 
-func (c *webPushChannel) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	c.tenantRuntime = &runtime
-}
-
 func (c *webPushChannel) withTenantRuntime(ctx context.Context) context.Context {
 	if c.tenantRuntime == nil {
 		return ctx
@@ -460,9 +456,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 			return ctx.Err()
 		}
 
-		wg.Add(1)
-		go func(sub *deliveryModels.PushSubscription) {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() { <-c.sendSlots }()
 			if err := c.sendOneSynchronously(ctx, event, wire, sub, ttl, urgency); err != nil {
 				resultsMu.Lock()
@@ -473,7 +467,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 			resultsMu.Lock()
 			succeeded = true
 			resultsMu.Unlock()
-		}(sub)
+		})
 	}
 	wg.Wait()
 	if succeeded {

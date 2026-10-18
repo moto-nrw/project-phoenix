@@ -52,7 +52,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
 	require.NotNil(t, reloaded.CompletedAt)
 
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	require.NotNil(t, group.EndTime)
 
@@ -242,7 +242,7 @@ func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, keptVisit.ExitTime, "the independent stay in the same room continues")
 
-	keptSession, err := s.factory.Active.GetActiveGroup(s.ctx, roomSession.ID)
+	keptSession, err := s.active.GetActiveGroup(s.ctx, roomSession.ID)
 	require.NoError(t, err)
 	assert.Nil(t, keptSession.EndTime, "the room's own session is not the activity's session")
 }

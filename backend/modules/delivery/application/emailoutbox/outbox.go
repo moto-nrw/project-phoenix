@@ -26,7 +26,9 @@ type Intent struct {
 	RelatedEntityType string
 	RelatedEntityID   int64
 	Payload           map[string]any
-	Attempts          int
+	// PayloadJSON retains integer precision for renderers of typed snapshots.
+	PayloadJSON json.RawMessage
+	Attempts    int
 }
 
 // GetTenantID reports the school the intent was queued for.
@@ -144,8 +146,10 @@ func NewService(delivery DurableEmailPort) *Service {
 // flat — Enqueue is called inline from feature code, no need for a
 // fluent builder.
 type EnqueueRequest struct {
-	Kind              string
-	Payload           map[string]any
+	Kind    string
+	Payload map[string]any
+	// PayloadJSON retains integer precision for renderers of typed snapshots.
+	PayloadJSON       json.RawMessage
 	RelatedEntityType string // optional, e.g., "enrollment_request"
 	RelatedEntityID   int64  // optional, paired with RelatedEntityType
 	IdempotencyKey    string // optional; duplicate tenant/key enqueues are ignored

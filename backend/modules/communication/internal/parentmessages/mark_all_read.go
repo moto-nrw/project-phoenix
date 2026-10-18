@@ -24,7 +24,7 @@ func (s *Service) MarkAllRead(ctx context.Context) (int, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return 0, err
 	}
-	accountID := accountIDFromCtx(ctx)
+	accountID := s.accountID(ctx)
 	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, s.scope(ctx), true)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: list unread inbox: %w", err)

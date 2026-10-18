@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
@@ -35,7 +37,7 @@ func (g CallerActivityGroups) SupervisedActivityGroupIDs(ctx context.Context, st
 // ActivityGroupRows returns the planned activity groups the
 // /api/me/groups/activity route renders, in the order of ids.
 func (g CallerActivityGroups) ActivityGroupRows(ctx context.Context, ids []int64) (any, error) {
-	result := make([]*activitiesModels.Group, 0, len(ids))
+	result := make([]*activityContract.Group, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -43,7 +45,7 @@ func (g CallerActivityGroups) ActivityGroupRows(ctx context.Context, ids []int64
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[int64]*activitiesModels.Group, len(rows))
+	byID := make(map[int64]*activityContract.Group, len(rows))
 	for _, row := range rows {
 		byID[row.ID] = row
 	}

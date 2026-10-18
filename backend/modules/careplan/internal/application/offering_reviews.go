@@ -11,16 +11,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
 type OfferingReviewDependencies struct {
 	Requests   careplan.OfferingChangeRequestQuery
 	Catalog    *Service
-	People     ports.OfferingReviewDirectory
-	Enrollment ports.OfferingReviewEnrollment
-	Courses    ports.OfferingReviewCourses
-	Scope      ports.ReviewScopeResolver
+	People     careplan.OfferingReviewDirectory
+	Enrollment careplan.OfferingReviewEnrollment
+	Courses    careplan.OfferingReviewCourses
+	Scope      careplan.ReviewScopeResolver
 	Today      func() careplan.Date
 	Logger     *slog.Logger
 }
@@ -73,7 +72,7 @@ func (s *OfferingReviews) rows(ctx context.Context, filter careplan.RequestQueue
 	return rows, cursor, nil
 }
 
-func (s *OfferingReviews) students(ctx context.Context, rows []careplan.OfferingChangeRequest) (map[int64]ports.ReviewStudent, error) {
+func (s *OfferingReviews) students(ctx context.Context, rows []careplan.OfferingChangeRequest) (map[int64]careplan.ReviewStudent, error) {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)

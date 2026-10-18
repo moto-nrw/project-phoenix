@@ -23,25 +23,29 @@ type GuardianDisplayResolver interface {
 	ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error)
 }
 
-type Dependencies struct {
-	DB       *bun.DB
-	Provider Provider
-	People   GuardianDisplayResolver
-	Observe  func(delivery.Observation)
+// ModuleDependencies are the enqueue and state side of Delivery, which the
+// producers and Identity & Access need before the mail renderers exist.
+type ModuleDependencies struct {
+	DB      *bun.DB
+	People  GuardianDisplayResolver
+	Observe func(delivery.Observation)
 }
 
+// Runtime is the composed Delivery module; NewWorker adds the worker.
 type Runtime struct {
-	Module *delivery.Module
-	Worker *delivery.Worker
-	store  *postgres.Store
+	Module  *delivery.Module
+	store   *postgres.Store
+	observe func(domain.Observation)
 }
 
-func New(dependencies Dependencies) (*Runtime, error) {
-	if dependencies.DB == nil || dependencies.Provider == nil || dependencies.People == nil || dependencies.Observe == nil {
+// NewModule composes the enqueue facade and the e-mail state without the
+// worker; NewWorker adds the worker once the mail renderers exist.
+func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
+	if dependencies.DB == nil || dependencies.People == nil || dependencies.Observe == nil {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	store := postgres.New(
-		tenantDatabase,
+		postgres.RequireTenantDatabase,
 		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
 			return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, tx bun.Tx) error {
 				return callback(txCtx, tx)
@@ -55,16 +59,20 @@ func New(dependencies Dependencies) (*Runtime, error) {
 		})
 	}
 	service := application.NewService(store, guardianDirectoryAdapter{resolver: dependencies.People}, observe)
-	worker := application.NewWorker(store, providerAdapter{provider: dependencies.Provider}, observe)
-	return &Runtime{
-		Module: delivery.NewModule(moduleEngine{service: service, store: store}),
-		Worker: delivery.NewWorker(workerEngine{worker: worker, store: store}),
-		store:  store,
-	}, nil
+	return &Runtime{Module: delivery.NewModule(moduleEngine{service: service, store: store}), store: store, observe: observe}, nil
 }
 
-// EmailStatus reports the durable state of an e-mail intent while the root
-// binds a renderer that depends on an earlier delivery.
+// NewWorker composes the outbox worker over the store of runtime, sending
+// through provider.
+func NewWorker(runtime *Runtime, provider Provider) (*delivery.Worker, error) {
+	if runtime == nil || runtime.store == nil || runtime.observe == nil || provider == nil {
+		return nil, errors.New("delivery compose: runtime and provider are required")
+	}
+	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
+	return delivery.NewWorker(workerEngine{Worker: worker, store: runtime.store}), nil
+}
+
+// EmailStatus reports the durable state of an e-mail intent.
 func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.State, bool, error) {
 	if r == nil || r.store == nil {
 		return "", false, errors.New("delivery compose: service is not initialized")
@@ -88,9 +96,7 @@ func (a guardianDirectoryAdapter) Resolve(ctx context.Context, ids []int64) (map
 	}
 	result := make(map[int64]domain.GuardianDisplay, len(rows))
 	for _, row := range rows {
-		result[row.GuardianProfileID] = domain.GuardianDisplay{
-			GuardianProfileID: row.GuardianProfileID, FirstName: row.FirstName, LastName: row.LastName,
-		}
+		result[row.GuardianProfileID] = domain.GuardianDisplay(row)
 	}
 	return result, nil
 }
@@ -110,6 +116,26 @@ func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailInte
 		IdempotencyKey: input.IdempotencyKey, Related: domain.RelatedEntity(input.Related),
 		Recipient: recipient, Payload: input.Payload, DeliverAfter: input.DeliverAfter,
 	}, delivery.TransportEmail)
+}
+
+func (e moduleEngine) EnqueueDeferredPush(ctx context.Context, input delivery.DeferredPushIntent) (delivery.Enqueued, error) {
+	return e.enqueue(ctx, domain.EnqueueInput{
+		TenantID: input.TenantID, Transport: domain.TransportPush, Template: input.Template,
+		IdempotencyKey: input.IdempotencyKey, Related: domain.RelatedEntity(input.Related),
+		Recipient: json.RawMessage(`{"deferred":true}`), Payload: input.Payload,
+	}, delivery.TransportPush)
+}
+
+// NewPushDispatcher builds a targeted caller over the existing outbox store.
+func NewPushDispatcher(runtime *Runtime, provider Provider) *delivery.PushDispatcher {
+	worker := application.NewWorker(runtime.store, providerAdapter{provider: provider}, runtime.observe)
+	return delivery.NewPushDispatcher(func(ctx context.Context, tenantID, id int64) error {
+		err := worker.DispatchPush(ctx, tenantID, id)
+		if errors.Is(err, domain.ErrCancelled) {
+			return fmt.Errorf("%w: %w", delivery.ErrCancelled, err)
+		}
+		return err
+	})
 }
 
 func (e moduleEngine) EnqueuePush(ctx context.Context, input delivery.PushIntent) (delivery.Enqueued, error) {
@@ -158,7 +184,7 @@ func (e moduleEngine) Statuses(ctx context.Context, tenantID int64, transport de
 			}
 		}
 		statuses = append(statuses, delivery.Status{
-			ID: row.ID, Transport: transport, State: delivery.State(row.Status), Attempts: row.Attempts,
+			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: delivery.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
 		})
@@ -207,19 +233,16 @@ func (e moduleEngine) ClaimFailedEmailDelivery(ctx context.Context, tenantID, de
 }
 
 type workerEngine struct {
-	worker *application.Worker
-	store  *postgres.Store
-}
-
-func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
-	stats, err := e.worker.RunOnce(ctx, batchSize, maxAttempts)
-	return delivery.WorkerStats{
-		Claimed: stats.Claimed, Sent: stats.Sent, Cancelled: stats.Cancelled, Retried: stats.Retried,
-		DeadLettered: stats.DeadLettered, LeaseLost: stats.LeaseLost,
-	}, err
+	*application.Worker
+	store *postgres.Store
 }
 
 func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.store.Backlog(ctx) }
+
+func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
+	stats, err := e.Worker.RunOnce(ctx, batchSize, maxAttempts)
+	return delivery.WorkerStats(stats), err
+}
 
 type providerAdapter struct{ provider Provider }
 
@@ -247,6 +270,7 @@ func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain
 		if err := json.Unmarshal(intent.Recipient, &claimed.PushRecipient); err != nil {
 			return domain.ProviderResult{}, fmt.Errorf("delivery provider: decode push recipient: %w", err)
 		}
+		claimed.DeferredPayload = intent.Payload
 		if err := json.Unmarshal(intent.Payload, &claimed.PushPayload); err != nil {
 			return domain.ProviderResult{}, fmt.Errorf("delivery provider: decode push payload: %w", err)
 		}
@@ -265,25 +289,4 @@ func providerResult(value delivery.ProviderResult, err error) (domain.ProviderRe
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
 	return domain.ProviderResult(value), err
-}
-
-// tenantDatabase is the transaction of the school in context; it refuses a
-// call for another school.
-func tenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
-	transaction, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, errors.New("delivery postgres: transaction is required")
-	}
-	tx, ok := transaction.(bun.Tx)
-	if !ok {
-		return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", transaction)
-	}
-	actualTenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("delivery postgres: tenant is required: %w", err)
-	}
-	if actualTenantID.Int64() != expectedTenantID {
-		return nil, fmt.Errorf("delivery postgres: intent tenant %d does not match transaction tenant %d", expectedTenantID, actualTenantID.Int64())
-	}
-	return tx, nil
 }

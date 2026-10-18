@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // The Timetable owner's deviation writes, attendance corrections and
@@ -22,34 +22,42 @@ import (
 // Student Presence's attendance syncer port.
 
 // TimetableStaffDeviationDependencies binds the deviation writes to the
-// realtime hub over the retained rows.
-func TimetableStaffDeviationDependencies(in TimetableDeviationInputs) (timetablePorts.StaffDeviationDependencies, error) {
-	if in.Lifecycle == nil || in.Rows.Deviations == nil || in.Broadcaster == nil {
+// realtime hub over the retained rows (Instances, InstanceStaff and the Audit
+// Platform's DeviationEvents). lifecycle is the instance lifecycle the cancel
+// branch and the "deliberately unstaffed" acknowledgement hand over to. The
+// composition root adds its database handle to the dependencies they bind.
+func TimetableStaffDeviationDependencies(
+	rows timetableCompose.OwnerRows, staff timetablePorts.DeviationStaff, supervisions studentpresence.SupervisionRecords,
+	lifecycle timetablePorts.DeviationLifecycle, broadcaster realtime.Broadcaster, logger *slog.Logger, now func() time.Time,
+) (timetablePorts.StaffDeviationDependencies, error) {
+	if lifecycle == nil || rows.Deviations == nil || broadcaster == nil {
 		return timetablePorts.StaffDeviationDependencies{}, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
 	}
 	return timetablePorts.StaffDeviationDependencies{
-		Instances:       in.Rows.Instances,
-		InstanceStaff:   in.Rows.InstanceStaff,
-		Staff:           in.Staff,
-		Supervisions:    in.Supervisions,
-		Lifecycle:       in.Lifecycle,
-		Protocol:        in.Rows.Deviations,
-		ActivityUpdates: timetableActivityUpdates{broadcaster: in.Broadcaster},
-		Logger:          in.Logger,
-		Now:             in.Now,
+		Instances:       rows.Instances,
+		InstanceStaff:   rows.InstanceStaff,
+		Staff:           staff,
+		Supervisions:    supervisions,
+		Lifecycle:       lifecycle,
+		Protocol:        rows.Deviations,
+		ActivityUpdates: timetableActivityUpdates{broadcaster: broadcaster},
+		Logger:          logger,
+		Now:             now,
 	}, nil
 }
 
-// NewTimetableAttendanceCorrections composes the attendance correction with
-// the Audit Platform's correction trail.
-func NewTimetableAttendanceCorrections(in TimetableCorrectionInputs) (timetable.AttendanceCorrections, error) {
+// NewTimetableAttendanceCorrections composes the attendance correction over
+// the retained rows (Participants, Instances and the optional completion
+// Locks) with the Audit Platform's correction trail. trail is optional:
+// without it every correction fails closed.
+func NewTimetableAttendanceCorrections(rows timetableCompose.OwnerRows, trail attendanceCorrectionLedger, people timetablePorts.CorrectionPeople, logger *slog.Logger) (timetable.AttendanceCorrections, error) {
 	return timetableCompose.NewAttendanceCorrections(timetablePorts.AttendanceCorrectionDependencies{
-		Participants: in.Rows.Participants,
-		Instances:    in.Rows.Instances,
-		Trail:        TimetableAttendanceCorrectionTrail(in.Trail),
-		People:       in.People,
-		Locks:        in.Rows.Locks,
-		Logger:       in.Logger,
+		Participants: rows.Participants,
+		Instances:    rows.Instances,
+		Trail:        TimetableAttendanceCorrectionTrail(trail),
+		People:       people,
+		Locks:        rows.Locks,
+		Logger:       logger,
 	})
 }
 

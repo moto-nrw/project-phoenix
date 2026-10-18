@@ -7,10 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 )
 
-// The two mails of the public demo (#3465), bound to the Delivery dispatcher:
+// The two mails of the public demo (#3465), bound to the transactional Delivery outbox:
 // the link back into the demo for the prospect and the lead mail for the team.
 
 // demoContact receives the lead mail and the prospects' answers.
@@ -20,6 +19,7 @@ var demoContact = email.NewEmail(identityaccess.DemoContactName, identityaccess.
 // without it, as every environment but APP_ENV=demo does.
 type DemoAccessWiring struct {
 	Dispatcher  *email.Dispatcher
+	Durable     DurableMailOutbox
 	DefaultFrom email.Email
 	FrontendURL string
 	Logger      *slog.Logger
@@ -42,12 +42,12 @@ func IsDemoEnvironment(appEnv string) bool {
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger) *DemoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger, durable DurableMailOutbox) *DemoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
 	return &DemoAccessWiring{
-		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL, MaxActiveSchools: maxActiveSchools, Logger: logger,
+		Durable: durable, Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL, MaxActiveSchools: maxActiveSchools, Logger: logger,
 		OperatorWithoutSecondFactor: identityaccess.DemoOperatorWithoutSecondFactor,
 		NewToken:                    tokens.NewCapabilityToken, Fingerprint: tokens.CapabilityFingerprint,
 	}
@@ -55,6 +55,7 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 
 type demoAccessMail struct {
 	dispatcher *email.Dispatcher
+	durable    DurableMailOutbox
 	from       email.Email
 	origin     string
 	backoff    []time.Duration
@@ -68,40 +69,28 @@ func newDemoAccessMail(wiring *DemoAccessWiring) demoAccessMail {
 	}
 	backoff := wiring.Backoff
 	return demoAccessMail{
-		dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, backoff: backoff, logger: logger,
+		dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, backoff: backoff, logger: logger,
 		origin: wiring.FrontendURL,
 	}
 }
 
-func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identityaccess.DemoAccessMessage, entryURL string) {
+func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identityaccess.DemoAccessMessage, entryURL string) error {
 	message := *identityMessage(m.from, email.NewEmail("", access.Email), identityaccess.DemoAccessLinkMail(entryURL, m.origin))
 	message.ReplyTo = demoContact
-	m.dispatch(ctx, "demo_access", access.AccessID, message)
+	return m.dispatch(ctx, "demo_access", access.AccessID, message, access.ExpiresAt)
 }
 
-func (m demoAccessMail) SendDemoLead(ctx context.Context, access identityaccess.DemoAccessMessage) {
+func (m demoAccessMail) SendDemoLead(ctx context.Context, access identityaccess.DemoAccessMessage) error {
 	message := *identityMessage(m.from, demoContact, identityaccess.DemoLeadMail(access, m.origin))
 	message.ReplyTo = email.NewEmail(access.PersonName(), access.Email)
-	m.dispatch(ctx, "demo_lead", access.AccessID, message)
+	return m.dispatch(ctx, "demo_lead", access.AccessID, message, time.Time{})
 }
 
-func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int64, message email.Message) {
+func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int64, message email.Message, expiry time.Time) error {
 	if m.dispatcher == nil {
-		m.logger.Warn("email dispatcher unavailable, skipping demo mail",
-			slog.String("type", kind),
-			slog.Int64("demo_access_id", accessID))
-		return
+		return nil
 	}
-	m.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.WithInteractiveRetry(email.DeliveryRequest{
-		Message:  message,
-		Metadata: email.DeliveryMetadata{Type: kind, ReferenceID: accessID, Recipient: message.To.Address},
-		Callback: func(_ context.Context, result email.DeliveryResult) {
-			if result.Final && result.Status == email.DeliveryStatusFailed {
-				m.logger.Error("demo mail permanently failed",
-					slog.String("type", kind),
-					slog.Int64("demo_access_id", accessID),
-					slog.Any("error", result.Err))
-			}
-		},
-	}, m.backoff))
+	return enqueueDurableMail(ctx, m.durable, DurableMail{
+		Message: message, Type: kind, ReferenceID: accessID, Backoff: m.backoff, ExpiresAt: expiry,
+	})
 }

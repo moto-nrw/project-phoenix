@@ -4,7 +4,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -121,64 +120,6 @@ func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubst
 		Broadcaster:   deps.Broadcaster,
 		Logger:        deps.Logger,
 	}), nil
-}
-
-// errSickCascadeUnbound keeps the cascade fail-closed when the composition
-// never bound the workflow: a sick report must not commit half-applied.
-var errSickCascadeUnbound = errors.New("shift plan sync: schedule cascade is not bound")
-
-// DeferredSickCascade resolves the cascade on every call, because the root
-// builds the absence service long before the schedule side exists. A nil
-// result is fail-closed: every method returns an error, never a silent no-op.
-func DeferredSickCascade(resolve func() shiftplansync.SickCascade) shiftplansync.SickCascade {
-	return deferredSickCascade{resolve: resolve}
-}
-
-type deferredSickCascade struct {
-	resolve func() shiftplansync.SickCascade
-}
-
-func (d deferredSickCascade) cascade() (shiftplansync.SickCascade, error) {
-	if d.resolve == nil {
-		return nil, errSickCascadeUnbound
-	}
-	cascade := d.resolve()
-	if cascade == nil {
-		return nil, errSickCascadeUnbound
-	}
-	return cascade, nil
-}
-
-func (d deferredSickCascade) MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error {
-	cascade, err := d.cascade()
-	if err != nil {
-		return err
-	}
-	return cascade.MarkSickForRange(ctx, in)
-}
-
-func (d deferredSickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error {
-	cascade, err := d.cascade()
-	if err != nil {
-		return err
-	}
-	return cascade.ClearSickForRange(ctx, in)
-}
-
-func (d deferredSickCascade) ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error {
-	cascade, err := d.cascade()
-	if err != nil {
-		return err
-	}
-	return cascade.ReconcileSickRange(ctx, before, after)
-}
-
-func (d deferredSickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error {
-	cascade, err := d.cascade()
-	if err != nil {
-		return err
-	}
-	return cascade.ReassignSickStamps(ctx, fromAbsenceID, toAbsenceID)
 }
 
 // missingNames lists the absent dependencies in a stable order.

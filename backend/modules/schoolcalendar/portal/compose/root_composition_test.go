@@ -21,10 +21,10 @@ func setupCalendarModule(t *testing.T) (*bun.DB, api.CalendarTestModule) {
 	return db, module
 }
 
-func setupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.RemindersTestModule) {
+func setupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.RemindersTestModule, api.SettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewRemindersTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, settings, err := api.NewRemindersTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, settings
 }

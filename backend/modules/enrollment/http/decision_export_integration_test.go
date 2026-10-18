@@ -11,7 +11,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,16 +30,18 @@ import (
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
 func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 // failingSchemaRepo wraps the owner reader but makes Schema
@@ -66,29 +67,33 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
 func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   failingSchemaRepo{env.repos.Enrollment()},
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        failingPhaseRepo{env.repos.Enrollment()},
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    failingPhaseRepo{env.repos.Enrollment()},
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: api.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstName, lastName string) int64 {
@@ -202,7 +207,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	_, approvedChildID := submitOneChild(t, env, "filter-approved@example.com", "Ada", "Approved")
 	submitOneChild(t, env, "filter-open@example.com", "Ben", "Open")
 	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, approvedChildID, enrollmentModels.ChildStatusApproved, nil, 0))
+		ctx, approvedChildID, capability.ChildStatusApproved, nil, 0))
 
 	auditAll := &stubAccessLogRepo{}
 	all, err := newExportDecisionService(env, auditAll).
@@ -214,7 +219,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Filter to approved → only Ada, and the audit child_count matches.
 	auditApproved := &stubAccessLogRepo{}
 	approved, err := newExportDecisionService(env, auditApproved).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusApproved)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusApproved)
 	require.NoError(t, err)
 	reqCount, childCount := approved.Counts()
 	assert.Equal(t, 1, reqCount, "only the request with an approved child remains")
@@ -225,13 +230,13 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Audit row reflects the filtered (disclosed) scope.
 	require.Len(t, auditApproved.entries, 1)
 	md := auditApproved.entries[0].GetMetadata()
-	assert.Equal(t, enrollmentModels.ChildStatusApproved, md["status_filter"])
+	assert.Equal(t, capability.ChildStatusApproved, md["status_filter"])
 	assert.Equal(t, 1, md["child_count"])
 
 	// Filter to a status no child holds → empty export, zero counts.
 	auditRejected := &stubAccessLogRepo{}
 	rejected, err := newExportDecisionService(env, auditRejected).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusRejected)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusRejected)
 	require.NoError(t, err)
 	rReq, rChild := rejected.Counts()
 	assert.Equal(t, 0, rReq, "no request has a rejected child")

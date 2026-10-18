@@ -546,8 +546,7 @@ func TestService_Delete(t *testing.T) {
 		deleteFn:   func(_ context.Context, _ int64) error { deleted = true; return nil },
 	}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { cancelled = true; return 2, nil }}
-	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	svc.SetAttachmentPurger(&stubPurger{})
+	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox, Attachments: &stubPurger{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if err := svc.Delete(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
@@ -984,4 +983,25 @@ var errPublishedConflictForTest = errors.New("published conflict fixture")
 
 func (m *mockRepo) IsPublishedConflict(err error) bool {
 	return errors.Is(err, errPublishedConflictForTest)
+}
+
+// A purger handed over at construction serves the deletion without the
+// setter (#4080).
+func TestService_DeleteQueuesAttachmentCleanupThroughTheConfiguredPurger(t *testing.T) {
+	t.Parallel()
+
+	var deleted bool
+	repo := &mockRepo{
+		findByIDFn: func(_ context.Context, _ int64) (*ParentAnnouncement, error) { return draft(), nil },
+		deleteFn:   func(_ context.Context, _ int64) error { deleted = true; return nil },
+	}
+	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { return 0, nil }}
+	purger := &stubPurger{}
+	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox, Attachments: purger}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	if err := svc.Delete(context.Background(), testAnnID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if !deleted || len(purger.queued) != 1 || purger.queued[0] != testAnnID {
+		t.Fatalf("expected the cleanup queued before the deletion, got deleted=%v queued=%v", deleted, purger.queued)
+	}
 }

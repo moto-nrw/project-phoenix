@@ -52,29 +52,24 @@ type staffDataAccessTrail interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
 }
 
-// staffAdminOwners are the retained collaborators of the personnel-record
-// administration: the staff and person rows and the audit trail.
-type staffAdminOwners struct {
-	Staff      staffAdminStaffRows
-	Persons    staffAdminPersons
-	Membership schoolmembership.Capability
-
-	MasterDataAudit auditModels.StaffMasterDataChangeCreator
-	PersonnelNumber auditModels.PersonnelNumberChangeCreator
-	DataAccessLog   staffDataAccessTrail
-}
-
 // composeStaffAdmin composes the personnel-record administration over the
-// retained staff, person and audit repositories. admin carries what the
-// caller binds (the database, the observer, the logger and the clock); the
-// subjects, the audit trail and the permission matcher are bound here.
-func composeStaffAdmin(admin workforceCompose.StaffAdminDependencies, owners staffAdminOwners) (*workforceModule.StaffAdmin, error) {
-	if owners.Staff == nil || owners.Persons.rows == nil || owners.Persons.details == nil || owners.Membership == nil ||
-		owners.MasterDataAudit == nil || owners.PersonnelNumber == nil || owners.DataAccessLog == nil {
+// retained staff and person rows, the People Directory's person details,
+// School Membership and the audit trail. admin carries what the caller binds
+// (the database, the observer, the logger and the clock); the subjects, the
+// audit trail and the permission matcher are bound here.
+func composeStaffAdmin(
+	admin workforceCompose.StaffAdminDependencies, staff staffAdminStaffRows, personRows staffAdminPersonRows,
+	personDetails staffAdminPersonDetails, membership schoolmembership.Capability,
+	masterDataAudit auditModels.StaffMasterDataChangeCreator, personnelNumber auditModels.PersonnelNumberChangeCreator,
+	dataAccessLog staffDataAccessTrail,
+) (*workforceModule.StaffAdmin, error) {
+	if staff == nil || personRows == nil || personDetails == nil || membership == nil ||
+		masterDataAudit == nil || personnelNumber == nil || dataAccessLog == nil {
 		return nil, errors.New("staff admin: staff, person, membership and audit repositories are required")
 	}
-	admin.Subjects = staffAdminSubjects{staff: owners.Staff, persons: owners.Persons, membership: owners.Membership}
-	admin.Audit = staffAdminAudit{masterData: owners.MasterDataAudit, personnelNumber: owners.PersonnelNumber, accessLog: owners.DataAccessLog}
+	persons := staffAdminPersons{rows: personRows, details: personDetails}
+	admin.Subjects = staffAdminSubjects{staff: staff, persons: persons, membership: membership}
+	admin.Audit = staffAdminAudit{masterData: masterDataAudit, personnelNumber: personnelNumber, accessLog: dataAccessLog}
 	admin.Allows = securityruntime.HasPermission
 	return workforceCompose.NewStaffAdmin(admin)
 }

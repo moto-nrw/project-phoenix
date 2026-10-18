@@ -46,9 +46,9 @@
       "backend/api/room_activity_names.go",
       "backend/api/timetable_people_views.go",
       "backend/api/calendar_portal.go",
-      "backend/api/service_graph_wiring.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_wiring.go",
       "backend/api/display_http.go",
-      "backend/modules/facilities/compose/legacy/projections.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/d8708d82c7c8e18774acc3ee800014649560d666/backend/modules/facilities/compose/legacy/projections.go"
     ],
     "workload": "Affected Go suites through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development against the local postgres-test server with per-test tenants.",
     "thresholds": "Affected suites pass with unchanged assertion strength; the architecture check reports the listed keys as retired and an unchanged composition surface.",

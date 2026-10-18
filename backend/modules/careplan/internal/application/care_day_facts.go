@@ -51,23 +51,14 @@ type careDayService struct {
 	deps CareDayDependencies
 }
 
-// NewCareDays builds the care-day derivation.
-func NewCareDays(deps CareDayDependencies) careplan.CareDayQuery {
-	if deps.Records == nil || deps.PickupBaselines == nil {
-		panic("care plan care-day queries: records and pickup baselines are required")
+// NewCareDayQuery builds the care-day derivation with every read boundary it
+// needs, the care participation included; a missing one is a construction
+// error. The arrival baselines stay optional.
+func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDayQuery, error) {
+	if deps.Records == nil || deps.PickupBaselines == nil || deps.CareParticipation == nil {
+		return nil, errors.New("care plan care-day queries: records, pickup baselines and care participation are required")
 	}
-	return &careDayService{deps: deps}
-}
-
-// WireCareParticipation attaches the lifecycle after both services exist in
-// the factory. Care-day construction happens earlier because CareLifecycle
-// itself depends on schedule repositories.
-func WireCareParticipation(service careplan.CareDayQuery, resolver CareParticipationResolver) {
-	concrete, ok := service.(*careDayService)
-	if !ok {
-		panic("schedule care-day service does not support participation wiring")
-	}
-	concrete.deps.CareParticipation = resolver
+	return &careDayService{deps: deps}, nil
 }
 
 func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error) {
@@ -95,9 +86,6 @@ func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int6
 }
 
 func (s *careDayService) ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
-	if s.deps.CareParticipation == nil {
-		return nil, &careplan.ScheduleError{Op: opResolveCareDay, Err: errors.New("care participation resolver is not configured")}
-	}
 	result, err := s.deps.CareParticipation.ParticipatingStudentIDsByDate(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: opResolveCareDay, Err: err}

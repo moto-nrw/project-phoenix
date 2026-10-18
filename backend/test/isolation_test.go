@@ -191,7 +191,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repos := api.NewTimetableRepositories(MustDatabase(db), api.NewUnobservedTimetableDependencies(NewDatabase(t, db)))
+	repos := api.NewUnobservedTimetableRepositories(MustDatabase(db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
@@ -347,7 +347,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := api.NewSessionCleanupRepositories(NewDatabase(t, db), api.NewUnobservedTimetableDependencies(NewDatabase(t, db)).Capability).Sessions
+	repo, _, _ := api.NewSessionCleanupRepositories(NewDatabase(t, db), api.MustNewUnobservedTimetable(NewDatabase(t, db)))
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---
@@ -394,7 +394,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := api.NewTimetableRepositories(MustDatabase(db), api.NewUnobservedTimetableDependencies(NewDatabase(t, db))).ActivityCategory
+	repo := api.NewUnobservedTimetableRepositories(MustDatabase(db)).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

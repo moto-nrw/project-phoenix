@@ -17,6 +17,8 @@ import (
 // on, and nothing else about it is under test here.
 type enabledPhotoRuntime struct{ unlinked []string }
 
+func (r *enabledPhotoRuntime) QueueUnlinkStoredPhoto(context.Context, string) error { return nil }
+
 func (r *enabledPhotoRuntime) PhotoFeatureEnabled(context.Context) (bool, error) { return true, nil }
 func (r *enabledPhotoRuntime) ActingAccountID(context.Context) int64             { return 0 }
 func (r *enabledPhotoRuntime) UnlinkStoredPhoto(storedURL string) {
@@ -33,10 +35,10 @@ func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabl
 	t.Helper()
 	runtime := &enabledPhotoRuntime{}
 	module, err := New(Dependencies{
-		StudentDirectory:    testpkg.StudentDirectory{},
-		DB:                  db,
-		Observe:             func(Observation) {},
-		StudentPhotoRuntime: func() StudentPhotoRuntime { return runtime },
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db,
+		Observe:          func(Observation) {},
+		StudentPhotos:    runtime,
 	})
 	require.NoError(t, err)
 	return module, runtime

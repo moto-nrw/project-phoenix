@@ -38,16 +38,16 @@ type offboardingIdentity interface {
 }
 
 type offboardingScenario struct {
-	db        *bun.DB
-	repos     *api.RepositoryTestFactory
-	timetable api.TimetableRepositories
-	owners    api.TimetableDependencies
-	workTime  workforce.Capability
-	rows      api.TimetableTestRepositories
-	authSvc   offboardingIdentity
-	svc       *offboardingTestRunner
-	deps      offboardingcompose.Dependencies
-	ctx       context.Context
+	db          *bun.DB
+	repos       *api.RepositoryTestFactory
+	reposPeople *api.PeopleRepositorySuiteFactory
+	timetable   api.TimetableRepositories
+	workTime    workforce.Capability
+	rows        api.TimetableTestRepositories
+	authSvc     offboardingIdentity
+	svc         *offboardingTestRunner
+	deps        offboardingcompose.Dependencies
+	ctx         context.Context
 }
 
 func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
@@ -62,14 +62,14 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 
 	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
-		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, testpkg.NewDatabase(t, db), nil)
+		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
+	}, testpkg.TenantRuntime(t, db),
+		testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
+		testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
@@ -87,16 +87,16 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
-		db:        db,
-		repos:     repos,
-		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), owners),
-		owners:    owners,
-		workTime:  owners.Workforce,
-		rows:      rows,
-		authSvc:   authService,
-		svc:       svc,
-		deps:      deps,
-		ctx:       testpkg.Ctx(t),
+		db:          db,
+		repos:       repos,
+		reposPeople: reposPeople,
+		timetable:   api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		workTime:    api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		rows:        rows,
+		authSvc:     authService,
+		svc:         svc,
+		deps:        deps,
+		ctx:         testpkg.Ctx(t),
 	}
 }
 
@@ -108,7 +108,7 @@ type offboardingTestRunner struct {
 }
 
 func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, actorID int64, username string) error {
-	workflow, err := offboardingcompose.New(r.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(r.deps)
 	if err != nil {
 		return err
 	}
@@ -139,13 +139,14 @@ func TestOffboardStaff_ConcurrentSupervisionCannotAttachAfterRetirement(t *testi
 func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
-	active, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	require.NoError(t, err)
+	activePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent supervision")
 	group := testpkg.CreateTestActiveGroup(t, sc.db, activity.ID, room.ID)
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
 	defer cancel()
@@ -159,10 +160,10 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "replace" {
-					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
+					_, err := activePresence.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
 					return err
 				}
-				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
+				return activePresence.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
 					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: calendar.TodayDate().String(),
 				})
 			})
@@ -200,13 +201,13 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return failure }
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, failure)
-	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	_, err = sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
 	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
 	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
-	person, err := sc.repos.Person.FindByID(sc.ctx, staff.PersonID)
+	person, err := sc.reposPeople.Person.FindByID(sc.ctx, staff.PersonID)
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
@@ -246,6 +247,7 @@ func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.
 func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
+	planner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Timetable")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent timetable")
 	date := testpkg.TodayDate().AddDays(1)
@@ -256,7 +258,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	if operation == "move_history" {
 		testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 	}
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
 	defer cancel()
@@ -276,7 +278,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 				if operation == "move_history" {
 					return api.MoveActivityInstanceForTest(writerCtx, sc.timetable, instance.ID, testpkg.TodayDate().AddDays(1))
 				}
-				return api.AssignInstanceStaffForTest(writerCtx, sc.owners, instance.ID, staff.ID)
+				return api.AssignInstanceStaffForTest(writerCtx, planner, instance.ID, staff.ID)
 			})
 		}()
 		require.Eventually(t, func() bool {
@@ -316,7 +318,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	queue, err := api.NewStaffDocumentCleanup(testpkg.NewDatabase(t, sc.db), nil)
 	require.NoError(t, err)
 	sc.deps.Cleanup = queue.Enqueue
-	workflow, err := offboardingcompose.New(sc.deps)
+	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
 	ctx := context.WithValue(sc.ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "runtime-actor"})
 	counter := testpkg.CaptureQueriesForContext(t, sc.db)
@@ -555,10 +557,9 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	factory, factoryErr := api.NewServiceGraphForTests(sc.repos, testpkg.NewDatabase(t, sc.db), slog.Default())
+	identityModule, factoryErr := api.NewTestIdentityAccess(testpkg.NewDatabase(t, sc.db), slog.Default())
 	require.NoError(t, factoryErr)
-	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
-	invSvc := factory.Invitation
+	invSvc := identityModule
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")
@@ -676,9 +677,9 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, peoplePorts.ErrStaffInUse)
 
-	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
+	_, err = sc.reposPeople.GroupSubstitution.FindByID(sc.ctx, handover.ID)
 	require.NoError(t, err)
-	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	_, err = sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
 }
 
@@ -846,13 +847,13 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	listed, err := sc.repos.Staff.ListAllWithPerson(sc.ctx)
+	listed, err := sc.reposPeople.Staff.ListAllWithPerson(sc.ctx)
 	require.NoError(t, err)
 	for _, s := range listed {
 		assert.NotEqual(t, staff.ID, s.ID, "offboarded staff must not appear in the staff list")
 	}
 
-	found, err := sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	found, err := sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	assert.Error(t, err, "FindByID must not return soft-deleted staff")
 	assert.Nil(t, found)
 }

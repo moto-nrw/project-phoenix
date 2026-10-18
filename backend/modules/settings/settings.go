@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Keys of the tenant settings other owners read.
@@ -170,7 +170,7 @@ func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fal
 // Snapshot is a batch of one tenant's resolved settings. A reader that
 // resolves many keys at once returns it from
 // ResolveManyForTenant(ctx, tenantID, keys).
-type Snapshot = configSvc.SettingsSnapshot
+type Snapshot = configModel.SettingsSnapshot
 
 // ResolvePresenceModeForTenant returns the tenant's presence mode, or the
 // detailed mode when the reader is missing or fails.
@@ -183,19 +183,19 @@ func ResolvePresenceModeForTenant(ctx context.Context, reader TenantReader, tena
 
 // The settings errors the operator routes map to responses.
 type (
-	SettingsError           = configSvc.SettingsError
-	DefinitionNotFoundError = configSvc.DefinitionNotFoundError
-	InvalidValueError       = configSvc.InvalidValueError
-	PermissionDeniedError   = configSvc.PermissionDeniedError
+	SettingsError           = configModel.SettingsError
+	DefinitionNotFoundError = configModel.DefinitionNotFoundError
+	InvalidValueError       = configModel.InvalidValueError
+	PermissionDeniedError   = configModel.PermissionDeniedError
 )
 
 // AttendanceWindowError rejects a visible attendance window longer than the
 // attendance retention window (#3957).
-type AttendanceWindowError = configSvc.AttendanceWindowError
+type AttendanceWindowError = configModel.AttendanceWindowError
 
 // ErrPresenceModeSwitchBlocked reports a presence-mode switch while
 // attendance of the day is still open.
-var ErrPresenceModeSwitchBlocked = configSvc.ErrPresenceModeSwitchBlocked
+var ErrPresenceModeSwitchBlocked = configModel.ErrPresenceModeSwitchBlocked
 
 // BookingAuthorityBlockedError reports that the side effect of enabling
 // booking-led care (KeyEnrollmentBookingsAuthoritative) refused the write
@@ -232,11 +232,11 @@ type OperatorSchoolSettings interface {
 // WithSettingsSnapshot attaches the immutable read snapshot used by this owner's
 // resolver. Writes must not prefetch the keys they change.
 func WithSettingsSnapshot(ctx context.Context, snapshot *Snapshot) context.Context {
-	return configSvc.WithSettingsSnapshot(ctx, snapshot)
+	return configModel.WithSettingsSnapshot(ctx, snapshot)
 }
 
 // WithSettingsRequestCache attaches the tenant-keyed memo used by the resolver.
 // Repeated attachment keeps the same cache; successful writes evict its entries.
 func WithSettingsRequestCache(ctx context.Context) context.Context {
-	return configSvc.WithSettingsRequestCache(ctx)
+	return configModel.WithSettingsRequestCache(ctx)
 }

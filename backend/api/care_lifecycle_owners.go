@@ -19,38 +19,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 )
 
-// CareLifecycleOwnerSources are the owners the Care Plan lifecycle (#3427)
-// drives around a care exit: the child rows and memberships, the persons and
-// bracelets, the timetable, the school calendar, the unlogged Student
-// Presence, the Timetable plan reads joined with its attendance and the
-// Enrollment applications with their bookings.
-type CareLifecycleOwnerSources struct {
-	Students   CareStudentRows
-	Persons    CarePersonRows
-	Membership CareMembershipCommands
-	People     peopledirectory.Capability
-	Timetable  timetable.Capability
-	Calendar   schoolcalendar.Query
-	Presence   *studentpresence.Module
-	PlanReads  presenceProjectionReads
-	Enrollment EnrollmentBookingProjection
-}
-
-// NewCareLifecycleOwners binds the lifecycle's ports to their owners. The
-// change trail arrives from the caller, which holds the audit service.
-func NewCareLifecycleOwners(sources CareLifecycleOwnerSources, changeTrail carePlanCompose.CareEndRecorder) carePlanCompose.CareLifecycleOwners {
-	presence := sources.Presence
+// NewCareLifecycleOwners binds the Care Plan lifecycle's (#3427) ports to the
+// owners it drives around a care exit: the child rows and memberships, the
+// persons and bracelets, the timetable, the school calendar, the unlogged
+// Student Presence, the Timetable plan reads joined with its attendance and
+// the Enrollment applications with their bookings. The change trail arrives
+// from the caller, which holds the audit service.
+func NewCareLifecycleOwners(
+	students CareStudentRows, persons CarePersonRows, membership CareMembershipCommands, people peopledirectory.Capability,
+	timetables timetable.Capability, calendar schoolcalendar.Query, presence *studentpresence.Module,
+	planReads presenceProjectionReads, enrollment EnrollmentBookingProjection, changeTrail carePlanCompose.CareEndRecorder,
+) carePlanCompose.CareLifecycleOwners {
 	return carePlanCompose.CareLifecycleOwners{
 		Students: CareStudents{
-			students: sources.Students, persons: sources.Persons,
-			membership: sources.Membership, people: sources.People,
+			students: students, persons: persons,
+			membership: membership, people: people,
 		},
-		Roster:      careexit.NewRoster(sources.Timetable, presence, sources.PlanReads),
-		Bookings:    careExitBookings{capability: sources.Timetable},
-		Enrollment:  careExitEnrollment{projection: sources.Enrollment},
+		Roster:      careexit.NewRoster(timetables, presence, planReads),
+		Bookings:    careExitBookings{capability: timetables},
+		Enrollment:  careExitEnrollment{projection: enrollment},
 		Presence:    careExitPresence{presence: presence},
-		Calendar:    schoolCalendarCompose.CalendarPeriodIDs{Calendar: sources.Calendar},
-		Tags:        peopleCompose.NewStudentTagReleaser(sources.People),
+		Calendar:    schoolCalendarCompose.CalendarPeriodIDs{Calendar: calendar},
+		Tags:        peopleCompose.NewStudentTagReleaser(people),
 		ChangeTrail: changeTrail,
 	}
 }

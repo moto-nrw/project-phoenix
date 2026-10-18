@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,8 +29,10 @@ func TestListPendingFallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 	query := NewScheduleReviews(ScheduleReviewDependencies{
 		Requests: pendingPickupReview{}, Schedules: reads,
 		People: pendingPickupReview{},
-		Scope:  func(context.Context) (ports.ReviewScope, error) { return ports.ReviewScope{SchoolWide: true}, nil },
-		Today:  func() careplan.Date { return "2026-09-20" },
+		Scope: func(context.Context) (careplan.ReviewScope, error) {
+			return careplan.ReviewScope{SchoolWide: true}, nil
+		},
+		Today: func() careplan.Date { return "2026-09-20" },
 	})
 	items, _, err := query.ListPending(ctx, careplan.RequestQueueFilter{})
 	require.NoError(t, err)
@@ -42,18 +43,18 @@ func TestListPendingFallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 
 type pendingPickupReview struct {
 	careplan.CareScheduleRequestQuery
-	ports.ScheduleReviewDirectory
+	careplan.ScheduleReviewDirectory
 }
 
 func (pendingPickupReview) ListCareScheduleRequests(context.Context, careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {
 	return []careplan.CareScheduleChangeRequest{{RequestKind: "weekly_schedule", Status: "pending", Payload: json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`)}}, nil
 }
 
-func (pendingPickupReview) FindStudents(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
-	var student ports.ReviewStudent
-	return map[int64]ports.ReviewStudent{student.ID: student}, nil
+func (pendingPickupReview) FindStudents(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) {
+	var student careplan.ReviewStudent
+	return map[int64]careplan.ReviewStudent{student.ID: student}, nil
 }
 
-func (pendingPickupReview) PersonNames(context.Context, []int64) (map[int64]ports.PersonName, error) {
+func (pendingPickupReview) PersonNames(context.Context, []int64) (map[int64]careplan.PersonName, error) {
 	return nil, nil
 }

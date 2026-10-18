@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +34,7 @@ func TestProvisioningGetProvisioningStats(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDashboard(h)
-		h.dashboard.counts = domain.DashboardCounts{Organizations: 3, Schools: 7, Accounts: 12}
+		h.dashboard.counts = organizationtenancy.DashboardCounts{Organizations: 3, Schools: 7, Accounts: 12}
 
 		stats, err := h.svc.GetProvisioningStats(context.Background())
 
@@ -295,7 +294,7 @@ func TestProvisioningGetSchoolPWAUsage(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDashboard(h)
-		h.dashboard.pwaRows = []domain.PWAUsageRow{
+		h.dashboard.pwaRows = []organizationtenancy.DashboardPWAUsage{
 			{TenantID: 10, Portal: "staff", StandaloneUsers: 3, EligibleUsers: 12},
 			{TenantID: 10, Portal: "parent", StandaloneUsers: 47, EligibleUsers: 210},
 			{TenantID: 10, Portal: "kiosk", StandaloneUsers: 99, EligibleUsers: 99},
@@ -378,7 +377,7 @@ func TestProvisioningListPWAUsage(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.dashboard.pwaTenantID = -1
-		h.dashboard.pwaRows = []domain.PWAUsageRow{
+		h.dashboard.pwaRows = []organizationtenancy.DashboardPWAUsage{
 			{TenantID: 10, Portal: "staff", StandaloneUsers: 1, EligibleUsers: 2},
 			{TenantID: 20, Portal: "parent", StandaloneUsers: 3, EligibleUsers: 4},
 		}

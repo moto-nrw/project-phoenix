@@ -14,7 +14,7 @@ import (
 // half (#2753). Every other person read goes to the users service unchanged.
 type TimetableOperationPeople struct {
 	timetablePorts.OperationPeople
-	Membership schoolmembership.Capability
+	Membership staffMemberQuery
 }
 
 func (p TimetableOperationPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*timetable.StaffMember, error) {

@@ -70,7 +70,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil,
-		NewTestPhases(TestPhaseDependencies{Records: NewTestModule()}),
+		NewTestPhases(TestPhaseDependencies{Records: NewTestModule(), Offerings: phaseOfferings{}, LockTemplateRecurrence: func(context.Context) error { return nil }, Resyncer: &recordingSourcedTemplateResyncer{}}),
 		nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, dbPublicSchools{db: db},
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/phases/public/%s", targetSchool.Slug), nil)

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 
 	effective := futureMonday(2)
 	before := effective.AddDays(-7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, before)
+	s := makeScenario(t, activityContract.WeekdayMonday, before)
 	defer s.runCleanup(t)
 
 	secondStaff := testpkg.CreateTestStaffForTenant(
@@ -29,18 +30,18 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	substitute := testpkg.CreateTestStaffForTenant(
 		t, s.db, s.tenantID, "Sub", fmt.Sprintf("Stitute-%d", time.Now().UnixNano()),
 	)
-	secondSupervisor := &activitiesModels.SupervisorPlanned{
+	secondSupervisor := &activityContract.SupervisorPlanned{
 		StaffID:   secondStaff.ID,
 		GroupID:   s.template.ID,
-		ValidFrom: activitiesModels.Date(before.AddDays(-30)),
+		ValidFrom: activityContract.Date(before.AddDays(-30)),
 	}
 	secondSupervisor.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(secondSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(activitySupervisorPlannedFixture(secondSupervisor)).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
 
-	_, err = s.factory.Materialization.MaterializeForTenant(
+	_, err = s.materialization.MaterializeForTenant(
 		s.ctx, before, effective, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	in := baseSplitInput(s, effective, fmt.Sprintf("Renamed-%d", time.Now().UnixNano()))
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &effective
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	require.False(t, splitInstanceExists(t, s, targetInstance.ID), "split must replace the old future instance")
@@ -160,10 +161,10 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 
 	effective := futureMonday(2)
 	tuesday := effective.AddDays(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	s := makeScenario(t, activityContract.WeekdayMonday, effective)
 	defer s.runCleanup(t)
 
-	_, err := s.factory.Materialization.MaterializeForTenant(
+	_, err := s.materialization.MaterializeForTenant(
 		s.ctx, effective, effective, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -182,10 +183,10 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	require.NoError(t, err)
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Tuesday-%d", time.Now().UnixNano()))
-	in.Weekdays = []int{activitiesModels.WeekdayTuesday}
+	in.Weekdays = []int{activityContract.WeekdayTuesday}
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &tuesday
-	result, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, in)
+	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
 	require.NoError(t, err)
 
 	assert.Empty(t, listInstancesForDate(t, s.db, result.NewTemplateID, effective))

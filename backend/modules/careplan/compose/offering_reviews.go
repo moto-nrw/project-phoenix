@@ -7,19 +7,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-type OfferingReviewDirectory = ports.OfferingReviewDirectory
-type OfferingReviewEnrollment = ports.OfferingReviewEnrollment
-type OfferingReviewChild = ports.OfferingReviewChild
-type OfferingReviewRequest = ports.OfferingReviewRequest
-type OfferingReviewPhase = ports.OfferingReviewPhase
-type OfferingReviewBooking = ports.OfferingReviewBooking
-type OfferingReviewCourses = ports.OfferingReviewCourses
-type OfferingReviewCourseRef = ports.OfferingReviewCourseRef
-type OfferingReviewCourse = ports.OfferingReviewCourse
+type OfferingReviewDirectory = careplan.OfferingReviewDirectory
+type OfferingReviewEnrollment = careplan.OfferingReviewEnrollment
+type OfferingReviewChild = careplan.OfferingReviewChild
+type OfferingReviewRequest = careplan.OfferingReviewRequest
+type OfferingReviewPhase = careplan.OfferingReviewPhase
+type OfferingReviewBooking = careplan.OfferingReviewBooking
+type OfferingReviewCourses = careplan.OfferingReviewCourses
+type OfferingReviewCourseRef = careplan.OfferingReviewCourseRef
+type OfferingReviewCourse = careplan.OfferingReviewCourse
 
 type OfferingReviewDependencies struct {
 	People     OfferingReviewDirectory

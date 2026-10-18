@@ -29,11 +29,11 @@ type DirectoryActivities interface {
 type directory struct {
 	activities DirectoryActivities
 	people     DirectoryPeople
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	logger     *slog.Logger
 }
 
-func NewDirectory(people DirectoryPeople, activities DirectoryActivities, principals ports.Principals, logger *slog.Logger) devicescan.Directory {
+func NewDirectory(people DirectoryPeople, activities DirectoryActivities, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
 	if people == nil || principals == nil {
 		panic("kiosk directory: people and principals are required")
 	}

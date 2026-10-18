@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -15,8 +18,9 @@ import (
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
-func newSettingsResource(operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
+func newSettingsResource(db transactionruntime.Database, operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
 	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
+		DocumentCleanup: fileStorageCompose.NewUploadCleanup(db.Pool(), "enrollment-legal-documents").Queue,
 		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
 			ProtectedTenantRoutes(r, fn)
 		},

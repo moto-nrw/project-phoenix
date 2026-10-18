@@ -78,10 +78,11 @@ type tenantSettingsWriter interface {
 func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
 	db, svc := setupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	resource.SettingsService = settings
 	resource.RoleGrants = api.AccountRoleGrantPolicy()
-	return db, resource, svc.Settings
+	return db, resource, settings
 }
 
 // setupPublicRouter creates a router for testing public endpoints

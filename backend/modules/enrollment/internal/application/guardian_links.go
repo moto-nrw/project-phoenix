@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -30,7 +29,7 @@ const (
 // email — the stamp is what prevents duplicate profiles.
 func (d *Decisions) linkAdditionalGuardians(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	studentID int64,
 ) error {
 	if d.deps.Guardians == nil {
@@ -104,7 +103,7 @@ func (d *Decisions) linkAdditionalGuardian(ctx context.Context, extra *enrollmen
 //     is_primary=false), but their link and permissions survive (#1663).
 func (d *Decisions) reconcilePrimaryGuardianLink(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	studentID int64,
 	pruneStalePrimary bool,
 	reviewedBy int64,
@@ -231,7 +230,7 @@ func (d *Decisions) createMissingPrimaryGuardianLink(ctx context.Context, studen
 // and unlinks those an edit removed, returning the profiles it keeps.
 func (d *Decisions) reconcileApprovedChildGuardians(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	studentID int64,
 	previousGuardians []*enrollment.RequestGuardian,
 	reviewedBy int64,

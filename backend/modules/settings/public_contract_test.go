@@ -1,0 +1,38 @@
+package settings_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPublicSettingsContractDistinguishesOverrideFromRegistryDefault(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	var resolver settings.Resolver = module.Settings
+	ctx := testpkg.Ctx(t)
+	key := settings.KeyParentNotesEnabled
+	fallback, err := resolver.ResolveBool(ctx, key)
+	require.NoError(t, err)
+	overridden, err := resolver.HasTenantOverride(ctx, key)
+	require.NoError(t, err)
+	require.False(t, overridden)
+	require.NoError(t, module.Settings.SetValue(ctx, key, !fallback, nil, nil))
+	actual, err := resolver.ResolveBool(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, !fallback, actual)
+	overridden, err = resolver.HasTenantOverride(ctx, key)
+	require.NoError(t, err)
+	require.True(t, overridden)
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	var reader settings.TenantReader = module.Settings
+	other, err := reader.ResolveBoolForTenant(testpkg.WithPackageTenantRuntime(context.Background()), otherTenant, key)
+	require.NoError(t, err)
+	require.Equal(t, fallback, other, "an override never becomes another school's default")
+}

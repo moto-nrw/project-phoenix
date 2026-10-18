@@ -198,23 +198,28 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 			return nil, err
 		}
 	}
-	s.afterAbsenceCommit(ctx, tenantID, report, rows)
+	if err := s.afterAbsenceCommit(ctx, tenantID, report, rows); err != nil {
+		return nil, err
+	}
 	return rows, nil
 }
 
 // afterAbsenceCommit posts the chat pill and wakes the live views once the
 // absence has committed.
-func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*absencerecords.StudentStatusDay) {
+func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*absencerecords.StudentStatusDay) error {
 	pillBody := SickNoteEventBody(report.status, report.dates)
 	pillRefID := firstStatusID(rows)
+	if err := s.SelfService.EmitSelfServicePill(ctx, tenantID, report.studentID, report.accountID, "sick_note", pillBody, "active.student_status_days", pillRefID); err != nil {
+		return err
+	}
 	s.Runtime.RegisterAfterCommit(ctx, func() {
-		s.SelfService.EmitSelfServicePill(tenantID, report.studentID, report.accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 		s.broadcastStudentUpdated(tenantID, report.studentID)
 		// broadcastStudentUpdated is staff-only and emitSelfServicePill wakes
 		// just the acting guardian's thread; fan out to EVERY guardian so a
 		// co-guardian's open tab drops the stale presence too (#1725 review).
 		s.SelfService.WakeChildGuardians(tenantID, report.studentID)
 	})
+	return nil
 }
 
 // statusDaysFromCarePlan returns Care Plan's status days in the portal's

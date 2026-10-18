@@ -22,7 +22,7 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// Live caregiver profile (person → staff → teacher) linked to the
@@ -57,7 +57,7 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// No person/staff/teacher chain: a plain account may become Lehrkraft.
@@ -132,7 +132,7 @@ func TestAssignRoleToAccount_RejectsNonLehrkraftRoleForLehrkraftAccount(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "lehrkraft-to-admin")
@@ -152,7 +152,7 @@ func TestReplaceAccountRole_RejectsReplacingLehrkraftAccount(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "replace-lehrkraft")
@@ -173,7 +173,7 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *t
 
 	db := testpkg.SetupTestDB(t)
 
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// A Lehrkraft account by construction: no person → staff → teacher chain.
@@ -197,7 +197,7 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithProfile(t *test
 
 	db := testpkg.SetupTestDB(t)
 
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// A profile does not make a Lehrkraft role exchange safe. The Lehrkraft
@@ -227,7 +227,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	admin := setupAuthFactory(t, db).AccountAuthentication()
+	admin := setupAuthFactory(t, db)
 	ctx := testpkg.Ctx(t)
 
 	// Negative control for the guard's scope: account provisioning assigns
@@ -247,7 +247,7 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	t.Run("AssignRoleToAccount persists created mapping", func(t *testing.T) {
-		admin := setupAuthFactory(t, db).AccountAuthentication()
+		admin := setupAuthFactory(t, db)
 
 		account := testpkg.CreateTestAccount(t, db, "assign-rollback")
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -264,7 +264,7 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 	})
 
 	t.Run("RemoveRoleFromAccount persists deleted mapping", func(t *testing.T) {
-		admin := setupAuthFactory(t, db).AccountAuthentication()
+		admin := setupAuthFactory(t, db)
 
 		account := testpkg.CreateTestAccount(t, db, "remove-rollback")
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))

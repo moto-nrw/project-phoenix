@@ -228,7 +228,7 @@ func sessionDetail(group *ports.ActiveGroup) *studentpresence.SessionDetail {
 	return detail
 }
 
-func sessionRoom(room *ports.SessionRoom) *studentpresence.SessionRoomSummary {
+func sessionRoom(room *studentpresence.SessionRoom) *studentpresence.SessionRoomSummary {
 	if room == nil {
 		return nil
 	}

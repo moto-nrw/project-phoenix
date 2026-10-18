@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -14,8 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
@@ -140,9 +140,13 @@ func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string
 type decisionTestEnv struct {
 	// tb composes the Care Plan collaborators the suites build on this env
 	// over the test tenant.
-	tb    testing.TB
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
+	tb              testing.TB
+	db              *bun.DB
+	repos           *api.RepositoryTestFactory
+	reposEnrollment *api.EnrollmentSuiteRepositories
+	reposPeople     *api.PeopleRepositorySuiteFactory
+	reposSchedules  *api.CareScheduleSuiteRepositories
+	reposPresence   *api.PresenceSuiteRepositories
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable api.TimetableRepositories
 	// requestSvc is the parent-facing intake.
@@ -178,8 +182,11 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactoryEnrollment := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db))
+	repoFactoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	repoFactoryPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	settings := newStubRequestSettings()
 	settings.boolValues[enrollmentKeys.Enabled] = true
 	settings.boolValues[enrollmentKeys.AllowSubmissionEdit] = true
@@ -206,15 +213,15 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 	offerings := enrollmentTest.NewCareOfferingRecords(repoFactory.CarePlan())
 	intake := api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Bookings:         api.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
-		Requests:         repoFactory.Enrollment(),
-		Children:         repoFactory.Enrollment(),
+		Requests:         repoFactoryEnrollment.Enrollment(),
+		Children:         repoFactoryEnrollment.Enrollment(),
 		CareOfferingRepo: offerings,
-		Capacity:         api.NewEnrollmentOfferingCapacity(offerings, repoFactory.Enrollment(), settings),
-		Catalog:          repoFactory.Enrollment(),
+		Capacity:         api.NewEnrollmentOfferingCapacity(offerings, repoFactoryEnrollment.Enrollment(), settings),
+		Catalog:          repoFactoryEnrollment.Enrollment(),
 		SchoolRepo:       schools,
-		Notifications:    testNotifications(repoFactory.Enrollment(), settings, schools),
-		RateLimitRepo:    repoFactory.Enrollment(),
-		LateInviteRepo:   repoFactory.Enrollment(),
+		Notifications:    testNotifications(repoFactoryEnrollment.Enrollment(), settings, schools),
+		RateLimitRepo:    repoFactoryEnrollment.Enrollment(),
+		LateInviteRepo:   repoFactoryEnrollment.Enrollment(),
 		OutboxEnqueuer:   &recordingMailOutbox{},
 		Settings:         settings,
 		FrontendURL:      "http://localhost:3000",
@@ -223,7 +230,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Rollover", "Tester")
-	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactoryEnrollment.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Rollover", []enrollmentTest.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentTest.FormFieldText, SortOrder: 0},
 	}, account.ID)
@@ -231,24 +238,28 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 
 	sourcePhase := &enrollmentTest.Phase{
 		Name:             "rollover-source-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 		FormSchemaID:     &schema.ID,
 	}
 	sourcePhase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.Enrollment().InsertPhase(ctx, sourcePhase))
+	require.NoError(t, repoFactoryEnrollment.Enrollment().InsertPhase(ctx, sourcePhase))
 
 	catalog := testCareOfferingCatalog(t, db, api.WithCareOfferingSettings(settings))
 	bookings := composeBookings(t, db, catalog, decisionSettings, nil, nil)
-	decisions := composeDecisions(t, db, repoFactory, bookings, decisionSettings, nil, nil)
+	decisions := composeDecisions(t, db, repoFactoryEnrollment, repoFactory, repoFactoryPeople, repoFactorySchedules, bookings, decisionSettings, nil, nil)
 	env := &decisionTestEnv{
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
+		reposEnrollment: repoFactoryEnrollment,
+		reposPeople:     repoFactoryPeople,
+		reposSchedules:  repoFactorySchedules,
+		reposPresence:   repoFactoryPresence,
+		timetable:       api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,
@@ -321,7 +332,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		})
 	}
 	bookings := composeBookings(env.tb, env.db, env.offeringCatalog, settings, lockTemplateRecurrence, careWithdrawal)
-	return enrollmentTest.NewPublicDecisions(composeDecisions(env.tb, env.db, env.repos, bookings, settings, lockTemplateRecurrence, careWithdrawal))
+	return enrollmentTest.NewPublicDecisions(composeDecisions(env.tb, env.db, env.reposEnrollment, env.repos, env.reposPeople, env.reposSchedules, bookings, settings, lockTemplateRecurrence, careWithdrawal))
 }
 
 // newBookingsForTest composes Care Plan's booking materialization (#3560)
@@ -371,7 +382,7 @@ func composeBookings(
 func composeDecisions(
 	tb testing.TB,
 	db *bun.DB,
-	repoFactory *api.RepositoryTestFactory,
+	repoFactory *api.EnrollmentSuiteRepositories, repoFactoryCare *api.RepositoryTestFactory, repoFactoryPeople *api.PeopleRepositorySuiteFactory, repoFactorySchedules *api.CareScheduleSuiteRepositories,
 	bookings enrollmentTest.DecisionBookings,
 	settings api.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
@@ -387,35 +398,30 @@ func composeDecisions(
 	students, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(tb, err)
 	audits := api.NewTestAuditPersistence(testpkg.NewDatabase(tb, db), nil)
-	return api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
-		Requests:               repoFactory.Enrollment(),
-		Children:               repoFactory.Enrollment(),
-		Guardians:              repoFactory.Enrollment(),
-		LateInvites:            repoFactory.Enrollment(),
-		CareOfferings:          enrollmentTest.NewCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:                 repoFactory.Enrollment(),
-		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustments:    audits.EnrollmentOfferingAdjustment,
-		Restorations:           audits.EnrollmentRestorationAudit,
-		Notifications:          testNotifications(repoFactory.Enrollment(), settings, nil),
-		Persons:                repoFactory.Person,
-		Staff:                  repoFactory.Staff,
-		Students:               repoFactory.Student,
-		StudentGuardians:       repoFactory.StudentGuardian,
-		GuardianProfiles:       repoFactory.GuardianProfile,
-		GuardianPhones:         repoFactory.GuardianPhoneNumber,
-		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
-		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
-		CareBookings:           bookings,
-		GuardianAccess:         guardianAccess,
+	return api.NewEnrollmentDecisions(api.EnrollmentDecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		LateInvites:    repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentTest.NewCareOfferingRecords(repoFactoryCare.CarePlan()),
+		Notifications:  testNotifications(repoFactory.Enrollment(), settings, nil),
+		Bookings:       bookings,
+		GuardianAccess: guardianAccess,
+		People: api.EnrollmentDecisionPeopleDirectory(
+			repoFactoryPeople.Person, repoFactoryPeople.Staff, repoFactoryPeople.Student, repoFactoryPeople.StudentGuardian, repoFactoryPeople.GuardianProfile, repoFactoryPeople.GuardianPhoneNumber, students,
+		),
 		StudentEnrollment:      students,
-		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(tb, db))),
+		Companions:             api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan()), repoFactoryCare.CarePlan().DeleteCompanionEdges),
+		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repoFactorySchedules.StudentPickupSchedule),
+		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repoFactorySchedules.StudentArrivalSchedule),
+		Adjustments:            api.EnrollmentDecisionAdjustments(audits.EnrollmentOfferingAdjustment),
+		Restorations:           api.EnrollmentDecisionRestorations(audits.EnrollmentRestorationAudit),
+		StudentAudit:           api.EnrollmentDecisionStudentAudit(api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(tb, db)))),
 		CareWithdrawal:         careWithdrawal,
-		FrontendURL:            "http://localhost:3000",
-		ParentsURL:             "http://parents.localhost:3000",
-		Settings:               settings,
+		ParentsURL:             api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		Settings:               api.EnrollmentDecisionSettingValues(settings),
 		LockTemplateRecurrence: lockTemplateRecurrence,
 		Logger:                 slog.Default(),
 		Today:                  func() calendar.Date { return decisionTestToday },
@@ -464,18 +470,18 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 	offerings := enrollmentTest.NewCareOfferingRecords(env.repos.CarePlan())
 	return api.NewEnrollmentChangeRequests(api.EnrollmentChangeRequestSources{
 		Bookings:            api.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
-		Requests:            env.repos.Enrollment(),
-		Children:            env.repos.Enrollment(),
-		Guardians:           env.repos.Enrollment(),
-		LateInviteRepo:      env.repos.Enrollment(),
+		Requests:            env.reposEnrollment.Enrollment(),
+		Children:            env.reposEnrollment.Enrollment(),
+		Guardians:           env.reposEnrollment.Enrollment(),
+		LateInviteRepo:      env.reposEnrollment.Enrollment(),
 		CareOfferingRepo:    offerings,
-		Capacity:            api.NewEnrollmentOfferingCapacity(offerings, env.repos.Enrollment(), env.settings),
-		Catalog:             env.repos.Enrollment(),
-		Notifications:       testNotifications(env.repos.Enrollment(), env.settings, schools),
-		GuardianProfileRepo: env.repos.GuardianProfile,
-		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
-		StudentRepo:         env.repos.Student,
-		GuardianAuthorizer:  env.repos.StudentGuardian,
+		Capacity:            api.NewEnrollmentOfferingCapacity(offerings, env.reposEnrollment.Enrollment(), env.settings),
+		Catalog:             env.reposEnrollment.Enrollment(),
+		Notifications:       testNotifications(env.reposEnrollment.Enrollment(), env.settings, schools),
+		GuardianProfileRepo: env.reposPeople.GuardianProfile,
+		GuardianPhoneRepo:   env.reposPeople.GuardianPhoneNumber,
+		StudentRepo:         env.reposPeople.Student,
+		GuardianAuthorizer:  env.reposPeople.StudentGuardian,
 		Decisions:           env.decisions,
 		BookingGates:        env.bookings,
 		Settings:            env.settings,
@@ -560,7 +566,7 @@ func testNotifications(modes enrollmentTest.NotificationModePin, settings interf
 func updateSourcePhase(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	phase := *env.sourcePhase
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(testpkg.Ctx(t), &phase))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(testpkg.Ctx(t), &phase))
 }
 
 func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate calendar.Date) {
@@ -616,7 +622,7 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 // re-enrollment branch instead of creating a second Person + Student.
 func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
 	t.Helper()
-	require.NoError(t, env.repos.Enrollment().UpdateMatchedStudent(testpkg.Ctx(t), childID, &studentID))
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdateMatchedStudent(testpkg.Ctx(t), childID, &studentID))
 }
 
 // liftTakeoverStamp clears created_student_id on the request's children and
@@ -628,7 +634,7 @@ func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, st
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
 	ctx := testpkg.TenantContext(env.sourcePhase.TenantID)
-	children, err := env.repos.Enrollment().ChildrenForRequest(ctx, requestID, false)
+	children, err := env.reposEnrollment.Enrollment().ChildrenForRequest(ctx, requestID, false)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))
 	for _, child := range children {
@@ -670,12 +676,12 @@ func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv
 	return rows
 }
 
-func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name string, mutate func(*enrollmentModels.CareOffering)) *enrollmentModels.CareOffering {
+func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name string, mutate func(*offeringContract.CareOfferingRecord)) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           name,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 		CountsAsCare:   false,
@@ -706,8 +712,8 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *api.RepositoryTestFactory) *enrollmentTest.ApprovedOfferingProjection {
-	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
+func approvedOfferingTestProjection(repos *api.EnrollmentSuiteRepositories, reposPeople *api.PeopleRepositorySuiteFactory) *enrollmentTest.ApprovedOfferingProjection {
+	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{reposPeople.Student})
 }
 
 func wipePhases(db *bun.DB, tenantID int64, names ...string) {

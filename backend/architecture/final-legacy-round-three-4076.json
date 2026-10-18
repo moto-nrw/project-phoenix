@@ -1,0 +1,115 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2580",
+    "#4076",
+    "#4084",
+    "#4085",
+    "#4086"
+  ],
+  "owner_and_capability": "Native collation, owner HTTP and root-bound review/principal/caller ports; native Facilities/Device Fleet values; owner-private PWA usage repository relocation. Delivery native subscription store errors preserve Error text, Unwrap and StoreFailure.",
+  "affected_packages": [
+    "sharedkernel/collation",
+    "modules/facilities/http",
+    "modules/facilities/internal/application/roomservice",
+    "modules/devicefleet",
+    "modules/devicefleet/internal/application",
+    "modules/devicescan",
+    "modules/careplan",
+    "modules/requestreview/compose",
+    "modules/timetable/ports",
+    "observability/internal/adapters/pwausage",
+    "api",
+    "modules/delivery/internal/adapters/deliverypostgres"
+  ],
+  "affected_tables": [
+    "None: SQL statements, schema and write ownership are unchanged."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/enrollment/http|github.com/moto-nrw/project-phoenix/internal/collation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students|github.com/moto-nrw/project-phoenix/internal/collation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/displayorder|github.com/moto-nrw/project-phoenix/internal/collation"
+  ],
+  "atomic_cutover": "Retire 4 keys for carrier 4076 against development d8708d82c7c8e18774acc3ee800014649560d666. Candidate 33 to 15 keys, composition 0. Delivery retains generic CRUD to preserve its generic behavioral suites, but owns its native subscription store errors. No exception or keep-alive is added. Fifteen native successor rule IDs replace thirteen stale rules.",
+  "tests": [
+    "scripts/backend-architecture.sh check --base-ref d8708d82c7c8e18774acc3ee800014649560d666",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref d8708d82c7c8e18774acc3ee800014649560d666",
+    "GOCACHE=/tmp/gocache-final /tmp/orch2580/heavy.sh scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development (full, no --fast)",
+    "golangci-lint run --timeout 10m; full pre-commit/pre-push hooks",
+    "Original assertions and TestFullProductionRouterGolden/golden files unchanged. Emergency Snapshot TestSnapshotRouteAuthorization, Group Live TestOGSGroupLive_TenantIsolation and Supervision Dashboard TestSupervisionDashboard_TenantIsolation retain the foreign-tenant coverage."
+  ],
+  "runtime_evidence": {
+    "source": "Local fixed-build architecture measurement and existing owner behavior suites, no production request or benchmark.",
+    "sources": [
+      "docs/architecture/final-legacy-cluster.md",
+      "backend/sharedkernel/collation/collation_test.go",
+      "backend/modules/emergencysnapshot/http/api_test.go",
+      "backend/modules/grouplive/http/ogs_group_live_test.go",
+      "backend/modules/supervisiondashboard/http/supervision_dashboard_test.go",
+      "backend/modules/devicefleet/retained_device_test.go"
+    ],
+    "workload": "Code-only migration against d8708d82c7c8e18774acc3ee800014649560d666; main-checkout test DB settings only, GOCACHE=/tmp/gocache-final. Final verification outcomes are in the report.",
+    "thresholds": "33 to 15 keys: 11 from 4004, 4 from 4076, 3 from 4077. Composition 0, foreign aliases 37 to 30, package carriers 13 to 8, compose LOC 31884 to 31160. No higher budget or new allowance.",
+    "errors": {
+      "state": "not_applicable",
+      "reason": "No new error semantics or failure policy; unchanged owner assertions are required in the final full affected-test gate."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "No new error semantics or failure policy; unchanged owner assertions are required in the final full affected-test gate."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Final native Delivery error cut: architecture passes at 15 keys and composition 0; retirement validation covers all 18 removed keys; full test-changed without --fast passes 229 affected packages with /tmp/gocache-final and the coordinated heavy runner; full lint reports zero issues. Full pre-commit/pre-push hooks are required on the final publication commit."
+    },
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only relocation changes no stored row or schema."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query-count benchmark is claimed; SQL and query ordering remain unchanged."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code-only contraction."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code-only contraction."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No pool configuration or acquisition policy changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock acquisition order or transaction boundary changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No new lock ordering is introduced."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "Scheduler code is unchanged in this slice; no runtime benchmark claimed."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No deployment or database change occurred; source rollback is documented."
+    }
+  },
+  "rollback_and_cleanup": "Revert the local contract, caller, policy, baseline, relocation and budget changes together. No data rollback or credential change is required.",
+  "exit_criterion": "All 4 listed keys absent, retirement validation and architecture green, full affected tests/lint/hooks green before publication. Other exits are not claimed: 15 total keys and 8 package carriers remain."
+}

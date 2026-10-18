@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -68,46 +67,24 @@ func New(dependencies Dependencies) (*feedback.Module, error) {
 	return feedback.NewModule(engine{service: service, observe: dependencies.Observe}), nil
 }
 
+// Settings are the feedback settings resolvers, bound at construction.
 type Settings struct {
-	mu        sync.RWMutex
 	enabled   func(context.Context) (bool, error)
 	retention func(context.Context) (int, error)
 }
 
-func NewSettings() *Settings { return &Settings{} }
-
-func (s *Settings) Bind(enabled func(context.Context) (bool, error), retention func(context.Context) (int, error)) {
+// NewBoundSettings binds the resolvers; a missing one is a construction
+// error.
+func NewBoundSettings(enabled func(context.Context) (bool, error), retention func(context.Context) (int, error)) (*Settings, error) {
 	if enabled == nil || retention == nil {
-		panic("feedback settings: both resolvers are required")
+		return nil, errors.New("feedback settings: both resolvers are required")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.enabled != nil || s.retention != nil {
-		panic("feedback settings: resolvers are already bound")
-	}
-	s.enabled = enabled
-	s.retention = retention
+	return &Settings{enabled: enabled, retention: retention}, nil
 }
 
-func (s *Settings) FeedbackEnabled(ctx context.Context) (bool, error) {
-	s.mu.RLock()
-	resolve := s.enabled
-	s.mu.RUnlock()
-	if resolve == nil {
-		return false, errors.New("feedback settings: enabled resolver is not bound")
-	}
-	return resolve(ctx)
-}
+func (s *Settings) FeedbackEnabled(ctx context.Context) (bool, error) { return s.enabled(ctx) }
 
-func (s *Settings) FeedbackRetentionDays(ctx context.Context) (int, error) {
-	s.mu.RLock()
-	resolve := s.retention
-	s.mu.RUnlock()
-	if resolve == nil {
-		return 0, errors.New("feedback settings: retention resolver is not bound")
-	}
-	return resolve(ctx)
-}
+func (s *Settings) FeedbackRetentionDays(ctx context.Context) (int, error) { return s.retention(ctx) }
 
 type engine struct {
 	service *application.Service

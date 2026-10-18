@@ -8,17 +8,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-type ScheduleReviewDirectory = ports.ScheduleReviewDirectory
-type ReviewBooking = ports.ReviewBooking
-type ReviewBookings = ports.ReviewBookings
-type ReviewClassTimes = ports.ReviewClassTimes
-type PickupReviewImpact = ports.PickupReviewImpact
-type PickupReviewBlock = ports.PickupReviewBlock
-type PickupReviewBlocks = ports.PickupReviewBlocks
+type ScheduleReviewDirectory = careplan.ScheduleReviewDirectory
+type ReviewBooking = careplan.ReviewBooking
+type ReviewBookings = careplan.ReviewBookings
+type ReviewClassTimes = careplan.ReviewClassTimes
+type PickupReviewImpact = careplan.PickupReviewImpact
+type PickupReviewBlock = careplan.PickupReviewBlock
+type PickupReviewBlocks = careplan.PickupReviewBlocks
 
 type ScheduleReviewDependencies struct {
 	People                ScheduleReviewDirectory

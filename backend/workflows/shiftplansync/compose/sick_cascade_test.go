@@ -69,7 +69,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 func buildSickCascadeEnvWith(t *testing.T, cascadeBroadcaster realtime.Broadcaster) *sickCascadeEnv {
 	t.Helper()
 	env := newPlanSyncEnv(t, cascadeBroadcaster, sickCascadeNow)
-	absences, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
+	absences, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()
@@ -173,7 +173,7 @@ type deviationEvent struct {
 // [from, to].
 func (e *sickCascadeEnv) deviationEvents(t *testing.T, from, to calendar.Date) []deviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEventsBetween(e.ctx, from, to)
+	events, err := e.deviations.DeviationEventsBetween(e.ctx, from, to)
 	require.NoError(t, err)
 	out := make([]deviationEvent, 0, len(events))
 	for _, ev := range events {

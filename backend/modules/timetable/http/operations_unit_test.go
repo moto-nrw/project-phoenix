@@ -387,7 +387,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, RootCompositions.StaffAccountPeople(224, 324), settings),
+		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, RootCompositions.StaffAccountPeople(224, 324, testRequestSession{}), settings),
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		People:            staffAccountPeople(224, 324),
 		SettingsService:   settings,
@@ -1141,7 +1141,10 @@ func (testOperationLifecycle) Reopen(context.Context, int64, int64, bool) (*time
 // newRealSpontaneousOpsService wires the Timetable owner's real operational
 // day so the handler exercises the real CreateAndStartSpontaneous (Create +
 // Start + MarkRollback), not a fake.
-func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetablePorts.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
+func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc interface {
+	timetablePorts.OperationPeople
+	timetablePorts.OperationCaller
+}, settings *fakeOperationSettingsService) timetable.OperationCapability {
 	t.Helper()
 	operations, err := timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            stubOpInstances{},
@@ -1161,10 +1164,27 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 		Arrivals:             stubOpArrivals{},
 		Pickups:              stubOpPickups{},
 		Lifecycle:            testOperationLifecycle{instances: instanceSvc},
+		Session:              testRequestSession{},
 		NormalizeSchoolClass: func(class string) string { return class },
-	})
+	}, personSvc)
 	require.NoError(t, err)
 	return operations
+}
+
+// testRequestSession reads the operational day's session from the claims and
+// permissions the test request carries, as the root's binding does.
+type testRequestSession struct{}
+
+func (testRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
+	}
+}
+
+func (testRequestSession) Permissions(ctx context.Context) []string {
+	return sessiontoken.PermissionsFromCtx(ctx)
 }
 
 func (r fakeOperationRooms) RoomName(context.Context, int64) (string, bool, error) {

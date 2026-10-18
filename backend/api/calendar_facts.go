@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -19,54 +21,81 @@ import (
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-// NewCalendarFacts binds the calendar's fact ports to the retained rows and
-// owner reads; a nil source leaves its port unset.
-func NewCalendarFacts(d CalendarFacts) calendarCompose.Config {
+// NewCalendarFacts binds the calendar's directory fact ports to the
+// retained staff, student, guardian, relationship, child and group rows; a
+// nil source leaves its port unset. BindCalendarScheduleFacts,
+// BindCalendarFeedFacts and BindCalendarCaller bind the other ports into
+// the result.
+func NewCalendarFacts(
+	staff calendarStaffRows, students calendarStudentRows, guardians calendarCompose.GuardianDirectory,
+	relationships calendarRelationshipRows, children ParentChildLinkSource, groups EducationGroupRepository,
+) calendarCompose.Config {
 	cfg := calendarCompose.Config{}
-	if d.StaffRepo != nil {
-		cfg.StaffRepo = calendarStaffPort{d.StaffRepo}
+	if staff != nil {
+		cfg.StaffRepo = calendarStaffPort{staff}
 	}
-	if d.StudentRepo != nil {
-		cfg.StudentRepo = calendarStudentPort{d.StudentRepo}
+	if students != nil {
+		cfg.StudentRepo = calendarStudentPort{students}
 	}
-	if d.GuardianProfileRepo != nil {
-		cfg.GuardianProfileRepo = d.GuardianProfileRepo
+	if guardians != nil {
+		cfg.GuardianProfileRepo = guardians
 	}
-	if d.StudentGuardianRepo != nil {
-		cfg.StudentGuardianRepo = calendarRelationshipPort{d.StudentGuardianRepo}
+	if relationships != nil {
+		cfg.StudentGuardianRepo = calendarRelationshipPort{relationships}
 	}
-	if d.ChildRepo != nil {
-		cfg.ChildRepo = calendarChildPort{d.ChildRepo}
+	if children != nil {
+		cfg.ChildRepo = calendarChildPort{children}
 	}
-	if d.GroupRepo != nil {
-		cfg.GroupRepo = calendarGroupPort{d.GroupRepo}
+	if groups != nil {
+		cfg.GroupRepo = calendarGroupPort{groups}
 	}
-	if d.InstanceStaffRepo != nil {
-		cfg.InstanceStaffRepo = calendarAssignmentPort{d.InstanceStaffRepo}
+	return cfg
+}
+
+// BindCalendarScheduleFacts binds the calendar's timetable, room and shift
+// fact ports into cfg: the instance staff and activity instance rows, the
+// rooms and the staff shifts and shift types. A nil source leaves its port
+// as it is.
+func BindCalendarScheduleFacts(
+	cfg calendarCompose.Config, assignments timetablePorts.CalendarAssignmentRows, instances timetablePorts.CalendarInstanceRows,
+	rooms facilitiesNative.RoomRows, shifts timetablePorts.CalendarShiftRows, shiftTypes timetablePorts.CalendarShiftTypeRows,
+) calendarCompose.Config {
+	if assignments != nil {
+		cfg.InstanceStaffRepo = calendarAssignmentPort{assignments}
 	}
-	if d.ActivityInstanceRepo != nil {
-		cfg.ActivityInstanceRepo = calendarInstancePort{d.ActivityInstanceRepo}
+	if instances != nil {
+		cfg.ActivityInstanceRepo = calendarInstancePort{instances}
 	}
-	if d.RoomRepo != nil {
-		cfg.RoomRepo = calendarRoomPort{d.RoomRepo}
+	if rooms != nil {
+		cfg.RoomRepo = calendarRoomPort{rooms}
 	}
-	if d.StaffShiftRepo != nil {
-		cfg.StaffShiftRepo = calendarShiftPort{d.StaffShiftRepo}
+	if shifts != nil {
+		cfg.StaffShiftRepo = calendarShiftPort{shifts}
 	}
-	if d.ShiftTypeRepo != nil {
-		cfg.ShiftTypeRepo = calendarShiftTypePort{d.ShiftTypeRepo}
+	if shiftTypes != nil {
+		cfg.ShiftTypeRepo = calendarShiftTypePort{shiftTypes}
 	}
-	if d.SchoolRepo != nil {
-		cfg.SchoolRepo = calendarSchoolPort{d.SchoolRepo}
+	return cfg
+}
+
+// BindCalendarFeedFacts binds the subscription feeds' fact ports into cfg:
+// the schools, the parent and staff feed accounts and the persons behind
+// them. A nil source leaves its port as it is.
+func BindCalendarFeedFacts(
+	cfg calendarCompose.Config, schools organizationtenancy.Query, accounts identityaccess.ParentCalendarFeeds,
+	staffFeeds identityaccess.StaffCalendarFeeds, persons calendarPersonRows,
+) calendarCompose.Config {
+	if schools != nil {
+		cfg.SchoolRepo = calendarSchoolPort{schools}
 	}
-	if d.AccountRepo != nil {
-		cfg.AccountRepo = calendarAccountPort{d.AccountRepo}
+	if accounts != nil {
+		cfg.AccountRepo = calendarAccountPort{accounts}
 	}
-	if d.StaffFeedRepo != nil {
-		cfg.StaffFeedRepo = calendarStaffFeedPort{d.StaffFeedRepo}
+	if staffFeeds != nil {
+		cfg.StaffFeedRepo = calendarStaffFeedPort{staffFeeds}
 	}
-	if d.PersonRepo != nil {
-		cfg.PersonRepo = calendarPersonPort{d.PersonRepo}
+	if persons != nil {
+		cfg.PersonRepo = calendarPersonPort{persons}
 	}
 	return cfg
 }
@@ -262,12 +291,12 @@ func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, 
 }
 
 type calendarRoomPort struct {
-	source facilitiesCompose.RoomRows
+	source facilitiesNative.RoomRows
 }
 
 func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.Room, error) {
 	value, err := facilitiesCompose.FindRoomNames(ctx, p.source, ids)
-	return calendarMapSlice(value, func(v *facilitiesCompose.RoomName) *calendarCompose.Room {
+	return calendarMapSlice(value, func(v *facilitiesNative.RoomName) *calendarCompose.Room {
 		if v == nil {
 			return nil
 		}

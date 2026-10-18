@@ -21,7 +21,8 @@ type seriesTestEnv struct {
 	db             *bun.DB
 	scope          testpkg.TenantScope
 	staff          *testpkg.Staff
-	repos          *api.RepositoryTestFactory
+	repos          *api.SchoolCalendarSuiteRepositories
+	reposPeople    *api.PeopleRepositorySuiteFactory
 	shiftRows      *planning.ShiftRows
 	seriesRows     *planning.ShiftSeriesRows
 	exceptionRows  *planning.ShiftSeriesExceptionRows
@@ -36,24 +37,26 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
-	dependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), dependencies)
+	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repoFactoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	repoFactoryCalendar := api.NewSchoolCalendarSuiteRepositories(testpkg.NewDatabase(t, db))
 	// The same composition the root builds, with the materializer's calendar
 	// day pinned so the "never touch today or the past" rule is testable.
 	today := calendar.CalendarDateClock(func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
-	shiftRows := planning.NewShiftRows(dependencies.Workforce)
-	seriesRows := planning.NewShiftSeriesRows(dependencies.Workforce)
-	exceptionRows := planning.NewShiftSeriesExceptionRows(dependencies.Workforce)
-	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(dependencies.Workforce), slog.Default())
+	shiftRows := planning.NewShiftRows(workTime)
+	seriesRows := planning.NewShiftSeriesRows(workTime)
+	exceptionRows := planning.NewShiftSeriesExceptionRows(workTime)
+	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(workTime), slog.Default())
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
-	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), shiftTypes, lockStaffShifts, slog.Default(),
+	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactoryPeople.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
 		planning.WithStaffShiftDeviationEvents(api.NewShiftMoveAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
 	)
 	series := planning.NewStaffShiftSeriesService(
-		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), planning.SchoolCalendarPeriods(dependencies.Calendar),
+		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactoryPeople.Staff), planning.SchoolCalendarPeriods(calendarOwner),
 		shiftTypes, lockStaffShifts, slog.Default(), shifts,
 		planning.WithStaffShiftSeriesToday(today),
 	)
@@ -62,13 +65,14 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 		db:             db,
 		scope:          scope,
 		staff:          staff,
-		repos:          repoFactory,
+		repos:          repoFactoryCalendar,
+		reposPeople:    repoFactoryPeople,
 		shiftRows:      shiftRows,
 		seriesRows:     seriesRows,
 		exceptionRows:  exceptionRows,
 		series:         series,
 		shifts:         shifts,
-		capStaffSeries: dependencies.Workforce.CapStaffShiftSeriesForStaff,
+		capStaffSeries: workTime.CapStaffShiftSeriesForStaff,
 	}
 	return env
 }
@@ -815,15 +819,16 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
-	countedDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, countedDB))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, countedDB), countedDependencies)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(countedDB), countedDependencies)
-	countedShifts := planning.NewShiftRows(countedDependencies.Workforce)
+	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, countedDB))
+	countedDependenciesWorkforce := api.MustNewWorkforce(testpkg.NewDatabase(t, countedDB))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, countedDB))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(countedDB))
+	countedShifts := planning.NewShiftRows(countedDependenciesWorkforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms: api.NewTimetableRoomNames(countedDependencies.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
-		WorkSchedules: countedDependencies.Workforce, WorkModels: countedDependencies.Workforce,
+		Rooms: api.NewTimetableRoomNames(rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
+		WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,
 	})
 
 	weekFrom := today.AddDays(1)

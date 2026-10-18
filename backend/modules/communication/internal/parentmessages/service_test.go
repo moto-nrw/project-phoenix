@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +32,6 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,7 +44,7 @@ import (
 // panic if unexpectedly called — student read access no longer consults any
 // setting (#2329), it follows from the caller's staff record alone.
 type stubSettings struct {
-	parentmessaging.SettingsResolver
+	eventContract.SettingsResolver
 	messagingEnabled bool
 	// staffNameVisible answers operations.parent_message_staff_name_visible, the
 	// flag the send path freezes onto each staff message. Defaults false so
@@ -94,23 +95,27 @@ type fixture struct {
 	staffAccount int64
 }
 
-func newPersons(repos *api.RepositoryTestFactory, db *bun.DB) messaging.PersonLookup {
+func newPersons(repos *api.PeopleRepositorySuiteFactory, reposAccounts *api.AccountSuiteRepositories, db *bun.DB) messaging.PersonLookup {
 	return api.BindParentMessagePeople(api.NewTestPersonDirectory(testpkg.MustDatabase(db), api.TestPersonDirectorySources{
-		Persons: repos.Person, Students: repos.Student, AccountExists: api.AccountExists(repos.Profile),
+		Persons: repos.Person, Students: repos.Student, AccountExists: api.AccountExists(reposAccounts.Profile),
 	}))
 }
 
 func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *api.RepositoryTestFactory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
-		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
-		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
-		Persons:     newPersons(repos, db),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
 		Settings:    configModels.NewParentMessagingValues(settings),
 		Broadcaster: bc,
 
@@ -305,14 +310,14 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 
 	allMessages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), messaging.NewReadRepository(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).ParentMessageRead), nil, started.ThreadID, f.chain.AccountID, allMessages)
+	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), messaging.NewReadRepository(api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db)).ParentMessageRead), nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	readRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).ParentMessageRead
+	readRepo := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db)).ParentMessageRead
 	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
@@ -660,11 +665,14 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
 	// Rebuild the service with the feature OFF, same DB.
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
-		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(repos.ParentMessageRead),
-		Persons:     newPersons(repos, f.db),
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, f.db),
 		Settings:    configModels.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
 		Broadcaster: f.bc, Logger: slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

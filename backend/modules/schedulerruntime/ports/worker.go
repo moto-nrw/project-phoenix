@@ -13,7 +13,9 @@ import (
 // WorkerDependencies is the complete typed input to the embedded Worker root.
 // Construction replaces the former post-construction Set* graph.
 type WorkerDependencies struct {
-	Logger                    *slog.Logger
+	Logger *slog.Logger
+	// Now supplies the worker clock; nil uses time.Now.
+	Now                       func() time.Time
 	Getenv                    func(string) string
 	SchoolRepo                TenantDirectory
 	TenantRuntime             TenantRuntime

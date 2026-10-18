@@ -70,17 +70,19 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testpkg.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	staff, err := api.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
 	deps := stand.dependencies()
-	deps.Sessions = repos.ActiveGroup
-	deps.Supervisions = repos.GroupSupervisor
+	deps.Sessions = reposPresence.ActiveGroup
+	deps.Supervisions = reposPresence.GroupSupervisor
 	deps.Visits = api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db))
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
@@ -90,15 +92,15 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        api.NewTimetableRosterStudents(repos.Student),
-		EducationGroups: api.TimetableEducationGroupNames(repos.Group),
-		Rooms:           api.NewTimetableRoomNames(owners.Rooms),
+		EducationGroups: api.TimetableEducationGroupNames(reposStructure.Group),
+		Rooms:           api.NewTimetableRoomNames(rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances, rows.InstanceStaff, rows.Participants
 	deps.Templates, deps.Students = templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
-	operations, err := compose.NewOperations(deps)
+	operations, err := compose.NewOperations(deps, api.TimetableOperationCaller{RequestSession: deps.Session})
 	require.NoError(t, err)
 	return operations
 }

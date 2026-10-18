@@ -162,7 +162,7 @@ func validateAbsenceUpdate(absence *StaffAbsence, req UpdateAbsenceRequest) erro
 func (s *staffAbsenceService) reconcileUpdatedSickAbsence(ctx context.Context, before, after *StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
 	if before.AbsenceType == AbsenceTypeSick && !before.HalfDay &&
 		(before.DateStart != after.DateStart || before.DateEnd != after.DateEnd) {
-		if err := s.planSyncer().ReconcileSickRange(
+		if err := s.shiftPlanSyncer.ReconcileSickRange(
 			ctx,
 			sickCascadeInput(before, actorStaffID, actorAccountID),
 			sickCascadeInput(after, actorStaffID, actorAccountID),
@@ -283,7 +283,7 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	// stamps (sick_absence_id == this id), so an absence that never cascaded
 	// is a cheap no-op, while gating on type/half_day would let a mutated row
 	// (e.g. half_day flipped after the cascade ran) orphan its stamps forever.
-	if err := s.planSyncer().ClearSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
+	if err := s.shiftPlanSyncer.ClearSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
 		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 

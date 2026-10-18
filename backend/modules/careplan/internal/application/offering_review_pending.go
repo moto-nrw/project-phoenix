@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 )
 
@@ -21,10 +20,10 @@ type offeringPendingReview struct {
 }
 
 type offeringPendingFacts struct {
-	children  map[int64]ports.OfferingReviewChild
-	requests  map[int64]ports.OfferingReviewRequest
-	phases    map[int64]ports.OfferingReviewPhase
-	current   map[int64][]ports.OfferingReviewBooking
+	children  map[int64]careplan.OfferingReviewChild
+	requests  map[int64]careplan.OfferingReviewRequest
+	phases    map[int64]careplan.OfferingReviewPhase
+	current   map[int64][]careplan.OfferingReviewBooking
 	active    map[int64]map[int64]domain.CareOffering
 	catalog   map[int64]domain.CareOffering
 	requested map[int64][]careplan.OfferingReviewSelection
@@ -33,8 +32,8 @@ type offeringPendingFacts struct {
 
 func (s *OfferingReviews) pendingFacts(ctx context.Context, rows []careplan.OfferingChangeRequest, today careplan.Date) (*offeringPendingFacts, error) {
 	facts := &offeringPendingFacts{
-		children: map[int64]ports.OfferingReviewChild{}, requests: map[int64]ports.OfferingReviewRequest{}, phases: map[int64]ports.OfferingReviewPhase{},
-		current: map[int64][]ports.OfferingReviewBooking{}, active: map[int64]map[int64]domain.CareOffering{},
+		children: map[int64]careplan.OfferingReviewChild{}, requests: map[int64]careplan.OfferingReviewRequest{}, phases: map[int64]careplan.OfferingReviewPhase{},
+		current: map[int64][]careplan.OfferingReviewBooking{}, active: map[int64]map[int64]domain.CareOffering{},
 		catalog: map[int64]domain.CareOffering{}, requested: map[int64][]careplan.OfferingReviewSelection{}, reviews: map[int64]*offeringPendingReview{},
 	}
 	childIDs := make([]int64, 0, len(rows))
@@ -135,12 +134,12 @@ func (s *OfferingReviews) pendingReviews(ctx context.Context, rows []careplan.Of
 	type courseDiff struct {
 		review    *offeringPendingReview
 		entries   []careplan.OfferingReviewDiffEntry
-		child     ports.OfferingReviewChild
+		child     careplan.OfferingReviewChild
 		requested map[int64]bool
 		changed   map[int64]bool
 	}
 	pending := make([]courseDiff, 0, len(rows))
-	refs := make([]ports.OfferingReviewCourseRef, 0)
+	refs := make([]careplan.OfferingReviewCourseRef, 0)
 	for _, row := range rows {
 		child, childOK := facts.children[row.RequestChildID]
 		request, requestOK := facts.requests[child.RequestID]
@@ -189,14 +188,14 @@ func (s *OfferingReviews) pendingReviews(ctx context.Context, rows []careplan.Of
 				review.unchanged = append(review.unchanged, *entry)
 			}
 			if entry.OldState == "not_booked" && entry.NewState == "booked" && requestedIDs[entry.OfferingID] {
-				refs = append(refs, ports.OfferingReviewCourseRef{OfferingID: entry.OfferingID, LegacyGroupID: facts.catalog[entry.OfferingID].ActivityGroupID})
+				refs = append(refs, careplan.OfferingReviewCourseRef{OfferingID: entry.OfferingID, LegacyGroupID: facts.catalog[entry.OfferingID].ActivityGroupID})
 			}
 		}
 		review.withdrawal = held && !remains
 		sort.SliceStable(review.unchanged, func(i, j int) bool { return review.unchanged[i].Label < review.unchanged[j].Label })
 		pending = append(pending, courseDiff{review: review, entries: entries, child: child, requested: requestedIDs, changed: changed})
 	}
-	groups := map[int64][]ports.OfferingReviewCourse{}
+	groups := map[int64][]careplan.OfferingReviewCourse{}
 	if len(refs) > 0 {
 		groups, err = s.Courses.CourseGroups(ctx, refs, today)
 		if err != nil {
@@ -244,7 +243,7 @@ func offeringSelectionCatalog(catalog map[int64]domain.CareOffering) (map[int64]
 	return result, nil
 }
 
-func materializeOfferingReview(child ports.OfferingReviewChild, phase ports.OfferingReviewPhase, requested []careplan.OfferingReviewSelection, current []ports.OfferingReviewBooking, catalog map[int64]domain.CareOffering, confirmed bool) ([]selection.Selection, error) {
+func materializeOfferingReview(child careplan.OfferingReviewChild, phase careplan.OfferingReviewPhase, requested []careplan.OfferingReviewSelection, current []careplan.OfferingReviewBooking, catalog map[int64]domain.CareOffering, confirmed bool) ([]selection.Selection, error) {
 	submit := selection.Child{TargetGradeLevel: child.Grade}
 	for _, item := range requested {
 		if item.OfferingID <= 0 {
@@ -286,7 +285,7 @@ func materializeOfferingReview(child ports.OfferingReviewChild, phase ports.Offe
 	return result[0], nil
 }
 
-func offeringReviewDiff(current []ports.OfferingReviewBooking, desired []selection.Selection, catalog map[int64]domain.CareOffering) ([]careplan.OfferingReviewDiffEntry, map[int64]bool) {
+func offeringReviewDiff(current []careplan.OfferingReviewBooking, desired []selection.Selection, catalog map[int64]domain.CareOffering) ([]careplan.OfferingReviewDiffEntry, map[int64]bool) {
 	ids := make([]int64, 0, len(current)+len(desired))
 	before, after := map[int64][]string{}, map[int64][]string{}
 	for _, booking := range current {
@@ -317,7 +316,7 @@ func offeringReviewDiff(current []ports.OfferingReviewBooking, desired []selecti
 	return result, changed
 }
 
-func offeringCourseMatches(group ports.OfferingReviewCourse, child ports.OfferingReviewChild) bool {
+func offeringCourseMatches(group careplan.OfferingReviewCourse, child careplan.OfferingReviewChild) bool {
 	if !group.Active {
 		return false
 	}

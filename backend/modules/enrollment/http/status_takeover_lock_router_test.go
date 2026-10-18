@@ -17,7 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -118,6 +117,8 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
 	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
@@ -137,12 +138,12 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 
 	phase := &capability.Phase{
 		Name:             "takeover-lock-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
@@ -151,11 +152,11 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -168,10 +169,10 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
-		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
-		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		GuardianInvitations: staticGuardianInvitationAvailability{redeemable: invitationAvailable},
@@ -255,7 +256,7 @@ func (env *takeoverLockEnv) takeOver(t *testing.T, childID int64, firstName stri
 	env.students = append(env.students, student)
 	_, err := env.db.NewUpdate().
 		TableExpr("enrollment.request_children").
-		Set("status = ?", enrollmentModels.ChildStatusApproved).
+		Set("status = ?", capability.ChildStatusApproved).
 		Set("created_student_id = ?", student.ID).
 		Where("id = ?", childID).
 		Exec(testpkg.TenantContext(env.tenantID))
@@ -358,8 +359,8 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	env.router.ServeHTTP(withdrawn, withdrawReq)
 	require.Equal(t, http.StatusNoContent, withdrawn.Code, withdrawn.Body.String())
 	withdrawnStatus := decodeStatus(t, env.get(t, "/requests/"+env.token))
-	assert.Equal(t, enrollmentModels.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
-	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
+	assert.Equal(t, capability.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
+	assert.Equal(t, capability.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
 }
 
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {

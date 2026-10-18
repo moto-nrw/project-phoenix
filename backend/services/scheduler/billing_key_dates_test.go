@@ -33,7 +33,7 @@ func (d *fakeBillingDirectory) RecordDueBillingKeyDates(ctx context.Context, now
 func TestBillingKeyDatesTickHandsTheCurrentInstantToTheCapture(t *testing.T) {
 	t.Parallel()
 	directory := &fakeBillingDirectory{written: 4}
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 	s.schoolRepo = directory
 
 	before := time.Now()
@@ -46,7 +46,7 @@ func TestBillingKeyDatesTickHandsTheCurrentInstantToTheCapture(t *testing.T) {
 func TestBillingKeyDatesTickSurvivesAFailedCapture(t *testing.T) {
 	t.Parallel()
 	directory := &fakeBillingDirectory{err: errors.New("database unavailable")}
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 	s.schoolRepo = directory
 	task := &ScheduledTask{Name: "billing-key-dates"}
 
@@ -60,7 +60,7 @@ func TestBillingKeyDatesTickSurvivesAFailedCapture(t *testing.T) {
 func TestBillingKeyDatesTickSkipsWhileARunIsInProgress(t *testing.T) {
 	t.Parallel()
 	directory := &fakeBillingDirectory{}
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 	s.schoolRepo = directory
 	task := &ScheduledTask{Name: "billing-key-dates", Running: true}
 

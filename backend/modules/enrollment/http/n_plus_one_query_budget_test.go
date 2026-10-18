@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +23,8 @@ func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	smallID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-small", 3, enrollmentModels.ChildStatusSubmitted, nil)
-	largeID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-large", 8, enrollmentModels.ChildStatusSubmitted, nil)
+	smallID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-small", 3, enrollmentNative.ChildStatusSubmitted, nil)
+	largeID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-large", 8, enrollmentNative.ChildStatusSubmitted, nil)
 	counter := testpkg.CaptureQueries(t, env.db)
 	run := func(requestID int64) []string {
 		var queries []string
@@ -157,7 +158,7 @@ func createBudgetRequest(
 	request := &enrollmentAPI.Request{
 		PhaseID: phaseID, GuardianFirstName: "Budget", GuardianLastName: "Test",
 		GuardianEmail: prefix + "@example.test", ConsentFlags: map[string]any{}, CustomData: map[string]any{},
-		SubmissionSource: enrollmentModels.RequestSourcePublic, SourceMetadata: map[string]any{}, StatusToken: prefix,
+		SubmissionSource: enrollmentNative.RequestSourcePublic, SourceMetadata: map[string]any{}, StatusToken: prefix,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(testpkg.Ctx(t), env.repos.Enrollment(), request))
 	for i := range childCount {
@@ -179,7 +180,7 @@ func createBudgetRequestChild(
 	child := &enrollmentAPI.RequestChild{
 		RequestID: requestID, FirstName: fmt.Sprintf("Child%d", sortOrder), LastName: prefix,
 		DateOfBirth: "2018-04-15", CustomData: map[string]any{}, Status: status,
-		ActivationMode: enrollmentModels.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,
+		ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), child))
 }
@@ -188,11 +189,11 @@ func createBudgetReviewRows(t *testing.T, env *rolloverTestEnv, count int) {
 	t.Helper()
 	for i := range count {
 		prefix := fmt.Sprintf("review-%d-%d", count, i)
-		sourceRequestID := createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-source", 1, enrollmentModels.ChildStatusApproved, nil)
+		sourceRequestID := createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-source", 1, enrollmentNative.ChildStatusApproved, nil)
 		sources, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(testpkg.Ctx(t), env.repos.Enrollment(), sourceRequestID)
 		require.NoError(t, err)
 		require.Len(t, sources, 1)
 		sourceID := sources[0].ID
-		createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-target", 1, enrollmentModels.ChildStatusPendingAdminReview, &sourceID)
+		createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-target", 1, enrollmentNative.ChildStatusPendingAdminReview, &sourceID)
 	}
 }

@@ -81,7 +81,7 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 			liveOrganizations[organization.ID] = organization.Name
 		}
 	}
-	visible := make(map[int64]domain.SchoolSummary, len(schools))
+	visible := make(map[int64]organizationtenancy.DashboardSchool, len(schools))
 	tenantIDs := make([]int64, 0, len(schools))
 	for _, school := range schools {
 		organizationName, live := liveOrganizations[school.OrganizationID]
@@ -94,7 +94,7 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 		if filter.organizationID != nil && school.OrganizationID != *filter.organizationID {
 			continue
 		}
-		visible[school.ID] = domain.SchoolSummary{ID: school.ID, Name: school.Name, OrganizationID: school.OrganizationID, OrganizationName: organizationName}
+		visible[school.ID] = organizationtenancy.DashboardSchool{ID: school.ID, Name: school.Name, OrganizationID: school.OrganizationID, OrganizationName: organizationName}
 		tenantIDs = append(tenantIDs, school.ID)
 	}
 	if len(tenantIDs) == 0 {
@@ -127,7 +127,7 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 	return result, nil
 }
 
-func operatorDevice(device domain.Device, school domain.SchoolSummary) organizationtenancy.OperatorDevice {
+func operatorDevice(device domain.Device, school organizationtenancy.DashboardSchool) organizationtenancy.OperatorDevice {
 	view := organizationtenancy.OperatorDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
 		Name: device.Name, Status: device.Status, APIKey: device.APIKey,

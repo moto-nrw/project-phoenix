@@ -24,6 +24,7 @@ import (
 // before.
 type operatorLinkWiring struct {
 	dispatcher  *email.Dispatcher
+	durable     DurableMailOutbox
 	defaultFrom email.Email
 	// frontendURL is the host of the staff frontend, which serves the
 	// operator confirmation page and the logo the mails embed.
@@ -41,7 +42,6 @@ type operatorLinkWiring struct {
 
 func operatorProvisioningDependencies(
 	wiring *operatorLinkWiring,
-	tokens func() identityaccess.OperatorTokens,
 	logger *slog.Logger,
 ) *identityaccessCompose.OperatorProvisioningDependencies {
 	if wiring == nil {
@@ -51,14 +51,14 @@ func operatorProvisioningDependencies(
 		logger = slog.Default()
 	}
 	backoff := wiring.backoff
-	delivery := operatorLinkDelivery{
-		dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
-		frontendURL: wiring.frontendURL, operatorURL: wiring.operatorFrontendURL,
-		backoff: backoff, tokens: tokens, logger: logger,
-	}
 	return &identityaccessCompose.OperatorProvisioningDependencies{
-		Invites:           delivery,
-		Changes:           delivery,
+		DeliveryFor: func(tokens identityaccess.OperatorLinkDeliveryRecorder) identityaccessCompose.OperatorLinkDelivery {
+			return operatorLinkDelivery{
+				dispatcher: wiring.dispatcher, durable: wiring.durable, from: wiring.defaultFrom,
+				frontendURL: wiring.frontendURL, operatorURL: wiring.operatorFrontendURL,
+				backoff: backoff, tokens: tokens, logger: logger,
+			}
+		},
 		Format:            operatorEmailFormat{},
 		InvitationExpiry:  wiring.invitationExpiry,
 		EmailChangeExpiry: wiring.emailChangeExpiry,
@@ -73,90 +73,72 @@ func (operatorEmailFormat) IsRoutable(address string) bool {
 	return peopledirectory.IsValidEmailFormat(address)
 }
 
+// operatorLinkRecords records the outcome of the operator mails that carry a
+// link in Identity & Access.
+type operatorLinkRecords interface {
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // operatorLinkDelivery mails the operator invitation and the three e-mail
 // change messages, and records the outcome of the two that carry a link
 // back through the module once the send settles.
 type operatorLinkDelivery struct {
 	dispatcher  *email.Dispatcher
+	durable     DurableMailOutbox
 	from        email.Email
 	frontendURL string
 	operatorURL string
 	backoff     []time.Duration
-	tokens      func() identityaccess.OperatorTokens
+	tokens      operatorLinkRecords
 	logger      *slog.Logger
 }
 
-func (d operatorLinkDelivery) DispatchOperatorInvitation(ctx context.Context, invitation identityaccess.OperatorInvitation, inviterName string, expiry time.Duration) {
+func (d operatorLinkDelivery) DispatchOperatorInvitation(ctx context.Context, invitation identityaccess.OperatorInvitation, inviterName string, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping operator invitation email",
-			slog.Int64("invitation_id", invitation.ID))
-		return
+		return nil
 	}
-	message := *identityMessage(d.from, email.NewEmail("", invitation.Email),
-		identityaccess.OperatorInvitationMail(invitation, inviterName, d.frontendURL, d.operatorURL, expiry))
-	meta := email.DeliveryMetadata{
-		Type: "operator_invitation", ReferenceID: invitation.ID,
-		Token: invitation.Token, Recipient: invitation.Email,
-	}
-	d.dispatch(ctx, message, meta, invitation.Delivery.RetryCount, d.recordInvitationDelivery)
+	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), identityaccess.OperatorInvitationMail(invitation, inviterName, d.frontendURL, d.operatorURL, expiry))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: message, Type: "operator_invitation", ReferenceID: invitation.ID,
+		Backoff: d.backoff, BaseRetry: invitation.Delivery.RetryCount, ExpiresAt: invitation.ExpiresAt,
+	})
 }
 
-func (d operatorLinkDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change identityaccess.OperatorEmailChange, expiry time.Duration) {
+func (d operatorLinkDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change identityaccess.OperatorEmailChange, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping email change verification",
-			slog.Int64("operator_id", change.OperatorID))
-		return
+		return nil
 	}
-	message := *identityMessage(d.from, email.NewEmail("", change.NewEmail),
-		identityaccess.OperatorEmailChangeVerificationMail(change, d.frontendURL, expiry))
-	meta := email.DeliveryMetadata{
-		Type: "operator_email_change_verify", ReferenceID: change.ID,
-		Token: change.Token, Recipient: change.NewEmail,
-	}
-	d.dispatch(ctx, message, meta, change.Delivery.RetryCount, d.recordEmailChangeDelivery)
+	message := *identityMessage(d.from, email.NewEmail("", change.NewEmail), identityaccess.OperatorEmailChangeVerificationMail(change, d.frontendURL, expiry))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: message, Type: "operator_email_change_verify", ReferenceID: change.ID,
+		Backoff: d.backoff, BaseRetry: change.Delivery.RetryCount, ExpiresAt: change.Expiry,
+	})
 }
 
-func (d operatorLinkDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator identityaccess.Operator, maskedNewEmail string) {
+func (d operatorLinkDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator identityaccess.Operator, maskedNewEmail string) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping email change notification",
-			slog.Int64("operator_id", operator.ID))
-		return
+		return nil
 	}
-	d.dispatch(ctx, *identityMessage(d.from, email.NewEmail(operator.DisplayName, operator.Email),
-		identityaccess.OperatorEmailChangeRequestedMail(operator, maskedNewEmail, d.frontendURL)),
-		email.DeliveryMetadata{Recipient: operator.Email}, 0, nil)
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: *identityMessage(d.from, email.NewEmail(operator.DisplayName, operator.Email), identityaccess.OperatorEmailChangeRequestedMail(operator, maskedNewEmail, d.frontendURL)),
+		Type:    "operator_email_change_requested", ReferenceID: operator.ID, Backoff: d.backoff,
+	})
 }
 
-func (d operatorLinkDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
+func (d operatorLinkDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) error {
 	if d.dispatcher == nil {
-		return
+		return nil
 	}
-	d.dispatch(ctx, *identityMessage(d.from, email.NewEmail(displayName, oldEmail),
-		identityaccess.OperatorEmailChangeConfirmedMail(displayName, d.frontendURL)),
-		email.DeliveryMetadata{Recipient: oldEmail}, 0, nil)
-}
-
-func (d operatorLinkDelivery) dispatch(
-	ctx context.Context,
-	message email.Message,
-	meta email.DeliveryMetadata,
-	baseRetry int,
-	record func(context.Context, email.DeliveryMetadata, int, email.DeliveryResult),
-) {
-	request := email.WithInteractiveRetry(email.DeliveryRequest{
-		Message: message, Metadata: meta,
-	}, d.backoff)
-	if record != nil {
-		request.Callback = func(cbCtx context.Context, result email.DeliveryResult) {
-			record(cbCtx, meta, baseRetry, result)
-		}
-	}
-	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), request)
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		Message: *identityMessage(d.from, email.NewEmail(displayName, oldEmail), identityaccess.OperatorEmailChangeConfirmedMail(displayName, d.frontendURL)),
+		Type:    "operator_email_change_confirmed", Backoff: d.backoff,
+	})
 }
 
 func (d operatorLinkDelivery) recordInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := operatorTokenDelivery(baseRetry, result)
-	if err := d.tokens().RecordOperatorInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.tokens.RecordOperatorInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update invitation delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),
@@ -168,7 +150,7 @@ func (d operatorLinkDelivery) recordInvitationDelivery(ctx context.Context, meta
 
 func (d operatorLinkDelivery) recordEmailChangeDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := operatorTokenDelivery(baseRetry, result)
-	if err := d.tokens().RecordOperatorEmailChangeDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.tokens.RecordOperatorEmailChangeDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update email change delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

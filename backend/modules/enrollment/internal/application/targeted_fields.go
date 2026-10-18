@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
@@ -38,7 +37,7 @@ type targetedFieldSyncOptions struct {
 type targetedFieldSync struct {
 	d          *Decisions
 	ctx        context.Context
-	request    *enrollmentModels.Request
+	request    *Request
 	child      *RequestChild
 	student    *Student
 	guardian   *GuardianProfile
@@ -87,7 +86,7 @@ type pickupScheduleSync struct {
 // somebody an in-progress companion edit.
 func (d *Decisions) applyTargetedFields(
 	ctx context.Context,
-	request *enrollmentModels.Request,
+	request *Request,
 	child *RequestChild,
 	student *Student,
 	guardian *GuardianProfile,
@@ -489,7 +488,7 @@ func structuredTargetValueHasEntries(raw any) bool {
 
 // readFieldValue pulls the submission value for a field. Guardian-level
 // fields live on the request's custom data; per-child fields on the child's.
-func readFieldValue(request *enrollmentModels.Request, child *RequestChild, field *enrollment.FormField) any {
+func readFieldValue(request *Request, child *RequestChild, field *enrollment.FormField) any {
 	if field.AppliesToCh {
 		if child == nil || child.CustomData == nil {
 			return nil

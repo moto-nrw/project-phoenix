@@ -24,35 +24,16 @@ import (
 // broadcaster, the staff attribution of the presence writes and the
 // instance lifecycle that still lives in the retained planning services.
 
-// OperationCaller is the consumer-owned port to the caller's session and the
-// shared authorization rules the operational day applies: the session token
-// of the request, the operational-overview gate and the school-wide action
-// scope, and the People Directory's not-found result.
-type OperationCaller interface {
-	// AssignmentBoundPortal reports a school-scoped (assignment-bound)
-	// session.
-	AssignmentBoundPortal(ctx context.Context) bool
-	// AdministrativeAccess reports an admin session or an admin wildcard
-	// permission.
-	AdministrativeAccess(ctx context.Context) bool
-	// OGSActorToken reports a tenant or organisation session of accountID in
-	// the request's tenant that may read schedules.
-	OGSActorToken(ctx context.Context, accountID int64) bool
-	// SchoolWideActionScope resolves the school-wide scope of an action.
-	SchoolWideActionScope(ctx context.Context, settings ports.OperationSettings, scopeKey string) (bool, error)
-	// OperationalOverview applies the operational-overview gate.
-	OperationalOverview(ctx context.Context, settings ports.OperationSettings, assignmentBound, administrative, hasStaff bool) (bool, error)
-	// IsPersonNotFound reports the People Directory's missing-person result.
-	IsPersonNotFound(err error) bool
-}
-
 type operations struct {
 	deps   ports.OperationDependencies
-	caller OperationCaller
+	caller ports.OperationCaller
 }
 
 // NewOperations composes the Timetable owner's operational day.
-func NewOperations(deps ports.OperationDependencies, caller OperationCaller) (timetable.OperationCapability, error) {
+func NewOperations(deps ports.OperationDependencies, caller ports.OperationCaller) (timetable.OperationCapability, error) {
+	if deps.Session == nil {
+		return nil, errors.New("timetable operations: the request session is required")
+	}
 	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.Templates == nil ||
 		deps.Sessions == nil || deps.Supervisions == nil || deps.Visits == nil || deps.Attendance == nil ||
 		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil ||

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"slices"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -115,8 +117,8 @@ func (s *TemplateSplitService) getLogger() *slog.Logger {
 // (ErrOfferingSourceInvalid → 400), so a source next to explicit student_ids
 // or per-weekday child lists is rejected rather than half-applied; per-weekday
 // staff is carried onto the successor (#3165).
-func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group, rules ports.SchoolClassRules) error {
-	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activityContract.Group, rules ports.SchoolClassRules) error {
+	if in.TargetGroupType != activityContract.TargetGroupTypeAngebot {
 		// The DB CHECK ties the source to 'angebot': a split away from the
 		// type drops the rule regardless of what the request carried.
 		in.SourceCareOfferingIDs = nil
@@ -136,7 +138,7 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 
 // mergeSuccessorOfferingSource fills the omitted source fields of an
 // 'angebot' successor from the old template.
-func mergeSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group) {
+func mergeSuccessorOfferingSource(in *TemplateSplitInput, old *activityContract.Group) {
 	if !in.SourceCareOfferingIDsProvided {
 		in.SourceCareOfferingIDs = append([]int64(nil), old.SourceCareOfferingIDs...)
 	}
@@ -209,7 +211,7 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 // carry-over already produced the identical rows.
 func (s *TemplateSplitService) resyncChangedOfferingSource(
 	ctx context.Context,
-	old, successor *activitiesModel.Group,
+	old, successor *activityContract.Group,
 	in TemplateSplitInput,
 ) error {
 	if !offeringRosterFeedChanged(old, successor, s.deps.SchoolClasses.Normalize) {
@@ -235,7 +237,7 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 // differs from what the roster carry-over copied: source added, removed,
 // switched, or its Jahrgangsfilter changed. The filter comparison is
 // order-insensitive — both sides are duplicate-free by validation.
-func offeringRosterFeedChanged(old, successor *activitiesModel.Group, normalizeClass func(string) string) bool {
+func offeringRosterFeedChanged(old, successor *activityContract.Group, normalizeClass func(string) string) bool {
 	// Order-SENSITIVE comparison on purpose: the id array's order is the
 	// union's subtraction order, so a reordered set produces differently
 	// shaped rows and must resync.
@@ -419,7 +421,7 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 	ctx context.Context,
 	in *TemplateSplitInput,
 	tenantID int64,
-) (*activitiesModel.Group, *activitiesModel.Group, []int64, error) {
+) (*activityContract.Group, *activityContract.Group, []int64, error) {
 	old, sourceValidUntil, activeEnrollments, activeSupervisors, err := s.prepareSplitSource(ctx, in)
 	if err != nil {
 		return nil, nil, nil, err
@@ -490,7 +492,7 @@ func reapplySplitDeviations(ctx context.Context, preserved ports.PreservedDeviat
 func (s *TemplateSplitService) prepareSplitSource(
 	ctx context.Context,
 	in *TemplateSplitInput,
-) (*activitiesModel.Group, *calendar.Date, []*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
+) (*activityContract.Group, *calendar.Date, []*activityContract.StudentEnrollment, []*activityContract.SupervisorPlanned, error) {
 	old, err := s.loadTemplate(ctx, in.TemplateID)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -529,7 +531,7 @@ func (s *TemplateSplitService) prepareSplitSource(
 // resolveSplitTargets keeps the old template's dynamic targets when the split
 // sent none, checks them against the grade cap and mirrors the first target
 // onto the successor fields.
-func (s *TemplateSplitService) resolveSplitTargets(ctx context.Context, in *TemplateSplitInput, old *activitiesModel.Group) error {
+func (s *TemplateSplitService) resolveSplitTargets(ctx context.Context, in *TemplateSplitInput, old *activityContract.Group) error {
 	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.GroupRepo, old.ID)
 	if err != nil {
 		return fmt.Errorf("load existing dynamic targets: %w", err)
@@ -539,7 +541,7 @@ func (s *TemplateSplitService) resolveSplitTargets(ctx context.Context, in *Temp
 		in.TargetGroupType = existingTargets[0].TargetGroupType
 		in.TargetGradeLevel = existingTargets[0].TargetGradeLevel
 		in.TargetSchoolClass = existingTargets[0].TargetSchoolClass
-		if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+		if in.TargetGroupType == activityContract.TargetGroupTypeGruppe {
 			in.EducationGroupID = existingTargets[0].EducationGroupID
 		}
 	}
@@ -560,7 +562,7 @@ func mirrorSplitTargets(in *TemplateSplitInput) {
 	}
 	in.TargetGradeLevel = in.Targets[0].TargetGradeLevel
 	in.TargetSchoolClass = in.Targets[0].TargetSchoolClass
-	if in.TargetGroupType == activitiesModel.TargetGroupTypeGruppe {
+	if in.TargetGroupType == activityContract.TargetGroupTypeGruppe {
 		in.EducationGroupID = in.Targets[0].EducationGroupID
 	}
 }
@@ -569,17 +571,17 @@ func (s *TemplateSplitService) capSplitSource(
 	ctx context.Context,
 	groupID int64,
 	effectiveDate calendar.Date,
-	enrollments []*activitiesModel.StudentEnrollment,
-	supervisors []*activitiesModel.SupervisorPlanned,
+	enrollments []*activityContract.StudentEnrollment,
+	supervisors []*activityContract.SupervisorPlanned,
 	sourceValidUntil *calendar.Date,
 ) error {
 	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
-	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
+	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activityContract.Date(effectiveDate)); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap enrollments", Err: err}
 	}
-	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
+	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, activityContract.Date(effectiveDate)); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap supervisors", Err: err}
 	}
 	if _, err := s.capBoundedSegmentEnrollments(ctx, enrollments, sourceValidUntil, effectiveDate); err != nil {
@@ -593,13 +595,13 @@ func (s *TemplateSplitService) capSplitSource(
 
 func (s *TemplateSplitService) createSplitSuccessor(
 	ctx context.Context,
-	old *activitiesModel.Group,
+	old *activityContract.Group,
 	in TemplateSplitInput,
 	tenantID int64,
 	sourceValidUntil *calendar.Date,
-	enrollments []*activitiesModel.StudentEnrollment,
-	supervisors []*activitiesModel.SupervisorPlanned,
-) (*activitiesModel.Group, []int64, error) {
+	enrollments []*activityContract.StudentEnrollment,
+	supervisors []*activityContract.SupervisorPlanned,
+) (*activityContract.Group, []int64, error) {
 	timeframeID, err := findOrCreateTimeframe(ctx, s.deps.TimeframeRepo, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "split template: resolve timeframe", Err: err}

@@ -14,6 +14,16 @@ import (
 // the owner's own not-found error with it and keeps its text.
 var ErrCatalogRowNotFound = errors.New("care offering catalog: row not found")
 
+// CatalogRowNotFound marks an owner's not-found error as ErrCatalogRowNotFound
+// and keeps its text.
+func CatalogRowNotFound(err error) error { return &catalogRowNotFound{err: err} }
+
+type catalogRowNotFound struct{ err error }
+
+func (e *catalogRowNotFound) Error() string { return e.err.Error() }
+
+func (e *catalogRowNotFound) Unwrap() []error { return []error{e.err, ErrCatalogRowNotFound} }
+
 // CatalogRecords is Care Plan's own care-offering persistence.
 type CatalogRecords interface {
 	FindCareOffering(context.Context, int64) (careplan.CareOffering, error)

@@ -7,11 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-var _ enrollment.SettledEnrollmentRetention = (*RejectedCleanup)(nil)
+var _ enrollmentNative.SettledEnrollmentRetention = (*RejectedCleanup)(nil)
 
 // settledCutoffs are the instants before which a withdrawal and a rejection
 // are past their windows.
@@ -25,23 +24,23 @@ type settledCutoffs struct {
 // the invitations to enroll late settled before it (#3960). Each request goes
 // the way of a rejected one: its mails are cancelled and the deletion is
 // recorded per request.
-func (s *RejectedCleanup) CleanupSettledEnrollments(ctx context.Context) (enrollment.SettledEnrollmentCleanupResult, error) {
+func (s *RejectedCleanup) CleanupSettledEnrollments(ctx context.Context) (enrollmentNative.SettledEnrollmentCleanupResult, error) {
 	d := s.deps
 	if d.Requests == nil || d.Children == nil || d.LateInvites == nil || d.Delivery == nil || d.Settings == nil || d.Runtime.InTransaction == nil {
-		return enrollment.SettledEnrollmentCleanupResult{}, errors.New("settled enrollment cleanup is not configured")
+		return enrollmentNative.SettledEnrollmentCleanupResult{}, errors.New("settled enrollment cleanup is not configured")
 	}
 	cutoffs, err := s.settledCutoffs(ctx)
 	if err != nil {
-		return enrollment.SettledEnrollmentCleanupResult{}, err
+		return enrollmentNative.SettledEnrollmentCleanupResult{}, err
 	}
-	deleted := enrollment.RejectedEnrollmentCleanupResult{}
+	deleted := enrollmentNative.RejectedEnrollmentCleanupResult{}
 	var invites int64
 	err = s.runInTx(ctx, func(txCtx context.Context) error {
 		requestIDs, listErr := d.Requests.SettledRequestsBefore(txCtx, cutoffs.withdrawn, cutoffs.rejected)
 		if listErr != nil {
 			return listErr
 		}
-		settled := func(children []*enrollment.RequestChild) bool {
+		settled := func(children []*enrollmentNative.RequestChild) bool {
 			return childrenRemainSettledBefore(children, cutoffs)
 		}
 		for _, requestID := range requestIDs {
@@ -57,9 +56,9 @@ func (s *RejectedCleanup) CleanupSettledEnrollments(ctx context.Context) (enroll
 		return nil
 	})
 	if err != nil {
-		return enrollment.SettledEnrollmentCleanupResult{}, err
+		return enrollmentNative.SettledEnrollmentCleanupResult{}, err
 	}
-	result := enrollment.SettledEnrollmentCleanupResult{
+	result := enrollmentNative.SettledEnrollmentCleanupResult{
 		DeletedRequests:    deleted.DeletedRequests,
 		DeletedLateInvites: deleted.DeletedLateInvites + invites,
 		RetentionDays:      cutoffs.withdrawnDays,
@@ -96,13 +95,13 @@ func (s *RejectedCleanup) settledCutoffs(ctx context.Context) (settledCutoffs, e
 // childrenRemainSettledBefore reports whether the locked children still make
 // a settled request without a child: each is settled past its window and at
 // least one is withdrawn.
-func childrenRemainSettledBefore(children []*enrollment.RequestChild, cutoffs settledCutoffs) bool {
+func childrenRemainSettledBefore(children []*enrollmentNative.RequestChild, cutoffs settledCutoffs) bool {
 	withdrawn := false
 	for _, child := range children {
 		if !childSettledBefore(child, cutoffs) {
 			return false
 		}
-		withdrawn = withdrawn || child.Status == enrollmentModels.ChildStatusWithdrawn
+		withdrawn = withdrawn || child.Status == enrollmentNative.ChildStatusWithdrawn
 	}
 	return withdrawn
 }
@@ -110,18 +109,18 @@ func childrenRemainSettledBefore(children []*enrollment.RequestChild, cutoffs se
 // childSettledBefore reports whether no child record was created from child
 // and it is withdrawn or rejected past its window. A parent withdrawal stamps
 // reviewed_at; the rollover deadline lapses a renewal without a review stamp.
-func childSettledBefore(child *enrollment.RequestChild, cutoffs settledCutoffs) bool {
+func childSettledBefore(child *enrollmentNative.RequestChild, cutoffs settledCutoffs) bool {
 	if child == nil || (child.CreatedStudentID != nil && *child.CreatedStudentID > 0) {
 		return false
 	}
 	switch child.Status {
-	case enrollmentModels.ChildStatusWithdrawn:
+	case enrollmentNative.ChildStatusWithdrawn:
 		settledAt := child.UpdatedAt
 		if child.ReviewedAt != nil {
 			settledAt = *child.ReviewedAt
 		}
 		return settledAt.Before(cutoffs.withdrawn)
-	case enrollmentModels.ChildStatusRejected:
+	case enrollmentNative.ChildStatusRejected:
 		return child.ReviewedAt != nil && child.ReviewedAt.Before(cutoffs.rejected)
 	default:
 		return false

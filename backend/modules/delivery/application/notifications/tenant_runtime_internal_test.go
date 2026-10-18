@@ -41,13 +41,13 @@ func newMockPushSubscriptionService(
 	logger *slog.Logger,
 ) PushSubscriptionService {
 	service := NewPushSubscriptionService(db, repo, accountTenants, vapid, logger)
-	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(newMockTenantRuntime(t, db))
+	service.(*pushSubscriptionService).tenantRuntime = new(newMockTenantRuntime(t, db))
 	return service
 }
 
 func newMockSSEChannel(t testing.TB, broadcaster realtime.Broadcaster, opts ...SSEChannelOption) Channel {
 	channel := NewSSEChannel(broadcaster, opts...)
 	sse := channel.(*sseChannel)
-	sse.SetTenantRuntime(newMockTenantRuntime(t, sse.db))
+	sse.tenantRuntime = new(newMockTenantRuntime(t, sse.db))
 	return channel
 }

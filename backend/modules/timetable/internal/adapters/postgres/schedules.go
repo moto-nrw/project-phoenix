@@ -6,23 +6,25 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 type scheduleRow struct {
-	bun.BaseModel    `bun:"table:schedules,alias:schedule"`
-	ID               int64     `bun:"id,pk,autoincrement"`
-	TenantID         int64     `bun:"tenant_id,notnull"`
-	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt        time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Weekday          int       `bun:"weekday,notnull"`
-	TimeframeID      *int64    `bun:"timeframe_id"`
-	ActivityGroupID  int64     `bun:"activity_group_id,notnull"`
-	WeekPattern      int       `bun:"week_pattern,notnull,default:0"`
-	CalendarPeriodID *int64    `bun:"calendar_period_id"`
-	ValidUntil       *string   `bun:"valid_until"`
-	ValidFrom        *string   `bun:"valid_from"`
+	bun.BaseModel    `bun:"table:activities.schedules,alias:schedule"`
+	ID               int64          `bun:"id,pk,autoincrement"`
+	TenantID         int64          `bun:"tenant_id,notnull"`
+	CreatedAt        time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt        time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Weekday          int            `bun:"weekday,notnull"`
+	TimeframeID      *int64         `bun:"timeframe_id"`
+	ActivityGroupID  int64          `bun:"activity_group_id,notnull"`
+	WeekPattern      int            `bun:"week_pattern,notnull,default:0"`
+	CalendarPeriodID *int64         `bun:"calendar_period_id"`
+	ValidUntil       *calendar.Date `bun:"valid_until"`
+	ValidFrom        *calendar.Date `bun:"valid_from"`
 }
 
 func (s *Store) FindSchedule(ctx context.Context, id int64) (domain.Schedule, bool, domain.OperationStats, error) {
@@ -189,7 +191,7 @@ func applyScheduleFields(row *scheduleRow, fields domain.ScheduleFields) {
 	row.Weekday, row.TimeframeID = fields.Weekday, fields.TimeframeID
 	row.ActivityGroupID, row.WeekPattern = fields.ActivityGroupID, fields.WeekPattern
 	row.CalendarPeriodID = fields.CalendarPeriodID
-	row.ValidUntil, row.ValidFrom = fields.ValidUntil, fields.ValidFrom
+	row.ValidUntil, row.ValidFrom = (*calendar.Date)(fields.ValidUntil), (*calendar.Date)(fields.ValidFrom)
 }
 
 func scheduleToDomain(row scheduleRow) domain.Schedule {
@@ -197,6 +199,6 @@ func scheduleToDomain(row scheduleRow) domain.Schedule {
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Weekday: row.Weekday, TimeframeID: row.TimeframeID, ActivityGroupID: row.ActivityGroupID,
 		WeekPattern: row.WeekPattern, CalendarPeriodID: row.CalendarPeriodID,
-		ValidUntil: row.ValidUntil, ValidFrom: row.ValidFrom,
+		ValidUntil: (*string)(row.ValidUntil), ValidFrom: (*string)(row.ValidFrom),
 	}
 }

@@ -50,7 +50,7 @@ func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Symmetric", "1a")
@@ -85,7 +85,7 @@ func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekdays", "2a")
@@ -116,7 +116,7 @@ func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Clear", "3a")
@@ -147,7 +147,7 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Unrelated", "4a")
@@ -192,7 +192,7 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekday", "5a")
@@ -253,7 +253,7 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "ChainA", "Reach", "5b")
@@ -298,7 +298,7 @@ func TestStudentCompanionRepository_ListLinksFoldsWeekdays(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "LinkSource", "Companion", "6a")
@@ -346,7 +346,7 @@ func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteCompanions(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CarePlan())
+	repo := api.NewPeopleRepositorySuiteCompanions(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	first := testpkg.CreateTestStudent(t, db, "BulkFirst", "Companion", "7a")

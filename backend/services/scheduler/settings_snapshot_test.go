@@ -109,7 +109,7 @@ func TestLoadMinuteSnapshotResolvesEverySchoolInOneBatch(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		schoolRepo:    dbTenantDirectory{db: db},
 		settings:      settings,
 		tenantRuntime: dbTenantRuntime(t, db),
@@ -131,7 +131,7 @@ func TestForEachTenantSettingsBindsEachSchoolsSnapshot(t *testing.T) {
 	t.Parallel()
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		settings: settings,
 		done:     make(chan struct{}),
 		logger:   slog.Default(),
@@ -155,7 +155,7 @@ func TestForEachTenantSettingsFailsASchoolWhoseSnapshotCannotBeBound(t *testing.
 	t.Parallel()
 
 	settings := &batchSettings{}
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		settings: settings,
 		done:     make(chan struct{}),
 		logger:   slog.Default(),
@@ -183,7 +183,7 @@ func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return fixedNow },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
@@ -227,7 +227,7 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 	current := time.Date(2026, time.July, 30, 12, 15, 10, 0, time.UTC)
 	loadErr := errors.New("settings unavailable")
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return current },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
@@ -250,7 +250,7 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 func TestGetMinuteSnapshotBindsTenantRuntimeBeforeLoading(t *testing.T) {
 	t.Parallel()
 	var adminCalled bool
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		done: make(chan struct{}),
 		minuteSnapshotLoader: func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
 			err := testpkg.WithinAdminTransaction(ctx, func(context.Context) error {
@@ -274,7 +274,7 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := unitScheduler(&Scheduler{
+	scheduler := unitScheduler(&unitSchedulerDependencies{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return current },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {

@@ -20,7 +20,8 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
@@ -37,11 +38,11 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 		Fingerprints:   api.SecurityFingerprints{},
 		Declarations:   api.ParentDeclarationPolicy(),
 		Runtime:        api.ParentPortalRuntime{},
-		Children:       childResolver(db, repos),
-		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
+		Children:       childResolver(db, repos, reposPeople),
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian), StudentRepo: api.NewParentStudentReads(reposPeople.Student),
 		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(reposPeople.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
 		Logger: slog.Default(),
 	})
 	sharing := parentportal.RequestSharingService(svc)

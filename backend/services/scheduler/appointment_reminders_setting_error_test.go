@@ -13,7 +13,7 @@ func TestRunAppointmentRemindersForTenantLeadSettingErrorDoesNotScan(t *testing.
 	t.Parallel()
 
 	queuer := &fakeReminderQueuer{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		appointmentReminders: queuer,
 		settings: &fakeSettingsResolver{boolValues: map[string]bool{

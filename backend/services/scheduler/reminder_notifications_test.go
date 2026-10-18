@@ -31,7 +31,7 @@ func (r *recordingTick) notify(_ context.Context, tenantID int64, _ time.Time, o
 
 func reminderTickScheduler(settings ports.SettingsResolver) (*Scheduler, *recordingTick) {
 	tick := &recordingTick{}
-	sched := unitScheduler(&Scheduler{
+	sched := unitScheduler(&unitSchedulerDependencies{
 		tasks:                 make(map[string]*ScheduledTask),
 		logger:                slog.Default(),
 		settings:              settings,
@@ -131,7 +131,7 @@ func TestScheduleReminderNotificationTaskRequiresTheProducer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nothing wired", func(t *testing.T) {
-		sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
+		sched := unitScheduler(&unitSchedulerDependencies{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
 		sched.scheduleReminderNotificationTask()
 		assert.Empty(t, sched.tasks)
 	})

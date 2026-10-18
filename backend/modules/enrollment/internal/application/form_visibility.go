@@ -6,8 +6,10 @@ import (
 	"reflect"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -25,7 +27,7 @@ type fieldVisibilityContext struct {
 	childAnswers    map[string]any
 	gradeLevel      *int16
 	offeringNames   map[string]bool // lower-cased selected offering names
-	fieldsByKey     map[string]*enrollment.FormField
+	fieldsByKey     map[string]*enrollmentNative.FormField
 }
 
 func lowerTrim(value string) string {
@@ -33,14 +35,14 @@ func lowerTrim(value string) string {
 }
 
 // fieldVisible reports whether a field is shown given the current answers.
-func fieldVisible(field *enrollment.FormField, ctx fieldVisibilityContext) bool {
+func fieldVisible(field *enrollmentNative.FormField, ctx fieldVisibilityContext) bool {
 	return fieldVisibleGuarded(field, ctx, map[string]bool{})
 }
 
 // fieldVisibleGuarded tracks the fields already on the dependency chain, so a
 // cyclic visible_when configuration (A→B→A) cannot recurse forever; a field on
 // a cycle is hidden.
-func fieldVisibleGuarded(field *enrollment.FormField, ctx fieldVisibilityContext, seen map[string]bool) bool {
+func fieldVisibleGuarded(field *enrollmentNative.FormField, ctx fieldVisibilityContext, seen map[string]bool) bool {
 	c := field.VisibleWhen
 	if c == nil {
 		return true
@@ -50,15 +52,15 @@ func fieldVisibleGuarded(field *enrollment.FormField, ctx fieldVisibilityContext
 	}
 	seen[field.Key] = true
 	switch c.Source {
-	case enrollment.ConditionSourceField:
+	case enrollmentNative.ConditionSourceField:
 		return fieldConditionMet(c, ctx, seen)
-	case enrollment.ConditionSourceGradeLevel:
+	case enrollmentNative.ConditionSourceGradeLevel:
 		var actual any
 		if ctx.gradeLevel != nil {
 			actual = int(*ctx.gradeLevel)
 		}
 		return matchScalar(c.Operator, actual, c.Value)
-	case enrollment.ConditionSourceCareOffering:
+	case enrollmentNative.ConditionSourceCareOffering:
 		return ctx.offeringNames[lowerTrim(fmt.Sprintf("%v", c.Value))]
 	default:
 		return true
@@ -68,7 +70,7 @@ func fieldVisibleGuarded(field *enrollment.FormField, ctx fieldVisibilityContext
 // fieldConditionMet evaluates a field-sourced condition. A hidden controller
 // hides its dependents regardless of the operator; a guardian-level
 // controller is read from the guardian answers even for a per-child field.
-func fieldConditionMet(c *enrollment.VisibilityCondition, ctx fieldVisibilityContext, seen map[string]bool) bool {
+func fieldConditionMet(c *enrollmentNative.VisibilityCondition, ctx fieldVisibilityContext, seen map[string]bool) bool {
 	controller := ctx.fieldsByKey[c.Field]
 	if controller != nil && !fieldVisibleGuarded(controller, ctx, seen) {
 		return false
@@ -84,11 +86,11 @@ func fieldConditionMet(c *enrollment.VisibilityCondition, ctx fieldVisibilityCon
 // the care-offering source and counts as visible here.
 func matchScalar(operator string, actual, expected any) bool {
 	switch operator {
-	case enrollment.ConditionOpNotEmpty:
+	case enrollmentNative.ConditionOpNotEmpty:
 		return actual != nil && fmt.Sprintf("%v", actual) != ""
-	case enrollment.ConditionOpEquals:
+	case enrollmentNative.ConditionOpEquals:
 		return conditionValuesEqual(actual, expected)
-	case enrollment.ConditionOpNotEquals:
+	case enrollmentNative.ConditionOpNotEquals:
 		return !conditionValuesEqual(actual, expected)
 	default:
 		return true
@@ -102,11 +104,11 @@ func conditionValuesEqual(a, b any) bool {
 }
 
 // buildFieldsByKey indexes a schema's fields by key; nil for a nil schema.
-func buildFieldsByKey(schema *enrollment.FormSchema) map[string]*enrollment.FormField {
+func buildFieldsByKey(schema *enrollmentNative.FormSchema) map[string]*enrollmentNative.FormField {
 	if schema == nil {
 		return nil
 	}
-	byKey := make(map[string]*enrollment.FormField, len(schema.Fields))
+	byKey := make(map[string]*enrollmentNative.FormField, len(schema.Fields))
 	for i := range schema.Fields {
 		byKey[schema.Fields[i].Key] = &schema.Fields[i]
 	}
@@ -114,7 +116,7 @@ func buildFieldsByKey(schema *enrollment.FormSchema) map[string]*enrollment.Form
 }
 
 // childVisibilityContext is the evaluation context of one child's fields.
-func childVisibilityContext(guardianAnswers map[string]any, child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, byKey map[string]*enrollment.FormField) fieldVisibilityContext {
+func childVisibilityContext(guardianAnswers map[string]any, child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord, byKey map[string]*enrollmentNative.FormField) fieldVisibilityContext {
 	return fieldVisibilityContext{
 		guardianAnswers: guardianAnswers,
 		childAnswers:    child.CustomData,
@@ -128,14 +130,14 @@ func childVisibilityContext(guardianAnswers map[string]any, child SubmitChild, o
 // fields of the given scope. Answers to hidden fields and undeclared keys are
 // dropped, so a stale or manipulated client cannot smuggle a value into
 // custom data — and, through a field target, into the student on approval.
-func sanitizeVisibleAnswers(schema *enrollment.FormSchema, appliesToChild bool, values map[string]any, ctx fieldVisibilityContext) map[string]any {
+func sanitizeVisibleAnswers(schema *enrollmentNative.FormSchema, appliesToChild bool, values map[string]any, ctx fieldVisibilityContext) map[string]any {
 	out := make(map[string]any)
 	if schema == nil {
 		return out
 	}
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
-		if f.AppliesToCh != appliesToChild || f.Type == enrollment.FormFieldInfo || !fieldVisible(f, ctx) {
+		if f.AppliesToCh != appliesToChild || f.Type == enrollmentNative.FormFieldInfo || !fieldVisible(f, ctx) {
 			continue
 		}
 		if v, ok := values[f.Key]; ok {
@@ -145,8 +147,8 @@ func sanitizeVisibleAnswers(schema *enrollment.FormSchema, appliesToChild bool, 
 	// The coupled "mit wem" note (#1694) rides on a reserved key next to a
 	// departure field. Keep it only when a visible departure field allows the
 	// accompanied mode, bounded to the rune limit the approval applies.
-	if note, ok := values[enrollment.TargetStudentDepartureCompanionNote]; ok && companionNoteAllowed(schema, appliesToChild, values, ctx) {
-		out[enrollment.TargetStudentDepartureCompanionNote] = truncateRunes(stringValue(note), departure.MaxDepartureCompanionNoteLen)
+	if note, ok := values[enrollmentNative.TargetStudentDepartureCompanionNote]; ok && companionNoteAllowed(schema, appliesToChild, values, ctx) {
+		out[enrollmentNative.TargetStudentDepartureCompanionNote] = truncateRunes(stringValue(note), departure.MaxDepartureCompanionNoteLen)
 	}
 	return out
 }
@@ -154,18 +156,18 @@ func sanitizeVisibleAnswers(schema *enrollment.FormSchema, appliesToChild bool, 
 // companionNoteAllowed reports whether a visible departure field of the
 // scope submits a plan allowing the accompanied mode. On a decode error the
 // note is kept and the approval, the authoritative guard, decides.
-func companionNoteAllowed(schema *enrollment.FormSchema, appliesToChild bool, values map[string]any, ctx fieldVisibilityContext) bool {
+func companionNoteAllowed(schema *enrollmentNative.FormSchema, appliesToChild bool, values map[string]any, ctx fieldVisibilityContext) bool {
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
 		if f.AppliesToCh != appliesToChild || !fieldVisible(f, ctx) {
 			continue
 		}
 		switch f.Target {
-		case enrollment.TargetStudentAllowedDepartureModes:
+		case enrollmentNative.TargetStudentAllowedDepartureModes:
 			if modes, err := decodeAllowedDepartureModes(values[f.Key]); err != nil || modes.HasMode(departure.DepartureAccompanied) {
 				return true
 			}
-		case enrollment.TargetStudentDeparture:
+		case enrollmentNative.TargetStudentDeparture:
 			if days, err := decodeDepartureDays(values[f.Key]); err != nil || days.HasMode(departure.DepartureAccompanied) {
 				return true
 			}
@@ -177,7 +179,7 @@ func companionNoteAllowed(schema *enrollment.FormSchema, appliesToChild bool, va
 // mergeEditableCustomData keeps stored keys the current schema cannot edit
 // and lets the sanitized submitted answers replace the editable ones, so a
 // full edit snapshot never wipes data the reopened form cannot render.
-func mergeEditableCustomData(existing, submitted map[string]any, schema *enrollment.FormSchema, appliesToChild bool) map[string]any {
+func mergeEditableCustomData(existing, submitted map[string]any, schema *enrollmentNative.FormSchema, appliesToChild bool) map[string]any {
 	out := make(map[string]any)
 	editable := editableCustomDataKeys(schema, appliesToChild)
 	for key, value := range existing {
@@ -269,19 +271,19 @@ func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
 		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
 }
 
-func editableCustomDataKeys(schema *enrollment.FormSchema, appliesToChild bool) map[string]bool {
+func editableCustomDataKeys(schema *enrollmentNative.FormSchema, appliesToChild bool) map[string]bool {
 	keys := make(map[string]bool)
 	if schema == nil {
 		return keys
 	}
 	for i := range schema.Fields {
 		field := &schema.Fields[i]
-		if field.AppliesToCh != appliesToChild || field.Type == enrollment.FormFieldInfo {
+		if field.AppliesToCh != appliesToChild || field.Type == enrollmentNative.FormFieldInfo {
 			continue
 		}
 		keys[field.Key] = true
-		if appliesToChild && (field.Target == enrollment.TargetStudentAllowedDepartureModes || field.Target == enrollment.TargetStudentDeparture) {
-			keys[enrollment.TargetStudentDepartureCompanionNote] = true
+		if appliesToChild && (field.Target == enrollmentNative.TargetStudentAllowedDepartureModes || field.Target == enrollmentNative.TargetStudentDeparture) {
+			keys[enrollmentNative.TargetStudentDepartureCompanionNote] = true
 		}
 	}
 	return keys
@@ -290,14 +292,14 @@ func editableCustomDataKeys(schema *enrollment.FormSchema, appliesToChild bool) 
 // relevantCareDaysForChild returns the weekdays every per-child day-scoped
 // field offers: all weekdays without care offerings, otherwise the child's
 // selected care days. The result is read-only.
-func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) map[string]bool {
 	if len(openByID) == 0 {
-		return enrollment.ValidWeekdays
+		return enrollmentNative.ValidWeekdays
 	}
 	return selectedCareDays(child, openByID)
 }
 
-func selectedCareDays(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+func selectedCareDays(child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) map[string]bool {
 	picksByOffering := make(map[int64][]string, len(child.OfferingDays))
 	for _, pick := range child.OfferingDays {
 		picksByOffering[pick.OfferingID] = pick.SelectedDays
@@ -309,11 +311,11 @@ func selectedCareDays(child SubmitChild, openByID map[int64]*enrollmentModels.Ca
 			continue
 		}
 		selected := offering.AvailableDays
-		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
+		if offering.DaysOfWeekMode == offeringContract.DaysOfWeekModeParentChoice {
 			selected = picksByOffering[id]
 		}
 		for _, day := range selected {
-			if enrollment.ValidWeekdays[day] {
+			if enrollmentNative.ValidWeekdays[day] {
 				days[day] = true
 			}
 		}
@@ -324,20 +326,20 @@ func selectedCareDays(child SubmitChild, openByID map[int64]*enrollmentModels.Ca
 // pruneChildScheduleAnswers strips per-child weekday_schedule entries for
 // weekdays the child cannot schedule; the approval turns every stored weekday
 // into a schedule row. Mutates answers in place.
-func pruneChildScheduleAnswers(schema *enrollment.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
+func pruneChildScheduleAnswers(schema *enrollmentNative.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
 	if schema == nil || answers == nil {
 		return
 	}
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
-		if !f.AppliesToCh || f.Type != enrollment.FormFieldWeekdaySchedule {
+		if !f.AppliesToCh || f.Type != enrollmentNative.FormFieldWeekdaySchedule {
 			continue
 		}
 		raw, ok := answers[f.Key]
 		if !ok || raw == nil {
 			continue
 		}
-		var sched enrollment.WeekdaySchedule
+		var sched enrollmentNative.WeekdaySchedule
 		if err := decodeStructured(raw, &sched); err != nil {
 			continue
 		}
@@ -346,7 +348,7 @@ func pruneChildScheduleAnswers(schema *enrollment.FormSchema, answers map[string
 }
 
 // scheduleOnDays keeps the schedule entries of the given days.
-func scheduleOnDays(sched enrollment.WeekdaySchedule, days map[string]bool) map[string]any {
+func scheduleOnDays(sched enrollmentNative.WeekdaySchedule, days map[string]bool) map[string]any {
 	pruned := make(map[string]any, len(sched))
 	for day, t := range sched {
 		if days[day] {

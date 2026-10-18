@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,4 +29,14 @@ func TestShortCodeHasherRoundTrip(t *testing.T) {
 	bad, err := hasher.VerifyShortCode("000000", hash)
 	require.NoError(t, err)
 	assert.False(t, bad, "a wrong code must not verify")
+}
+
+// The second factor refuses to compose without its challenge codec, the
+// operator ledger or a logger (ADR 0059): before, a missing ledger composed
+// the module without the second factor and every login skipped the gate.
+func TestNewMFADependenciesRequiresEveryDependency(t *testing.T) {
+	t.Parallel()
+
+	_, err := newMFADependencies(nil, nil, mfaMailer{logger: slog.Default()}, nil, "secret", nil, slog.Default())
+	require.EqualError(t, err, "identity access composition: the second factor needs the challenge codec, the operator audit log and a logger")
 }

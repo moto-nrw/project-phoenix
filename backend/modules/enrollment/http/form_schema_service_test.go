@@ -9,7 +9,6 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repoFactory := flowRepositories(t, db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, db)
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	// Need a real auth.accounts row to satisfy the created_by FK.
@@ -43,7 +42,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 
 func agbPDFBlock(documentURL string) capability.FormLegalBlock {
 	return capability.FormLegalBlock{
-		Key:         enrollmentModels.ConsentKeyAGB,
+		Key:         capability.ConsentKeyAGB,
 		Kind:        capability.LegalBlockKindTerms,
 		Title:       "AGB / Teilnahmebedingungen",
 		Label:       "Ich akzeptiere die AGB.",

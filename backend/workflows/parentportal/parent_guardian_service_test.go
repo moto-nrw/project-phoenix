@@ -32,7 +32,8 @@ func buildGuardianService(t *testing.T) (*parentService.Portal, *bun.DB) {
 func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -46,15 +47,15 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: mgmtEnabled},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
@@ -69,7 +70,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 // clean up via the returned cleanup func.
 func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed string) (int64, func()) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	link := &peopledirectory.GuardianLinkFixture{
@@ -416,7 +417,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 		EmergencyPriority: 2,
 	}
 	otherLink.TenantID = testpkg.Tenant(t)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CreateGuardianLinkFixture(testpkg.Ctx(t), otherLink))
+	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CreateGuardianLinkFixture(testpkg.Ctx(t), otherLink))
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -861,7 +862,7 @@ func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (ca
 
 func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).GuardianPhoneNumber
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianPhoneNumber
 	phones, err := repo.FindByGuardianID(testpkg.Ctx(t), profileID)
 	require.NoError(t, err)
 	require.NotEmpty(t, phones)
@@ -881,7 +882,7 @@ func ptr(s string) *string { return &s }
 // exercise role-based contact redaction. Caller cleans up via the returned func.
 func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role string) (int64, func()) {
 	t.Helper()
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profileFixture := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	profile, err := repos.GuardianProfile.FindByID(ctx, profileFixture.ID)
@@ -1433,7 +1434,8 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -1448,15 +1450,15 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: true},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(repos.GuardianProfile), lookupErr),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(reposPeople.GuardianProfile), lookupErr),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),

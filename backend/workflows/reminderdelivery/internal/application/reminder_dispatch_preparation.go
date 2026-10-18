@@ -64,7 +64,11 @@ func (s *preparation) reminderOccurrenceDueForDispatch(ctx context.Context, curr
 	// sending at the moment it was due for, so one that moved away is not sent
 	// now — returning nothing releases the claim, which leaves the tick
 	// that reaches the occurrence's new moment free to take it.
-	return delivery.stillDue(appointments.OccurrenceStartInstant(appointments.EffectiveOccurrence(current, delivery.occurrence, override))), nil
+	startsAt := appointments.OccurrenceStartInstant(appointments.EffectiveOccurrence(current, delivery.occurrence, override))
+	// Recovery and no-audience deferral can outlive the original scan window.
+	// At the start instant the reminder is no longer useful, even if that
+	// occurrence still belongs to the saved window.
+	return startsAt.After(s.deps.Now()) && delivery.stillDue(startsAt), nil
 }
 
 func (s *preparation) reminderDispatchAudience(ctx context.Context, appointmentID, accountID int64) (ports.GuardianAudience, bool, error) {

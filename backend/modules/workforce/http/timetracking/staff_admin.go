@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 )
@@ -24,6 +23,7 @@ type StaffAdminResource struct {
 	PersonService        workforce.StaffDirectory
 	StaffDocumentService workforce.StaffDocuments
 	OffboardingCleanup   workforce.DocumentCleanupQueue
+	documentFiles        workforce.StaffDocumentFileRecovery
 	WorkSessionService   workforce.AdminWorkSessions
 	StaffAbsenceService  workforce.StaffAbsences
 	WorkTimeMonthService workforce.WorkTimeMonths
@@ -53,6 +53,8 @@ type StaffAdminDependencies struct {
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
 	OffboardingCleanup workforce.DocumentCleanupQueue
+	// DocumentFiles removes the stored staff document files; required.
+	DocumentFiles      workforce.StaffDocumentFileRecovery
 	WorkSessions       workforce.AdminWorkSessions
 	StaffAbsences      workforce.StaffAbsences
 	WorkTimeMonth      workforce.WorkTimeMonths
@@ -80,6 +82,9 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	if deps.Uploads == nil {
 		panic("staff admin resource: upload storage is required")
 	}
+	if deps.DocumentFiles == nil {
+		panic("staff admin resource: document files are required")
+	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
 	logger := deps.Logger
@@ -95,6 +100,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		PersonService:        deps.Staff,
 		StaffDocumentService: deps.Documents,
 		OffboardingCleanup:   deps.OffboardingCleanup,
+		documentFiles:        deps.DocumentFiles,
 		WorkSessionService:   deps.WorkSessions,
 		StaffAbsenceService:  deps.StaffAbsences,
 		WorkTimeMonthService: deps.WorkTimeMonth,
@@ -110,16 +116,6 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		identity:             deps.Identity,
 		logger:               logger,
 	}
-}
-
-// Router builds a standalone /staff router for this resource. The composition
-// root registers the workforce routes into the shared /staff router via
-// RegisterStaffRoutes instead, so membership and workforce keep one prefix.
-func (rs *StaffAdminResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTenantRoutes(r, rs.RegisterStaffRoutes)
-	return r
 }
 
 // RegisterStaffRoutes mounts the workforce routes on an already protected

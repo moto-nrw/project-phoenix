@@ -133,7 +133,7 @@ func (p *OperatorProvisioning) InviteOperator(ctx context.Context, request domai
 			return createErr
 		}
 		invitation = created
-		return nil
+		return p.invites.DispatchOperatorInvitation(txCtx, invitation, p.inviterName(txCtx, request.CreatedBy))
 	}); err != nil {
 		return err
 	}
@@ -143,7 +143,6 @@ func (p *OperatorProvisioning) InviteOperator(ctx context.Context, request domai
 		ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: &invitation.ID, IPAddress: request.IPAddress,
 	}, "operator invitation")
 
-	p.invites.DispatchOperatorInvitation(ctx, invitation, p.inviterName(ctx, request.CreatedBy))
 	return nil
 }
 
@@ -223,26 +222,30 @@ func (p *OperatorProvisioning) RevokeOperatorInvitation(ctx context.Context, inv
 // ResendOperatorInvitation extends a still redeemable link and mails it
 // again. An expired or spent link is never revived.
 func (p *OperatorProvisioning) ResendOperatorInvitation(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
-	if err := p.tokens.ExtendInvitation(ctx, invitationID, p.now().Add(p.expiry.Invitation)); err != nil {
-		return err
-	}
-	// The delivery tracking starts over, so the mail the invitee gets now is
-	// the one the screens report on.
-	if err := p.tokens.RecordInvitationDelivery(ctx, invitationID, domain.TokenDelivery{}); err != nil {
-		return fmt.Errorf("reset invitation delivery tracking: %w", err)
-	}
-	invitation, err := p.tokens.FindInvitation(ctx, invitationID)
-	if err != nil {
-		return err
-	}
+	return p.runtime.WithAdminTx(ctx, func(ctx context.Context) error {
+		if err := p.tokens.ExtendInvitation(ctx, invitationID, p.now().Add(p.expiry.Invitation)); err != nil {
+			return err
+		}
+		// The delivery tracking starts over, so the mail the invitee gets now is
+		// the one the screens report on.
+		if err := p.tokens.RecordInvitationDelivery(ctx, invitationID, domain.TokenDelivery{}); err != nil {
+			return fmt.Errorf("reset invitation delivery tracking: %w", err)
+		}
+		invitation, err := p.tokens.FindInvitation(ctx, invitationID)
+		if err != nil {
+			return err
+		}
 
-	p.invites.DispatchOperatorInvitation(ctx, invitation, p.inviterName(ctx, actorID))
+		if err := p.invites.DispatchOperatorInvitation(ctx, invitation, p.inviterName(ctx, actorID)); err != nil {
+			return err
+		}
 
-	p.record(ctx, domain.OperatorAuditEntry{
-		OperatorID: actorID, Action: domain.OperatorAuditActionInvitationResent,
-		ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: &invitationID, IPAddress: ipAddress,
-	}, "invitation resend")
-	return nil
+		p.record(ctx, domain.OperatorAuditEntry{
+			OperatorID: actorID, Action: domain.OperatorAuditActionInvitationResent,
+			ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: &invitationID, IPAddress: ipAddress,
+		}, "invitation resend")
+		return nil
+	})
 }
 
 // inviterName reads the display name the invitation mail shows. A failure is
@@ -335,7 +338,7 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 			return createErr
 		}
 		change = created
-		return nil
+		return p.enqueueEmailChangeNotices(txCtx, change, operator, maskedNewEmail)
 	}); err != nil {
 		return err
 	}
@@ -354,8 +357,6 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 		EmailChange: &domain.OperatorEmailChangeEvidence{MaskedNewEmail: maskedNewEmail},
 	}, "email change initiation")
 
-	p.changes.DispatchOperatorEmailChangeVerification(ctx, change)
-	p.changes.DispatchOperatorEmailChangeRequested(ctx, operator, maskedNewEmail)
 	return nil
 }
 
@@ -390,7 +391,7 @@ func (p *OperatorProvisioning) ConfirmOperatorEmailChange(ctx context.Context, t
 		if _, updateErr := p.operators.UpdateOperator(txCtx, operator); updateErr != nil {
 			return updateErr
 		}
-		return nil
+		return p.changes.DispatchOperatorEmailChangeConfirmed(txCtx, result.OldEmail, result.DisplayName)
 	}); err != nil {
 		return domain.OperatorEmailChangeResult{}, err
 	}
@@ -406,7 +407,6 @@ func (p *OperatorProvisioning) ConfirmOperatorEmailChange(ctx context.Context, t
 
 	// The address that was replaced learns the change went through, not just
 	// that it was requested: for a compromised account that is the signal.
-	p.changes.DispatchOperatorEmailChangeConfirmed(ctx, result.OldEmail, result.DisplayName)
 
 	return result, nil
 }
@@ -445,8 +445,8 @@ type OperatorInvitationDelivery struct {
 	Expiry time.Duration
 }
 
-func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) {
-	d.Source.DispatchOperatorInvitation(ctx, PublicOperatorInvitation(invitation), inviterName, d.Expiry)
+func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) error {
+	return d.Source.DispatchOperatorInvitation(ctx, PublicOperatorInvitation(invitation), inviterName, d.Expiry)
 }
 
 type OperatorEmailChangeDelivery struct {
@@ -454,14 +454,21 @@ type OperatorEmailChangeDelivery struct {
 	Expiry time.Duration
 }
 
-func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) {
-	d.Source.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) error {
+	return d.Source.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
 }
 
-func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) {
-	d.Source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) error {
+	return d.Source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
 }
 
-func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
-	d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
+func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) error {
+	return d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
+}
+
+func (p *OperatorProvisioning) enqueueEmailChangeNotices(ctx context.Context, change domain.OperatorEmailChange, operator domain.Operator, maskedNewEmail string) error {
+	if err := p.changes.DispatchOperatorEmailChangeVerification(ctx, change); err != nil {
+		return err
+	}
+	return p.changes.DispatchOperatorEmailChangeRequested(ctx, operator, maskedNewEmail)
 }

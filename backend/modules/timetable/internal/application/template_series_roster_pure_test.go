@@ -8,7 +8,8 @@ package application
 import (
 	"testing"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +26,7 @@ func datePtr(day int) *calendar.Date {
 func TestSegmentIsReconcilablePredecessor(t *testing.T) {
 	t.Parallel()
 
-	group := &activitiesModel.Group{}
+	group := &activityContract.Group{}
 	group.ID = 4711
 
 	tests := []struct {
@@ -94,9 +95,9 @@ func TestSegmentIsReconcilablePredecessor(t *testing.T) {
 func TestCoveredSeriesWeekdays(t *testing.T) {
 	t.Parallel()
 
-	monday := activitiesModel.WeekdayMonday
-	friday := activitiesModel.WeekdayFriday
-	scoped := []int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}
+	monday := activityContract.WeekdayMonday
+	friday := activityContract.WeekdayFriday
+	scoped := []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday}
 
 	assert.Equal(t, []int{monday}, coveredSeriesWeekdays(&monday, scoped, scoped),
 		"an explicit weekday inside the scope covers exactly itself")
@@ -109,9 +110,9 @@ func TestCoveredSeriesWeekdays(t *testing.T) {
 func TestWeekdayScopeReachesBeyondEdit(t *testing.T) {
 	t.Parallel()
 
-	segment := []int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}
-	monday := activitiesModel.WeekdayMonday
-	wednesday := activitiesModel.WeekdayWednesday
+	segment := []int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday}
+	monday := activityContract.WeekdayMonday
+	wednesday := activityContract.WeekdayWednesday
 
 	full := weekdayScope{edited: segment, segment: segment}
 	assert.False(t, full.reachesBeyondEdit(nil, segment, segment),
@@ -131,12 +132,12 @@ func TestWantedOnAllWeekdays(t *testing.T) {
 
 	const personID = 77
 	want := map[seriesWeekdayPerson]bool{
-		{weekday: activitiesModel.WeekdayMonday, personID: personID}: true,
+		{weekday: activityContract.WeekdayMonday, personID: personID}: true,
 	}
 
-	assert.True(t, wantedOnAllWeekdays(want, []int{activitiesModel.WeekdayMonday}, personID, false))
+	assert.True(t, wantedOnAllWeekdays(want, []int{activityContract.WeekdayMonday}, personID, false))
 	assert.False(t, wantedOnAllWeekdays(want,
-		[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, personID, false),
+		[]int{activityContract.WeekdayMonday, activityContract.WeekdayWednesday}, personID, false),
 		"one uncovered weekday is enough to reject the row")
 	assert.True(t, wantedOnAllWeekdays(want, nil, personID, true),
 		"the caller decides what an empty weekday set means")
@@ -147,15 +148,15 @@ func TestPrimaryFlagMatches(t *testing.T) {
 
 	const personID = 77
 	primaryWanted := map[seriesWeekdayPerson]bool{
-		{weekday: activitiesModel.WeekdayMonday, personID: personID}: true,
+		{weekday: activityContract.WeekdayMonday, personID: personID}: true,
 	}
-	weekdays := []int{activitiesModel.WeekdayMonday}
+	weekdays := []int{activityContract.WeekdayMonday}
 
 	assert.True(t, primaryFlagMatches(primaryWanted, weekdays, personID, true))
 	assert.False(t, primaryFlagMatches(primaryWanted, weekdays, personID, false),
 		"a supervisor who should be primary but is not needs rewriting")
 	assert.False(t, primaryFlagMatches(primaryWanted,
-		[]int{activitiesModel.WeekdayWednesday}, personID, true),
+		[]int{activityContract.WeekdayWednesday}, personID, true),
 		"and so does one who is primary on a weekday that does not want it")
 }
 
@@ -174,29 +175,29 @@ func TestProtectedPredecessorEnrollments(t *testing.T) {
 	t.Parallel()
 
 	requestChildID := int64(4242)
-	protectedByRequest := &activitiesModel.StudentEnrollment{
+	protectedByRequest := &activityContract.StudentEnrollment{
 		StudentID:                101,
-		ValidFrom:                activitiesModel.Date(seriesDate(3)),
+		ValidFrom:                activityContract.Date(seriesDate(3)),
 		ValidUntil:               activityDatePtr(datePtr(17)),
 		EnrollmentRequestChildID: &requestChildID,
 	}
-	protectedButElsewhere := &activitiesModel.StudentEnrollment{
+	protectedButElsewhere := &activityContract.StudentEnrollment{
 		StudentID:        102,
-		ValidFrom:        activitiesModel.Date(seriesDate(24)),
+		ValidFrom:        activityContract.Date(seriesDate(24)),
 		ValidUntil:       activityDatePtr(datePtr(31)),
-		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 	}
-	editorOwned := &activitiesModel.StudentEnrollment{
+	editorOwned := &activityContract.StudentEnrollment{
 		StudentID:  103,
-		ValidFrom:  activitiesModel.Date(seriesDate(3)),
+		ValidFrom:  activityContract.Date(seriesDate(3)),
 		ValidUntil: activityDatePtr(datePtr(17)),
 	}
 
 	got := protectedPredecessorEnrollments(
-		[]*activitiesModel.StudentEnrollment{nil, protectedByRequest, protectedButElsewhere, editorOwned},
+		[]*activityContract.StudentEnrollment{nil, protectedByRequest, protectedButElsewhere, editorOwned},
 		seriesDate(10), datePtr(17),
 	)
-	assert.Equal(t, []*activitiesModel.StudentEnrollment{protectedByRequest}, got,
+	assert.Equal(t, []*activityContract.StudentEnrollment{protectedByRequest}, got,
 		"only externally-owned rows overlapping the reconciliation window count")
 }
 

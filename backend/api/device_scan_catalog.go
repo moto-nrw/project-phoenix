@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
-func DeviceActivityCatalog(service timetableCompose.ActivityService) deviceActivityCatalogPort {
+func DeviceActivityCatalog(service activityContract.ActivityService) deviceActivityCatalogPort {
 	if service == nil {
 		return nil
 	}

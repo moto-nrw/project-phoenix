@@ -65,10 +65,8 @@ type Config struct {
 	StudentAudit        StudentChangeRecorder
 	StudentConsents     StudentConsentService
 	ParentRequestEvents RequestEventWriter
-	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
-	// The API bootstrap builds that service after this one, so the
-	// composition passes a resolver instead of setting it afterwards.
-	StudentPhotos func() StudentPhotoUnlinker
+	// StudentPhotos unlinks the stored photo a withdrawal leaves behind.
+	StudentPhotos StudentPhotoUnlinker
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory
@@ -108,7 +106,7 @@ type EnrollmentSettings interface {
 // SelfServiceEvents is the port to the parent-OGS conversation: the chat pill
 // a self-service action posts and the wake-up of every guardian's open tab.
 type SelfServiceEvents interface {
-	EmitSelfServicePill(tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64)
+	EmitSelfServicePill(ctx context.Context, tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64) error
 	WakeChildGuardians(tenantID, studentID int64)
 }
 

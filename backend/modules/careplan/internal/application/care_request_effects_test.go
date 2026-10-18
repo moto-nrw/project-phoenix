@@ -23,9 +23,12 @@ type careRequestMessenger struct {
 	neutral []ports.RequestEvent
 }
 
-func (m *careRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience ports.DecisionAudience, full, neutral ports.RequestEvent) {
-	m.fakeMessenger.EmitDecisionAudience(tenantID, studentID, audience, full, neutral)
+func (m *careRequestMessenger) EmitDecisionAudience(ctx context.Context, tenantID, studentID int64, audience ports.DecisionAudience, full, neutral ports.RequestEvent) error {
+	if err := m.fakeMessenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, full, neutral); err != nil {
+		return err
+	}
 	m.neutral = append(m.neutral, neutral)
+	return nil
 }
 
 type careRequestBroadcasts struct{ events []string }
@@ -53,11 +56,11 @@ func (r careRequestRows) FindCareScheduleRequest(context.Context, int64, bool) (
 }
 
 type careRequestNames struct {
-	name ports.PersonName
+	name careplan.PersonName
 	err  error
 }
 
-func (n careRequestNames) StudentName(context.Context, int64) (ports.PersonName, error) {
+func (n careRequestNames) StudentName(context.Context, int64) (careplan.PersonName, error) {
 	return n.name, n.err
 }
 
@@ -72,6 +75,8 @@ type careRequestHarness struct {
 func newCareRequestHarness(t *testing.T, rows careRequestRows, names careRequestNames) *careRequestHarness {
 	t.Helper()
 	h := &careRequestHarness{hooks: newFakeHooks(), messenger: &careRequestMessenger{}, ledger: &fakeLedger{}, broadcaster: &careRequestBroadcasts{}}
+	// The fake exposes the committed timeline, like another database reader.
+	h.messenger.committedView = h.hooks.AfterCommit
 	effects, err := NewCareRequestEffects(CareRequestEffectPorts{
 		Records: rows, Students: names, Messenger: h.messenger, Ledger: h.ledger, Broadcaster: h.broadcaster,
 	}, h.hooks)
@@ -273,7 +278,7 @@ func TestCareRequestReloadKeepsTheItemWhenTheNameIsMissing(t *testing.T) {
 	assert.Equal(t, "Arzttermin", *item.Reason)
 	assert.Empty(t, item.FirstName)
 
-	named := newCareRequestHarness(t, careRequestRows{row: *weeklyCareRequest()}, careRequestNames{name: ports.PersonName{FirstName: "Mia", LastName: "Muster"}})
+	named := newCareRequestHarness(t, careRequestRows{row: *weeklyCareRequest()}, careRequestNames{name: careplan.PersonName{FirstName: "Mia", LastName: "Muster"}})
 	item, err = named.effects.ReloadDecision(context.Background(), fakeCareRequestID)
 	require.NoError(t, err)
 	assert.Nil(t, item.Reason)

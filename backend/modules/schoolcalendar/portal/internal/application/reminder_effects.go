@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -12,6 +13,7 @@ import (
 // ReminderEffects exposes notification adapters, not delivery orchestration.
 // Nil channel or preference functions preserve deployments without that channel.
 type ReminderEffects struct {
+	Now          func() time.Time
 	Appointments appointmentcap.Capability
 	Audiences    func(context.Context, []int64) (map[int64]GuardianNotificationAudience, error)
 	Email        func(context.Context, string, int64, map[string]any) (bool, error)
@@ -27,6 +29,7 @@ type ReminderEffects struct {
 
 func (s *service) ReminderEffects() ReminderEffects {
 	result := ReminderEffects{
+		Now:          s.cfg.Now,
 		Appointments: s.cfg.Appointments, Audiences: s.GuardianNotificationAudiences,
 		ParentsURL: s.cfg.ParentsURL, Logger: s.logger(),
 		Brand: func(ctx context.Context, tenantID int64) (string, string, string) {

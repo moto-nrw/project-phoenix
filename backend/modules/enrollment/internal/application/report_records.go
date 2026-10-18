@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
@@ -25,12 +24,12 @@ const (
 // reportChild is a request child with its decoded answers.
 type reportChild = RequestChild
 
-func listReportRequests(ctx context.Context, owner ReportRequests, filters enrollment.RequestListFilters) ([]*enrollmentModels.Request, error) {
+func listReportRequests(ctx context.Context, owner ReportRequests, filters enrollment.RequestListFilters) ([]*Request, error) {
 	values, err := owner.AdminRequests(ctx, filters)
 	if err != nil {
 		return nil, err
 	}
-	var result []*enrollmentModels.Request
+	var result []*Request
 	for _, value := range values {
 		converted, err := requestValue(value)
 		if err != nil {
@@ -41,11 +40,11 @@ func listReportRequests(ctx context.Context, owner ReportRequests, filters enrol
 	return result, nil
 }
 
-func requestValue(r *enrollment.Request) (*enrollmentModels.Request, error) {
+func requestValue(r *enrollment.Request) (*Request, error) {
 	if r == nil {
 		return nil, nil
 	}
-	result := &enrollmentModels.Request{
+	result := &Request{
 		ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		SchemaID: r.SchemaID, PhaseID: r.PhaseID,
 		GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName,
@@ -89,7 +88,7 @@ func listReportChildren(ctx context.Context, owner ReportChildren, requestIDs []
 }
 
 // loadReportSchemas loads the form schema of every request that has one.
-func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*enrollmentModels.Request) (map[int64]*enrollment.FormSchema, error) {
+func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*Request) (map[int64]*enrollment.FormSchema, error) {
 	ids := make([]int64, 0, len(requests))
 	seen := make(map[int64]bool)
 	for _, request := range requests {
@@ -122,7 +121,7 @@ func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*enr
 
 // reportFieldValue pulls the submission value for a field. Guardian-level
 // fields live on the request's answers, per-child fields on the child's.
-func reportFieldValue(req *enrollmentModels.Request, child *reportChild, field enrollment.FormField) any {
+func reportFieldValue(req *Request, child *reportChild, field enrollment.FormField) any {
 	if field.AppliesToCh {
 		if child == nil || child.CustomData == nil {
 			return nil
@@ -136,11 +135,11 @@ func reportFieldValue(req *enrollmentModels.Request, child *reportChild, field e
 }
 
 // careUsagePickupByDay reads the child's pickup weekday schedule answer.
-func careUsagePickupByDay(req *enrollmentModels.Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (map[string]string, error) {
+func careUsagePickupByDay(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (map[string]string, error) {
 	return careUsageScheduleByTarget(req, child, schemas, enrollment.TargetSchedulePickup)
 }
 
-func careUsageScheduleByTarget(req *enrollmentModels.Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, target string) (map[string]string, error) {
+func careUsageScheduleByTarget(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, target string) (map[string]string, error) {
 	out := map[string]string{}
 	if req == nil || req.SchemaID == nil || child == nil {
 		return out, nil

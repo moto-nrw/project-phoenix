@@ -63,21 +63,8 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if isBeforeLocalToday(dateStart, time.Now()) {
 		return nil, fmt.Errorf("vacation request must start today or in the future")
 	}
-	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+	if err := s.lockVacationRequestRange(ctx, staffID, dateStart, dateEnd); err != nil {
 		return nil, err
-	}
-
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing absences: %w", err)
-	}
-	// Declined and canceled rows do not block the time slot, the staff
-	// member is free to request the same dates again. Only requested,
-	// approved and reported absences hold the range.
-	for _, e := range existing {
-		if blocksAbsenceRange(e.Status) {
-			return nil, fmt.Errorf("dates overlap with an existing absence")
-		}
 	}
 
 	workingDays := countWorkingDays(dateStart, dateEnd, req.StartHalfDay, req.EndHalfDay)
@@ -114,7 +101,9 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err := s.absenceRepo.Create(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
-	s.notifyAbsenceRequested(ctx, absence)
+	if err := s.notifyAbsenceRequested(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -159,7 +148,9 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -197,7 +188,9 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -234,7 +227,9 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence question: %w", err)
 	}
-	s.notifyAbsenceDecision(ctx, absence)
+	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -272,7 +267,9 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 		return nil, fmt.Errorf("failed to audit absence resubmit: %w", err)
 	}
 	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
-	s.notifyAbsenceRequested(ctx, absence)
+	if err := s.notifyAbsenceRequested(ctx, absence); err != nil {
+		return nil, fmt.Errorf("enqueue absence mail: %w", err)
+	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
@@ -329,4 +326,25 @@ func (s *staffAbsenceService) createAudit(ctx context.Context, absenceID int64, 
 
 func isBeforeLocalToday(date calendar.Date, now time.Time) bool {
 	return date.Before(calendar.DateFromTime(now))
+}
+
+func (s *staffAbsenceService) lockVacationRequestRange(ctx context.Context, staffID int64, dateStart, dateEnd calendar.Date) error {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return err
+	}
+
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	if err != nil {
+		return fmt.Errorf("failed to check existing absences: %w", err)
+	}
+	// Declined and canceled rows do not block the time slot, the staff
+	// member is free to request the same dates again. Only requested,
+	// approved and reported absences hold the range.
+	for _, e := range existing {
+		if blocksAbsenceRange(e.Status) {
+			return fmt.Errorf("dates overlap with an existing absence")
+		}
+	}
+
+	return nil
 }

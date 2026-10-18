@@ -8,11 +8,13 @@ import (
 	"testing"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/api"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -34,7 +36,7 @@ type failingSubmissionRateLimiter struct {
 	failure error
 }
 
-func (r *failingSubmissionRateLimiter) IncrementAttempts(ctx context.Context, tenantID int64, keyType, key string, window time.Duration) (*capability.SubmissionRateLimitState, error) {
+func (r *failingSubmissionRateLimiter) IncrementAttempts(ctx context.Context, tenantID int64, keyType, key string, window time.Duration) (*enrollmentNative.SubmissionRateLimitState, error) {
 	if keyType == r.failKey {
 		return nil, r.failure
 	}
@@ -43,7 +45,7 @@ func (r *failingSubmissionRateLimiter) IncrementAttempts(ctx context.Context, te
 
 func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 	t.Parallel()
-	for _, keyType := range []string{capability.SubmissionRateLimitKeyTypeIP, capability.SubmissionRateLimitKeyTypeEmail} {
+	for _, keyType := range []string{enrollmentNative.SubmissionRateLimitKeyTypeIP, enrollmentNative.SubmissionRateLimitKeyTypeEmail} {
 		t.Run(keyType, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
@@ -82,21 +84,21 @@ func (w *failingIntakeWrites) afterWrite() error {
 	return nil
 }
 
-func (w *failingIntakeWrites) InsertRequest(ctx context.Context, request *capability.Request) error {
+func (w *failingIntakeWrites) InsertRequest(ctx context.Context, request *enrollmentNative.Request) error {
 	if err := w.IntakeRequests.InsertRequest(ctx, request); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
-func (w *failingIntakeWrites) InsertChild(ctx context.Context, child *capability.RequestChild) error {
+func (w *failingIntakeWrites) InsertChild(ctx context.Context, child *enrollmentNative.RequestChild) error {
 	if err := w.IntakeChildren.InsertChild(ctx, child); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
-func (w *failingIntakeWrites) CreateRequestGuardian(ctx context.Context, guardian *capability.RequestGuardian) error {
+func (w *failingIntakeWrites) CreateRequestGuardian(ctx context.Context, guardian *enrollmentNative.RequestGuardian) error {
 	if err := w.IntakeGuardians.CreateRequestGuardian(ctx, guardian); err != nil {
 		return err
 	}
@@ -172,9 +174,9 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			assertIntakeCounts(t, env.db, env.phaseID, 1, 2)
 			duplicate, err := service.Submit(ctx, input)
 			if created == nil {
-				require.ErrorIs(t, err, capability.ErrDuplicateEnrollment)
+				require.ErrorIs(t, err, enrollmentNative.ErrDuplicateEnrollment)
 			} else {
-				require.ErrorIs(t, err, capability.ErrLateInviteInvalid)
+				require.ErrorIs(t, err, enrollmentNative.ErrLateInviteInvalid)
 				used, lookupErr := writes.LateInviteByUsedRequestID(ctx, result.Request.ID)
 				require.NoError(t, lookupErr)
 				require.Equal(t, created.Invite.ID, used.ID)
@@ -259,7 +261,7 @@ func TestPublicIntakeRollsBackAfterEachSubmissionEmailEnqueue(t *testing.T) {
 			assertIntakeCounts(t, env.db, env.phaseID, 1, 1)
 			assertSubmissionEmailCount(t, env.db, outbox.delivery, result.Request.ID, 2)
 			duplicate, err := service.Submit(ctx, input)
-			require.ErrorIs(t, err, capability.ErrDuplicateEnrollment)
+			require.ErrorIs(t, err, enrollmentNative.ErrDuplicateEnrollment)
 			require.Nil(t, duplicate)
 			assertSubmissionEmailCount(t, env.db, outbox.delivery, result.Request.ID, 2)
 		})
@@ -283,9 +285,9 @@ type failingIntakeOfferingLinks struct {
 	failure   error
 }
 
-func (r *failingIntakeOfferingLinks) RecordSubmittedOfferingChoices(ctx context.Context, childID int64, choices []capability.SubmittedOfferingChoice) error {
+func (r *failingIntakeOfferingLinks) RecordSubmittedOfferingChoices(ctx context.Context, childID int64, choices []enrollmentNative.SubmittedOfferingChoice) error {
 	for _, choice := range choices {
-		if err := r.IntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
+		if err := r.IntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []enrollmentNative.SubmittedOfferingChoice{choice}); err != nil {
 			return err
 		}
 		r.writes++
@@ -308,8 +310,8 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			ctx := testpkg.Ctx(t)
 			var offeringIDs []int64
 			for _, name := range []string{"First", "Second"} {
-				offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-				require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
+				offering := &offeringContract.CareOfferingRecord{PhaseID: env.phaseID, Name: name, DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
+				require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Create(ctx, offering))
 				offeringIDs = append(offeringIDs, offering.ID)
 			}
 			failure := errors.New("injected after offering link write")
@@ -334,7 +336,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			assertIntakeCounts(t, env.db, env.phaseID, 1, 1)
 			assertIntakeOfferingLinkCount(t, env.db, offeringIDs, 2)
 			duplicate, err := service.Submit(ctx, input)
-			require.ErrorIs(t, err, capability.ErrDuplicateEnrollment)
+			require.ErrorIs(t, err, enrollmentNative.ErrDuplicateEnrollment)
 			require.Nil(t, duplicate)
 			assertIntakeOfferingLinkCount(t, env.db, offeringIDs, 2)
 		})
@@ -347,13 +349,13 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-	require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
+	offering := &offeringContract.CareOfferingRecord{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
+	require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Create(ctx, offering))
 	failure := errors.New("injected after Care Plan booking command")
 	config := env.config
 	calls := 0
 	fail := true
-	config.Bookings = recordCareBookingsFunc(func(ctx context.Context, childID int64, bookings []capability.CareBookingInput) error {
+	config.Bookings = recordCareBookingsFunc(func(ctx context.Context, childID int64, bookings []enrollmentNative.CareBookingInput) error {
 		if err := env.config.Bookings.RecordCareBookings(ctx, childID, bookings); err != nil {
 			return err
 		}

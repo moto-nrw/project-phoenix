@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 const (
@@ -40,7 +38,7 @@ func (s *ChangeRequests) PrimaryGuardianPortalAccess(ctx context.Context, token 
 	return access, nil
 }
 
-func (s *ChangeRequests) primaryGuardianPortalAccess(ctx context.Context, req *enrollmentModels.Request) (string, error) {
+func (s *ChangeRequests) primaryGuardianPortalAccess(ctx context.Context, req *Request) (string, error) {
 	profile, err := s.primaryGuardianProfile(ctx, req)
 	if err != nil {
 		return "", err

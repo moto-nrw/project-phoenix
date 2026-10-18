@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -30,7 +31,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -42,18 +43,20 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 	participation := newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 	})
-	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+	careDays, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{
 		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
 		Records:          env.repos.CarePlan(),
 
-		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
+		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople)),
 
 		CareParticipation: participation,
 	})
+	require.NoError(t, err)
+	return careDays
 }
 
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careplan.PickupBaselineReader {
-	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos),
+	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople),
 		func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
@@ -79,12 +82,12 @@ func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID in
 		"turning booking authority off must restore the preserved weekly plan")
 }
 
-func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *enrollmentModels.CareOffering {
+func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  days,
 		IsActive:       true,
 		CountsAsCare:   true,
@@ -102,10 +105,10 @@ func setArrivalClassTimes(t *testing.T, env *decisionTestEnv, class string, time
 func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	student, err := env.repos.Student.FindByID(ctx, studentID)
+	student, err := env.reposPeople.Student.FindByID(ctx, studentID)
 	require.NoError(t, err)
 	student.SchoolClass = class
-	require.NoError(t, env.repos.Student.Update(ctx, student))
+	require.NoError(t, env.reposPeople.Student.Update(ctx, student))
 }
 
 func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.T) {

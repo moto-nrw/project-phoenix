@@ -3,6 +3,9 @@ package api
 import (
 	"log/slog"
 
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 )
@@ -12,11 +15,11 @@ import (
 // Activities for the room's system activity, and the retained Student
 // Presence service for the room session and the move until that owner exposes
 // them publicly.
-func newOpenRoomMove(modules moduleServices, presence openRoomMoveCompose.RetainedPresence, logger *slog.Logger) (openroommove.Command, error) {
+func newOpenRoomMove(rooms *facilitiesModule.Module, activities timetable.Capability, presence openRoomMoveCompose.RetainedPresence, logger *slog.Logger) (openroommove.Command, error) {
 	log := logger.With("workflow", "open-room-move")
 	return openRoomMoveCompose.New(openRoomMoveCompose.Dependencies{
-		Rooms:      modules.rooms,
-		Activities: modules.timetable,
+		Rooms:      rooms,
+		Activities: activities,
 		Presence:   presence,
 		Observe: func(o openRoomMoveCompose.Observation) {
 			log.Debug("open room move operation",

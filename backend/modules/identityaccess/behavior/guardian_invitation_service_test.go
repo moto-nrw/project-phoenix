@@ -24,10 +24,12 @@ const strongTestPassword = "GuardianTest!2026"
 
 // guardianTestEnv bundles the real-DB dependencies tests need.
 type guardianTestEnv struct {
-	db      *bun.DB
-	repos   *api.RepositoryTestFactory
-	service api.GuardianInvitationCapability
-	cleanup func()
+	db              *bun.DB
+	repos           *api.PeopleRepositorySuiteFactory
+	reposEnrollment *api.EnrollmentSuiteRepositories
+	reposCare       *api.RepositoryTestFactory
+	service         api.GuardianInvitationCapability
+	cleanup         func()
 }
 
 // setupGuardianInvitationTest composes the guardian invitation service over
@@ -38,7 +40,9 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *api.Guar
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactoryEnrollment := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db))
+	repoFactoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	cfg := api.GuardianInvitationTestConfig{
 		Outbox: api.NewCapturingOutbox(),
@@ -55,10 +59,12 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *api.Guar
 	}
 
 	return &guardianTestEnv{
-		db:      db,
-		repos:   repoFactory,
-		service: service,
-		cleanup: cleanup,
+		db:              db,
+		repos:           repoFactoryPeople,
+		reposEnrollment: repoFactoryEnrollment,
+		reposCare:       repoFactory,
+		service:         service,
+		cleanup:         cleanup,
 	}
 }
 
@@ -694,14 +700,14 @@ func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email 
 
 func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, requestID, accountID int64) {
 	t.Helper()
-	linkedRequest, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
+	linkedRequest, err := env.reposEnrollment.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
 	require.NoError(t, err)
 	require.NotNil(t, linkedRequest.GuardianAccountID)
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
 
 	var enrollmentRequestIDs []int64
 	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
-		enrollments, listErr := env.repos.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
+		enrollments, listErr := env.reposCare.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
 		for _, enrollment := range enrollments {
 			enrollmentRequestIDs = append(enrollmentRequestIDs, enrollment.RequestID)
 		}
@@ -744,7 +750,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ParentEnrollmentRequest
+	realBackfiller := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")
@@ -825,7 +831,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 
 	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
-	unlinked, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
+	unlinked, err := env.reposEnrollment.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.GuardianAccountID, "failed backfill write must be rolled back")
 }

@@ -69,7 +69,7 @@ func (s *Service) BookOpenRoom(ctx context.Context, command devicescan.OpenRoomC
 
 // openRoomStudent resolves the child behind the card and checks that the
 // tenant can book open rooms at all.
-func (s *Service) openRoomStudent(ctx context.Context, device *ports.Device, tag string) (*ports.Person, *ports.Student, error) {
+func (s *Service) openRoomStudent(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Person, *ports.Student, error) {
 	person, err := s.resolvePerson(ctx, device, tag)
 	if err != nil {
 		return nil, nil, err

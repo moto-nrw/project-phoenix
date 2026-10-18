@@ -79,7 +79,7 @@ func (c *cleanupClock) Set(now time.Time) {
 // catchUpScheduler is one Worker process whose timetable cleanup runs at
 // 02:00 and whose last successful runs live in runs.
 func catchUpScheduler(runs ports.CleanupRunLedger, clock *cleanupClock, cleanup *fakeTimetableCleanup) *Scheduler {
-	return unitScheduler(&Scheduler{
+	return unitScheduler(&unitSchedulerDependencies{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
 		cleanupRuns:      runs,
@@ -207,7 +207,7 @@ func TestNightlyCleanupUsesRegistryDefaultInsteadOfLegacyEnvironmentFallback(t *
 
 	clock := &cleanupClock{now: berlin(14, 2, 0)}
 	cleanup := &fakeTimetableCleanup{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
 		cleanupClock:     clock.Now,
@@ -224,7 +224,7 @@ func TestDataCleanupEnabledReturnsResolutionError(t *testing.T) {
 	t.Parallel()
 
 	resolutionErr := errors.New("settings unavailable")
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:   slog.Default(),
 		settings: &stubSettingsResolver{boolErr: resolutionErr},
 	})
@@ -242,7 +242,7 @@ func TestNightlyCleanupRetriesAfterCleanupSettingReadFailure(t *testing.T) {
 	clock := &cleanupClock{now: berlin(14, 2, 0)}
 	cleanup := &fakeTimetableCleanup{}
 	settings := &stubSettingsResolver{boolErr: resolutionErr}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
 		cleanupClock:     clock.Now,
@@ -330,7 +330,7 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 
 	var logged []recordedRetention
 	runs := newFakeCleanupRuns()
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:         slog.Default(),
 		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
@@ -366,7 +366,7 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 
 	runs := newFakeCleanupRuns()
 	laterStepRan := false
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:         slog.Default(),
 		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
@@ -430,7 +430,7 @@ func TestNightlyCleanupFollowsATimeMovedLaterInTheDay(t *testing.T) {
 	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
 	clock := &cleanupClock{now: berlin(13, 22, 0)}
 	cleanup := &fakeTimetableCleanup{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
 		cleanupRuns:      runs,

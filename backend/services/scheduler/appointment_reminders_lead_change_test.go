@@ -16,7 +16,7 @@ func TestRunAppointmentRemindersForTenantDecreasedLeadUsesActiveWindow(t *testin
 	scanFrom := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	scanTo := scanFrom.Add(appointmentReminderInterval)
 	queuer := &fakeReminderQueuer{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		appointmentReminders: queuer,
 		settings:             appointmentReminderSettings(12, true)})

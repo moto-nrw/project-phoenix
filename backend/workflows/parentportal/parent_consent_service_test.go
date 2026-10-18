@@ -24,17 +24,19 @@ func (r *consentRecordingUnlinker) UnlinkStored(url string) { r.urls = append(r.
 // reaches: a withdrawal detaches the stored file after the commit.
 type consentPhotoUnlinker struct{ unlinker *consentRecordingUnlinker }
 
-func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) {
+func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) error {
 	if storedURL == "" {
-		return
+		return nil
 	}
 	u.unlinker.UnlinkStored(storedURL)
+	return nil
 }
 
-func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory, *consentRecordingUnlinker) {
+func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.PeopleRepositorySuiteFactory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
@@ -49,17 +51,17 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
+		StudentRepo:         api.NewParentStudentReads(reposPeople.Student),
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		StudentConsents:     api.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
-		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
+		StudentPhotos:       photos,
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 
 		CarePlanPolicy: api.NewParentCarePlanPolicy(),
-	}), db, repos, unlinker
+	}), db, reposPeople, unlinker
 }
 
 func TestGetChildConsentsShowsRecordedStatesAndWithdrawalCapability(t *testing.T) {

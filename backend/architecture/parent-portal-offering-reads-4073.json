@@ -41,13 +41,13 @@
       "backend/modules/enrollment/internal/application/care_offering_values_test.go",
       "backend/api/parent_offering_read_ports.go",
       "backend/api/parent_portal_read_ports_test.go",
-      "backend/api/service_graph_compose_requests.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose_requests.go",
       "backend/workflows/parentportal/care/offering_values.go",
       "backend/workflows/parentportal/care/parent_care_offerings_service.go",
       "backend/workflows/parentportal/messaging/read_ports.go",
       "backend/sharedkernel/calendar/weekday_keys.go",
       "backend/sharedkernel/calendar/weekday_keys_test.go",
-      "backend/models/enrollment/care_offering.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/dd92c93a8af3c4cc3d74d51769eb04d4922c85b8/backend/models/enrollment/care_offering.go"
     ],
     "workload": "Existing account-scoped child/enrollment, soft-deleted-person/audience eligibility, relationship denial, care-ended write guards and redaction suites; new boundary and policy tests.",
     "thresholds": "Five exact retirements, no new import debt, grants or composition target; identical JSON/date values and explicit relationship permissions; compose surfaces shrink176 LOC.",

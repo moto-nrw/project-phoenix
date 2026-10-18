@@ -121,8 +121,11 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 			return validateErr
 		}
 		stored, _, insertErr := r.store.InsertPasswordResetToken(txCtx, pending)
+		if insertErr != nil {
+			return insertErr
+		}
 		token = stored
-		return insertErr
+		return r.delivery.DispatchPasswordReset(txCtx, token, account.Email, scope, r.expiry)
 	})
 	if err != nil {
 		return nil, failed("initiate password reset transaction", err)
@@ -130,7 +133,6 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 	r.logger.Info("password reset token created",
 		slog.Int64("account_id", account.ID))
 
-	r.delivery.DispatchPasswordReset(ctx, token, account.Email, scope, r.expiry)
 	return &token, nil
 }
 
@@ -211,8 +213,7 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
 func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	_, err := r.store.RecordPasswordResetDelivery(ctx, id, delivery.Bounded())
-	return err
+	return recordPasswordResetDelivery(ctx, r.store, id, delivery)
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.
@@ -239,6 +240,6 @@ type PasswordResetDelivery struct {
 	Source identityPorts.PasswordResetDelivery
 }
 
-func (d PasswordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) {
-	d.Source.DispatchPasswordReset(ctx, PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)
+func (d PasswordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) error {
+	return d.Source.DispatchPasswordReset(ctx, PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)
 }

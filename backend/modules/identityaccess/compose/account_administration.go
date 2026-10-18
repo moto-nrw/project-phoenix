@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
@@ -27,16 +26,12 @@ func newAccountAdministration(
 	if sessions.Schools == nil || sessions.Passwords == nil {
 		return nil, errors.New("identity access compose: the administration flows require the school directory and the password verifier")
 	}
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
 	return application.NewAccountAdministration(auth, application.AccountAdministrationDependencies{
 		Store:     store,
 		Schools:   application.SchoolDirectory{Source: sessions.Schools},
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
+		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()},
 		Logger:    deps.Logger,
 	})
 }

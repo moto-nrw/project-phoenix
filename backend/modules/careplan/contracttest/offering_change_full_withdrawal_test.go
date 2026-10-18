@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -59,8 +59,8 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	direct, ok := svc.(careplan.DirectOfferingAdjustments)
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
-	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	env.sourcePhase.CareOfferingSelectionMode = enrollmentTest.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
@@ -93,8 +93,8 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
-	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
+	pendingCompletions, _, err := env.reposPeople.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -104,8 +104,8 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	require.NoError(t, svc.Decide(ctx, decision))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
-	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
+	pendingCompletions, _, err = env.reposPeople.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 
 func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int64) {
 	t.Helper()
-	pending, _, err := env.repos.CareWithdrawal.ListPending(
+	pending, _, err := env.reposPeople.CareWithdrawal.ListPending(
 		testpkg.Ctx(t),
 		careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1},
 	)
@@ -181,7 +181,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	require.NoError(t, err)
 	require.NotNil(t, view.LastDecision)
 	assert.False(t, view.LastDecision.CompleteWithdrawal)
-	_, total, err := env.repos.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
+	_, total, err := env.reposPeople.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 1,
 	})
 	require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
@@ -259,7 +259,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	require.NoError(t, err)
 	require.NotNil(t, view, "the status remains while the completion task is open")
 
-	changed, err := env.repos.CareWithdrawal.MarkObsoleteForRebooking(
+	changed, err := env.reposPeople.CareWithdrawal.MarkObsoleteForRebooking(
 		ctx, fx.studentID, calendar.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
 	)
 	require.NoError(t, err)
@@ -321,8 +321,8 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RequiredFullWithdrawal")
-	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	env.sourcePhase.CareOfferingSelectionMode = enrollmentTest.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
@@ -346,7 +346,7 @@ func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfThe
 	// A second child that holds both offerings, so dropping one leaves one.
 	_, _, studentID := submitApprovedAdjustmentChild(
 		t, env, "offer-change-keeps-other@example.com", "OfferChangeKeepsOther",
-		[]*enrollmentModels.CareOffering{fx.oldOffering, fx.newOffering},
+		[]*offeringContract.CareOfferingRecord{fx.oldOffering, fx.newOffering},
 	)
 
 	row, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), careplan.CreateOfferingChangeInput{

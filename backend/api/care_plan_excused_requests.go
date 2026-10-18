@@ -4,13 +4,14 @@ import (
 	"context"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,54 +21,44 @@ type excusedRequestReviewPolicy interface {
 	AbsenceScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 }
 
-// ExcusedRequestServiceWiring is the legacy root's view of the Care Plan
-// excused-absence workflow dependencies. Nil effects are skipped.
-type ExcusedRequestServiceWiring struct {
-	CarePlan    careplan.Capability
-	Students    ExcusedRequestStudentRows
-	Persons     ExcusedRequestPersonRows
-	Scope       carePlanCompose.ReviewScopeResolver
-	Emitter     *communicationCompose.ParentEventEmitter
-	Broadcaster realtime.Broadcaster
-	Events      peopledirectory.ParentRequestEvents
-	notifier    deliveryCompose.AbsenceNotifier
-	shares      carePlanCompose.ShareVisibility
-	observe     CarePlanObserver
-	Logger      *slog.Logger
-	Today       func() timezone.Date
-}
-
 // CarePlanObserver receives the Care Plan workflow observations (stable
 // operation, duration, store statistics, error). The root binds it to the
 // same sink as the Care Plan capability so both report as one owner.
 type CarePlanObserver func(carePlanCompose.Observation)
 
-func NewExcusedAbsenceRequestService(wiring ExcusedRequestServiceWiring) (*carePlanCompose.ExcusedAbsenceRequests, error) {
+// NewExcusedAbsenceRequestService composes the Care Plan excused-absence
+// workflow over the legacy root's dependencies. Nil effects are skipped.
+func NewExcusedAbsenceRequestService(
+	carePlan careplan.Capability, students ExcusedRequestStudentRows, persons ExcusedRequestPersonRows,
+	scope carePlanCompose.ReviewScopeResolver, emitter eventContract.Emitter,
+	broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
+	shares carePlanCompose.ShareVisibility, observe CarePlanObserver, logger *slog.Logger, today func() timezone.Date,
+) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger
-	if wiring.Emitter != nil {
-		messenger = NewExcusedRequestMessenger(wiring.Emitter)
+	if emitter != nil {
+		messenger = NewExcusedRequestMessenger(emitter)
 	}
-	var broadcaster carePlanCompose.StaffBroadcaster
-	if wiring.Broadcaster != nil {
-		broadcaster = excusedRequestBroadcaster{broadcaster: wiring.Broadcaster}
+	var staff carePlanCompose.StaffBroadcaster
+	if broadcaster != nil {
+		staff = excusedRequestBroadcaster{broadcaster: broadcaster}
 	}
 	var ledger carePlanCompose.RequestLedger
-	if wiring.Events != nil {
-		ledger = NewParentRequestLedger(wiring.Events)
+	if events != nil {
+		ledger = NewParentRequestLedger(events)
 	}
-	var notifier carePlanCompose.AbsenceNotifier
-	if wiring.notifier != nil {
-		notifier = excusedAbsenceNotifier{notifier: wiring.notifier}
+	var absences carePlanCompose.AbsenceNotifier
+	if notifier != nil {
+		absences = excusedAbsenceNotifier{notifier: notifier}
 	}
-	var today func() careplan.Date
-	if wiring.Today != nil {
-		today = func() careplan.Date { return careplan.Date(wiring.Today()) }
+	var day func() careplan.Date
+	if today != nil {
+		day = func() careplan.Date { return careplan.Date(today()) }
 	}
 	return NewExcusedAbsenceRequests(ExcusedRequestWiring{
-		CarePlan: wiring.CarePlan, Students: wiring.Students, Persons: wiring.Persons,
-		Scope: wiring.Scope, Today: today, Logger: wiring.Logger, Observe: wiring.observe,
-		Messenger: messenger, Broadcaster: broadcaster, Ledger: ledger,
-		Notifier: notifier, Shares: wiring.shares,
+		CarePlan: carePlan, Students: students, Persons: persons,
+		Scope: scope, Today: day, Logger: logger, Observe: observe,
+		Messenger: messenger, Broadcaster: staff, Ledger: ledger,
+		Notifier: absences, Shares: shares,
 	})
 }
 

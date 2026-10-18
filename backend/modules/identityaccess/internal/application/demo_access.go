@@ -91,7 +91,10 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 	}
 	access.TokenHash = fingerprint
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
-	var stored, lead bool
+	entryURL := entryURLPrefix + raw
+	if access.Role != "" {
+		entryURL += "&role=" + string(access.Role)
+	}
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
 		known, found, coolingDown, err := d.knownSchool(txCtx, access.Email)
 		if err != nil || coolingDown {
@@ -101,24 +104,20 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
 			return txErr
 		}
-		stored, lead = true, !found || known.ContactOptIn != access.ContactOptIn
 		access.ID, txErr = d.store.InsertDemoAccess(txCtx, access)
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		if err := d.mail.SendDemoAccessLink(txCtx, access, entryURL); err != nil {
+			return err
+		}
+		if !found || known.ContactOptIn != access.ContactOptIn {
+			return d.mail.SendDemoLead(txCtx, access)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("store demo access: %w", err)
-	}
-	if !stored {
-		return nil
-	}
-	entryURL := entryURLPrefix + raw
-	if access.Role != "" {
-		// The fragment carries the preselected role past the waiting room.
-		entryURL += "&role=" + string(access.Role)
-	}
-	d.mail.SendDemoAccessLink(ctx, access, entryURL)
-	if lead {
-		d.mail.SendDemoLead(ctx, access)
 	}
 	return nil
 }
@@ -454,12 +453,12 @@ func (t DemoAccessTokens) Fingerprint(raw string) string { return t.FingerprintF
 // demoAccessMail hands the internal access to the root's mail binding.
 type DemoAccessMail struct{ Mail identityaccess.DemoAccessMail }
 
-func (m DemoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) {
-	m.Mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)
+func (m DemoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) error {
+	return m.Mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)
 }
 
-func (m DemoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) {
-	m.Mail.SendDemoLead(ctx, demoAccessMessage(access))
+func (m DemoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) error {
+	return m.Mail.SendDemoLead(ctx, demoAccessMessage(access))
 }
 
 type DemoAccessEngine struct{ Flows *DemoAccess }
@@ -505,7 +504,8 @@ var demoAccessSentinels = []struct{ internal, public error }{
 
 func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessage {
 	return identityaccess.DemoAccessMessage{
-		AccessID: access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
+		ExpiresAt: access.ExpiresAt,
+		AccessID:  access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
 		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
 	}
 }

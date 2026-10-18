@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // Error messages and SQL fragments

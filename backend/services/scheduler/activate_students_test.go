@@ -94,7 +94,7 @@ func (f *fakeStudentLifecycleRepo) TransitionStatus(
 func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
 		tasks:  make(map[string]*ScheduledTask)})
@@ -106,7 +106,7 @@ func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		done:                 make(chan struct{}),
 		logger:               slog.Default(),
 		tasks:                make(map[string]*ScheduledTask),
@@ -135,7 +135,7 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 	pending := []int64{101, 102}
 
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -155,7 +155,7 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 	due := []int64{201}
 
 	repo := &fakeStudentLifecycleRepo{activeDue: due}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -178,7 +178,7 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 		pendingDue: pending,
 		activeDue:  due,
 	}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -201,7 +201,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 	// pending rows. Simulate by clearing pendingDue between calls.
 	pending := []int64{401}
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -230,7 +230,7 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 		pendingErr: errors.New("pending query failed"),
 		activeDue:  due,
 	}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -248,7 +248,7 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 	repo := &fakeStudentLifecycleRepo{
 		activeErr: errors.New("active query failed"),
 	}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -270,7 +270,7 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 		updateErr:      errors.New("update blew up"),
 		updateErrForID: 601,
 	}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 
@@ -286,7 +286,7 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeStudentLifecycleRepo{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo})
 

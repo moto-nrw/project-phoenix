@@ -116,7 +116,7 @@ func TestEditPickupChangeHonoursSameDayCutoff(t *testing.T) {
 		require.NoError(t, edit(t, f, req, cutoffFixtureToday, cutoffAt(t, 11, 0)), "exactly at the cutoff is still open")
 		require.ErrorIs(t, edit(t, f, req, cutoffFixtureToday, cutoffAt(t, 11, 1)), careplan.ErrPickupChangeCutoffPassed)
 
-		row, err := careplantest.NewScheduleRecords(f.repos.CarePlan()).CareScheduleChangeRequest.FindByID(f.staffCtx(f.staffAccount), req.ID)
+		row, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.FindByID(f.staffCtx(f.staffAccount), req.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "13:30", testpkg.FixtureJSONObject(t, row.Payload)["pickup_time"], "the refused edit left the 11:00 state untouched")
 		assert.Equal(t, carerequests.StatusPending, row.Status)
@@ -167,7 +167,7 @@ func TestStaffDecidesTodaysPickupChangeAfterCutoff(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, carerequests.StatusApproved, decided.Request.Status)
 
-	applied, err := careplantest.NewScheduleRecords(f.repos.CarePlan()).StudentPickupException.FindByStudentIDAndDate(
+	applied, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(
 		f.staffCtx(f.staffAccount), f.chain.StudentID, careplan.Date(cutoffFixtureToday))
 	require.NoError(t, err)
 	require.NotNil(t, applied)

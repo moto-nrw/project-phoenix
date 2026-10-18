@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,30 +22,30 @@ import (
 
 type spontaneousTemplates struct {
 	ports.DataTemplates
-	byName  map[string]*activitiesModels.Group
-	created []*activitiesModels.Group
+	byName  map[string]*activityContract.Group
+	created []*activityContract.Group
 }
 
-func (f *spontaneousTemplates) FindByName(_ context.Context, name string) (*activitiesModels.Group, error) {
+func (f *spontaneousTemplates) FindByName(_ context.Context, name string) (*activityContract.Group, error) {
 	return f.byName[name], nil
 }
 
-func (f *spontaneousTemplates) Create(_ context.Context, group *activitiesModels.Group) error {
+func (f *spontaneousTemplates) Create(_ context.Context, group *activityContract.Group) error {
 	group.ID = 73
 	f.created = append(f.created, group)
 	return nil
 }
 
 type spontaneousCategories struct {
-	existing *activitiesModels.Category
-	created  []*activitiesModels.Category
+	existing *activityContract.Category
+	created  []*activityContract.Category
 }
 
-func (f *spontaneousCategories) FindByNameIncludingArchivedForShare(context.Context, string) (*activitiesModels.Category, error) {
+func (f *spontaneousCategories) FindByNameIncludingArchivedForShare(context.Context, string) (*activityContract.Category, error) {
 	return f.existing, nil
 }
 
-func (f *spontaneousCategories) Create(_ context.Context, category *activitiesModels.Category) error {
+func (f *spontaneousCategories) Create(_ context.Context, category *activityContract.Category) error {
 	category.ID = 910
 	f.created = append(f.created, category)
 	return nil
@@ -56,9 +57,9 @@ func spontaneousData(templates *spontaneousTemplates, categories *spontaneousCat
 
 func TestResolveSpontaneousActivityReusesActivityByName(t *testing.T) {
 	t.Parallel()
-	existing := &activitiesModels.Group{Name: "freispiel"}
+	existing := &activityContract.Group{Name: "freispiel"}
 	existing.ID = 72
-	templates := &spontaneousTemplates{byName: map[string]*activitiesModels.Group{"freispiel": existing}}
+	templates := &spontaneousTemplates{byName: map[string]*activityContract.Group{"freispiel": existing}}
 	categories := &spontaneousCategories{}
 
 	id, err := spontaneousData(templates, categories).ResolveSpontaneousActivity(tenant.WithTenantID(context.Background(), 7401), "freispiel", nil, 321)
@@ -86,7 +87,7 @@ func TestResolveSpontaneousActivityCreatesActivityAndCategoryForNewName(t *testi
 	group := templates.created[0]
 	assert.Equal(t, "Bastelecke", group.Name)
 	assert.Equal(t, int64(910), group.CategoryID)
-	assert.Equal(t, activitiesModels.GroupTypeActivity, group.Type)
+	assert.Equal(t, activityContract.GroupTypeActivity, group.Type)
 	require.NotNil(t, group.CreatedBy)
 	assert.Equal(t, int64(322), *group.CreatedBy)
 	assert.Equal(t, int64(7402), group.GetTenantID())
@@ -96,7 +97,7 @@ func TestResolveSpontaneousActivityRejectsArchivedCategory(t *testing.T) {
 	t.Parallel()
 	archivedAt := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
 	templates := &spontaneousTemplates{}
-	categories := &spontaneousCategories{existing: &activitiesModels.Category{Name: spontaneousCategoryName, ArchivedAt: &archivedAt}}
+	categories := &spontaneousCategories{existing: &activityContract.Category{Name: spontaneousCategoryName, ArchivedAt: &archivedAt}}
 
 	_, err := spontaneousData(templates, categories).ResolveSpontaneousActivity(tenant.WithTenantID(context.Background(), 7403), "Bastelecke", nil, 323)
 

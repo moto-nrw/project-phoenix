@@ -24,7 +24,8 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
@@ -45,7 +46,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		Status: parentService.DataChangeStatusPending,
 	}
 	request.TenantID = author.TenantID
-	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
+	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -55,17 +56,17 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		CarePlan:        api.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		ChildRepo:       reposCare.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
-		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
+		ChangeRequestRepo:      api.NewParentDataRequestReads(reposCare.CarePlan()),
 		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: api.NewParentDataRequestCommands(reposCare.CarePlan()),
 
 		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})

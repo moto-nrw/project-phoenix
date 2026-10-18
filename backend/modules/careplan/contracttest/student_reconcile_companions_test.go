@@ -48,7 +48,8 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
@@ -62,13 +63,13 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 
 	// ACT — a writer that knows nothing about companions replaces the plan
 	// with one that only allows "Anderes Kind" on Monday.
-	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	loaded, err := factoryPeople.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"mon": {peopleValues.DepartureAccompanied},
 		"tue": {peopleValues.DepartureBus},
 	}
-	require.NoError(t, factory.Student.Update(ctx, loaded))
+	require.NoError(t, factoryPeople.Student.Update(ctx, loaded))
 
 	// ASSERT — only the Monday edge remains, from both children's view.
 	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
@@ -92,7 +93,8 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
@@ -104,12 +106,12 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	}))
 
 	// ACT — the new plan has no accompanied day at all.
-	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	loaded, err := factoryPeople.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"mon": {peopleValues.DepartureBus},
 	}
-	require.NoError(t, factory.Student.Update(ctx, loaded))
+	require.NoError(t, factoryPeople.Student.Update(ctx, loaded))
 
 	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
@@ -127,7 +129,8 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
@@ -141,7 +144,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	// Both of the companion's accompanied days are answered ONLY by the edges.
 	testpkg.ClearTestStudentCompanionNote(t, db, companion.ID)
 
-	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	loaded, err := factoryPeople.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"mon": {peopleValues.DepartureAccompanied},
@@ -149,7 +152,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	}
 
 	// ACT + ASSERT — refused; both edges survive.
-	err = factory.Student.Update(ctx, loaded)
+	err = factoryPeople.Student.Update(ctx, loaded)
 	require.ErrorIs(t, err, peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture))
 
 	edges, listErr := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
@@ -168,7 +171,8 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")
@@ -181,14 +185,14 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	// The companion's "mit wem" is now answered ONLY by the link.
 	testpkg.ClearTestStudentCompanionNote(t, db, companion.ID)
 
-	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	loaded, err := factoryPeople.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"mon": {peopleValues.DepartureBus},
 	}
 
 	// ACT + ASSERT — refused with the shared sentinel; the edge survives.
-	err = factory.Student.Update(ctx, loaded)
+	err = factoryPeople.Student.Update(ctx, loaded)
 	require.ErrorIs(t, err, peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture))
 
 	edges, listErr := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)

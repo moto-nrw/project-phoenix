@@ -17,12 +17,12 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.TimetableTestModule) {
+func setupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.TimetableTestModule, timetableAPI.CalendarPeriods) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, calendar, _, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, calendar
 }
 
 // The root imports this package, so the internal suites reach its
@@ -31,7 +31,7 @@ func init() {
 	root := &timetableAPI.RootCompositions
 	root.Module = func(t *testing.T, clocks ...func() time.Time) (*bun.DB, timetableAPI.TimetableModule) {
 		t.Helper()
-		db, module := setupTimetableModule(t, clocks...)
+		db, module, _ := setupTimetableModule(t, clocks...)
 		return db, timetableAPI.TimetableModule{
 			Instance: module.Instance, Templates: module.TimetableData.Templates, Data: module.TimetableData.Data,
 			Deviations: module.TimetableData.Deviations, ConflictDetection: module.ConflictDetection,
@@ -62,9 +62,17 @@ func init() {
 		if err != nil {
 			return timetableAPI.TimetableRows{}, err
 		}
+		rooms, err := api.NewTimetableRoomRows(testpkg.MustDatabase(db))
+		if err != nil {
+			return timetableAPI.TimetableRows{}, err
+		}
+		calendar, err := api.NewTimetableSchoolCalendar(testpkg.MustDatabase(db))
+		if err != nil {
+			return timetableAPI.TimetableRows{}, err
+		}
 		return timetableAPI.TimetableRows{
-			Repositories: rows.Repositories, Timetable: rows.Timetable, ShiftType: rows.ShiftType, Room: rows.Room,
-			CalendarPeriods: rows.SchoolCalendar(), PeriodUsage: rows.CalendarPeriodUsage(),
+			Repositories: rows.Repositories, Timetable: rows.Timetable, ShiftType: rows.ShiftType, Room: rooms.Room,
+			CalendarPeriods: calendar.SchoolCalendar(), PeriodUsage: rows.CalendarPeriodUsage(),
 		}, nil
 	}
 	root.People = func(db *bun.DB) (timetableAPI.People, error) {
@@ -80,8 +88,17 @@ func init() {
 		t.Helper()
 		return api.NewTimetableHTTPTestOfferingSources(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	}
-	root.StaffAccountPeople = func(personID, staffID int64) timetablePorts.OperationPeople {
-		return api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID}
+	root.StaffAccountPeople = func(personID, staffID int64, session timetablePorts.RequestSession) interface {
+		timetablePorts.OperationPeople
+		timetablePorts.OperationCaller
+	} {
+		return struct {
+			timetablePorts.OperationPeople
+			timetablePorts.OperationCaller
+		}{
+			OperationPeople: api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID},
+			OperationCaller: api.TimetableOperationCaller{RequestSession: session},
+		}
 	}
 	root.ErrCareOfferingInvalid = api.TimetableHTTPTestCareOfferingInvalid
 }

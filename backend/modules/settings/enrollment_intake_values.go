@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // EnrollmentIntakeSource is the resolver slice the enrollment intake values
@@ -104,14 +104,14 @@ var enrollmentLegalKeys = []string{
 // failure is propagated because the texts drive legal blocks.
 func (v EnrollmentIntakeValues) Legal(ctx context.Context) (EnrollmentLegal, error) {
 	if batch, ok := v.source.(interface {
-		ResolveMany(context.Context, []string) (*configSvc.SettingsSnapshot, error)
+		ResolveMany(context.Context, []string) (*configModel.SettingsSnapshot, error)
 	}); ok {
 		snapshot, err := batch.ResolveMany(ctx, enrollmentLegalKeys)
 		if err != nil {
 			return EnrollmentLegal{}, fmt.Errorf("resolve legal settings: %w", err)
 		}
 		if snapshot != nil {
-			ctx = configSvc.WithSettingsSnapshot(ctx, snapshot)
+			ctx = configModel.WithSettingsSnapshot(ctx, snapshot)
 		}
 	}
 	var out EnrollmentLegal

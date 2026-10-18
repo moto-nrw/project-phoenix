@@ -37,7 +37,7 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*ports.Active
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-	roomsByID := make(map[int64]*ports.SessionRoom, len(rooms))
+	roomsByID := make(map[int64]*studentpresence.SessionRoom, len(rooms))
 	for _, room := range rooms {
 		roomsByID[room.ID] = room
 	}

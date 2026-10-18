@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,7 +16,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,11 +36,18 @@ import (
 // weekdayRosterScenario holds the people and rooms a Mo+Tu template can be
 // built from. Hermetic: unique tenant, real rows, full teardown.
 type weekdayRosterScenario struct {
-	db          *bun.DB
-	ctx         context.Context
-	tenantID    int64
-	factory     *api.TestServiceGraph
-	materialize timetable.MaterializationCapability
+	db              *bun.DB
+	ctx             context.Context
+	tenantID        int64
+	instance        timetable.InstanceLifecycleCapability
+	timetableData   compose.Planning
+	active          studentpresence.Presence
+	materialization timetable.MaterializationCapability
+	careDay         careplan.CareDayQuery
+	autoStart       timetable.InstanceAutoStart
+	careOffering    careplan.CareOfferingCapability
+	statusDays      studentpresence.StatusDays
+	materialize     timetable.MaterializationCapability
 
 	roomID     int64
 	categoryID int64
@@ -51,7 +63,7 @@ type weekdayRosterScenario struct {
 
 func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
 	t.Helper()
-	repos := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return repos.StudentEnrollment
 }
 
@@ -65,10 +77,10 @@ func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *tes
 	defer s.teardown(t)
 
 	// Monday: Anna with Alice. Tuesday: Bea with Bob. Nothing shared.
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Lernzeit-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -78,13 +90,13 @@ func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *tes
 		GradeLevelMax:   4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{
 			{
-				Weekday:        activitiesModels.WeekdayMonday,
+				Weekday:        activityContract.WeekdayMonday,
 				StaffIDs:       []int64{s.staffA},
 				PrimaryStaffID: &s.staffA,
 				StudentIDs:     []int64{s.studentA},
 			},
 			{
-				Weekday:        activitiesModels.WeekdayTuesday,
+				Weekday:        activityContract.WeekdayTuesday,
 				StaffIDs:       []int64{s.staffB},
 				PrimaryStaffID: &s.staffB,
 				StudentIDs:     []int64{s.studentB},
@@ -126,10 +138,10 @@ func TestCreateTemplate_PerWeekdayRoster_UnlistedWeekdayKeepsSharedDefault(t *te
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Randstunde-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -143,7 +155,7 @@ func TestCreateTemplate_PerWeekdayRoster_UnlistedWeekdayKeepsSharedDefault(t *te
 		StudentIDs:     []int64{s.studentA},
 		// … deviating only on Tuesday.
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{{
-			Weekday:        activitiesModels.WeekdayTuesday,
+			Weekday:        activityContract.WeekdayTuesday,
 			StaffIDs:       []int64{s.staffB},
 			PrimaryStaffID: &s.staffB,
 			StudentIDs:     []int64{s.studentA, s.studentB},
@@ -178,10 +190,10 @@ func TestCreateTemplate_WithoutWeekdayAssignments_KeepsOneSharedRoster(t *testin
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Mensa-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -221,10 +233,10 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Primary-Scope-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -238,20 +250,20 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	weekday := activitiesModels.WeekdayMonday
-	repos := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
-	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+	weekday := activityContract.WeekdayMonday
+	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activityContract.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom: activityContract.Date(monday.AddDays(-30)),
 		Weekday:   &weekday,
 	}))
-	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activityContract.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
 		IsPrimary:        true,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.periodID,
 		Weekday:          &weekday,
 	}))
@@ -287,11 +299,11 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 			primaryByWeekdayAndStaff[row.Weekday][row.PersonID] = row.IsPrimary
 		}
 	}
-	assert.False(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayMonday][s.staffA],
+	assert.False(t, primaryByWeekdayAndStaff[activityContract.WeekdayMonday][s.staffA],
 		"the editor read must not expose the shared fallback as effective primary")
-	assert.True(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayMonday][s.staffB],
+	assert.True(t, primaryByWeekdayAndStaff[activityContract.WeekdayMonday][s.staffB],
 		"the editor read must preserve the period-specific effective primary")
-	assert.True(t, primaryByWeekdayAndStaff[activitiesModels.WeekdayTuesday][s.staffA],
+	assert.True(t, primaryByWeekdayAndStaff[activityContract.WeekdayTuesday][s.staffA],
 		"the shared primary must remain effective outside the scoped override")
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, timetable.MaterializationSourceManual)
@@ -321,10 +333,10 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("Lernzeit-Update-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            name,
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -343,13 +355,13 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:            name,
-			Type:            activitiesModels.GroupTypeCare,
+			Type:            activityContract.GroupTypeCare,
 			CategoryID:      s.categoryID,
 			RoomID:          s.roomID,
 			MaxParticipants: 20,
-			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+			TargetGroupType: activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		TimeframeID:     result.TimeframeID,
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
@@ -357,13 +369,13 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 		PrimaryStaffID:  &s.staffA,
 		StudentIDs:      []int64{s.studentA},
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{{
-			Weekday:        activitiesModels.WeekdayTuesday,
+			Weekday:        activityContract.WeekdayTuesday,
 			StaffIDs:       []int64{s.staffB},
 			PrimaryStaffID: &s.staffB,
 			StudentIDs:     []int64{s.studentB},
 		}},
 	}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -373,7 +385,7 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 	// Turn per-weekday staffing back off: every open roster row loses its scope.
 	updateInput.WeekdayAssignments = nil
 	updateInput.StaffIDs = []int64{s.staffA, s.staffB}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
 		assert.Nil(t, row.Weekday, "resetting to a shared roster must clear the weekday scope")
 	}
@@ -388,10 +400,10 @@ func TestUpdateTemplate_PinningPeriodRetiresUnscopedEditorRoster(t *testing.T) {
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("Pinned-Roster-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            name,
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -406,31 +418,31 @@ func TestUpdateTemplate_PinningPeriodRetiresUnscopedEditorRoster(t *testing.T) {
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:             name,
-			Type:             activitiesModels.GroupTypeCare,
+			Type:             activityContract.GroupTypeCare,
 			CategoryID:       s.categoryID,
 			RoomID:           s.roomID,
 			MaxParticipants:  20,
 			CalendarPeriodID: &s.periodID,
-			TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+			TargetGroupType:  activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Weekdays:         []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.periodID,
 		RosterValidFrom:  monday.AddDays(-30),
 		GradeLevelMax:    4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{
 			{
-				Weekday:        activitiesModels.WeekdayMonday,
+				Weekday:        activityContract.WeekdayMonday,
 				StaffIDs:       []int64{s.staffB},
 				PrimaryStaffID: &s.staffB,
 				StudentIDs:     []int64{s.studentB},
 			},
 			{
-				Weekday:        activitiesModels.WeekdayTuesday,
+				Weekday:        activityContract.WeekdayTuesday,
 				StaffIDs:       []int64{s.staffB},
 				PrimaryStaffID: &s.staffB,
 				StudentIDs:     []int64{s.studentB},
@@ -472,10 +484,10 @@ func TestUpdateTemplate_UnpinningPeriodRetiresScopedEditorRoster(t *testing.T) {
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("Unpinned-Roster-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        clockTime(14, 0),
 		EndTime:          clockTime(15, 0),
 		RoomID:           s.roomID,
@@ -491,17 +503,17 @@ func TestUpdateTemplate_UnpinningPeriodRetiresScopedEditorRoster(t *testing.T) {
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:            name,
-			Type:            activitiesModels.GroupTypeCare,
+			Type:            activityContract.GroupTypeCare,
 			CategoryID:      s.categoryID,
 			RoomID:          s.roomID,
 			MaxParticipants: 20,
-			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+			TargetGroupType: activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		TimeframeID:     result.TimeframeID,
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
@@ -515,7 +527,7 @@ func TestUpdateTemplate_UnpinningPeriodRetiresScopedEditorRoster(t *testing.T) {
 	assert.Nil(t, openSupervisors[0].CalendarPeriodID)
 	assert.Equal(t, s.staffB, openSupervisors[0].StaffID)
 
-	openEnrollments := make([]*activitiesModels.StudentEnrollment, 0)
+	openEnrollments := make([]*activityContract.StudentEnrollment, 0)
 	for _, row := range s.enrollmentRows(t, result.TemplateID) {
 		if row.ValidUntil == nil {
 			openEnrollments = append(openEnrollments, row)
@@ -541,10 +553,10 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("Protected-Weekday-Update-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            name,
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -556,11 +568,11 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	protected := &activitiesModels.StudentEnrollment{
+	protected := &activityContract.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
-		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
@@ -568,23 +580,23 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:            name,
-			Type:            activitiesModels.GroupTypeCare,
+			Type:            activityContract.GroupTypeCare,
 			CategoryID:      s.categoryID,
 			RoomID:          s.roomID,
 			MaxParticipants: 20,
-			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+			TargetGroupType: activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		TimeframeID:     result.TimeframeID,
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
 		StudentIDs:      []int64{s.studentA},
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{
-			{Weekday: activitiesModels.WeekdayMonday, StudentIDs: []int64{s.studentA}},
-			{Weekday: activitiesModels.WeekdayTuesday, StudentIDs: []int64{s.studentA}},
+			{Weekday: activityContract.WeekdayMonday, StudentIDs: []int64{s.studentA}},
+			{Weekday: activityContract.WeekdayTuesday, StudentIDs: []int64{s.studentA}},
 		},
 	}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, update))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, update))
 
 	rows := s.enrollmentRows(t, result.TemplateID)
 	manualWeekdays := make([]int, 0)
@@ -595,7 +607,7 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 		require.NotNil(t, row.Weekday)
 		manualWeekdays = append(manualWeekdays, *row.Weekday)
 	}
-	assert.Equal(t, []int{activitiesModels.WeekdayTuesday}, manualWeekdays)
+	assert.Equal(t, []int{activityContract.WeekdayTuesday}, manualWeekdays)
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -614,10 +626,10 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 	defer s.teardown(t)
 
 	name := fmt.Sprintf("Protected-Shared-Update-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            name,
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -629,11 +641,11 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	protected := &activitiesModels.StudentEnrollment{
+	protected := &activityContract.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
-		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
@@ -641,24 +653,24 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:            name,
-			Type:            activitiesModels.GroupTypeCare,
+			Type:            activityContract.GroupTypeCare,
 			CategoryID:      s.categoryID,
 			RoomID:          s.roomID,
 			MaxParticipants: 20,
-			TargetGroupType: activitiesModels.TargetGroupTypeNone,
+			TargetGroupType: activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		TimeframeID:     result.TimeframeID,
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
 		StudentIDs:      []int64{s.studentA},
 	}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, update))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, update))
 
 	rows := s.enrollmentRows(t, result.TemplateID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, protected.ID, rows[0].ID)
-	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, rows[0].SelectedWeekdays)
+	assert.Equal(t, []int{activityContract.WeekdayMonday}, rows[0].SelectedWeekdays)
 	assert.Nil(t, rows[0].Weekday)
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, timetable.MaterializationSourceManual)
@@ -676,10 +688,10 @@ func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	_, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	_, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Invalid-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -688,7 +700,7 @@ func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{{
-			Weekday:  activitiesModels.WeekdayWednesday,
+			Weekday:  activityContract.WeekdayWednesday,
 			StaffIDs: []int64{s.staffA},
 		}},
 	})
@@ -702,10 +714,10 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Read-Roster-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -714,9 +726,9 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		RosterValidFrom: monday.AddDays(-30),
 		GradeLevelMax:   4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{
-			{Weekday: activitiesModels.WeekdayMonday},
+			{Weekday: activityContract.WeekdayMonday},
 			{
-				Weekday:    activitiesModels.WeekdayTuesday,
+				Weekday:    activityContract.WeekdayTuesday,
 				StaffIDs:   []int64{s.staffB},
 				StudentIDs: []int64{s.studentB},
 			},
@@ -725,24 +737,24 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	protected := &activitiesModels.StudentEnrollment{
+	protected := &activityContract.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
-		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
-	inconsistentWeekday := activitiesModels.WeekdayTuesday
-	inconsistentProtected := &activitiesModels.StudentEnrollment{
+	inconsistentWeekday := activityContract.WeekdayTuesday
+	inconsistentProtected := &activityContract.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
-		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 		Weekday:          &inconsistentWeekday,
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, inconsistentProtected))
 
-	rows, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	type rosterKey struct {
@@ -754,19 +766,19 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	for _, row := range rows {
 		found[rosterKey{weekday: row.Weekday, kind: row.Kind, person: row.PersonID}] = true
 	}
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}],
 		"an intentionally empty Monday needs an API marker")
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}])
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"the protected child must remain visible on the weekday where it materializes")
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"the protected coverage must be exposed separately to the editor")
-	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"selected_weekdays must also limit a protected row carrying a weekday scope")
-	assert.False(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"protected coverage must retain selected_weekdays")
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
-	assert.True(t, found[rosterKey{weekday: activitiesModels.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
 }
 
 func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.T) {
@@ -777,10 +789,10 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:             fmt.Sprintf("Read-Mixed-Roster-%d", time.Now().UnixNano()),
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:        clockTime(14, 0),
 		EndTime:          clockTime(15, 0),
 		RoomID:           s.roomID,
@@ -791,28 +803,28 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 		GradeLevelMax:    4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{
 			{
-				Weekday:        activitiesModels.WeekdayMonday,
+				Weekday:        activityContract.WeekdayMonday,
 				StaffIDs:       []int64{s.staffB},
 				PrimaryStaffID: &s.staffB,
 				StudentIDs:     []int64{s.studentB},
 			},
-			{Weekday: activitiesModels.WeekdayTuesday},
+			{Weekday: activityContract.WeekdayTuesday},
 		},
 	})
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	repos := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
-	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activityContract.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom: activityContract.Date(monday.AddDays(-30)),
 	}))
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activityContract.StudentEnrollment{
 		StudentID:       s.studentA,
 		ActivityGroupID: result.TemplateID,
-		ValidFrom:       activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:       activityContract.Date(monday.AddDays(-30)),
 	}))
 
 	rows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
@@ -840,26 +852,26 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 		}
 	}
 
-	require.Contains(t, byWeekday, activitiesModels.WeekdayMonday)
-	assert.ElementsMatch(t, []int64{s.staffA, s.staffB}, byWeekday[activitiesModels.WeekdayMonday].staff)
-	assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, byWeekday[activitiesModels.WeekdayMonday].students)
-	assert.Equal(t, s.staffB, byWeekday[activitiesModels.WeekdayMonday].primary,
+	require.Contains(t, byWeekday, activityContract.WeekdayMonday)
+	assert.ElementsMatch(t, []int64{s.staffA, s.staffB}, byWeekday[activityContract.WeekdayMonday].staff)
+	assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, byWeekday[activityContract.WeekdayMonday].students)
+	assert.Equal(t, s.staffB, byWeekday[activityContract.WeekdayMonday].primary,
 		"the weekday-scoped primary must override the shared fallback")
-	require.Contains(t, byWeekday, activitiesModels.WeekdayTuesday)
-	assert.Equal(t, []int64{s.staffA}, byWeekday[activitiesModels.WeekdayTuesday].staff)
-	assert.Equal(t, []int64{s.studentA}, byWeekday[activitiesModels.WeekdayTuesday].students)
-	assert.Equal(t, s.staffA, byWeekday[activitiesModels.WeekdayTuesday].primary)
+	require.Contains(t, byWeekday, activityContract.WeekdayTuesday)
+	assert.Equal(t, []int64{s.staffA}, byWeekday[activityContract.WeekdayTuesday].staff)
+	assert.Equal(t, []int64{s.studentA}, byWeekday[activityContract.WeekdayTuesday].students)
+	assert.Equal(t, s.staffA, byWeekday[activityContract.WeekdayTuesday].primary)
 
 	_, err = s.materialize.MaterializeForTenant(s.ctx, monday, tuesday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	mondayInstance := s.singleInstance(t, result.TemplateID, monday)
 	tuesdayInstance := s.singleInstance(t, result.TemplateID, tuesday)
-	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayMonday].staff, s.instanceStaffIDs(t, mondayInstance))
-	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayMonday].students, s.instanceStudentIDs(t, mondayInstance))
-	assert.True(t, s.instanceHasPrimary(t, mondayInstance, byWeekday[activitiesModels.WeekdayMonday].primary))
-	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayTuesday].staff, s.instanceStaffIDs(t, tuesdayInstance))
-	assert.ElementsMatch(t, byWeekday[activitiesModels.WeekdayTuesday].students, s.instanceStudentIDs(t, tuesdayInstance))
-	assert.True(t, s.instanceHasPrimary(t, tuesdayInstance, byWeekday[activitiesModels.WeekdayTuesday].primary))
+	assert.ElementsMatch(t, byWeekday[activityContract.WeekdayMonday].staff, s.instanceStaffIDs(t, mondayInstance))
+	assert.ElementsMatch(t, byWeekday[activityContract.WeekdayMonday].students, s.instanceStudentIDs(t, mondayInstance))
+	assert.True(t, s.instanceHasPrimary(t, mondayInstance, byWeekday[activityContract.WeekdayMonday].primary))
+	assert.ElementsMatch(t, byWeekday[activityContract.WeekdayTuesday].staff, s.instanceStaffIDs(t, tuesdayInstance))
+	assert.ElementsMatch(t, byWeekday[activityContract.WeekdayTuesday].students, s.instanceStudentIDs(t, tuesdayInstance))
+	assert.True(t, s.instanceHasPrimary(t, tuesdayInstance, byWeekday[activityContract.WeekdayTuesday].primary))
 }
 
 func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *testing.T) {
@@ -869,10 +881,10 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:            fmt.Sprintf("Read-Protected-Shared-%d", time.Now().UnixNano()),
-		Type:            activitiesModels.GroupTypeCare,
-		Weekdays:        []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday},
+		Type:            activityContract.GroupTypeCare,
+		Weekdays:        []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday},
 		StartTime:       clockTime(14, 0),
 		EndTime:         clockTime(15, 0),
 		RoomID:          s.roomID,
@@ -885,15 +897,15 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	protected := &activitiesModels.StudentEnrollment{
+	protected := &activityContract.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
-		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
+		SelectedWeekdays: []int{activityContract.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
-	rows, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 	protectedWeekdays := make([]int, 0)
 	for _, row := range rows {
@@ -901,7 +913,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 			protectedWeekdays = append(protectedWeekdays, row.Weekday)
 		}
 	}
-	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, protectedWeekdays)
+	assert.Equal(t, []int{activityContract.WeekdayMonday}, protectedWeekdays)
 }
 
 func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
@@ -911,10 +923,10 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:             fmt.Sprintf("Period-Roster-%d", time.Now().UnixNano()),
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        clockTime(14, 0),
 		EndTime:          clockTime(15, 0),
 		RoomID:           s.roomID,
@@ -924,7 +936,7 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 		RosterValidFrom:  monday.AddDays(-30),
 		GradeLevelMax:    4,
 		WeekdayAssignments: []timetable.WeekdayRosterAssignment{{
-			Weekday:    activitiesModels.WeekdayMonday,
+			Weekday:    activityContract.WeekdayMonday,
 			StaffIDs:   []int64{s.staffA},
 			StudentIDs: []int64{s.studentA},
 		}},
@@ -959,19 +971,19 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	weekday := activitiesModels.WeekdayMonday
-	repos := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
-	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
+	weekday := activityContract.WeekdayMonday
+	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
+	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activityContract.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
+	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activityContract.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))
@@ -1020,8 +1032,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -1047,18 +1058,25 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 	studentB := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Bob", fmt.Sprintf("Zwei-%d", suffix), "3a")
 
 	s := &weekdayRosterScenario{
-		db:          db,
-		ctx:         ctx,
-		tenantID:    tenantID,
-		factory:     serviceFactory,
-		materialize: serviceFactory.Materialization,
-		roomID:      room.ID,
-		categoryID:  category.ID,
-		staffA:      staffA.ID,
-		staffB:      staffB.ID,
-		studentA:    studentA.ID,
-		studentB:    studentB.ID,
-		periodID:    period.ID,
+		db:              db,
+		ctx:             ctx,
+		tenantID:        tenantID,
+		instance:        ttLifecycle.Instances,
+		timetableData:   ttPlanning.Planning,
+		active:          ttActive,
+		materialization: ttMaterialization,
+		careDay:         ttSchedules.CareDay,
+		autoStart:       ttLifecycle.AutoStart,
+		careOffering:    ttCareOfferings,
+		statusDays:      ttStatusDays,
+		materialize:     ttMaterialization,
+		roomID:          room.ID,
+		categoryID:      category.ID,
+		staffA:          staffA.ID,
+		staffB:          staffB.ID,
+		studentA:        studentA.ID,
+		studentB:        studentB.ID,
+		periodID:        period.ID,
 	}
 	s.cleanup = append(s.cleanup, func() {
 	})
@@ -1162,20 +1180,20 @@ func (s *weekdayRosterScenario) instanceStudentIDs(t *testing.T, instanceID int6
 	return ids
 }
 
-func (s *weekdayRosterScenario) supervisorRows(t *testing.T, templateID int64) []*activitiesModels.SupervisorPlanned {
+func (s *weekdayRosterScenario) supervisorRows(t *testing.T, templateID int64) []*activityContract.SupervisorPlanned {
 	t.Helper()
-	var rows []*activitiesModels.SupervisorPlanned
+	var rows []*SupervisorPlanned
 	require.NoError(t, s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where(`"supervisor_planned".group_id = ?`, templateID).
 		Where(`"supervisor_planned".tenant_id = ?`, s.tenantID).
 		Scan(s.ctx))
-	return rows
+	return nativeSupervisorPlannedRows(rows)
 }
 
-func (s *weekdayRosterScenario) openSupervisorRows(t *testing.T, templateID int64) []*activitiesModels.SupervisorPlanned {
+func (s *weekdayRosterScenario) openSupervisorRows(t *testing.T, templateID int64) []*activityContract.SupervisorPlanned {
 	t.Helper()
-	open := make([]*activitiesModels.SupervisorPlanned, 0)
+	open := make([]*activityContract.SupervisorPlanned, 0)
 	for _, row := range s.supervisorRows(t, templateID) {
 		if row.ValidUntil == nil {
 			open = append(open, row)
@@ -1185,13 +1203,13 @@ func (s *weekdayRosterScenario) openSupervisorRows(t *testing.T, templateID int6
 	return open
 }
 
-func (s *weekdayRosterScenario) enrollmentRows(t *testing.T, templateID int64) []*activitiesModels.StudentEnrollment {
+func (s *weekdayRosterScenario) enrollmentRows(t *testing.T, templateID int64) []*activityContract.StudentEnrollment {
 	t.Helper()
-	var rows []*activitiesModels.StudentEnrollment
+	var rows []*StudentEnrollment
 	require.NoError(t, s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
 		Where(`"student_enrollment".activity_group_id = ?`, templateID).
 		Where(`"student_enrollment".tenant_id = ?`, s.tenantID).
 		Scan(s.ctx))
-	return rows
+	return nativeStudentEnrollmentRows(rows)
 }

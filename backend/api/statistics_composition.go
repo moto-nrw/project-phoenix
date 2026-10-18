@@ -26,35 +26,24 @@ func NewStatistics(logger *slog.Logger, deps presenceCompose.StatisticsDependenc
 	return reports
 }
 
-// statisticsOwners are the owners the Statistik report reads besides the
-// access log and the retention settings the service graph hands in.
-type statisticsOwners struct {
-	DB       transactionruntime.Database
-	CarePlan careplan.StudentStatusDaysQuery
-	Calendar schoolcalendar.Calendar
-	Students statisticsStudentRows
-	Rooms    facilities.Query
-	Logger   *slog.Logger
-	Now      func() time.Time
-}
-
-// newStatisticsReports binds the Statistik report to the owners; the service
-// graph calls the result with its access log and settings.
-func newStatisticsReports(owners statisticsOwners) func(StatisticsSources) studentpresence.StatisticsReports {
-	return func(sources StatisticsSources) studentpresence.StatisticsReports {
-		return NewStatistics(owners.Logger, presenceCompose.StatisticsDependencies{
-			DB:          owners.DB.Pool(),
-			StatusDays:  StatisticsStatusDays{owners.CarePlan},
-			Courses:     NewCourseStatistics(owners.DB),
-			Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: owners.Calendar},
-			ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: owners.Calendar},
-			Periods:     StatisticsReportPeriods{owners.Calendar},
-			Students:    StatisticsReportStudents{owners.Students},
-			Rooms:       StatisticsReportRooms{owners.Rooms},
-			AccessLog:   StatisticsAuditLog{sources.AccessLog},
-			Retention:   settingsModule.NewStatisticsRetention(sources.Settings),
-			Logger:      owners.Logger.With("service", "statistics"),
-			Now:         owners.Now,
+// newStatisticsReports binds the Statistik report to the owners it reads;
+// the service graph calls the result with its access log and retention
+// settings. now fixes the report clock; nil is the Berlin clock.
+func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(accessLogLedger, RetentionSettings) studentpresence.StatisticsReports {
+	return func(accessLog accessLogLedger, settings RetentionSettings) studentpresence.StatisticsReports {
+		return NewStatistics(logger, presenceCompose.StatisticsDependencies{
+			DB:          db.Pool(),
+			StatusDays:  StatisticsStatusDays{carePlan},
+			Courses:     NewCourseStatistics(db),
+			Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
+			ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar},
+			Periods:     StatisticsReportPeriods{calendar},
+			Students:    StatisticsReportStudents{students},
+			Rooms:       StatisticsReportRooms{rooms},
+			AccessLog:   StatisticsAuditLog{accessLog},
+			Retention:   settingsModule.NewStatisticsRetention(settings),
+			Logger:      logger.With("service", "statistics"),
+			Now:         now,
 		})
 	}
 }

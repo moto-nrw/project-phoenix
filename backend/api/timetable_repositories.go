@@ -21,40 +21,35 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-type TimetableDependencies struct {
-	Capability timetable.Capability
-	Students   peopledirectory.Capability
-	Groups     schoolstructure.Query
-	Rooms      facilities.Capability
-	Calendar   schoolcalendar.Capability
-	Membership schoolmembership.Capability
-	Workforce  workforce.Capability
-	// ObserveIdentityAccess records the Identity & Access operations behind
-	// the retained operator repositories and account lookups (#2720). The
-	// serving root passes its metrics sink; nil composes the module
-	// unobserved, which repository tests and CLI roots use.
-	ObserveIdentityAccess IdentityAccessObserver
-}
-
 // TimetableRepositories are the Timetable owner's retained activities and
 // schedule repositories, named for the suites that may not import the
 // owner's compose package.
 type TimetableRepositories = timetableCompose.Repositories
 
 // NewTimetableRepositories builds the Timetable owner's retained activities
-// and schedule repositories (#2743) over deps. The owner names of School
-// Structure, Facilities, Workforce, School Membership and People Directory
-// reach the adapters through the directories bound here; the instance and
-// participant adapters compose an unobserved Student Presence owner.
-func NewTimetableRepositories(db transactionruntime.Database, deps TimetableDependencies) TimetableRepositories {
-	return NewTimetableRepositoriesWithPresence(db, deps, NewUnloggedStudentPresence(db))
+// and schedule repositories (#2743) over the Timetable capability. The owner
+// names of People Directory, School Structure, Facilities, School Membership
+// and Workforce reach the adapters through the directories bound here; the
+// instance and participant adapters compose an unobserved Student Presence
+// owner.
+func NewTimetableRepositories(
+	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
+	rooms facilities.Query, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
+) TimetableRepositories {
+	return NewTimetableRepositoriesWithPresence(db, capability, students, groups, rooms, calendar, membership, workTime, NewUnloggedStudentPresence(db))
 }
 
-func NewTimetableRepositoriesWithPresence(db transactionruntime.Database, deps TimetableDependencies, presence *studentpresence.Module) timetableCompose.Repositories {
+// NewTimetableRepositoriesWithPresence is NewTimetableRepositories with the
+// instance and participant adapters over the given Student Presence owner.
+func NewTimetableRepositoriesWithPresence(
+	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
+	rooms facilities.Query, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
+	presence *studentpresence.Module,
+) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
-		DB: db.Pool(), Timetable: deps.Capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
-		Calendar: deps.Calendar, Directories: timetableDirectories(deps),
-	})
+		DB: db.Pool(), Timetable: capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
+		Calendar: calendar, Directories: timetableDirectories(students, groups, rooms, membership, workTime),
+	}, MustPresenceReads(db))
 }
 
 // NewUnobservedTimetable composes the unobserved Timetable owner for test
@@ -71,25 +66,28 @@ func NewUnobservedTimetable(db transactionruntime.Database, students peopledirec
 // timetableDirectories binds the Timetable adapters' directory ports to the
 // owners' public capabilities. An absent capability leaves its port unset,
 // so the adapter reports it instead of reading a foreign table.
-func timetableDirectories(deps TimetableDependencies) timetablePorts.RepositoryDirectories {
+func timetableDirectories(
+	students peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query,
+	membership schoolmembership.Capability, workTime workforce.Capability,
+) timetablePorts.RepositoryDirectories {
 	var directories timetablePorts.RepositoryDirectories
-	if deps.Groups != nil {
+	if groups != nil {
 		directories.GroupNames = func(ctx context.Context, ids []int64) (map[int64]string, error) {
-			return schoolStructureCompose.GroupNamesByID(ctx, deps.Groups, ids)
+			return schoolStructureCompose.GroupNamesByID(ctx, groups, ids)
 		}
 	}
-	if deps.Rooms != nil {
-		directories.RoomNames = timetableRoomDirectory(deps.Rooms)
+	if rooms != nil {
+		directories.RoomNames = timetableRoomDirectory(rooms)
 	}
-	if deps.Workforce != nil {
-		directories.ShiftTypes = timetableShiftTypes(deps.Workforce)
+	if workTime != nil {
+		directories.ShiftTypes = timetableShiftTypes(workTime)
 	}
-	if deps.Membership != nil {
-		directories.StaffPersons = timetableStaffPersons(deps.Membership)
+	if membership != nil {
+		directories.StaffPersons = timetableStaffPersons(membership)
 	}
-	if deps.Students != nil {
-		directories.PersonNames = timetablePersonNames(deps.Students)
-		directories.StudentAlumni, directories.StudentNames = timetableStudentFacts(deps.Students)
+	if students != nil {
+		directories.PersonNames = timetablePersonNames(students)
+		directories.StudentAlumni, directories.StudentNames = timetableStudentFacts(students)
 	}
 	return directories
 }

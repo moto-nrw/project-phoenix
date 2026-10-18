@@ -31,7 +31,7 @@ func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		schoolRepo:    dbTenantDirectory{db: db},
 		logger:        slog.Default(),
 		tenantRuntime: dbTenantRuntime(t, db)})
@@ -50,7 +50,7 @@ func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		schoolRepo:    dbTenantDirectory{db: db},
 		logger:        slog.Default(),
 		tenantRuntime: dbTenantRuntime(t, db)})
@@ -73,7 +73,7 @@ func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
 
 	// The real directory provides the embedded type plus transaction-context wiring; the
 	// lister error comes from our override.
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		schoolRepo: &erroringSchoolRepo{
 			TenantDirectory: dbTenantDirectory{db: db},
 			err:             errors.New("listing exploded"),

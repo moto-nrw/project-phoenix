@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -14,8 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -57,18 +57,18 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
-	repos := testRepositories(t, db)
+	_, _, reposEnrollment := testRepositories(t, db)
 
 	phase := &enrollmentTest.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, time.September, 1)),
 		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, time.July, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, insertOwnerPhaseForTest(ctx, repos.Enrollment(), phase))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, reposEnrollment.Enrollment(), phase))
 
 	return &calendarPeriodValidationFixture{
 		db:       db,
@@ -83,7 +83,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 	t *testing.T,
 	templatePeriodID *int64,
 	schedulePeriodID *int64,
-) (*timetable.Group, *enrollmentModels.CareOffering) {
+) (*timetable.Group, *offeringContract.CareOfferingRecord) {
 	t.Helper()
 	category := testpkg.CreateTestActivityCategoryForTenant(
 		t,
@@ -127,11 +127,11 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 	schedule.TenantID = f.tenantID
 	require.NoError(t, timetableCompose.NativeScheduleRecords(timetableRepos.ActivitySchedule).Create(f.ctx, schedule))
 
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         f.phase.ID,
 		ActivityGroupID: &group.ID,
 		Name:            "Linked Template",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
@@ -256,7 +256,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtureRecords(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, fixture.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, fixture.db))).CarePlan()).Update(fixture.ctx, offering))
+	require.NoError(t, newCareOfferingFixtureRecords(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, fixture.db)).CarePlan()).Update(fixture.ctx, offering))
 
 	replacement := api.CalendarPeriodReplacementOf(*period)
 	replacement.IsActive = false
@@ -351,17 +351,17 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db))
 	catalog := testCareOfferingCatalog(t, db,
 		api.WithCareOfferingPickupResync(&pickupResyncer{}))
 
 	phase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, insertOwnerPhaseForTest(testpkg.Ctx(t), repoFactory.Enrollment(), phase))
@@ -381,12 +381,12 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	return db, enrollmentTest.NewCareOfferingRows(catalog), catalog, phase, cleanup
 }
 
-func baseGuardLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentModels.CareOffering {
-	offering := &enrollmentModels.CareOffering{
+func baseGuardLinkedOffering(t *testing.T, phaseID int64, groupID int64) *offeringContract.CareOfferingRecord {
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         phaseID,
 		ActivityGroupID: &groupID,
 		Name:            "Linked Template",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		PickupTimes:     map[string]string{"mon": "14:30"},
 		IsActive:        true,
@@ -433,7 +433,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
 	phase.ServiceEndDate = enrollmentTest.Date(end)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(

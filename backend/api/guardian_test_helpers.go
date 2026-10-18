@@ -5,7 +5,6 @@ package api
 import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -16,17 +15,20 @@ import (
 
 type GuardianTestModule struct {
 	PeopleDirectory peopledirectory.Capability
-	// PhotoRuntime is the slot the directory resolves its photo runtime from,
-	// filled by the graph that also owns the feature gate and the file cleanup.
-	PhotoRuntime *peopleCompose.StudentPhotoRuntime
-	runtime      GuardianDirectoryRuntime
+	runtime         GuardianDirectoryRuntime
 }
 
 func (m GuardianTestModule) NewGuardianDirectoryRuntime(transactionruntime.Database) GuardianDirectoryRuntime {
 	return m.runtime
 }
 
+// NewGuardianTestModule composes the guardian graph over a People Directory
+// that serves no photos.
 func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (GuardianTestModule, error) {
+	return newGuardianTestModule(db, unit, nil)
+}
+
+func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, photos peopleCompose.StudentPhotoRuntime) (GuardianTestModule, error) {
 	auth, err := NewAuthTestModule(db, unit)
 	if err != nil {
 		return GuardianTestModule{}, err
@@ -39,27 +41,24 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	g := NewGuardianTestRepositories(db, command)
-	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
-	if err != nil {
-		return GuardianTestModule{}, err
-	}
+	g := NewGuardianTestRepositoriesWithoutAudit(db)
+	audits := NewTestAuditPersistence(db, command)
 	identity, _, err := newStaffIdentityForTests(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
 	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitations: NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
+		GuardianInvitations: NewGuardianInvitationReads(auth.AccountAuthentication),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
-		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),
+		GuardianFinancialAudit: NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: NewGuardianDataAccessLog(audits.DataAccessLog),
 		RolePresets: guardianRolePresets}, db.Pool())
-	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
-	// The compatibility carrier only maps the existing four capabilities to
-	// the production runtime closures. It constructs no additional services.
-	carrier := &serviceGraph{Guardian: guardian}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(carrier, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	people, err := NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted}, photos)
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
+	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored

@@ -26,16 +26,6 @@ import (
 // School Membership identity chain, the retained role rules) and serves the
 // retained platform services' consumer-owned ports over the public module.
 
-// OperatorAuthenticationWiring is the retained material the operator seams
-// are bound to.
-type OperatorAuthenticationWiring struct {
-	Repos         operatorRepositories
-	Organizations organizationtenancy.Query
-	Persons       peopledirectory.Query
-	Membership    schoolmembership.Capability
-	Logger        *slog.Logger
-}
-
 // operatorRepositories are the retained repositories the operator seams
 // read: the audit ledger and the identity chain rows a school access
 // provisions.
@@ -57,21 +47,24 @@ func OperatorRepositoriesOf(people LifecycleRepositories, auditLog operatorAudit
 	}
 }
 
-func NewOperatorDependencies(wiring OperatorAuthenticationWiring) (*identityaccessCompose.OperatorDependencies, error) {
-	if wiring.Repos.auditLog == nil || wiring.Repos.persons == nil || wiring.Repos.staff == nil || wiring.Repos.teachers == nil || wiring.Repos.students == nil ||
-		wiring.Organizations == nil || wiring.Persons == nil || wiring.Membership == nil {
+// NewOperatorDependencies binds the operator seams to the operator audit
+// ledger and identity chain rows in repos and to the owners a school access
+// provisions through.
+func NewOperatorDependencies(repos operatorRepositories, organizations organizationtenancy.Query, persons peopledirectory.Query, membership schoolmembership.Capability, logger *slog.Logger) (*identityaccessCompose.OperatorDependencies, error) {
+	if repos.auditLog == nil || repos.persons == nil || repos.staff == nil || repos.teachers == nil || repos.students == nil ||
+		organizations == nil || persons == nil || membership == nil {
 		return nil, errors.New("operator authentication composition: repositories and owner capabilities are required")
 	}
 	return &identityaccessCompose.OperatorDependencies{
-		Audit:         operatorAuditLedger{ledger: wiring.Repos.auditLog},
+		Audit:         operatorAuditLedger{ledger: repos.auditLog},
 		Passwords:     passwordHasher{},
-		Organizations: tenancyDirectory{query: wiring.Organizations},
+		Organizations: tenancyDirectory{query: organizations},
 		Identities: schoolIdentityProvisioner{
-			persons: wiring.Repos.persons, staff: wiring.Repos.staff, teachers: wiring.Repos.teachers, students: wiring.Repos.students,
-			directory: wiring.Persons, membership: wiring.Membership,
-			caregivers: CaregiverProfiles{Persons: wiring.Persons, Membership: wiring.Membership},
+			persons: repos.persons, staff: repos.staff, teachers: repos.teachers, students: repos.students,
+			directory: persons, membership: membership,
+			caregivers: CaregiverProfiles{Persons: persons, Membership: membership},
 		},
-		Logger: wiring.Logger,
+		Logger: logger,
 	}, nil
 }
 
@@ -148,8 +141,8 @@ type schoolIdentityProvisioner struct {
 	teachers   teacherRows
 	students   studentRows
 	directory  peopledirectory.Query
-	membership schoolmembership.Query
-	caregivers CaregiverProfiles
+	membership staffMemberQuery
+	caregivers liveCaregiverProfile
 }
 
 func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {

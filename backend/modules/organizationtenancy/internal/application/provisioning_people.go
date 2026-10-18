@@ -23,7 +23,7 @@ func (p *Provisioning) ListSchoolPersons(ctx context.Context, schoolID int64) ([
 		}
 		for _, school := range schools {
 			if school.ID == schoolID && school.DeletedAt == nil {
-				return p.listPersons(adminCtx, []domain.SchoolSummary{school})
+				return p.listPersons(adminCtx, []organizationtenancy.DashboardSchool{school})
 			}
 		}
 		return []organizationtenancy.OperatorPerson{}, nil
@@ -41,7 +41,7 @@ func (p *Provisioning) ListOrganizationPersons(ctx context.Context, organization
 		if err != nil {
 			return nil, err
 		}
-		live := make([]domain.SchoolSummary, 0, len(schools))
+		live := make([]organizationtenancy.DashboardSchool, 0, len(schools))
 		for _, school := range schools {
 			if school.DeletedAt == nil {
 				live = append(live, school)
@@ -51,8 +51,8 @@ func (p *Provisioning) ListOrganizationPersons(ctx context.Context, organization
 	})
 }
 
-func (p *Provisioning) listPersons(ctx context.Context, schools []domain.SchoolSummary) ([]organizationtenancy.OperatorPerson, error) {
-	byID := make(map[int64]domain.SchoolSummary, len(schools))
+func (p *Provisioning) listPersons(ctx context.Context, schools []organizationtenancy.DashboardSchool) ([]organizationtenancy.OperatorPerson, error) {
+	byID := make(map[int64]organizationtenancy.DashboardSchool, len(schools))
 	tenantIDs := make([]int64, 0, len(schools))
 	for _, school := range schools {
 		byID[school.ID] = school

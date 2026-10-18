@@ -7,8 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -16,27 +17,27 @@ import (
 // classRosterInputs are the reads one class roster combines for an already
 // loaded student set.
 type classRosterInputs struct {
-	phase               *enrollment.Phase
+	phase               *enrollmentNative.Phase
 	students            []*RosterStudent
-	studentGuardians    map[int64][]enrollment.ClassRosterGuardian
+	studentGuardians    map[int64][]enrollmentNative.ClassRosterGuardian
 	companions          map[int64][]departure.CompanionLink
 	persons             map[int64]*RosterPerson
 	groups              map[int64]string
 	enrollments         map[int64]*classRosterApprovedEnrollment
-	offeringByID        map[int64]*enrollmentModels.CareOffering
-	schemas             map[int64]*enrollment.FormSchema
+	offeringByID        map[int64]*offeringContract.CareOfferingRecord
+	schemas             map[int64]*enrollmentNative.FormSchema
 	careOfferingsActive bool
 	schedulePickup      map[int64]map[string]string
 }
 
 // classRosterEnrollmentReads are the enrollment rows of the students' phase.
 type classRosterEnrollmentReads struct {
-	requests         []*enrollmentModels.Request
+	requests         []*Request
 	children         []*reportChild
-	requestGuardians map[int64][]*enrollment.RequestGuardian
+	requestGuardians map[int64][]*enrollmentNative.RequestGuardian
 }
 
-func (s *Reports) ExportClassRoster(ctx context.Context, filters enrollment.ClassRosterFilters, actorAccountID int64, actorRole, format string) (*enrollment.ClassRosterReport, error) {
+func (s *Reports) ExportClassRoster(ctx context.Context, filters enrollmentNative.ClassRosterFilters, actorAccountID int64, actorRole, format string) (*enrollmentNative.ClassRosterReport, error) {
 	report, err := s.classRoster(ctx, filters)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func (s *Reports) ExportClassRoster(ctx context.Context, filters enrollment.Clas
 	return report, nil
 }
 
-func (s *Reports) classRoster(ctx context.Context, filters enrollment.ClassRosterFilters) (*enrollment.ClassRosterReport, error) {
+func (s *Reports) classRoster(ctx context.Context, filters enrollmentNative.ClassRosterFilters) (*enrollmentNative.ClassRosterReport, error) {
 	filters.SchoolClass = strings.TrimSpace(filters.SchoolClass)
 	if err := validateClassRosterFilters(filters); err != nil {
 		return nil, err
@@ -69,15 +70,15 @@ func (s *Reports) classRoster(ctx context.Context, filters enrollment.ClassRoste
 	return report, nil
 }
 
-func validateClassRosterFilters(filters enrollment.ClassRosterFilters) error {
+func validateClassRosterFilters(filters enrollmentNative.ClassRosterFilters) error {
 	if filters.PhaseID <= 0 {
-		return fmt.Errorf("%w: phase_id is required", enrollment.ErrReportInvalidFilter)
+		return fmt.Errorf("%w: phase_id is required", enrollmentNative.ErrReportInvalidFilter)
 	}
 	if filters.AllClasses && filters.SchoolClass != "" {
-		return fmt.Errorf("%w: school_class and all_classes are mutually exclusive", enrollment.ErrReportInvalidFilter)
+		return fmt.Errorf("%w: school_class and all_classes are mutually exclusive", enrollmentNative.ErrReportInvalidFilter)
 	}
 	if !filters.AllClasses && filters.SchoolClass == "" {
-		return fmt.Errorf("%w: school_class is required", enrollment.ErrReportInvalidFilter)
+		return fmt.Errorf("%w: school_class is required", enrollmentNative.ErrReportInvalidFilter)
 	}
 	return nil
 }
@@ -86,7 +87,7 @@ func validateClassRosterFilters(filters enrollment.ClassRosterFilters) error {
 // children still belong to the class for care purposes (#2487): the class day
 // view pages through the week and passes the day it renders, every other
 // caller means today.
-func classRosterCareDate(filters enrollment.ClassRosterFilters, today calendar.Date) calendar.Date {
+func classRosterCareDate(filters enrollmentNative.ClassRosterFilters, today calendar.Date) calendar.Date {
 	if filters.OfferingDate != nil {
 		return *filters.OfferingDate
 	}
@@ -98,7 +99,7 @@ func classRosterCareDate(filters enrollment.ClassRosterFilters, today calendar.D
 // "Keine Betreuung". They sort into their class alphabetically like every
 // student row; the AllClasses heading logic keys off the row's class, so a
 // class that exists only through entries gets its own section automatically.
-func (s *Reports) appendClassListEntries(ctx context.Context, filters enrollment.ClassRosterFilters, report *enrollment.ClassRosterReport) error {
+func (s *Reports) appendClassListEntries(ctx context.Context, filters enrollmentNative.ClassRosterFilters, report *enrollmentNative.ClassRosterReport) error {
 	rows, err := s.classListEntryRows(ctx, filters.SchoolClass, filters.AllClasses)
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func (s *Reports) appendClassListEntries(ctx context.Context, filters enrollment
 		return nil
 	}
 	if len(report.Rows)+len(rows) > maxReportRows {
-		return fmt.Errorf("class roster report: %d rows: %w", len(report.Rows)+len(rows), enrollment.ErrReportExportTooLarge)
+		return fmt.Errorf("class roster report: %d rows: %w", len(report.Rows)+len(rows), enrollmentNative.ErrReportExportTooLarge)
 	}
 	report.Rows = append(report.Rows, rows...)
 	sortClassRosterRows(report.Rows)
@@ -118,7 +119,7 @@ func (s *Reports) appendClassListEntries(ctx context.Context, filters enrollment
 
 // classListEntryRows loads the class-list-only entries — one class or all —
 // and renders them as roster rows. Without the binding there are none.
-func (s *Reports) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]enrollment.ClassRosterRow, error) {
+func (s *Reports) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]enrollmentNative.ClassRosterRow, error) {
 	if s.deps.ClassListEntries == nil {
 		return nil, nil
 	}
@@ -129,22 +130,22 @@ func (s *Reports) classListEntryRows(ctx context.Context, schoolClass string, al
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list class list entries: %w", err)
 	}
-	rows := make([]enrollment.ClassRosterRow, 0, len(entries))
+	rows := make([]enrollmentNative.ClassRosterRow, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, enrollment.ClassRosterRow{
+		rows = append(rows, enrollmentNative.ClassRosterRow{
 			ListEntry:         true,
 			ListEntryID:       entry.ID,
 			FirstName:         entry.FirstName,
 			LastName:          entry.LastName,
 			SchoolClass:       entry.SchoolClass,
-			EnrollmentSummary: enrollment.ClassListEntryNoCareLabel,
-			Offerings:         []enrollment.CareUsageRowOffering{},
+			EnrollmentSummary: enrollmentNative.ClassListEntryNoCareLabel,
+			Offerings:         []enrollmentNative.CareUsageRowOffering{},
 			OfferingsByDay:    map[string][]string{},
 			CareDays:          []string{},
 			ArrivalByDay:      map[string]string{},
 			PickupByDay:       map[string]string{},
 			DepartureByDay:    map[string]string{},
-			Guardians:         []enrollment.ClassRosterGuardian{},
+			Guardians:         []enrollmentNative.ClassRosterGuardian{},
 		})
 	}
 	return rows, nil
@@ -153,7 +154,7 @@ func (s *Reports) classListEntryRows(ctx context.Context, schoolClass string, al
 // classRosterStudents loads one selected class or every student carrying a
 // non-empty class name. The shared participation rule filters that candidate
 // set after the one bulk query.
-func (s *Reports) classRosterStudents(ctx context.Context, filters enrollment.ClassRosterFilters) ([]*RosterStudent, error) {
+func (s *Reports) classRosterStudents(ctx context.Context, filters enrollmentNative.ClassRosterFilters) ([]*RosterStudent, error) {
 	schoolClass := ""
 	if !filters.AllClasses {
 		schoolClass = filters.SchoolClass
@@ -173,7 +174,7 @@ func (s *Reports) classRosterStudents(ctx context.Context, filters enrollment.Cl
 		return nil, err
 	}
 	if len(students) > maxReportRows {
-		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), enrollment.ErrReportExportTooLarge)
+		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), enrollmentNative.ErrReportExportTooLarge)
 	}
 	return students, nil
 }
@@ -227,22 +228,22 @@ func (s *Reports) filterClassParticipation(ctx context.Context, students []*Rost
 // class on the teachers' landing page, so it loads the class once and reuses
 // it across phases instead of re-querying identical students per phase.
 // Callers pass normalized, validated filters.
-func (s *Reports) classRosterForStudents(ctx context.Context, filters enrollment.ClassRosterFilters, students []*RosterStudent) (*enrollment.ClassRosterReport, error) {
+func (s *Reports) classRosterForStudents(ctx context.Context, filters enrollmentNative.ClassRosterFilters, students []*RosterStudent) (*enrollmentNative.ClassRosterReport, error) {
 	if err := s.classRosterConfigured(filters); err != nil {
 		return nil, err
 	}
 	phase, err := s.deps.Phases.Phase(ctx, filters.PhaseID)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, enrollment.ErrReportPhaseNotFound)
+		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, enrollmentNative.ErrReportPhaseNotFound)
 	}
 	if len(students) > maxReportRows {
-		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), enrollment.ErrReportExportTooLarge)
+		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), enrollmentNative.ErrReportExportTooLarge)
 	}
 	in, err := s.loadClassRosterInputs(ctx, filters, phase, students)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]enrollment.ClassRosterRow, 0, len(students))
+	rows := make([]enrollmentNative.ClassRosterRow, 0, len(students))
 	for _, student := range students {
 		if student == nil {
 			continue
@@ -254,15 +255,15 @@ func (s *Reports) classRosterForStudents(ctx context.Context, filters enrollment
 		rows = append(rows, row)
 	}
 	sortClassRosterRows(rows)
-	report := &enrollment.ClassRosterReport{
-		Phase: enrollment.CareUsagePhase{ID: phase.ID, Name: phase.Name},
-		Filters: enrollment.ClassRosterAppliedFilters{
+	report := &enrollmentNative.ClassRosterReport{
+		Phase: enrollmentNative.CareUsagePhase{ID: phase.ID, Name: phase.Name},
+		Filters: enrollmentNative.ClassRosterAppliedFilters{
 			PhaseID:     filters.PhaseID,
 			SchoolClass: filters.SchoolClass,
 			AllClasses:  filters.AllClasses,
-			Status:      enrollment.ChildStatusApproved,
+			Status:      enrollmentNative.ChildStatusApproved,
 		},
-		Totals: enrollment.ClassRosterTotals{Students: len(rows)},
+		Totals: enrollmentNative.ClassRosterTotals{Students: len(rows)},
 		Rows:   rows,
 	}
 	for _, row := range rows {
@@ -273,7 +274,7 @@ func (s *Reports) classRosterForStudents(ctx context.Context, filters enrollment
 	return report, nil
 }
 
-func (s *Reports) classRosterConfigured(filters enrollment.ClassRosterFilters) error {
+func (s *Reports) classRosterConfigured(filters enrollmentNative.ClassRosterFilters) error {
 	if s.deps.Persons == nil {
 		return fmt.Errorf("class roster report: person repo not configured")
 	}
@@ -292,11 +293,11 @@ func (s *Reports) classRosterConfigured(filters enrollment.ClassRosterFilters) e
 	return nil
 }
 
-func (s *Reports) loadClassRosterInputs(ctx context.Context, filters enrollment.ClassRosterFilters, phase *enrollment.Phase, students []*RosterStudent) (*classRosterInputs, error) {
+func (s *Reports) loadClassRosterInputs(ctx context.Context, filters enrollmentNative.ClassRosterFilters, phase *enrollmentNative.Phase, students []*RosterStudent) (*classRosterInputs, error) {
 	in := &classRosterInputs{
 		phase:            phase,
 		students:         students,
-		studentGuardians: map[int64][]enrollment.ClassRosterGuardian{},
+		studentGuardians: map[int64][]enrollmentNative.ClassRosterGuardian{},
 		companions:       map[int64][]departure.CompanionLink{},
 	}
 	studentIDs := classRosterStudentIDs(students)
@@ -324,7 +325,7 @@ func (s *Reports) loadClassRosterInputs(ctx context.Context, filters enrollment.
 
 // loadClassRosterStudentReads reads the students' guardian contacts and
 // companion links (unless the caller skips guardian data), names and groups.
-func (s *Reports) loadClassRosterStudentReads(ctx context.Context, filters enrollment.ClassRosterFilters, in *classRosterInputs, studentIDs []int64) error {
+func (s *Reports) loadClassRosterStudentReads(ctx context.Context, filters enrollmentNative.ClassRosterFilters, in *classRosterInputs, studentIDs []int64) error {
 	var err error
 	if !filters.SkipGuardianData {
 		if in.studentGuardians, err = s.classRosterStudentGuardianContacts(ctx, studentIDs); err != nil {
@@ -347,13 +348,13 @@ func (s *Reports) loadClassRosterStudentReads(ctx context.Context, filters enrol
 
 // loadClassRosterEnrollments reads the phase's requests of the students,
 // their children and, unless skipped, the request guardians.
-func (s *Reports) loadClassRosterEnrollments(ctx context.Context, filters enrollment.ClassRosterFilters, students []*RosterStudent, studentIDs []int64) (*classRosterEnrollmentReads, error) {
-	reads := &classRosterEnrollmentReads{requestGuardians: map[int64][]*enrollment.RequestGuardian{}}
+func (s *Reports) loadClassRosterEnrollments(ctx context.Context, filters enrollmentNative.ClassRosterFilters, students []*RosterStudent, studentIDs []int64) (*classRosterEnrollmentReads, error) {
+	reads := &classRosterEnrollmentReads{requestGuardians: map[int64][]*enrollmentNative.RequestGuardian{}}
 	if len(studentIDs) == 0 {
 		return reads, nil
 	}
 	var err error
-	reads.requests, err = listReportRequests(ctx, s.deps.Requests, enrollment.RequestListFilters{
+	reads.requests, err = listReportRequests(ctx, s.deps.Requests, enrollmentNative.RequestListFilters{
 		PhaseID:           filters.PhaseID,
 		CreatedStudentIDs: studentIDs,
 	})
@@ -361,7 +362,7 @@ func (s *Reports) loadClassRosterEnrollments(ctx context.Context, filters enroll
 		return nil, fmt.Errorf("class roster report: list requests: %w", err)
 	}
 	if len(reads.requests) > maxExportRequests {
-		return nil, fmt.Errorf("class roster report: %d requests: %w", len(reads.requests), enrollment.ErrReportExportTooLarge)
+		return nil, fmt.Errorf("class roster report: %d requests: %w", len(reads.requests), enrollmentNative.ErrReportExportTooLarge)
 	}
 	requestIDs := classRosterRequestIDs(reads.requests)
 	if reads.children, err = listReportChildren(ctx, s.deps.Children, requestIDs); err != nil {
@@ -376,19 +377,19 @@ func (s *Reports) loadClassRosterEnrollments(ctx context.Context, filters enroll
 	}
 	reads.children = classRosterChildrenForStudents(reads.children, classRosterStudentsByID(students))
 	if len(reads.children) > maxReportRows {
-		return nil, fmt.Errorf("class roster report: %d children: %w", len(reads.children), enrollment.ErrReportExportTooLarge)
+		return nil, fmt.Errorf("class roster report: %d children: %w", len(reads.children), enrollmentNative.ErrReportExportTooLarge)
 	}
 	return reads, nil
 }
 
 // loadClassRosterCatalog reads the phase's offerings, the request schemas
 // and whether the offering catalog constrains the care days.
-func (s *Reports) loadClassRosterCatalog(ctx context.Context, filters enrollment.ClassRosterFilters, in *classRosterInputs, requests []*enrollmentModels.Request) error {
+func (s *Reports) loadClassRosterCatalog(ctx context.Context, filters enrollmentNative.ClassRosterFilters, in *classRosterInputs, requests []*Request) error {
 	offerings, err := s.deps.Offerings.ListByPhase(ctx, filters.PhaseID)
 	if err != nil {
 		return fmt.Errorf("class roster report: list offerings: %w", err)
 	}
-	in.offeringByID = make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	in.offeringByID = make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
 			in.offeringByID[offering.ID] = offering
@@ -404,14 +405,14 @@ func (s *Reports) loadClassRosterCatalog(ctx context.Context, filters enrollment
 // attachClassRosterSelections picks every student's newest approved
 // enrollment and attaches its offering selections on the roster's offering
 // date and its request guardians. It returns the offering date.
-func (s *Reports) attachClassRosterSelections(ctx context.Context, filters enrollment.ClassRosterFilters, in *classRosterInputs, reads *classRosterEnrollmentReads) (calendar.Date, error) {
+func (s *Reports) attachClassRosterSelections(ctx context.Context, filters enrollmentNative.ClassRosterFilters, in *classRosterInputs, reads *classRosterEnrollmentReads) (calendar.Date, error) {
 	enrollments, approvedChildIDs := classRosterApprovedEnrollments(reads.children, classRosterRequestsByID(reads.requests), classRosterStudentsByID(in.students))
-	offeringDate := enrollment.ReportOfferingDate(s.today(), in.phase)
+	offeringDate := enrollmentNative.ReportOfferingDate(s.today(), in.phase)
 	if filters.OfferingDate != nil {
 		offeringDate = *filters.OfferingDate
 	}
-	values, err := s.deps.Children.RequestChildOfferingsForChildrenAtDate(ctx, approvedChildIDs, enrollment.Date(offeringDate))
-	links := enrollment.RequestChildOfferingRecordsOf(values)
+	values, err := s.deps.Children.RequestChildOfferingsForChildrenAtDate(ctx, approvedChildIDs, enrollmentNative.Date(offeringDate))
+	links := enrollmentNative.RequestChildOfferingRecordsOf(values)
 	if err != nil {
 		return "", fmt.Errorf("class roster report: list child offerings: %w", err)
 	}
@@ -421,7 +422,7 @@ func (s *Reports) attachClassRosterSelections(ctx context.Context, filters enrol
 	return offeringDate, nil
 }
 
-func sortClassRosterRows(rows []enrollment.ClassRosterRow) {
+func sortClassRosterRows(rows []enrollmentNative.ClassRosterRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		if r := compareSchoolClasses(rows[i].SchoolClass, rows[j].SchoolClass); r != 0 {
 			return r < 0
@@ -450,8 +451,8 @@ func (s *Reports) classRosterCompanions(ctx context.Context, studentIDs []int64)
 	return links, nil
 }
 
-func (s *Reports) classRosterStudentGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64][]enrollment.ClassRosterGuardian, error) {
-	out := make(map[int64][]enrollment.ClassRosterGuardian, len(studentIDs))
+func (s *Reports) classRosterStudentGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64][]enrollmentNative.ClassRosterGuardian, error) {
+	out := make(map[int64][]enrollmentNative.ClassRosterGuardian, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return out, nil
 	}

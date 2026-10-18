@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/postgres"
@@ -34,19 +33,6 @@ func NewCorrectionQueries(db *bun.DB, observe func(auditlog.Observation)) (audit
 			}
 		}
 		return nil, 0, fmt.Errorf("audit correction queries: unsupported transaction %T", transaction)
-	})
-	return correctionQueries{store: store, observe: observe}, nil
-}
-
-type correctionQueries struct {
-	store   *postgres.Corrections
-	observe func(auditlog.Observation)
-}
-
-func (q correctionQueries) ListDirectCorrections(ctx context.Context, filter auditlog.CorrectionFilter) ([]auditlog.DirectCorrection, error) {
-	started := time.Now()
-	rows, observation, err := q.store.ListDirectCorrections(ctx, filter)
-	observation.Duration, observation.Err = time.Since(started), err
-	q.observe(observation)
-	return rows, err
+	}, observe)
+	return store, nil
 }

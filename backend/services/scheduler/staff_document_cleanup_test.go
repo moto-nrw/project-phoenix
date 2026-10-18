@@ -23,7 +23,7 @@ func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
 		logger:                   slog.Default()})
@@ -40,7 +40,7 @@ func TestStaffDocumentFileCleanupKeepsPartialProgress(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
 		logger:                   slog.Default()})
@@ -57,7 +57,7 @@ func TestStaffDocumentFileCleanupAllowsRetryAfterFailure(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
 		logger:                   slog.Default()})

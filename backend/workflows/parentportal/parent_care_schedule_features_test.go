@@ -29,8 +29,10 @@ import (
 func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	sfRequests, schedules, _, _, _, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -59,24 +61,24 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
-		StudentRepo:            api.NewParentStudentReads(repos.Student),
-		StudentGuardianRepo:    api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		PersonRepo:             api.NewParentPersonReads(repos.Person),
+		StudentRepo:            api.NewParentStudentReads(reposPeople.Student),
+		StudentGuardianRepo:    api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo:    api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:             api.NewParentPersonReads(reposPeople.Person),
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		ArrivalSchedules:       api.NewParentArrivalSchedules(sf.ArrivalSchedule),
-		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
-		CareRequests:           sf.CareRequests,
+		ArrivalSchedules:       api.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:        api.NewParentPickupSchedules(schedules.Pickups),
+		CareRequests:           sfRequests.CareRequests,
 		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
-		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(reposPeople.FamilyProtection),
+		ParentRequestShares:    api.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageThreadRepo:      api.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
 		MessageRepo:            api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:        api.BindParentMessageInboxReads(repos.ParentMessageRead),
-		Conversations:          api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		MessageReadRepo:        api.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:          api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

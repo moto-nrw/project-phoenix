@@ -155,16 +155,15 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 			SendNotification: body.SendNotification,
 			ActorID:          actorID,
 		})
+		if createErr != nil {
+			return createErr
+		}
 		result = out
-		return createErr
+		return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
 	})
 	if err != nil {
 		rs.mapManualEnrollmentError(w, r, err)
 		return
-	}
-
-	if result.PendingInvite != nil && rs.GuardianInvitations.configured() {
-		go rs.dispatchPostDecisionInvite(r.Context(), result.PendingInvite)
 	}
 
 	common.Respond(w, r, http.StatusCreated, manualApprovedEnrollmentResponse(result), "Manual enrollment created and approved")

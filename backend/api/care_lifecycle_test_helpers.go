@@ -12,35 +12,34 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// CareLifecycleTestModule is the Care Plan lifecycle; the student audit it
+// records through comes beside it from NewCareLifecycleTestModule (#4080).
 type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
-	StudentAudit  peoplePorts.StudentAuditService
-	Settings      settingsCompose.SettingsService
 }
 
-func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, error) {
+func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return CareLifecycleTestModule{}, err
+		return CareLifecycleTestModule{}, nil, err
 	}
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
-		return CareLifecycleTestModule{}, err
+		return CareLifecycleTestModule{}, nil, err
 	}
 	r, err := NewCareLifecycleTestRepositories(db, command)
 	if err != nil {
-		return CareLifecycleTestModule{}, err
+		return CareLifecycleTestModule{}, nil, err
 	}
 	audit := peopleCompose.NewStudentAuditService(requestTokenReads.AuditActor, NewStudentAudit(db))
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
-		return CareLifecycleTestModule{}, err
+		return CareLifecycleTestModule{}, nil, err
 	}
 	lifecycle, err := r.NewCareLifecycle(CareLifecycleTestConfig{
 		Audit:                 audit,
@@ -50,9 +49,9 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 		},
 	})
 	if err != nil {
-		return CareLifecycleTestModule{}, err
+		return CareLifecycleTestModule{}, nil, err
 	}
-	return CareLifecycleTestModule{CareLifecycle: lifecycle, StudentAudit: audit, Settings: settings.Settings}, nil
+	return CareLifecycleTestModule{CareLifecycle: lifecycle}, audit, nil
 }
 
 // NewStudentDocumentsTestModule composes the production child document

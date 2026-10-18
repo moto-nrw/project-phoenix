@@ -53,11 +53,10 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
 //	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
 var moduleFileSizeAllowlist = map[string]int{
-	"modules/careplan/internal/application/excused_requests.go":                      1552,
+	"modules/careplan/internal/application/excused_requests.go":                      1542,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
-	"modules/schoolcalendar/portal/internal/application/service.go":                  1699,
-	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
+	"modules/schoolcalendar/portal/internal/application/service.go":                  1697,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {

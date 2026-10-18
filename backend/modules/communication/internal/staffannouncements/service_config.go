@@ -28,6 +28,10 @@ type ServiceConfig struct {
 	// Fingerprints computes the content identities an Erklärung freezes. A
 	// service without it refuses to publish a declaration.
 	Fingerprints Fingerprints
-	ParentsURL   string
-	Logger       *slog.Logger
+	// Attachments is the file side of the attachments. A service without
+	// one refuses to delete an announcement that could still own
+	// attachments rather than orphaning their bytes silently.
+	Attachments AttachmentPurger
+	ParentsURL  string
+	Logger      *slog.Logger
 }

@@ -31,77 +31,50 @@ type GuardianInvitationCapability interface {
 	identityaccess.GuardianRelativeAccess
 }
 
-// GuardianInvitationWiring is the retained material the guardian invitation
-// seams are bound to. outbox is read at call time because the delivery
-// module is composed after the identity module.
-type GuardianInvitationWiring struct {
-	Settings    settingsCompose.SettingsService
-	Schools     organizationtenancy.Query
-	Outbox      func() MailResultOutbox
-	Enrollments GuardianEnrollmentClaims
-	// ParentsURL is the origin of the accept and login links; a guardian
-	// signs in on the parents portal, never on the staff frontend.
-	ParentsURL     string
-	FallbackExpiry time.Duration
-	Logger         *slog.Logger
-}
-
 // GuardianEnrollmentClaims is the narrow contract the acceptance needs from
 // the parent enrollment storage.
 type GuardianEnrollmentClaims interface {
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-func (w *GuardianInvitationWiring) complete() bool {
-	return w != nil && w.Schools != nil && w.Outbox != nil && w.Enrollments != nil
-}
-
 // guardianInvitationDependencies binds the delivery and the enrollment claim
-// the lifecycle flows consume; a nil wiring composes the module without
-// them, which is what the read-only and fixture roots want.
-func guardianInvitationDependencies(wiring *GuardianInvitationWiring) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
-	if wiring == nil {
-		return unsentGuardianMail{}, nil, nil
-	}
-	if !wiring.complete() {
+// the lifecycle flows consume: the settings that hold the tenant's token
+// lifetime, the school read for the mail subject, the outbox, the parents
+// portal origin of the accept and login links (a guardian signs in on the
+// parents portal, never on the staff frontend) and the deployment's
+// fallback expiry. A root composed without the guardian mail passes
+// unsentGuardianMail{} to the lifecycle instead.
+func guardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.Query, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
+	if schools == nil || outbox == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
-	return guardianInvitationDelivery{wiring: wiring}, identityaccessCompose.NewSavepointGuardianEnrollments(wiring.Enrollments), nil
-}
-
-// unsentGuardianMail serves a root composed without the guardian mail — a
-// CLI or a fixture that only reads. The flows still run; nothing is sent.
-type unsentGuardianMail struct{}
-
-func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
-	return identityaccess.GuardianInvitationExpiryFallback
-}
-func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityPorts.GuardianProfile, string) (int64, bool) {
-	return 0, false
-}
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityPorts.GuardianProfile, string) (int64, bool) {
-	return 0, false
-}
-func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.GuardianProfile, int64, string, int64) {
+	if logger == nil {
+		return nil, nil, errors.New("identity access composition: the guardian invitation seams need a logger")
+	}
+	return guardianInvitationDelivery{
+		settings: settings, schools: schools, outbox: outbox,
+		parentsURL: parentsURL, fallbackExpiry: fallbackExpiry, logger: logger,
+	}, identityaccessCompose.NewSavepointGuardianEnrollments(enrollments), nil
 }
 
 // --- delivery ---------------------------------------------------------------
 
-type guardianInvitationDelivery struct{ wiring *GuardianInvitationWiring }
-
-func (d guardianInvitationDelivery) logger() *slog.Logger {
-	if d.wiring.Logger != nil {
-		return d.wiring.Logger
-	}
-	return slog.Default()
+// guardianInvitationDelivery holds the settings, school read, outbox,
+// parents portal origin, fallback expiry and logger of the guardian mails.
+type guardianInvitationDelivery struct {
+	settings       settingsCompose.SettingsService
+	schools        schoolFinder
+	outbox         MailResultOutbox
+	parentsURL     string
+	fallbackExpiry time.Duration
+	logger         *slog.Logger
 }
 
 // InvitationExpiry reads the school's token lifetime (tenant override, then
 // registry default) and lets the owner fall back to the deployment's.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := settingsCompose.ResolveIntOrDefault(ctx, d.wiring.Settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
-	return identityaccess.GuardianInvitationExpiry(hours, d.wiring.FallbackExpiry)
+	hours := settingsCompose.ResolveIntOrDefault(ctx, d.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger)
+	return identityaccess.GuardianInvitationExpiry(hours, d.fallbackExpiry)
 }
 
 // SchoolName resolves the school for the mail subject. Best-effort: an
@@ -110,7 +83,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	if tenantID <= 0 {
 		return ""
 	}
-	school, found, err := lookupSchool(ctx, d.wiring.Schools, tenantID)
+	school, found, err := lookupSchool(ctx, d.schools, tenantID)
 	if err != nil || !found || school.IsDeleted() {
 		return ""
 	}
@@ -119,7 +92,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	return NewGuardianInvitationMailer(GuardianInvitationMailerConfig{
-		Outbox: d.wiring.Outbox(), FrontendURL: d.wiring.ParentsURL, Logger: d.logger(),
+		Outbox: d.outbox, FrontendURL: d.parentsURL, Logger: d.logger,
 	})
 }
 
@@ -140,7 +113,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 	var helpURL string
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
-		helpURL, err = welcomeHelpURL(savepointCtx, d.wiring.ParentsURL, welcomeHelpRoleParent, tenantID, d.wiring.Settings, d.logger())
+		helpURL, err = welcomeHelpURL(savepointCtx, d.parentsURL, welcomeHelpRoleParent, tenantID, d.settings, d.logger)
 		return err
 	})
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
@@ -153,7 +126,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 // Without a transaction there is nothing to protect.
 func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(context.Context) error) {
 	if err := identityaccessCompose.RunMailStep(ctx, step); err != nil {
-		d.logger().Error("guardian welcome email: savepoint failed",
+		d.logger.Error("guardian welcome email: savepoint failed",
 			slog.String("error", err.Error()))
 	}
 }
@@ -165,34 +138,20 @@ func guardianMailRecipient(profile identityPorts.GuardianProfile) GuardianMailRe
 // --- the invitation reads other owners' flows need ---------------------------
 
 // guardianInvitationReads serves the People Directory guardian list and the
-// parents portal over the owner capability. Both read the invitations as the
-// retained model, which stays their ports' value type. The capability is
-// read at call time: the guardian service is composed before the module.
+// parents portal over Identity & Access's invitation reads. Both read the
+// invitations as the retained model, which stays their ports' value type.
+// The reads need only the database, so the guardian service is composed
+// before the Identity & Access module.
 type guardianInvitationReads struct {
-	current func() identityaccess.GuardianInvitations
+	reads identityaccess.GuardianInvitationReads
 }
 
-func NewGuardianInvitationReads(current func() identityaccess.GuardianInvitations) guardianInvitationReads {
-	return guardianInvitationReads{current: current}
-}
-
-func (r guardianInvitationReads) owner() (identityaccess.GuardianInvitations, error) {
-	if r.current == nil {
-		return nil, errors.New("identity access composition: the guardian invitations are not composed")
-	}
-	module := r.current()
-	if module == nil {
-		return nil, errors.New("identity access composition: the guardian invitations are not composed")
-	}
-	return module, nil
+func NewGuardianInvitationReads(reads identityaccess.GuardianInvitationReads) guardianInvitationReads {
+	return guardianInvitationReads{reads: reads}
 }
 
 func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peoplePorts.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
+	invitations, err := r.reads.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -200,11 +159,7 @@ func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileID
 }
 
 func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peoplePorts.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListRedeemableGuardianInvitations(ctx)
+	invitations, err := r.reads.ListRedeemableGuardianInvitations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -214,11 +169,7 @@ func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peoplePo
 // ListByProfile serves the parents portal, which reads the same rows with a
 // narrower record.
 func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListGuardianInvitations(ctx, guardianProfileID)
+	invitations, err := r.reads.ListGuardianInvitations(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}

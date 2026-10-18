@@ -19,7 +19,7 @@ import (
 // implement them without reaching into the module.
 type (
 	MasterDataRecords        = ports.MasterDataRecords
-	MasterDataFieldReviews   = ports.MasterDataFieldReviews
+	MasterDataFieldReviews   = careplan.MasterDataFieldReviews
 	MasterDataStudent        = ports.MasterDataStudent
 	MasterDataPerson         = ports.MasterDataPerson
 	MasterDataStudentChange  = ports.MasterDataStudentChange

@@ -49,7 +49,7 @@ var dienstplanMonday = calendar.NewDate(2026, time.July, 27)
 // with the staff roster read over the given tenant transaction.
 func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workforce.Capability, rooms workforceCompose.RoomReader) workforce.StaffScheduleOverviewQuery {
 	t.Helper()
-	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, db)}
+	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
 	return workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 		Shifts:        capability,
 		Instances:     instances,
@@ -98,7 +98,7 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	require.Len(t, fixtures, 2)
 
 	capability := buildDienstplanWorkforce(t, db)
-	rooms := NewTimetableRoomNames(NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Rooms)
+	rooms := NewTimetableRoomNames(MustNewUnobservedRooms(testpkg.NewDatabase(t, db)))
 	params, err := planexport.ParseParams(dienstplanMonday.String(), dienstplanMonday.AddDays(4).String(), string(planexport.TemplateByPerson), "", "")
 	require.NoError(t, err)
 	for _, fixture := range fixtures {
@@ -307,7 +307,7 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		staffIDs = append(staffIDs, testpkg.CreateTestStaff(t, db, "Runtime", fmt.Sprintf("Staff%d", i)).ID)
 	}
 	capability := buildDienstplanWorkforce(t, db)
-	rooms := NewTimetableRoomNames(NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Rooms)
+	rooms := NewTimetableRoomNames(MustNewUnobservedRooms(testpkg.NewDatabase(t, db)))
 	export := func(txCtx context.Context, tx bun.Tx, renderer planexport.Renderer, params planexport.Params) (lists.File, error) {
 		return dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), renderer).ExportDienstplan(txCtx, params)
 	}

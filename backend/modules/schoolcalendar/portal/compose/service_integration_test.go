@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -39,32 +39,23 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	require.NoError(t, err)
 }
 
-func calendarTestConfig(t *testing.T, db *bun.DB) api.CalendarDependencies {
+func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 	t.Helper()
-	repos := calendarTestRepositories(t, db)
+	_, reposPeople, reposCalendar, reposTimetable, reposAppointments, reposParents, reposRooms := calendarTestRepositories(t, db)
 	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	userContext := identity.UserContext.Caller()
+	userContext := identity.Caller()
 
-	return api.CalendarDependencies{
-		CalendarFacts: api.CalendarFacts{
-			StaffRepo:            repos.Staff,
-			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            repos.ParentChildLinks(),
-			GroupRepo:            repos.Group,
-			InstanceStaffRepo:    repos.InstanceStaff,
-			ActivityInstanceRepo: repos.ActivityInstance,
-			RoomRepo:             repos.Room,
-			StaffShiftRepo:       repos.StaffShift,
-			ShiftTypeRepo:        repos.ShiftType,
-		},
-		Appointments:     repos.Appointments(),
-		UserContext:      userContext,
-		Runtime:          calendarCompose.NewTenantRuntime(db),
-		CalendarRenderer: calendarCompose.NewCalendarRenderer(repos.SchoolCalendar()),
-	}
+	cfg := api.NewCalendarFacts(reposPeople.Staff, reposPeople.Student,
+		api.NewCalendarGuardianDirectory(reposPeople.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
+		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
+	cfg = api.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
+	cfg = api.BindCalendarCaller(cfg, userContext)
+	cfg.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	cfg.Appointments = reposAppointments.Appointments()
+	cfg.Runtime = calendarCompose.NewTenantRuntime(db)
+	cfg.CalendarRenderer = calendarCompose.NewCalendarRenderer(reposCalendar.SchoolCalendar())
+	return cfg
 }
 func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	t.Helper()
@@ -222,16 +213,16 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 		EndDate:      portalDate(2026, 1, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday", "wednesday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -252,12 +243,12 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 		portalDate(2026, 1, 12),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-07", "2026-01-12"}, eventDates(staffEvents, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-07", "2026-01-12"}, eventDates(staffEvents, calendarSvc.EventSourceAppointment))
 	require.NotEmpty(t, staffEvents)
-	assert.Equal(t, calModels.ResponseStatusPending, *staffEvents[0].ResponseStatus)
+	assert.Equal(t, appointments.ResponseStatusPending, *staffEvents[0].ResponseStatus)
 	assert.True(t, staffEvents[0].CanRespond)
 
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusAccepted))
 	staffEvents, err = service.ListMyStaffEvents(
 		calendarContext(t, invitedAccount.ID),
 		portalDate(2026, 1, 5),
@@ -265,7 +256,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, staffEvents)
-	assert.Equal(t, calModels.ResponseStatusAccepted, *staffEvents[0].ResponseStatus)
+	assert.Equal(t, appointments.ResponseStatusAccepted, *staffEvents[0].ResponseStatus)
 
 	parentEvents, err := service.ListMyParentEvents(
 		testpkg.Ctx(t),
@@ -274,12 +265,12 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 		portalDate(2026, 1, 12),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-07", "2026-01-12"}, eventDates(parentEvents, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-07", "2026-01-12"}, eventDates(parentEvents, calendarSvc.EventSourceAppointment))
 	require.NotEmpty(t, parentEvents)
-	assert.Equal(t, calModels.ResponseStatusPending, *parentEvents[0].ResponseStatus)
+	assert.Equal(t, appointments.ResponseStatusPending, *parentEvents[0].ResponseStatus)
 	assert.True(t, parentEvents[0].CanRespond)
 
-	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined))
+	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusDeclined))
 	parentEvents, err = service.ListMyParentEvents(
 		testpkg.Ctx(t),
 		parentChain.AccountID,
@@ -288,7 +279,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, parentEvents)
-	assert.Equal(t, calModels.ResponseStatusDeclined, *parentEvents[0].ResponseStatus)
+	assert.Equal(t, appointments.ResponseStatusDeclined, *parentEvents[0].ResponseStatus)
 }
 
 func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *testing.T) {
@@ -306,15 +297,15 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 		EndDate:      portalDate(2026, 2, 2),
 		StartTime:    wallClock(12, 0),
 		EndTime:      wallClock(12, 30),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
 
 	recipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), recipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), recipientID, appointments.ResponseStatusAccepted)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
@@ -335,9 +326,9 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 		EndDate:      portalDate(2026, 3, 2),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -395,7 +386,7 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
 	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 3, 1), portalDate(2026, 3, 10))
 	require.NoError(t, err)
-	assert.Empty(t, eventDates(events, calModels.EventSourceAppointment))
+	assert.Empty(t, eventDates(events, calendarSvc.EventSourceAppointment))
 }
 
 func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
@@ -415,9 +406,9 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 		EndDate:      portalDate(2026, 4, 1),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -431,10 +422,10 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 		EndDate:      portalDate(2026, 4, 2),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 30),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -461,7 +452,7 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OptOut", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -472,10 +463,10 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 			EndDate:      portalDate(2026, 4, day),
 			StartTime:    wallClock(9, 0),
 			EndTime:      wallClock(10, 0),
-			DeliveryMode: calModels.DeliveryModeInformational,
+			DeliveryMode: appointments.DeliveryModeInformational,
 			// No send_email: the guardian opted out of mail for this appointment.
 			Targets: []calendarSvc.AppointmentTarget{
-				{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+				{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 			},
 		})
 		require.NoError(t, err)
@@ -493,10 +484,10 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	// concurrent callers gate notifications so no duplicate cancellation e-mail is
 	// sent.
 	fresh := newSilentAppointment("Zweiter", 2)
-	first, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
+	first, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.True(t, first, "first cancel performs the transition")
-	second, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
+	second, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
 }
@@ -507,7 +498,7 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "DeleteRace", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -518,25 +509,25 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 		EndDate:      portalDate(2026, 5, 1),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	// Simulate a delete landing after a cancel request loaded the still-live
 	// appointment: soft-delete it directly.
-	require.NoError(t, repos.Appointments().SoftDeleteAppointment(testpkg.Ctx(t), detail.Appointment.ID))
+	require.NoError(t, reposAppointments.Appointments().SoftDeleteAppointment(testpkg.Ctx(t), detail.Appointment.ID))
 
 	// The cancel transition must now match zero rows (deleted_at guard) and report
 	// no transition, so CancelStaffAppointment skips the guardian notice.
-	transitioned, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	transitioned, err := reposAppointments.Appointments().CancelAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, transitioned, "cancel must not transition an appointment a concurrent delete removed")
 
-	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := reposAppointments.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.DeletedAt, "the appointment stays deleted")
@@ -560,15 +551,15 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 		EndDate:      portalDate(2026, 5, 4),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 30),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -611,8 +602,8 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	// The feed counts its window from today; the appointments below sit on
 	// fixed dates, so today is pinned to them instead of the wall clock.
@@ -628,9 +619,9 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 		EndDate:      portalDate(2026, 8, 24).AddDays(7),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(18, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -679,15 +670,15 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 		EndDate:      recurStart,
 		StartTime:    wallClock(16, 0),
 		EndTime:      wallClock(17, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{strings.ToLower(recurStart.Weekday().String())},
 			EndsOn:        &recurEnd,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -716,12 +707,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -732,7 +721,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 	})
 	require.NoError(t, err)
 
@@ -768,12 +757,10 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.CalDAVPolicy = fixedCalDAVSettings{enabled: true}
 	cfg.FrontendURL = "https://moto.test"
 	cfg.CalDAVURL = "https://api.moto.test"
@@ -786,7 +773,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 	})
 	require.NoError(t, err)
 
@@ -853,12 +840,10 @@ func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvai
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.CalDAVPolicy = fixedCalDAVSettings{err: errors.New("setting unavailable")}
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
@@ -878,11 +863,9 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, _, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -900,12 +883,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.ParentsURL = "https://parents.test"
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
@@ -946,12 +927,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -967,7 +946,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 		EndDate:      day,
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 	})
 	require.NoError(t, err)
 
@@ -1003,12 +982,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1035,11 +1012,11 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	assert.Contains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
 	assert.Contains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
 
-	storedAssignment, err := repos.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
+	storedAssignment, err := reposTimetable.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
 	require.NoError(t, err)
 	storedAssignment.StaffID = otherStaff.ID
-	require.NoError(t, repos.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
-	require.NoError(t, repos.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
+	require.NoError(t, reposTimetable.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
+	require.NoError(t, reposTimetable.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
@@ -1052,12 +1029,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1090,10 +1065,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 		Where("id = ?", instance.ID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
-	storedShift, err := repos.StaffShift.FindByID(testpkg.Ctx(t), shift.ID)
+	storedShift, err := reposTimetable.StaffShift.FindByID(testpkg.Ctx(t), shift.ID)
 	require.NoError(t, err)
 	storedShift.Cancelled = true
-	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), storedShift))
+	require.NoError(t, reposTimetable.StaffShift.Update(testpkg.Ctx(t), storedShift))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
@@ -1106,12 +1081,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
-	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	cfg.PersonRepo = repos.Person
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	cfg.FrontendURL = "https://moto.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1124,9 +1097,9 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 		EndDate:      start,
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{strings.ToLower(start.Weekday().String())},
 			EndsOn:        &endsOn,
@@ -1156,9 +1129,9 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
-	repos := calendarTestRepositories(t, db)
+	_, _, reposCalendar, reposTimetable, _, _, _ := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Cleanup", "Feed")
@@ -1170,9 +1143,9 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 		EndDate:      day,
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{strings.ToLower(day.Weekday().String())},
 			EndsOn:        &endsOn,
@@ -1186,9 +1159,9 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 		EndDate:      day.AddDays(1),
 		StartTime:    wallClock(11, 0),
 		EndTime:      wallClock(12, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{strings.ToLower(day.AddDays(1).Weekday().String())},
 			EndsOn:        &endsOn,
@@ -1201,7 +1174,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	room := testpkg.CreateTestRoom(t, db, "Cleanup-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{})
 	assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	require.NoError(t, repos.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
+	require.NoError(t, reposTimetable.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
 
 	expired := time.Now().AddDate(0, 0, -91)
 	_, err = db.NewUpdate().Table("calendar.appointments").
@@ -1216,7 +1189,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	require.NoError(t, err)
 	_, err = db.NewUpdate().Table("calendar.staff_feed_tombstones").
 		Set("cancelled_at = ?", expired).
-		Where("source = ?", calModels.EventSourceTimetable).
+		Where("source = ?", calendarSvc.EventSourceTimetable).
 		Where("source_id = ?", instance.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -1249,8 +1222,8 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	// The feed counts its window from today; the appointments below sit on
 	// fixed dates, so today is pinned to them instead of the wall clock.
@@ -1266,9 +1239,9 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 		EndDate:      portalDate(2026, 8, 24).AddDays(7),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -1292,7 +1265,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	before, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, viewFrom, viewTo)
 	require.NoError(t, err)
-	assert.NotEmpty(t, eventDates(before, calModels.EventSourceAppointment))
+	assert.NotEmpty(t, eventDates(before, calendarSvc.EventSourceAppointment))
 
 	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
 
@@ -1313,7 +1286,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	afterParent, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, viewFrom, viewTo)
 	require.NoError(t, err)
-	assert.Empty(t, eventDates(afterParent, calModels.EventSourceAppointment))
+	assert.Empty(t, eventDates(afterParent, calendarSvc.EventSourceAppointment))
 }
 
 func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T) {
@@ -1322,7 +1295,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Teacher")
 
@@ -1332,8 +1305,8 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 		EndDate:      portalDate(2026, 3, 2),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
-		Targets:      []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID}},
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
+		Targets:      []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID}},
 	})
 	require.NoError(t, err)
 	// The snapshot returned by create carries CancelledAt == nil — it stands in for
@@ -1349,7 +1322,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	// neither reactivates the appointment nor overwrites its content.
 	stale := *detail.Appointment
 	stale.Title = "Edited concurrently"
-	_, err = repos.Appointments().UpdateAppointment(testpkg.Ctx(t), appointments.UpdateAppointment{
+	_, err = reposAppointments.Appointments().UpdateAppointment(testpkg.Ctx(t), appointments.UpdateAppointment{
 		ID: stale.ID,
 		AppointmentFields: appointments.AppointmentFields{
 			OrganizerStaffID: stale.OrganizerStaffID, Title: stale.Title, Description: stale.Description,
@@ -1360,9 +1333,9 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 		},
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, calModels.ErrAppointmentLifecycleConflict)
+	assert.ErrorIs(t, err, appointments.ErrAppointmentLifecycleConflict)
 
-	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := reposAppointments.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.CancelledAt, "the cancellation stands")
@@ -1375,8 +1348,8 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -1392,8 +1365,8 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 		EndDate:      pastDate,
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
-		Targets:      []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID}},
+		DeliveryMode: appointments.DeliveryModeInformational,
+		Targets:      []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID}},
 	})
 	require.NoError(t, err)
 
@@ -1433,16 +1406,16 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 		EndDate:      portalDate(2026, 6, 20),
 		StartTime:    wallClock(10, 0),
 		EndTime:      wallClock(14, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeAllSchoolParents},
+			{Type: appointments.TargetTypeAllSchoolParents},
 		},
 	})
 	require.NoError(t, err)
 
 	// The whole-school target resolved to the seeded guardian.
 	require.Len(t, detail.Targets, 1)
-	assert.Equal(t, calModels.TargetTypeAllSchoolParents, detail.Targets[0].TargetType)
+	assert.Equal(t, appointments.TargetTypeAllSchoolParents, detail.Targets[0].TargetType)
 	id := findOptionalRecipientByGuardian(detail, parentChain.GuardianProfileID)
 	assert.NotZero(t, id, "all_school_parents should reach the school's guardian")
 
@@ -1482,9 +1455,9 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 		EndDate:      portalDate(2026, 6, 20),
 		StartTime:    wallClock(10, 0),
 		EndTime:      wallClock(14, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeAllSchoolParents},
+			{Type: appointments.TargetTypeAllSchoolParents},
 		},
 	})
 	require.NoError(t, err)
@@ -1512,28 +1485,28 @@ func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 		EndDate:      portalDate(2026, 1, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(9, 30),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
 
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 1, 5), portalDate(2026, 1, 19))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calendarSvc.EventSourceAppointment))
 
 	// Cancel the middle occurrence.
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, portalDate(2026, 1, 12)))
 	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 1, 5), portalDate(2026, 1, 19))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calendarSvc.EventSourceAppointment))
 
 	// Cancelling the same occurrence again is idempotent.
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, portalDate(2026, 1, 12)))
@@ -1555,30 +1528,30 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 		EndDate:            portalDate(2026, 2, 10),
 		StartTime:          wallClock(9, 0),
 		EndTime:            wallClock(10, 0),
-		DeliveryMode:       calModels.DeliveryModeRSVPRequired,
-		OverviewVisibility: calModels.OverviewVisibilityAll,
+		DeliveryMode:       appointments.DeliveryModeRSVPRequired,
+		OverviewVisibility: appointments.OverviewVisibilityAll,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusAccepted))
 
 	staffOverview, err := service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staffOverview)
-	assert.Equal(t, calModels.OverviewVisibilityAll, staffOverview.OverviewVisibility)
-	assert.Equal(t, calModels.DeliveryModeRSVPRequired, staffOverview.DeliveryMode)
+	assert.Equal(t, appointments.OverviewVisibilityAll, staffOverview.OverviewVisibility)
+	assert.Equal(t, appointments.DeliveryModeRSVPRequired, staffOverview.DeliveryMode)
 	require.Len(t, staffOverview.Attendees, 2)
-	assert.Equal(t, calModels.RecipientTypeGuardianProfile, staffOverview.Attendees[0].RecipientType)
+	assert.Equal(t, appointments.RecipientTypeGuardianProfile, staffOverview.Attendees[0].RecipientType)
 	assert.Contains(t, staffOverview.Attendees[0].Name, "Schneider")
-	assert.Equal(t, calModels.ResponseStatusPending, staffOverview.Attendees[0].Status)
-	assert.Equal(t, calModels.RecipientTypeStaff, staffOverview.Attendees[1].RecipientType)
+	assert.Equal(t, appointments.ResponseStatusPending, staffOverview.Attendees[0].Status)
+	assert.Equal(t, appointments.RecipientTypeStaff, staffOverview.Attendees[1].RecipientType)
 	assert.Contains(t, staffOverview.Attendees[1].Name, "Teacher")
-	assert.Equal(t, calModels.ResponseStatusAccepted, staffOverview.Attendees[1].Status)
+	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[1].Status)
 	require.NotNil(t, staffOverview.Attendees[1].RespondedAt)
 
 	parentOverview, err := service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
@@ -1612,11 +1585,11 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 		EndDate:            portalDate(2026, 2, 10),
 		StartTime:          wallClock(9, 0),
 		EndTime:            wallClock(10, 0),
-		DeliveryMode:       calModels.DeliveryModeRSVPRequired,
-		OverviewVisibility: calModels.OverviewVisibilityAll,
+		DeliveryMode:       appointments.DeliveryModeRSVPRequired,
+		OverviewVisibility: appointments.OverviewVisibilityAll,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -1628,7 +1601,7 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 	// Sanity: while live, overview and RSVP are reachable.
 	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusAccepted))
 
 	// It targets a guardian, so delete tombstones (soft-deletes) it.
 	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, organizerAccount.ID), detail.Appointment.ID))
@@ -1645,9 +1618,9 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 
-	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusDeclined)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusDeclined)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 }
 
@@ -1668,11 +1641,11 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 		EndDate:            portalDate(2026, 2, 11),
 		StartTime:          wallClock(11, 0),
 		EndTime:            wallClock(12, 0),
-		DeliveryMode:       calModels.DeliveryModeInformational,
-		OverviewVisibility: calModels.OverviewVisibilityStaff,
+		DeliveryMode:       appointments.DeliveryModeInformational,
+		OverviewVisibility: appointments.OverviewVisibilityStaff,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -1681,7 +1654,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, organizerOverview.Attendees, 2)
 	for _, attendee := range organizerOverview.Attendees {
-		assert.Equal(t, calModels.ResponseStatusInfo, attendee.Status)
+		assert.Equal(t, appointments.ResponseStatusInfo, attendee.Status)
 	}
 
 	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), detail.Appointment.ID)
@@ -1787,12 +1760,12 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		EndDate:            portalDate(2026, 2, 12),
 		StartTime:          wallClock(13, 0),
 		EndTime:            wallClock(14, 0),
-		DeliveryMode:       calModels.DeliveryModeInformational,
-		OverviewVisibility: calModels.OverviewVisibilityAll,
+		DeliveryMode:       appointments.DeliveryModeInformational,
+		OverviewVisibility: appointments.OverviewVisibilityAll,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeAllStaff},
-			{Type: calModels.TargetTypeParentsByClass, Value: &className},
-			{Type: calModels.TargetTypeParentsByStudent, ID: &parentChain.StudentID},
+			{Type: appointments.TargetTypeAllStaff},
+			{Type: appointments.TargetTypeParentsByClass, Value: &className},
+			{Type: appointments.TargetTypeParentsByStudent, ID: &parentChain.StudentID},
 		},
 	})
 	require.NoError(t, err)
@@ -1811,7 +1784,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.True(t, parentEvents[0].CanViewOverview)
 	assert.False(t, parentEvents[0].CanRespond)
 	require.NotNil(t, parentEvents[0].ResponseStatus)
-	assert.Equal(t, calModels.ResponseStatusInfo, *parentEvents[0].ResponseStatus)
+	assert.Equal(t, appointments.ResponseStatusInfo, *parentEvents[0].ResponseStatus)
 }
 
 func parentOptionIDs(options []calendarSvc.ParentOption) []string {
@@ -1849,15 +1822,15 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 		name   string
 		target calendarSvc.AppointmentTarget
 	}{
-		{name: "staff target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff}},
-		{name: "staff target zero id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff, ID: &invalidID}},
-		{name: "staff target other tenant", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff, ID: &otherTenantStaff.ID}},
-		{name: "guardian target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile}},
-		{name: "guardian target missing row", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile, ID: &missingID}},
-		{name: "guardian target without portal-visible student", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile, ID: &invisibleGuardian.ID}},
-		{name: "student target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByStudent}},
-		{name: "group target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByGroup}},
-		{name: "class target blank value", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByClass, Value: &className}},
+		{name: "staff target missing id", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeStaff}},
+		{name: "staff target zero id", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeStaff, ID: &invalidID}},
+		{name: "staff target other tenant", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeStaff, ID: &otherTenantStaff.ID}},
+		{name: "guardian target missing id", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeGuardianProfile}},
+		{name: "guardian target missing row", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeGuardianProfile, ID: &missingID}},
+		{name: "guardian target without portal-visible student", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeGuardianProfile, ID: &invisibleGuardian.ID}},
+		{name: "student target missing id", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeParentsByStudent}},
+		{name: "group target missing id", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeParentsByGroup}},
+		{name: "class target blank value", target: calendarSvc.AppointmentTarget{Type: appointments.TargetTypeParentsByClass, Value: &className}},
 		{name: "unknown target type", target: calendarSvc.AppointmentTarget{Type: "unknown_target"}},
 	}
 
@@ -1869,7 +1842,7 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 				EndDate:      portalDate(2026, 2, 14),
 				StartTime:    wallClock(8, 0),
 				EndTime:      wallClock(9, 0),
-				DeliveryMode: calModels.DeliveryModeRSVPRequired,
+				DeliveryMode: appointments.DeliveryModeRSVPRequired,
 				Targets:      []calendarSvc.AppointmentTarget{tt.target},
 			})
 			require.Error(t, err)
@@ -1898,7 +1871,7 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 			Frequency: "hourly",
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.Error(t, err)
@@ -1930,14 +1903,14 @@ func TestCalendarServiceIntegration_CreateRollsBackAppointmentsWhenRecurrenceWri
 		EndDate:      portalDate(2030, 3, 4),
 		StartTime:    wallClock(8, 0),
 		EndTime:      wallClock(9, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
-		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID}},
+		Targets: []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID}},
 	}
 
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), request)
@@ -1993,7 +1966,7 @@ func TestCalendarServiceIntegration_UpdateRollsBackRecurrenceReplacementAndRetri
 }
 
 type recurrenceUpdateRollbackFixture struct {
-	config        api.CalendarDependencies
+	config        calendarCompose.Config
 	service       calendarSvc.Service
 	accountID     int64
 	appointmentID int64
@@ -2023,9 +1996,9 @@ func setupRecurrenceUpdateRollbackFixture(t *testing.T, db *bun.DB) recurrenceUp
 	oldEndsOn := portalDate(2030, 3, 31)
 	detail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title: "Original series", StartDate: portalDate(2030, 3, 4), EndDate: portalDate(2030, 3, 4),
-		StartTime: wallClock(8, 0), EndTime: wallClock(9, 0), DeliveryMode: calModels.DeliveryModeRSVPRequired,
-		Recurrence: &calendarSvc.RecurrenceRequest{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: &oldEndsOn},
-		Targets:    []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID}},
+		StartTime: wallClock(8, 0), EndTime: wallClock(9, 0), DeliveryMode: appointments.DeliveryModeRSVPRequired,
+		Recurrence: &calendarSvc.RecurrenceRequest{Frequency: appointments.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: &oldEndsOn},
+		Targets:    []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID}},
 	})
 	require.NoError(t, err)
 	cancelledDate := portalDate(2030, 3, 11)
@@ -2034,7 +2007,7 @@ func setupRecurrenceUpdateRollbackFixture(t *testing.T, db *bun.DB) recurrenceUp
 	return recurrenceUpdateRollbackFixture{config: config, service: service, accountID: account.ID, appointmentID: detail.Appointment.ID, cancelledDate: cancelledDate,
 		update: calendarSvc.UpdateAppointmentRequest{Title: "Replacement series", StartDate: portalDate(2030, 4, 2), EndDate: portalDate(2030, 4, 2),
 			StartTime: wallClock(10, 0), EndTime: wallClock(11, 0),
-			Recurrence: &calendarSvc.RecurrenceRequest{Frequency: calModels.RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{2}, EndsOn: &newEndsOn}}}
+			Recurrence: &calendarSvc.RecurrenceRequest{Frequency: appointments.RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{2}, EndsOn: &newEndsOn}}}
 }
 
 func assertRecurrenceUpdateRolledBack(t *testing.T, fixture recurrenceUpdateRollbackFixture) {
@@ -2043,7 +2016,7 @@ func assertRecurrenceUpdateRolledBack(t *testing.T, fixture recurrenceUpdateRoll
 	require.NoError(t, err)
 	assert.Equal(t, "Original series", afterFailure.Appointment.Title)
 	require.NotNil(t, afterFailure.Recurrence)
-	assert.Equal(t, calModels.RecurrenceFrequencyWeekly, afterFailure.Recurrence.Frequency)
+	assert.Equal(t, appointments.RecurrenceFrequencyWeekly, afterFailure.Recurrence.Frequency)
 	overrides, err := fixture.config.Appointments.FindOccurrenceOverrides(testpkg.Ctx(t), []int64{fixture.appointmentID}, []appointments.Date{appointments.Date(fixture.cancelledDate)})
 	require.NoError(t, err)
 	require.Len(t, overrides, 1, "the old occurrence override must survive the rolled-back series edit")
@@ -2055,7 +2028,7 @@ func assertRecurrenceUpdateRetry(t *testing.T, fixture recurrenceUpdateRollbackF
 	require.NoError(t, err)
 	assert.Equal(t, "Replacement series", afterRetry.Appointment.Title)
 	require.NotNil(t, afterRetry.Recurrence)
-	assert.Equal(t, calModels.RecurrenceFrequencyMonthly, afterRetry.Recurrence.Frequency)
+	assert.Equal(t, appointments.RecurrenceFrequencyMonthly, afterRetry.Recurrence.Frequency)
 	rules, err := fixture.config.Appointments.FindRecurrenceRules(testpkg.Ctx(t), []int64{fixture.appointmentID})
 	require.NoError(t, err)
 	require.Len(t, rules, 1, "retry must leave exactly one recurrence rule")
@@ -2070,7 +2043,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MultiDay", "Organizer")
 
 	endsOn := portalDate(2026, 1, 31)
@@ -2080,13 +2053,13 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 		EndDate:      portalDate(2026, 2, 1),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(9, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency: calModels.RecurrenceFrequencyDaily,
+			Frequency: appointments.RecurrenceFrequencyDaily,
 			EndsOn:    &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &organizer.ID},
+			{Type: appointments.TargetTypeStaff, ID: &organizer.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2097,14 +2070,14 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 		portalDate(2026, 2, 1),
 	)
 	require.NoError(t, err)
-	assert.Contains(t, eventDates(events, calModels.EventSourceAppointment), "2026-01-31")
+	assert.Contains(t, eventDates(events, calendarSvc.EventSourceAppointment), "2026-01-31")
 
-	cancelledOverride := &calModels.AppointmentOccurrenceOverride{
+	cancelledOverride := &appointments.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
-		OccurrenceDate: calModels.NewDate(2026, 1, 31),
+		OccurrenceDate: appointments.NewDate(2026, 1, 31),
 		Cancelled:      true,
 	}
-	require.NoError(t, repos.Appointments().CreateOccurrenceOverride(calendarContext(t, organizerAccount.ID), cancelledOverride))
+	require.NoError(t, reposAppointments.Appointments().CreateOccurrenceOverride(calendarContext(t, organizerAccount.ID), cancelledOverride))
 
 	events, err = service.ListMyStaffEvents(
 		calendarContext(t, organizerAccount.ID),
@@ -2112,7 +2085,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 		portalDate(2026, 2, 1),
 	)
 	require.NoError(t, err)
-	assert.NotContains(t, eventDates(events, calModels.EventSourceAppointment), "2026-01-31")
+	assert.NotContains(t, eventDates(events, calendarSvc.EventSourceAppointment), "2026-01-31")
 }
 
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
@@ -2131,10 +2104,10 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 		EndDate:      portalDate(2026, 2, 15),
 		StartTime:    wallClock(10, 0),
 		EndTime:      wallClock(11, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2142,19 +2115,19 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	staffRecipientID := findRecipientByStaff(t, rsvpDetail, invitedStaff.ID)
 	guardianRecipientID := findRecipientByGuardian(t, rsvpDetail, parentChain.GuardianProfileID)
 
-	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusPending)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusPending)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToStaffInvitation(calendarContext(t, organizerAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToStaffInvitation(calendarContext(t, organizerAccount.ID), staffRecipientID, appointments.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusPending)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusPending)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), 0, guardianRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), 0, guardianRecipientID, appointments.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, staffRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, staffRecipientID, appointments.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
 	_, err = service.GetStaffAppointmentOverview(calendarContext(t, invitedAccount.ID), 999999999)
@@ -2169,9 +2142,9 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 		EndDate:      portalDate(2026, 2, 16),
 		StartTime:    wallClock(10, 0),
 		EndTime:      wallClock(11, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2185,15 +2158,15 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 		EndDate:      portalDate(2026, 2, 17),
 		StartTime:    wallClock(10, 0),
 		EndTime:      wallClock(11, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	infoGuardianRecipientID := findRecipientByGuardian(t, infoDetail, parentChain.GuardianProfileID)
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, infoGuardianRecipientID, calModels.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, infoGuardianRecipientID, appointments.ResponseStatusAccepted)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
 
@@ -2203,7 +2176,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -2215,61 +2188,61 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 		EndDate:      portalDate(2026, 2, 13),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"friday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeParentsByStudent, ID: &parentChain.StudentID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeParentsByStudent, ID: &parentChain.StudentID},
 		},
 	})
 	require.NoError(t, err)
 
 	ctx := calendarContext(t, organizerAccount.ID)
-	emptyGuardianAppointments, err := repos.Appointments().ListAppointmentsVisibleToGuardians(ctx, nil, nil, calModels.NewDate(2026, 2, 13), calModels.NewDate(2026, 2, 13))
+	emptyGuardianAppointments, err := reposAppointments.Appointments().ListAppointmentsVisibleToGuardians(ctx, nil, nil, appointments.NewDate(2026, 2, 13), appointments.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	assert.Empty(t, emptyGuardianAppointments)
 
-	recurrence, err := repos.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
+	recurrence, err := reposAppointments.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, recurrence)
-	assert.Equal(t, calModels.RecurrenceFrequencyWeekly, recurrence.Frequency)
+	assert.Equal(t, appointments.RecurrenceFrequencyWeekly, recurrence.Frequency)
 
-	emptyRecurrences, err := repos.Appointments().FindRecurrenceRules(ctx, nil)
+	emptyRecurrences, err := reposAppointments.Appointments().FindRecurrenceRules(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyRecurrences)
 
-	targets, err := repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
+	targets, err := reposAppointments.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
-	recipients, err := repos.Appointments().FindAppointmentRecipients(ctx, detail.Appointment.ID)
+	recipients, err := reposAppointments.Appointments().FindAppointmentRecipients(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		recipientIDs = append(recipientIDs, recipient.ID)
 	}
-	links, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, recipientIDs)
+	links, err := reposAppointments.Appointments().FindAppointmentRecipientStudents(ctx, recipientIDs)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, parentChain.StudentID, links[0].StudentID)
 
-	emptyLinks, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, nil)
+	emptyLinks, err := reposAppointments.Appointments().FindAppointmentRecipientStudents(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyLinks)
 
-	_, err = repos.Appointments().ReplaceAppointmentTargets(ctx, detail.Appointment.ID, nil)
+	_, err = reposAppointments.Appointments().ReplaceAppointmentTargets(ctx, detail.Appointment.ID, nil)
 	require.NoError(t, err)
-	targets, err = repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
+	targets, err = reposAppointments.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Empty(t, targets)
 
-	require.NoError(t, repos.Appointments().DeleteRecurrenceRule(ctx, detail.Appointment.ID))
-	recurrence, err = repos.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
+	require.NoError(t, reposAppointments.Appointments().DeleteRecurrenceRule(ctx, detail.Appointment.ID))
+	recurrence, err = reposAppointments.Appointments().FindRecurrenceRule(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Nil(t, recurrence)
 }
@@ -2292,7 +2265,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 	events, err := service.ListMyStaffEvents(calendarContext(t, account.ID), portalDate(2026, 3, 3), portalDate(2026, 3, 3))
 	require.NoError(t, err)
 	require.Len(t, events, 1)
-	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
+	assert.Equal(t, calendarSvc.EventSourceTimetable, events[0].Source)
 	assert.Equal(t, "Assigned Betreuung", events[0].Title)
 	assert.Equal(t, "14:15", events[0].StartTime)
 	assert.Equal(t, "15:45", events[0].EndTime)
@@ -2333,7 +2306,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, events, 2)
 
-	assert.Equal(t, calModels.EventSourceShift, events[0].Source)
+	assert.Equal(t, calendarSvc.EventSourceShift, events[0].Source)
 	assert.Equal(t, "Frühdienst", events[0].Title)
 	assert.Equal(t, "08:00", events[0].StartTime)
 	assert.Equal(t, "12:00", events[0].EndTime)
@@ -2342,7 +2315,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	assert.False(t, events[0].CanRespond)
 	assert.False(t, events[0].CanEdit)
 
-	assert.Equal(t, calModels.EventSourceShift, events[1].Source)
+	assert.Equal(t, calendarSvc.EventSourceShift, events[1].Source)
 	assert.Equal(t, "Dienst", events[1].Title)
 	assert.Equal(t, "13:00", events[1].StartTime)
 	assert.Equal(t, "16:00", events[1].EndTime)
@@ -2377,8 +2350,8 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -2391,9 +2364,9 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(3),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2436,7 +2409,7 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 	endsOn := portalDate(2026, 1, 19)
 	weekly := func() *calendarSvc.RecurrenceRequest {
 		return &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
@@ -2448,10 +2421,10 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 		EndDate:      portalDate(2026, 1, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(9, 30),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Recurrence:   weekly(),
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2460,7 +2433,7 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, portalDate(2026, 1, 12)))
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 1, 5), portalDate(2026, 1, 19))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calendarSvc.EventSourceAppointment))
 
 	// Edit the series (same cadence). The stale cancellation must be cleared, so
 	// 2026-01-12 reappears in the edited series.
@@ -2476,7 +2449,7 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 
 	events, err = service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 1, 5), portalDate(2026, 1, 19))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calendarSvc.EventSourceAppointment))
 }
 
 // A weekly rule whose weekdays exclude the StartDate weekday must export a
@@ -2498,15 +2471,15 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 		EndDate:      portalDate(2026, 5, 4),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"wednesday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2515,7 +2488,7 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 	// Monday StartDate.
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 5, 4), portalDate(2026, 5, 6))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-05-06"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-05-06"}, eventDates(events, calendarSvc.EventSourceAppointment))
 
 	// The ICS export must anchor DTSTART on that same first Wednesday.
 	_, content, err := service.StaffAppointmentICS(calendarContext(t, organizerAccount.ID), detail.Appointment.ID)
@@ -2544,10 +2517,10 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 		EndDate:      portalDate(2026, 4, 2),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2611,10 +2584,10 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 		EndDate:      portalDate(2026, 4, 2),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2653,16 +2626,16 @@ func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *tes
 		EndDate:      portalDate(2026, 5, 4),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"wednesday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2691,10 +2664,10 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 		EndDate:      portalDate(2026, 6, 3),
 		StartTime:    wallClock(16, 0),
 		EndTime:      wallClock(16, 30),
-		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -2703,7 +2676,7 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	parentRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	// While active, responses are accepted and CanRespond is true.
-	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusAccepted))
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 6, 3), portalDate(2026, 6, 3))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
@@ -2721,11 +2694,11 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	assert.False(t, events[0].CanRespond, "cancelled appointment must not be respondable")
 
 	// Both response endpoints reject RSVP changes after cancellation.
-	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToStaffInvitation(calendarContext(t, invitedAccount.ID), staffRecipientID, appointments.ResponseStatusDeclined)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, parentRecipientID, calModels.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, parentRecipientID, appointments.ResponseStatusDeclined)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
@@ -2747,9 +2720,9 @@ func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.
 		EndDate:      portalDate(2026, 8, 3),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2786,9 +2759,9 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 		EndDate:      portalDate(2026, 9, 1),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2806,15 +2779,15 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 		EndDate:      portalDate(2026, 9, 7),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2846,15 +2819,15 @@ func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
 		EndDate:      portalDate(2026, 5, 4),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"wednesday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.Error(t, err)
@@ -2875,7 +2848,7 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 	endsOn := portalDate(2026, 10, 26)
 	weekly := func() *calendarSvc.RecurrenceRequest {
 		return &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
@@ -2887,10 +2860,10 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 		EndDate:      portalDate(2026, 10, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence:   weekly(),
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2944,14 +2917,14 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 		EndDate:      portalDate(2026, 1, 31),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyMonthly,
+			Frequency:     appointments.RecurrenceFrequencyMonthly,
 			IntervalCount: 24,
 			MonthDays:     []int{30},
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -2959,7 +2932,7 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 	// The first occurrence lands on 2028-01-30, in-app.
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2028, 1, 30), portalDate(2028, 1, 30))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2028-01-30"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2028-01-30"}, eventDates(events, calendarSvc.EventSourceAppointment))
 }
 
 // The subscription feed must not export a count-bounded recurring series whose
@@ -2971,8 +2944,8 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(t, db)
-	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.ParentCalendarFeed
+	repos, _, _, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg = api.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, nil, nil)
 	cfg.ParentsURL = "https://parents.test"
 	service := api.NewCalendarPortal(cfg)
 
@@ -2989,14 +2962,14 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 		EndDate:      pastStart,
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:       calModels.RecurrenceFrequencyWeekly,
+			Frequency:       appointments.RecurrenceFrequencyWeekly,
 			IntervalCount:   1,
 			OccurrenceCount: &count,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -3008,9 +2981,9 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(5),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -3034,7 +3007,7 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	appointmentCapability := calendarTestRepositories(t, db).Appointments()
+	appointmentCapability := api.NewCalendarAppointmentRows(testpkg.NewDatabase(t, db)).Appointments()
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Invitee")
 
@@ -3045,15 +3018,15 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 		EndDate:      portalDate(2026, 1, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(9, 30),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.NoError(t, err)
@@ -3061,15 +3034,15 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	// The insert path is exercised twice for the same occurrence; the second call
 	// takes the ON CONFLICT DO UPDATE branch and must NOT error.
 	ctx := testpkg.Ctx(t)
-	_, err = appointmentCapability.CancelAppointmentOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12))
+	_, err = appointmentCapability.CancelAppointmentOccurrence(ctx, detail.Appointment.ID, appointments.NewDate(2026, 1, 12))
 	require.NoError(t, err)
-	_, err = appointmentCapability.CancelAppointmentOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12))
+	_, err = appointmentCapability.CancelAppointmentOccurrence(ctx, detail.Appointment.ID, appointments.NewDate(2026, 1, 12))
 	require.NoError(t, err)
 
 	// The occurrence is excluded from the series exactly once.
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), portalDate(2026, 1, 5), portalDate(2026, 1, 26))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2026-01-05", "2026-01-19", "2026-01-26"}, eventDates(events, calModels.EventSourceAppointment))
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19", "2026-01-26"}, eventDates(events, calendarSvc.EventSourceAppointment))
 }
 
 // A monthly rule that can never produce a valid occurrence (February-only on day
@@ -3090,14 +3063,14 @@ func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testi
 		EndDate:      portalDate(2026, 2, 15),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyMonthly,
+			Frequency:     appointments.RecurrenceFrequencyMonthly,
 			IntervalCount: 12,
 			MonthDays:     []int{31}, // February never has a 31st
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 		},
 	})
 	require.Error(t, err)
@@ -3129,16 +3102,16 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 		EndDate:      portalDate(2026, 1, 5),
 		StartTime:    wallClock(9, 0),
 		EndTime:      wallClock(10, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Recurrence: &calendarSvc.RecurrenceRequest{
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			Frequency:     appointments.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
 			Weekdays:      []string{"monday"},
 			EndsOn:        &endsOn,
 		},
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -3186,17 +3159,17 @@ func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) 
 	require.Len(t, events, 3)
 
 	// Instance room, no override.
-	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
+	assert.Equal(t, calendarSvc.EventSourceTimetable, events[0].Source)
 	require.NotNil(t, events[0].Location)
 	assert.Equal(t, mainRoom.Name, *events[0].Location)
 
 	// Per-person override wins over the instance room (Lernzeit split, #2078).
-	assert.Equal(t, calModels.EventSourceTimetable, events[1].Source)
+	assert.Equal(t, calendarSvc.EventSourceTimetable, events[1].Source)
 	require.NotNil(t, events[1].Location)
 	assert.Equal(t, overrideRoom.Name, *events[1].Location)
 
 	// Shifts carry no room column, so Location stays deliberately empty.
-	assert.Equal(t, calModels.EventSourceShift, events[2].Source)
+	assert.Equal(t, calendarSvc.EventSourceShift, events[2].Source)
 	assert.Nil(t, events[2].Location)
 }
 
@@ -3211,9 +3184,12 @@ func portalDate(year int, month time.Month, day int) appointments.Date {
 	return appointments.NewDate(year, month, day)
 }
 
-func calendarTestRepositories(t *testing.T, db *bun.DB) api.CalendarTestRepositories {
+func calendarTestRepositories(t *testing.T, db *bun.DB) (api.CalendarTestRepositories, api.MembershipTestRepositories, api.CalendarSchoolRows, api.TimetableTestRepositories, api.CalendarAppointmentRows, api.CalendarParentRows, api.TimetableRoomRows) {
 	t.Helper()
-	repositories, err := api.NewCalendarTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	database := testpkg.NewDatabase(t, db)
+	members := api.MustNewMembershipTestRepositories(database)
+	repositories, err := api.NewCalendarTestRepositories(database, members)
 	require.NoError(t, err)
-	return repositories
+	return repositories, members, api.NewCalendarSchoolRows(database), api.NewCalendarTimetableRows(database, members),
+		api.NewCalendarAppointmentRows(database), api.NewCalendarParentRows(database, members), api.MustNewTimetableRoomRows(database)
 }

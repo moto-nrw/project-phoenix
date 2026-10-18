@@ -43,9 +43,7 @@ var (
 // local copy of the base row shape instead of importing models/base (#3991),
 // so its three getters are the shape's set, not per-entity redeclarations.
 // The entry goes with models/users.
-var modelGetterAllowlist = map[string]int{
-	"models/users/model.go": 3,
-}
+var modelGetterAllowlist = map[string]int{}
 
 // M2 — TableName() declarations in models/. Empty: bun never calls them.
 var modelTableNameAllowlist = map[string]int{}

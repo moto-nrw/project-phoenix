@@ -5,41 +5,46 @@ package api
 import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// ScheduleTestModule bundles what the schedules API binds: the School
-// Calendar for dateframes, the Timetable owner for timeframes and
-// recurrence rules, and the care-offering guard on timeframe changes.
+// ScheduleTestModule bundles what the schedules API binds from the Timetable
+// owner: the timeframes and recurrence rules, and the care-offering guard on
+// timeframe changes.
 type ScheduleTestModule struct {
-	Calendar       schoolcalendar.Calendar
 	Timetable      timetable.Capability
 	TimeframeGuard timetableHTTPAdapter.TimeframeChangeGuard
 }
 
-func NewScheduleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (ScheduleTestModule, error) {
+// NewScheduleTestModule composes the schedules API's Timetable side and
+// returns it with the School Calendar that serves the dateframes.
+func NewScheduleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (ScheduleTestModule, schoolcalendar.Calendar, error) {
 	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
-		return ScheduleTestModule{}, err
+		return ScheduleTestModule{}, nil, err
 	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return ScheduleTestModule{}, err
+		return ScheduleTestModule{}, nil, err
 	}
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
-		return ScheduleTestModule{}, err
+		return ScheduleTestModule{}, nil, err
 	}
 	lock := recurrenceLock.LockRecurrenceWrites
-	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
+	offerings, err := newTestCareOfferingCatalog(db, r, settings.Settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: lock, Today: timezone.TodayDate,
 	})
 	if err != nil {
-		return ScheduleTestModule{}, err
+		return ScheduleTestModule{}, nil, err
 	}
 	guard := TimeframeChangeGuard(lock, offerings.ValidateTimeframeChange)
-	return ScheduleTestModule{Calendar: r.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
+	calendar, err := NewTimetableSchoolCalendar(db)
+	if err != nil {
+		return ScheduleTestModule{}, nil, err
+	}
+	return ScheduleTestModule{Timetable: r.Timetable, TimeframeGuard: guard}, calendar.SchoolCalendar(), nil
 }

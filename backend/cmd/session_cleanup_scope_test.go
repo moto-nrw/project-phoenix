@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"io"
+	"log"
 	"testing"
 	"time"
 
@@ -32,14 +33,13 @@ func (s *scopedSessionCleanup) EndDailySessions(ctx context.Context) (*studentpr
 
 func TestSessionCleanupExecutesForEachSchool(t *testing.T) {
 	t.Parallel()
-	cc := setupTestCleanupContextWithServices(t)
-	first, _ := testpkg.CreateTestTenant(t, cc.DB.Pool())
-	second, _ := testpkg.CreateTestTenant(t, cc.DB.Pool())
+	cleanupDB, schools, _ := setupTestSessionCleanup(t)
+	first, _ := testpkg.CreateTestTenant(t, cleanupDB.Pool())
+	second, _ := testpkg.CreateTestTenant(t, cleanupDB.Pool())
 	service := &scopedSessionCleanup{t: t, abandoned: map[int64]bool{}, daily: map[int64]bool{}}
-	cc.SessionCleanupService = service
-	cc.Output = io.Discard
-	require.NoError(t, runAbandonedSessionCleanup(cc, time.Minute, false))
-	require.NoError(t, runDailySessionCleanup(cc, false, false))
+	logger := log.New(io.Discard, "", 0)
+	require.NoError(t, runAbandonedSessionCleanup(cleanupDB, schools, service, io.Discard, logger, time.Minute, false))
+	require.NoError(t, runDailySessionCleanup(cleanupDB, schools, service, io.Discard, logger, false, false))
 	for _, id := range []int64{first, second} {
 		require.True(t, service.abandoned[id])
 		require.True(t, service.daily[id])

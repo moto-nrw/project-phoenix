@@ -618,7 +618,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+		repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT

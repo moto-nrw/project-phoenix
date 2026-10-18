@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-
 	"github.com/moto-nrw/project-phoenix/api"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -27,14 +25,14 @@ import (
 // Audit trail it records its deletions in.
 
 func newSessionCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
-	repos := api.NewSessionCleanupRepositories(db, timetableCapability)
-	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
+	sessions, devices, completion := api.NewSessionCleanupRepositories(db, timetableCapability)
+	groups, supervisors := presenceCompose.SessionRepositories(sessions)
 	settings := newCleanupSettingsService(db, schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence:  api.NewLoggedStudentPresence(db, logger),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
-		DeviceRepo: api.NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db.Pool(), Logger: logger,
+		DeviceRepo: api.NewSessionDeviceDirectory(devices, settings, logger), TimetableBridgeCompleter: completion, DB: db.Pool(), Logger: logger,
 	}, presenceservice.WithPresenceTenantRuntime(db.UnitOfWork()), presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings)))
 }
 
@@ -49,13 +47,8 @@ func newRetentionCleanupService(db transactionruntime.Database, schools organiza
 
 func newTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command auditModels.Command) (timetable.TimetableCleanup, error) {
 	audits := newCleanupAudits(db, command)
-	return api.NewTimetableCleanup(api.TimetableRetentionInputs{
-		Owner:      timetableCapability,
-		Deletions:  audits.DataDeletion,
-		Deviations: audits.DeviationEvent,
-		Settings:   newCleanupSettingsService(db, schools, logger),
-		Logger:     logger,
-	})
+	return api.NewTimetableCleanup(timetableCapability, audits.DataDeletion, audits.DeviationEvent,
+		newCleanupSettingsService(db, schools, logger), logger, nil)
 }
 
 // newTimeTrackingCleanupService builds the time-tracking retention over the

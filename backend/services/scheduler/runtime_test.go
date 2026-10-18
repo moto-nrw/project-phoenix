@@ -61,12 +61,11 @@ func TestStopCancelsRunningTaskContexts(t *testing.T) {
 	defer cancel()
 
 	stopped := make(chan struct{})
-	scheduler.wg.Add(1)
-	go func() {
-		defer scheduler.wg.Done()
+	scheduler.wg.Go(func() {
+
 		<-ctx.Done()
 		close(stopped)
-	}()
+	})
 
 	scheduler.Stop()
 
@@ -117,22 +116,150 @@ func newUnitScheduler(
 	return scheduler
 }
 
-func unitScheduler(scheduler *Scheduler) *Scheduler {
-	configured := newUnitScheduler(nil, nil, nil, nil, nil, nil, scheduler.logger)
-	if scheduler.tenantRuntime == nil {
-		scheduler.tenantRuntime = configured.tenantRuntime
+// unitSchedulerDependencies are the construction inputs of a partial worker fixture.
+type unitSchedulerDependencies struct {
+	activeService                 ports.SessionMaintenance
+	allTenantIDsLoader            func(context.Context) ([]int64, error)
+	announcementReminderScannedAt map[int64]time.Time
+	announcementReminders         ports.ParentAnnouncementReminderCommand
+	appointmentReminderScannedAt  map[int64]time.Time
+	appointmentReminders          ports.AppointmentReminderCommand
+	authCleanup                   ports.AuthCleanup
+	autoCheckouter                ports.AutoCheckouter
+	autoEnd                       ports.InstanceAutoEnd
+	autoStart                     ports.InstanceAutoStart
+	bookingConsistency            ports.BookingConsistencyAudit
+	breakAutoEnder                ports.BreakAutoEnder
+	calendarFeedCleanup           ports.CalendarFeedCleaner
+	careExitEffector              ports.CareExitEffector
+	cleanupClock                  func() time.Time
+	cleanupJobs                   []CleanupJob
+	cleanupRuns                   ports.CleanupRunLedger
+	cleanupService                ports.PresenceCleanup
+	done                          chan struct{}
+	enrollmentRejectedCleanup     ports.RejectedEnrollmentCleaner
+	feedbackCleaner               ports.FeedbackCleaner
+	fileStoreCleaner              ports.FileStoreCleaner
+	getenv                        func(string) string
+	instanceRepo                  ports.DayInstanceReader
+	instanceRoomRepo              ports.ExistingRoomReader
+	instanceStudentRepo           ports.InstanceCheckoutCloser
+	invitationCleanup             ports.InvitationCleaner
+	lifecycleCtx                  context.Context
+	logger                        *slog.Logger
+	materializationNow            func() time.Time
+	materializer                  ports.TimetableMaterializer
+	minuteSnapshotLoader          func(context.Context) (*schedulerMinuteSnapshot, error)
+	minuteSnapshotNow             func() time.Time
+	now                           func() time.Time
+	outboxWorker                  ports.OutboxWorkerRunner
+	overdueBroadcaster            ports.InstanceOverdueBroadcaster
+	pwaUsageCleanup               ports.PWAUsageCleanup
+	registry                      *Registry
+	reminderNotifications         ports.ReminderNotificationTick
+	retention                     RetentionRun
+	rolloverDeadlineRunner        ports.RolloverDeadlineRunner
+	schoolRepo                    ports.TenantDirectory
+	settings                      ports.SettingsResolver
+	staffDocumentFileCleaner      ports.StaffDocumentFileCleaner
+	staffMessageCleanup           ports.StaffMessageCleanup
+	stopLifecycle                 context.CancelFunc
+	studentChangeLogCleanup       ports.StudentChangeLogCleanup
+	studentDocumentFileCleaner    ports.StudentDocumentFileCleaner
+	studentLifecycleAudit         ports.StudentLifecycleAuditor
+	studentLifecycleRepo          ports.StudentLifecycleRepository
+	studentStatusDayRepo          ports.StudentStatusFlagArchiver
+	tasks                         map[string]*ScheduledTask
+	tenantRuntime                 ports.TenantRuntime
+	tenantRuntimeObserver         func(entryPoint, outcome string)
+	timeTrackingCleanup           ports.TimeTrackingCleanupService
+	timetableBridge               ports.TimetableBridgeCompleter
+	timetableCleanup              ports.TimetableCleanup
+	unitOfWorkObserver            func(entryPoint, kind, result string, duration time.Duration, retries int)
+	workSessionCleanup            ports.WorkSessionCleaner
+	workerTracer                  ports.WorkerTracer
+}
+
+func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
+	configured := newUnitScheduler(nil, nil, nil, nil, nil, nil, input.logger)
+	runtime := input.tenantRuntime
+	if runtime == nil {
+		runtime = configured.tenantRuntime
 	}
-	if scheduler.minuteSnapshotLoader == nil && scheduler.schoolRepo == nil {
-		scheduler.minuteSnapshotLoader = configured.minuteSnapshotLoader
+	snapshotLoader := input.minuteSnapshotLoader
+	if snapshotLoader == nil && input.schoolRepo == nil {
+		snapshotLoader = configured.minuteSnapshotLoader
 	}
-	if scheduler.allTenantIDsLoader == nil && scheduler.schoolRepo == nil {
-		scheduler.allTenantIDsLoader = configured.allTenantIDsLoader
+	tenantLoader := input.allTenantIDsLoader
+	if tenantLoader == nil && input.schoolRepo == nil {
+		tenantLoader = configured.allTenantIDsLoader
 	}
-	if scheduler.registry == nil {
-		scheduler.registry = configured.registry
+	registry := input.registry
+	if registry == nil {
+		registry = configured.registry
 	}
-	if scheduler.feedbackCleaner == nil {
-		scheduler.feedbackCleaner = configured.feedbackCleaner
+	feedbackCleaner := input.feedbackCleaner
+	if feedbackCleaner == nil {
+		feedbackCleaner = configured.feedbackCleaner
 	}
-	return scheduler
+	return &Scheduler{
+		activeService:                 input.activeService,
+		allTenantIDsLoader:            tenantLoader,
+		announcementReminderScannedAt: input.announcementReminderScannedAt,
+		announcementReminders:         input.announcementReminders,
+		appointmentReminderScannedAt:  input.appointmentReminderScannedAt,
+		appointmentReminders:          input.appointmentReminders,
+		authCleanup:                   input.authCleanup,
+		autoCheckouter:                input.autoCheckouter,
+		autoEnd:                       input.autoEnd,
+		autoStart:                     input.autoStart,
+		bookingConsistency:            input.bookingConsistency,
+		breakAutoEnder:                input.breakAutoEnder,
+		calendarFeedCleanup:           input.calendarFeedCleanup,
+		careExitEffector:              input.careExitEffector,
+		cleanupClock:                  input.cleanupClock,
+		cleanupJobs:                   input.cleanupJobs,
+		cleanupRuns:                   input.cleanupRuns,
+		cleanupService:                input.cleanupService,
+		schedulerLifecycle:            schedulerLifecycle{done: input.done, lifecycleCtx: input.lifecycleCtx, stopLifecycle: input.stopLifecycle},
+		enrollmentRejectedCleanup:     input.enrollmentRejectedCleanup,
+		feedbackCleaner:               feedbackCleaner,
+		fileStoreCleaner:              input.fileStoreCleaner,
+		getenv:                        input.getenv,
+		instanceRepo:                  input.instanceRepo,
+		instanceRoomRepo:              input.instanceRoomRepo,
+		instanceStudentRepo:           input.instanceStudentRepo,
+		invitationCleanup:             input.invitationCleanup,
+		logger:                        input.logger,
+		materializationNow:            input.materializationNow,
+		materializer:                  input.materializer,
+		minuteSnapshotLoader:          snapshotLoader,
+		minuteSnapshotNow:             input.minuteSnapshotNow,
+		now:                           input.now,
+		outboxWorker:                  input.outboxWorker,
+		overdueBroadcaster:            input.overdueBroadcaster,
+		pwaUsageCleanup:               input.pwaUsageCleanup,
+		registry:                      registry,
+		reminderNotifications:         input.reminderNotifications,
+		retention:                     input.retention,
+		rolloverDeadlineRunner:        input.rolloverDeadlineRunner,
+		schoolRepo:                    input.schoolRepo,
+		settings:                      input.settings,
+		staffDocumentFileCleaner:      input.staffDocumentFileCleaner,
+		staffMessageCleanup:           input.staffMessageCleanup,
+		studentChangeLogCleanup:       input.studentChangeLogCleanup,
+		studentDocumentFileCleaner:    input.studentDocumentFileCleaner,
+		studentLifecycleAudit:         input.studentLifecycleAudit,
+		studentLifecycleRepo:          input.studentLifecycleRepo,
+		studentStatusDayRepo:          input.studentStatusDayRepo,
+		tasks:                         input.tasks,
+		tenantRuntime:                 runtime,
+		tenantRuntimeObserver:         input.tenantRuntimeObserver,
+		timeTrackingCleanup:           input.timeTrackingCleanup,
+		timetableBridge:               input.timetableBridge,
+		timetableCleanup:              input.timetableCleanup,
+		unitOfWorkObserver:            input.unitOfWorkObserver,
+		workSessionCleanup:            input.workSessionCleanup,
+		workerTracer:                  input.workerTracer,
+	}
 }

@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,7 +40,7 @@ type sourcedWeekdayStaffFixture struct {
 
 func makeSourcedWeekdayStaffFixture(t *testing.T, monday calendar.Date) *sourcedWeekdayStaffFixture {
 	t.Helper()
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	offering := createSourceCareOfferingOnDays(t, s,
 		calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate), []string{"mon", "tue"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1c")
@@ -63,16 +64,16 @@ func makeSourcedWeekdayStaffFixture(t *testing.T, monday calendar.Date) *sourced
 }
 
 func (f *sourcedWeekdayStaffFixture) weekdays() []int {
-	return []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday, activitiesModels.WeekdayWednesday}
+	return []int{activityContract.WeekdayMonday, activityContract.WeekdayTuesday, activityContract.WeekdayWednesday}
 }
 
 // staffOnlyAssignments is the payload the editor sends for a sourced series:
 // per-weekday staff, no per-weekday children.
 func (f *sourcedWeekdayStaffFixture) staffOnlyAssignments() []timetable.WeekdayRosterAssignment {
 	return []timetable.WeekdayRosterAssignment{
-		{Weekday: activitiesModels.WeekdayMonday, StaffIDs: []int64{f.staffMon}, PrimaryStaffID: &f.staffMon},
-		{Weekday: activitiesModels.WeekdayTuesday, StaffIDs: []int64{f.staffTue}, PrimaryStaffID: &f.staffTue},
-		{Weekday: activitiesModels.WeekdayWednesday, StaffIDs: []int64{f.staffWed}, PrimaryStaffID: &f.staffWed},
+		{Weekday: activityContract.WeekdayMonday, StaffIDs: []int64{f.staffMon}, PrimaryStaffID: &f.staffMon},
+		{Weekday: activityContract.WeekdayTuesday, StaffIDs: []int64{f.staffTue}, PrimaryStaffID: &f.staffTue},
+		{Weekday: activityContract.WeekdayWednesday, StaffIDs: []int64{f.staffWed}, PrimaryStaffID: &f.staffWed},
 	}
 }
 
@@ -81,7 +82,7 @@ func (f *sourcedWeekdayStaffFixture) staffOnlyAssignments() []timetable.WeekdayR
 // Monday and Tuesday; the offering is not booked on Wednesday.
 func (f *sourcedWeekdayStaffFixture) assertWeekOfTemplate(t *testing.T, templateID int64, monday calendar.Date, wantKids []int64) {
 	t.Helper()
-	_, err := f.s.factory.Materialization.MaterializeForTenant(
+	_, err := f.s.materialization.MaterializeForTenant(
 		f.s.ctx, monday, monday.AddDays(2), timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -110,9 +111,9 @@ func TestTemplateOfferingSource_CreateWithWeekdayStaffMaterializesEachDaysSuperv
 	f := makeSourcedWeekdayStaffFixture(t, futureMonday(1))
 	defer f.s.runCleanup(t)
 
-	result, err := f.s.factory.TimetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
+	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -120,7 +121,7 @@ func TestTemplateOfferingSource_CreateWithWeekdayStaffMaterializesEachDaysSuperv
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),
@@ -147,9 +148,9 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 	for i := range manualAssignments {
 		manualAssignments[i].StudentIDs = []int64{f.childOutsideFilter}
 	}
-	result, err := f.s.factory.TimetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
+	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:               name,
-		Type:               activitiesModels.GroupTypeCare,
+		Type:               activityContract.GroupTypeCare,
 		Weekdays:           f.weekdays(),
 		StartTime:          clockTime(13, 0),
 		EndTime:            clockTime(14, 0),
@@ -157,7 +158,7 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 		CategoryID:         f.s.categoryID,
 		MaxParticipants:    20,
 		CalendarPeriodID:   &f.s.period.ID,
-		TargetGroupType:    activitiesModels.TargetGroupTypeNone,
+		TargetGroupType:    activityContract.TargetGroupTypeNone,
 		WeekdayAssignments: manualAssignments,
 		RosterValidFrom:    f.monday.AddDays(-30),
 		GradeLevelMax:      testpkg.MaxSchoolGradeLevel,
@@ -165,16 +166,16 @@ func TestTemplateOfferingSource_UpdateToSourceKeepsWeekdayStaff(t *testing.T) {
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, f.s, result.TemplateID, result.TimeframeID)
 
-	require.NoError(t, f.s.factory.TimetableData.Templates.UpdateTemplate(f.s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, f.s.timetableData.Templates.UpdateTemplate(f.s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            f.s.categoryID,
 			RoomID:                f.s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &f.s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{f.offeringID},
 			SourceSchoolClasses:   []string{"1c"},
 		},
@@ -202,9 +203,9 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 	defer f.s.runCleanup(t)
 
 	name := fmt.Sprintf("Randstunde-%d", time.Now().UnixNano())
-	result, err := f.s.factory.TimetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
+	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -212,7 +213,7 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),
@@ -223,18 +224,18 @@ func TestTemplateOfferingSource_SplitKeepsWeekdayStaff(t *testing.T) {
 	registerSourcedTemplateCleanup(t, f.s, result.TemplateID, result.TimeframeID)
 
 	effective := f.monday.AddDays(7)
-	split, err := f.s.factory.TimetableData.Templates.SplitTemplate(f.s.ctx, timetable.SplitTemplateCommand{
+	split, err := f.s.timetableData.Templates.SplitTemplate(f.s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    effective,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
+		Type:             activityContract.GroupTypeCare,
 		Weekdays:         f.weekdays(),
 		StartTime:        clockTime(13, 30),
 		EndTime:          clockTime(14, 30),
 		RoomID:           f.s.roomID,
 		CategoryID:       f.s.categoryID,
 		CalendarPeriodID: &f.s.period.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
 		// The editor's payload for a sourced series: explicit empty shared
 		// lists, staff per weekday, children from the source.
 		StudentIDs:         []int64{},
@@ -277,9 +278,9 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 	f := makeSourcedWeekdayStaffFixture(t, futureMonday(1))
 	defer f.s.runCleanup(t)
 
-	result, err := f.s.factory.TimetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
+	result, err := f.s.timetableData.Templates.CreateTemplate(f.s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              f.weekdays(),
 		StartTime:             clockTime(13, 0),
 		EndTime:               clockTime(14, 0),
@@ -287,7 +288,7 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 		CategoryID:            f.s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &f.s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{f.offeringID},
 		SourceSchoolClasses:   []string{"1c"},
 		WeekdayAssignments:    f.staffOnlyAssignments(),
@@ -301,8 +302,8 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 	stored := loadTemplateGroup(t, f.s, result.TemplateID)
 	linkApprovedChildToOffering(t, f.s, f.offering, newChild, "1c")
 
-	require.NotNil(t, f.s.factory.EnrollmentCareOffering, "Care Plan's booking materialization owns the offering roster resync")
-	var resyncer offeringRosterResyncer = timetableRosterResync{rosters: f.s.factory.EnrollmentCareOffering}
+	require.NotNil(t, f.s.careOffering, "Care Plan's booking materialization owns the offering roster resync")
+	var resyncer offeringRosterResyncer = timetableRosterResync{rosters: f.s.careOffering}
 	require.NoError(t, testpkg.WithTenantTx(t, f.s.ctx, f.s.db, f.s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return resyncer.ResyncTemplateOfferingRoster(txCtx, timetable.OfferingRosterResyncInput{
 			TemplateID:       result.TemplateID,

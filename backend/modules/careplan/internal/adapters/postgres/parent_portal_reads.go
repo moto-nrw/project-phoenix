@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

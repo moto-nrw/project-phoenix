@@ -2,6 +2,7 @@ package settingshttp
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 
@@ -50,9 +51,11 @@ type Runtime interface {
 	RemoveFile(string)
 	ResolveStoredPath(string, string, string) (string, error)
 	LegalDocumentReferenced(context.Context, string) (bool, error)
+	QueueDocumentCleanup(context.Context, string) error
 }
 
 type RuntimeDependencies struct {
+	DocumentCleanup        func(context.Context, string) error
 	Protected              func(chi.Router, func(chi.Router, Middleware))
 	Permission             func(Access) Middleware
 	TenantGuard            Middleware
@@ -115,4 +118,11 @@ func (rt *runtime) ResolveStoredPath(publicDir, urlPath, prefix string) (string,
 }
 func (rt *runtime) LegalDocumentReferenced(ctx context.Context, storedURL string) (bool, error) {
 	return rt.deps.LegalDocumentReference(ctx, storedURL)
+}
+
+func (rt *runtime) QueueDocumentCleanup(ctx context.Context, url string) error {
+	if rt.deps.DocumentCleanup == nil {
+		return errors.New("managed document cleanup is not configured")
+	}
+	return rt.deps.DocumentCleanup(ctx, url)
 }

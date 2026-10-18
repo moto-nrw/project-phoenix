@@ -6,17 +6,16 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
 type MasterDataReviews struct {
 	requests careplan.StudentDataRequestQuery
-	people   ports.MasterDataDirectory
-	scope    ports.ReviewScopeResolver
+	people   careplan.MasterDataDirectory
+	scope    careplan.ReviewScopeResolver
 	today    func() careplan.Date
 }
 
-func NewMasterDataReviews(requests careplan.StudentDataRequestQuery, people ports.MasterDataDirectory, scope ports.ReviewScopeResolver, today func() careplan.Date) *MasterDataReviews {
+func NewMasterDataReviews(requests careplan.StudentDataRequestQuery, people careplan.MasterDataDirectory, scope careplan.ReviewScopeResolver, today func() careplan.Date) *MasterDataReviews {
 	return &MasterDataReviews{requests: requests, people: people, scope: scope, today: today}
 }
 
@@ -32,9 +31,9 @@ func (s *MasterDataReviews) ListPending(ctx context.Context, filter careplan.Req
 	if len(rows) == 0 {
 		return []*careplan.MasterDataReviewItem{}, next, nil
 	}
-	changes := make([]ports.MasterDataFieldChange, 0, len(rows))
+	changes := make([]careplan.MasterDataFieldChange, 0, len(rows))
 	for _, row := range rows {
-		changes = append(changes, ports.MasterDataFieldChange{
+		changes = append(changes, careplan.MasterDataFieldChange{
 			RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
 			OldValue: row.OldValue, NewValue: row.NewValue,
 		})

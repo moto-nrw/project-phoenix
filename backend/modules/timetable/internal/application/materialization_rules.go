@@ -7,7 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -69,8 +70,8 @@ const (
 // as SQL TIME. The slot passes through the wall-clock normalization anyway so
 // driver-specific date anchors never affect comparisons or writes.
 func candidateSlot(
-	tmpl *activities.Group,
-	sch *activities.Schedule,
+	tmpl *activityContract.Group,
+	sch *activityContract.Schedule,
 	date calendar.Date,
 	periods []*schedule.CalendarPeriod,
 	days timetable.NonWorkingDays,
@@ -116,7 +117,7 @@ func candidateSlot(
 	if skip {
 		return materialParams{}, nil, candidateCancelled
 	}
-	if effective.RoomID <= 0 && tmpl.Type != activities.GroupTypeDuty {
+	if effective.RoomID <= 0 && tmpl.Type != activityContract.GroupTypeDuty {
 		// No primary room on the template and no override from an exception.
 		// Only a duty may take place without a room (#3822).
 		return materialParams{}, nil, candidateIncomplete
@@ -217,7 +218,7 @@ func resolveWindow(baseDate calendar.Date, weeksAhead int) (from, to calendar.Da
 // marks the enrollment's student as graduated. Graduated students keep their
 // enrollment rows for transition reverts but must drop off every current and
 // future planning surface (#405).
-func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
+func enrollmentStudentIsAlumnus(e *activityContract.StudentEnrollment) bool {
 	return e != nil && e.StudentAlumnus
 }
 
@@ -231,7 +232,7 @@ func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
 //   - weekday IS NULL OR weekday == the date's effective plan weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains that effective weekday
-func isEnrollmentValidOn(e *activities.StudentEnrollment, date calendar.Date, periodID int64, planWeekday int) bool {
+func isEnrollmentValidOn(e *activityContract.StudentEnrollment, date calendar.Date, periodID int64, planWeekday int) bool {
 	if e == nil {
 		return false
 	}
@@ -262,7 +263,7 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date calendar.Date, pe
 // valid_until is EXCLUSIVE — the schedule no longer produces instances ON or
 // AFTER that date (same convention as enrollment valid_until). A nil
 // valid_until means open-ended.
-func scheduleEndedOn(sch *activities.Schedule, date calendar.Date) bool {
+func scheduleEndedOn(sch *activityContract.Schedule, date calendar.Date) bool {
 	return sch != nil && sch.ValidUntil != nil && !sch.ValidUntil.After(date)
 }
 
@@ -273,12 +274,12 @@ func scheduleEndedOn(sch *activities.Schedule, date calendar.Date) bool {
 // successor schedules so materializing a window that begins before the
 // effective date does not emit phantom successor instances next to the old
 // template's rows.
-func scheduleNotStartedOn(sch *activities.Schedule, date calendar.Date) bool {
+func scheduleNotStartedOn(sch *activityContract.Schedule, date calendar.Date) bool {
 	return sch != nil && sch.ValidFrom != nil && sch.ValidFrom.After(date)
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
-func isSupervisorValidOn(sp *activities.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
+func isSupervisorValidOn(sp *activityContract.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
 	if sp == nil {
 		return false
 	}
@@ -305,7 +306,7 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date calendar.Date, p
 // legacy primary from Tuesday. Resolve that overlap here instead, where both
 // the occurrence period and date are known.
 func effectivePrimarySupervisor(
-	supervisors []*activities.SupervisorPlanned,
+	supervisors []*activityContract.SupervisorPlanned,
 	date calendar.Date,
 	periodID int64,
 	planWeekday int,
@@ -387,8 +388,8 @@ func applyException(base materialParams, exc *schedule.ActivityException) (mater
 // we prefer the schedule's pin over the template's when both are present
 // because the schedule is the more specific scope.
 func selectPeriod(
-	tmpl *activities.Group,
-	sch *activities.Schedule,
+	tmpl *activityContract.Group,
+	sch *activityContract.Schedule,
 	date calendar.Date,
 	periods []*schedule.CalendarPeriod,
 	logger *slog.Logger,
@@ -445,13 +446,13 @@ func periodsContaining(periods []*schedule.CalendarPeriod, date calendar.Date) [
 // schedulePinnedPeriodID prefers the schedule's calendar_period_id when set
 // (it's the more specific scope), falling back to the template's if present.
 // Returns nil when neither is set.
-func schedulePinnedPeriodID(tmpl *activities.Group, sch *activities.Schedule) *int64 {
+func schedulePinnedPeriodID(tmpl *activityContract.Group, sch *activityContract.Schedule) *int64 {
 	if sch != nil && sch.CalendarPeriodID != nil {
 		return sch.CalendarPeriodID
 	}
 	// The schedule row's own pin (checked above) is the more specific,
 	// materialization-time-authoritative value. The template's pin
-	// (activities.Group.CalendarPeriodID, issue #1838) is the fallback for
+	// (activityContract.Group.CalendarPeriodID, issue #1838) is the fallback for
 	// templates whose schedule rows carry no explicit pin.
 	if tmpl != nil && tmpl.CalendarPeriodID != nil {
 		return tmpl.CalendarPeriodID

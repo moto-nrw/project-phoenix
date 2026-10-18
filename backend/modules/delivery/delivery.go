@@ -88,6 +88,7 @@ type GuardianDisplay struct {
 }
 
 type PushRecipient struct {
+	Deferred       bool      `json:"deferred,omitempty"`
 	SubscriptionID int64     `json:"subscription_id"`
 	AccountID      int64     `json:"account_id"`
 	Endpoint       string    `json:"endpoint"`
@@ -157,6 +158,7 @@ var (
 )
 
 type Status struct {
+	IdempotencyKey *string
 	ID             int64
 	Transport      Transport
 	State          State
@@ -179,6 +181,7 @@ type Observation struct {
 }
 
 type engine interface {
+	EnqueueDeferredPush(context.Context, DeferredPushIntent) (Enqueued, error)
 	EnqueueEmail(context.Context, EmailIntent) (Enqueued, error)
 	EnqueuePush(context.Context, PushIntent) (Enqueued, error)
 	Cancel(context.Context, int64, Transport, RelatedEntity, string) (int64, error)
@@ -252,12 +255,22 @@ func NewModule(engine engine) *Module {
 }
 
 func (m *Module) EnqueueEmail(ctx context.Context, intent EmailIntent) (Enqueued, error) {
+	return m.enqueueEmail(ctx, intent, false)
+}
+
+// EnqueueSystemEmail persists a global identity mail in the caller's admin
+// transaction. Global mail is not assigned to a placeholder school.
+func (m *Module) EnqueueSystemEmail(ctx context.Context, intent EmailIntent) (Enqueued, error) {
+	return m.enqueueEmail(ctx, intent, true)
+}
+
+func (m *Module) enqueueEmail(ctx context.Context, intent EmailIntent, system bool) (Enqueued, error) {
 	intent.Template = strings.TrimSpace(intent.Template)
 	intent.IdempotencyKey = strings.TrimSpace(intent.IdempotencyKey)
 	intent.Related.Type = strings.TrimSpace(intent.Related.Type)
 	intent.Recipient.Address = strings.TrimSpace(intent.Recipient.Address)
 	intent.Recipient.Name = strings.TrimSpace(intent.Recipient.Name)
-	if intent.TenantID <= 0 {
+	if (!system && intent.TenantID <= 0) || (system && intent.TenantID != 0) {
 		return Enqueued{}, errors.New("delivery: tenant is required")
 	}
 	if intent.Template == "" {

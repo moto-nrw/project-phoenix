@@ -40,7 +40,7 @@ func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 	const studentID int64 = 701
 	repo := &fakeStudentLifecycleRepo{pendingDue: []int64{studentID}}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentLifecycleRepo:  repo,
 		studentLifecycleAudit: auditor})
 
@@ -59,7 +59,7 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 	const studentID int64 = 702
 	repo := &fakeStudentLifecycleRepo{activeDue: []int64{studentID}}
 	auditErr := errors.New("audit unavailable")
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentLifecycleRepo: repo,
 		studentLifecycleAudit: &fakeStudentLifecycleAuditor{
 			err: auditErr,
@@ -81,7 +81,7 @@ func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T)
 		},
 	}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentLifecycleRepo:  repo,
 		studentLifecycleAudit: auditor})
 

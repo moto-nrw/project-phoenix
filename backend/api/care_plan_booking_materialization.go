@@ -4,18 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
-
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -28,67 +25,29 @@ import (
 // adapters below bind them over the owners' public capabilities with the
 // queries the retained repositories issued; they decide nothing.
 
-// bookingMaterializationInputs are the owners the materialization is composed
-// over.
-type bookingMaterializationInputs struct {
-	Catalog     careplan.CareOfferingCatalogCapability
-	Timetable   bookingTimetableOwner
-	Rosters     bookingRosterMaintenance
-	Students    bookingStudentOwner
-	Periods     bookingPeriodReads
-	Enrollment  bookingEnrollmentReads
-	Approved    bookingApprovedChildren
-	Settings    BookingSettingsReads
-	Bookings    careplanCompose.BookingCommands
-	Withdrawals careplanCompose.BookingWithdrawals
-	Adjustments bookingAdjustmentTrail
-	Persons     bookingActorPersons
-	Accounts    bookingActorAccounts
-	Pickup      bookingPickupReads
-	PickupRows  bookingPickupRecords
-
-	LockRecurrence              func(context.Context) error
-	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
-	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	Broadcaster                 realtime.Broadcaster
-	GuardianNotifier            bookingGuardianNotifier
-	Today                       func() calendar.Date
-	Logger                      *slog.Logger
-}
-
-func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.BookingMaterializationCapability, error) {
-	if inputs.Timetable == nil || inputs.Rosters == nil || inputs.Students == nil || inputs.Enrollment == nil ||
-		inputs.Approved == nil || inputs.Adjustments == nil || inputs.Pickup == nil || inputs.PickupRows == nil {
-		return nil, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit and pickup are required")
+// bookingMaterializationOwners binds the materialization's ports over the
+// owners it reads and writes. The caller completes the dependencies with the
+// catalog, the settings, Care Plan's bookings and withdrawals, the effects and
+// the clock, and composes them through newBookingMaterialization.
+func bookingMaterializationOwners(
+	timetables bookingTimetableOwner, rosters bookingRosterMaintenance, students bookingStudentOwner,
+	periods bookingPeriodReads, enrollment bookingEnrollmentReads, approved bookingApprovedChildren,
+	adjustments bookingAdjustmentTrail, persons bookingActorPersons, accounts bookingActorAccounts,
+	pickup bookingPickupReads, pickupRows bookingPickupRecords,
+) (careplanCompose.BookingMaterializationDependencies, error) {
+	if timetables == nil || rosters == nil || students == nil || enrollment == nil ||
+		approved == nil || adjustments == nil || pickup == nil || pickupRows == nil {
+		return careplanCompose.BookingMaterializationDependencies{}, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit and pickup are required")
 	}
-	logger := inputs.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	deps := careplanCompose.BookingMaterializationDependencies{
-		Catalog:     inputs.Catalog,
-		Rosters:     bookingRosters{timetable: inputs.Timetable, students: inputs.Students, rosters: inputs.Rosters},
-		Templates:   bookingTemplates{timetable: inputs.Timetable},
-		Periods:     bookingPeriods{calendar: inputs.Periods},
-		Enrollment:  bookingEnrollment{owner: inputs.Enrollment, approved: inputs.Approved},
-		Students:    bookingStudents{people: inputs.Students},
-		Settings:    settingsModule.NewCareBookingValues(inputs.Settings),
-		Bookings:    inputs.Bookings,
-		Withdrawals: inputs.Withdrawals,
-		Audit:       bookingAdjustmentAudit{repo: inputs.Adjustments, persons: inputs.Persons, accounts: inputs.Accounts},
-		Pickup:      bookingPickup{baselines: inputs.Pickup, rows: inputs.PickupRows},
-
-		LockTemplateRecurrence:      inputs.LockRecurrence,
-		ResyncPickupAutoExcusals:    inputs.ResyncPickupAutoExcusals,
-		ClearPickupWeekdayExtension: inputs.ClearPickupWeekdayExtension,
-		PickupGuardians:             inputs.GuardianNotifier,
-		Today:                       inputs.Today,
-		Logger:                      logger,
-	}
-	if inputs.Broadcaster != nil {
-		deps.PickupStaff = pickupScheduleBroadcaster{broadcaster: inputs.Broadcaster}
-	}
-	return careplanCompose.NewBookingMaterialization(deps)
+	return careplanCompose.BookingMaterializationDependencies{
+		Rosters:    bookingRosters{timetable: timetables, students: students, rosters: rosters},
+		Templates:  bookingTemplates{timetable: timetables},
+		Periods:    bookingPeriods{calendar: periods},
+		Enrollment: bookingEnrollment{owner: enrollment, approved: approved},
+		Students:   bookingStudents{people: students},
+		Audit:      bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
+		Pickup:     bookingPickup{baselines: pickup, rows: pickupRows},
+	}, nil
 }
 
 // timetableOfferingRosterResync serves the Timetable owner's roster resync
@@ -595,10 +554,6 @@ func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]care
 
 func (p bookingPickup) DeleteWeekdayRow(ctx context.Context, id int64) error {
 	return p.rows.DeletePickupSchedule(ctx, id)
-}
-
-type bookingGuardianNotifier interface {
-	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
 
 // pickupScheduleBroadcaster wakes the staff pickup schedule views through the

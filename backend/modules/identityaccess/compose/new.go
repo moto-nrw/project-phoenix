@@ -57,6 +57,10 @@ type Dependencies struct {
 	OperatorProvisioning *OperatorProvisioningDependencies
 	// Demo composes public demo access only in the demo environment.
 	Demo *DemoDependencies
+	// TenantRuntime is the unit of work the module opens its session,
+	// lifecycle and operator transactions under. A zero value binds nothing:
+	// the sessions keep their own runtime.
+	TenantRuntime tenant.UnitOfWork
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -73,13 +77,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	runtime := tenant.NewRuntimeRef(nil)
-	if dependencies.Sessions != nil {
-		sessions := *dependencies.Sessions
-		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
-		sessions.TenantRuntime = runtime.Attach
-		dependencies.Sessions = &sessions
-	}
+	dependencies, attach := bindTenantRuntime(dependencies)
 	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
@@ -143,10 +141,40 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
-		AccountRetention: application.NewAccountRetention(store, runtime.Attach, invitationLogger(dependencies.Invitations)), InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
-		Runtime: runtime.Attach, WithRecoveryProof: rotation.WithRecoveryProof,
+		AccountRetention:      application.NewAccountRetention(store, attach, invitationLogger(dependencies.Invitations)),
+		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
+		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
-	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
+	return identityaccess.NewDemoModule(e, demoAccess), nil
+}
+
+// NewGuardianInvitationReads composes the guardian invitation lists over the
+// database alone, for a root that needs them before it composes the module.
+// They run on the caller's ambient transaction like the module's reads.
+func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationReads, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
+	}
+	return application.NewGuardianInvitationReads(newStore(db)), nil
+}
+
+// bindTenantRuntime is the runtime the module opens its transactions under:
+// Dependencies.TenantRuntime when set, otherwise the sessions' own runtime,
+// otherwise the context's. The sessions attach through it.
+func bindTenantRuntime(dependencies Dependencies) (Dependencies, func(context.Context) context.Context) {
+	attach := func(ctx context.Context) context.Context { return ctx }
+	if dependencies.Sessions != nil && dependencies.Sessions.TenantRuntime != nil {
+		attach = dependencies.Sessions.TenantRuntime
+	}
+	if unit := dependencies.TenantRuntime; !unit.IsZero() {
+		attach = func(ctx context.Context) context.Context { return tenant.WithUnitOfWork(ctx, unit) }
+	}
+	if dependencies.Sessions != nil {
+		sessions := *dependencies.Sessions
+		sessions.TenantRuntime = attach
+		dependencies.Sessions = &sessions
+	}
+	return dependencies, attach
 }
 
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {

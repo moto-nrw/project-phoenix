@@ -85,6 +85,7 @@ type DemoSchoolEntry struct {
 
 // DemoAccessMessage is what the two demo mails (#3465) say about an access.
 type DemoAccessMessage struct {
+	ExpiresAt    time.Time
 	AccessID     int64
 	Email        string
 	FirstName    string
@@ -96,8 +97,8 @@ type DemoAccessMessage struct {
 
 // DemoAccessMail sends the demo mails without blocking the request.
 type DemoAccessMail interface {
-	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string)
-	SendDemoLead(ctx context.Context, message DemoAccessMessage)
+	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string) error
+	SendDemoLead(ctx context.Context, message DemoAccessMessage) error
 }
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.
@@ -193,8 +194,8 @@ func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil
 // outside the demo environment.
-func NewDemoModule(engine Engine, runtime TenantRuntimeBinding, access *DemoAccess) *Module {
-	module := NewModule(engine, runtime)
+func NewDemoModule(engine Engine, access *DemoAccess) *Module {
+	module := NewModule(engine)
 	module.demoAccess = access
 	return module
 }

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -59,15 +60,15 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.CalendarPeriod.Create(localCtx, period))
-	validFrom := activitiesModel.Date(friday)
-	localSchedule := &activitiesModel.Schedule{
-		Weekday: activitiesModel.WeekdayMonday, ActivityGroupID: localGroup.ID,
+	validFrom := activityContract.Date(friday)
+	localSchedule := &activityContract.Schedule{
+		Weekday: activityContract.WeekdayMonday, ActivityGroupID: localGroup.ID,
 		CalendarPeriodID: &period.ID, ValidFrom: &validFrom,
 	}
 	localSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(localCtx, localSchedule))
-	foreignSchedule := &activitiesModel.Schedule{
-		Weekday: activitiesModel.WeekdayMonday, ActivityGroupID: foreignGroup.ID,
+	foreignSchedule := &activityContract.Schedule{
+		Weekday: activityContract.WeekdayMonday, ActivityGroupID: foreignGroup.ID,
 	}
 	foreignSchedule.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.ActivitySchedule.Create(foreignCtx, foreignSchedule))
@@ -135,7 +136,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	countedDB := db.WithQueryHook(queryCounter)
 	countedRepos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, countedDB), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, countedDB)))
 	require.NoError(t, err)
-	detection := newConflictDetection(t, countedRepos)
+	detection := newConflictDetection(t, countedDB, countedRepos)
 	pattern := 0
 	coverage, err := detection.DetectShiftCoverage(localCtx, timetable.ShiftCoverageProbe{
 		Dates:     []calendar.Date{monday, wednesday, friday, nextMonday, nextWednesday},

@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // deviceScanUserRows is the slice of the retained people service the kiosk
@@ -171,3 +172,5 @@ func scanStudent(student *peopledirectory.StudentState) *devicescanCompose.ScanS
 		Person: scanPerson(student.Person),
 	}
 }
+
+func (DeviceScanPeople) IsPersonNotFound(err error) bool { return peoplePorts.IsPersonNotFound(err) }

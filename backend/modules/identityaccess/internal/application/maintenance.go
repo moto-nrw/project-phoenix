@@ -58,5 +58,7 @@ func (UnlockedMFAPolicy) LockMFAPolicySharedForTenant(context.Context, int64) er
 
 type UnsentPasswordResets struct{}
 
-func (UnsentPasswordResets) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) {
+func (UnsentPasswordResets) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) error {
+
+	return nil
 }

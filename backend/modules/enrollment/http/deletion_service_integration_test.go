@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"log/slog"
@@ -17,8 +19,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,24 +28,27 @@ import (
 )
 
 type deletionTestFixture struct {
-	t     *testing.T
-	db    *bun.DB
-	repos *api.EnrollmentFlowTestRepositories
-	scope testpkg.TenantScope
-	actor int64
-	phase int64
+	t          *testing.T
+	db         *bun.DB
+	repos      *api.EnrollmentFlowTestRepositories
+	reposAudit *api.EnrollmentFlowAuditRows
+	reposCare  api.TimetableCarePlanRows
+	scope      testpkg.TenantScope
+	actor      int64
+	phase      int64
 }
 
 func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTestFixture {
 	t.Helper()
-	f := &deletionTestFixture{t: t, db: db, repos: flowRepositories(t, db), scope: testpkg.NewTenantScope(t, db)}
+	repos, reposCare, reposAudit, _, _, _ := flowRepositories(t, db)
+	f := &deletionTestFixture{t: t, db: db, repos: repos, reposAudit: reposAudit, reposCare: reposCare, scope: testpkg.NewTenantScope(t, db)}
 	account := testpkg.CreateTestAccount(t, db, "enrollment-deletion-"+label)
 	f.actor = account.ID
-	phase := &capability.Phase{
+	phase := &enrollmentNative.Phase{
 		Name:             fmt.Sprintf("deletion-%s-%d", label, f.scope.TenantID),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
-		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
+		Kind:             enrollmentNative.PhaseKindSchoolYear,
+		ServiceStartDate: enrollmentNative.Date(calendar.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentNative.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 	}
 	phase.TenantID = f.scope.TenantID
@@ -64,7 +67,7 @@ func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *e
 		GuardianAccountID: guardianAccountID,
 		ConsentFlags:      map[string]any{},
 		CustomData:        map[string]any{},
-		SubmissionSource:  enrollmentModels.RequestSourcePublic,
+		SubmissionSource:  enrollmentNative.RequestSourcePublic,
 		SourceMetadata:    map[string]any{},
 		StatusToken:       fmt.Sprintf("%s-token-%d", label, f.scope.TenantID),
 		SubmittedAt:       time.Now(),
@@ -84,7 +87,7 @@ func (f *deletionTestFixture) child(requestID int64, label, status string, creat
 		DateOfBirth:      "2018-04-15",
 		CustomData:       map[string]any{},
 		Status:           status,
-		ActivationMode:   enrollmentModels.ChildActivationScheduled,
+		ActivationMode:   enrollmentNative.ChildActivationScheduled,
 		ReviewedAt:       &now,
 		CreatedStudentID: createdStudentID,
 	}
@@ -101,7 +104,7 @@ func (f *deletionTestFixture) service(auditRepo api.EnrollmentFlowDeletionAudits
 // root does; requestRepo replaces the owner's request lock.
 func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) api.EnrollmentDeletionSources {
 	if auditRepo == nil {
-		auditRepo = f.repos.EnrollmentDeletionAudit
+		auditRepo = f.reposAudit.EnrollmentDeletionAudit
 	}
 	if requestRepo == nil {
 		requestRepo = f.repos.Enrollment()
@@ -109,8 +112,8 @@ func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits
 	return api.EnrollmentDeletionSources{
 		Owner:                 requestRepo,
 		Guardians:             f.guardians(),
-		CountAuditAdjustments: f.repos.EnrollmentOfferingAdjustment.CountForDeletion,
-		CountBookings:         f.repos.CarePlan().CountCareOfferingBookings,
+		CountAuditAdjustments: f.reposAudit.EnrollmentOfferingAdjustment.CountForDeletion,
+		CountBookings:         f.reposCare.CarePlan.CountCareOfferingBookings,
 		Audit:                 auditRepo,
 		Delivery:              newTestEnrollmentDelivery(f.t, f.db),
 		Logger:                slog.New(slog.DiscardHandler),
@@ -141,10 +144,10 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	f := newDeletionTestFixture(t, db, "mismatched-request")
 	request := f.request("target", nil)
 	other := f.request("other", nil)
-	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
-	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
-	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
-	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
+	child := f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
+	offering := &offeringContract.CareOfferingRecord{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
+	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
+	selection := &enrollmentNative.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
 	require.NoError(t, err)
@@ -165,23 +168,23 @@ func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *te
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "mixed")
 	request := f.request("mixed", nil)
-	target := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
-	remaining := f.child(request.ID, "Approved", enrollmentModels.ChildStatusApproved, nil)
+	target := f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
+	remaining := f.child(request.ID, "Approved", enrollmentNative.ChildStatusApproved, nil)
 
-	change := &capability.ChangeRequest{
+	change := &enrollmentNative.ChangeRequest{
 		RequestID:      request.ID,
 		RequestChildID: &target.ID,
-		Origin:         capability.ChangeRequestOriginParent,
+		Origin:         enrollmentNative.ChangeRequestOriginParent,
 		BaseSnapshot:   json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}"),
 	}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
-	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: capability.ChangeRequestMessageAuthorParent, Body: "remove with child"}
+	message := &enrollmentNative.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorParent, Body: "remove with child"}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
-	guardian := &capability.RequestGuardian{RequestID: request.ID, FirstName: "Other", LastName: "Guardian"}
+	guardian := &enrollmentNative.RequestGuardian{RequestID: request.ID, FirstName: "Other", LastName: "Guardian"}
 	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), guardian))
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("mixed-%d", request.ID), map[string]any{})
 
-	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteChild(ctx, request.ID, target.ID, f.actor, "Fehlerhafte Teilanmeldung")
 	})
 	require.NoError(t, err)
@@ -209,10 +212,10 @@ func TestEnrollmentDeletion_DeleteApprovedChildAfterStudentWasRemoved(t *testing
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "approved-orphan")
 	request := f.request("approved-orphan", nil)
-	target := f.child(request.ID, "ApprovedOrphan", enrollmentModels.ChildStatusApproved, nil)
-	remaining := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
+	target := f.child(request.ID, "ApprovedOrphan", enrollmentNative.ChildStatusApproved, nil)
+	remaining := f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
 
-	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteChild(ctx, request.ID, target.ID, f.actor, "Gelöschtes Testkind bereinigen")
 	})
 	require.NoError(t, err)
@@ -233,36 +236,36 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	profile.SetTenantID(f.scope.TenantID)
 	require.NoError(t, f.repos.GuardianProfile.Create(f.scope.Context(), profile))
 	request := f.request("whole", &guardianAccount.ID)
-	child := f.child(request.ID, "ApprovedOrphan", enrollmentModels.ChildStatusApproved, nil)
-	coGuardian := &capability.RequestGuardian{RequestID: request.ID, FirstName: "Preserved", LastName: "Guardian", GuardianProfileID: &profile.ID}
+	child := f.child(request.ID, "ApprovedOrphan", enrollmentNative.ChildStatusApproved, nil)
+	coGuardian := &enrollmentNative.RequestGuardian{RequestID: request.ID, FirstName: "Preserved", LastName: "Guardian", GuardianProfileID: &profile.ID}
 	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), coGuardian))
 
-	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: enrollmentModels.SelectionRuleOptional}
-	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
-	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []capability.SubmittedOfferingChoice{
+	offering := &offeringContract.CareOfferingRecord{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: offeringContract.SelectionRuleOptional}
+	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
+	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []enrollmentNative.SubmittedOfferingChoice{
 		{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}},
 	}))
 	start, until := calendar.NewDate(2026, 9, 1), calendar.NewDate(2027, 8, 1)
-	require.NoError(t, requestTestBookingCommands().RecordCareBookings(f.scope.Context(), child.ID, []capability.CareBookingInput{
+	require.NoError(t, requestTestBookingCommands().RecordCareBookings(f.scope.Context(), child.ID, []enrollmentNative.CareBookingInput{
 		{CareOfferingID: offering.ID, ManualSelectedDays: []string{"mon"}, ValidFrom: &start, ValidUntil: &until},
 	}))
-	bookings, err := f.repos.CarePlan().CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
+	bookings, err := f.reposCare.CarePlan.CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
 	require.NoError(t, err)
 	require.Len(t, bookings, 1)
 	childOffering := bookings[0]
-	change := &capability.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: capability.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
+	change := &enrollmentNative.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: enrollmentNative.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
-	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: capability.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
+	message := &enrollmentNative.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
-	invite := &capability.LateInvite{PhaseID: f.phase, TokenHash: fmt.Sprintf("invite-%d", f.scope.TenantID), GuardianEmail: request.GuardianEmail, ExpiresAt: time.Now().Add(time.Hour), CreatedBy: f.actor}
+	invite := &enrollmentNative.LateInvite{PhaseID: f.phase, TokenHash: fmt.Sprintf("invite-%d", f.scope.TenantID), GuardianEmail: request.GuardianEmail, ExpiresAt: time.Now().Add(time.Hour), CreatedBy: f.actor}
 	require.NoError(t, f.repos.Enrollment().InsertLateInvite(f.scope.Context(), invite))
 	require.NoError(t, f.repos.Enrollment().MarkLateInviteUsed(f.scope.Context(), invite.ID, request.ID, time.Now()))
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("request-%d", request.ID), map[string]any{"request_id": request.ID})
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Adjustment", "Student", "1a")
 	adjustment := &api.EnrollmentFlowOfferingAdjustmentAudit{RequestID: request.ID, RequestChildID: child.ID, StudentID: student.ID, ActorAccountID: f.actor, ActorRole: "admin", Reason: "test adjustment", Before: json.RawMessage(`{}`), After: json.RawMessage(`{}`), ChangedAt: time.Now()}
-	require.NoError(t, f.repos.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
+	require.NoError(t, f.reposAudit.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
 
-	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).PreviewRequest(ctx, request.ID)
 	})
 	require.NoError(t, err)
@@ -274,7 +277,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	assert.Equal(t, 1, preview.Counts.OfferingAdjustments)
 	assert.Equal(t, 1, preview.Counts.RequestChildOfferings)
 
-	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteRequest(ctx, request.ID, f.actor, "Genehmigte Testanmeldung bereinigen")
 	})
 	require.NoError(t, err)
@@ -311,9 +314,9 @@ func TestEnrollmentDeletion_DeleteLastChildAlsoDeletesRequest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "last-child")
 	request := f.request("last-child", nil)
-	child := f.child(request.ID, "Withdrawn", enrollmentModels.ChildStatusWithdrawn, nil)
+	child := f.child(request.ID, "Withdrawn", enrollmentNative.ChildStatusWithdrawn, nil)
 
-	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteChild(ctx, request.ID, child.ID, f.actor, "Letztes zurückgezogenes Kind")
 	})
 	require.NoError(t, err)
@@ -330,17 +333,17 @@ func TestEnrollmentDeletion_BlocksExistingStudent(t *testing.T) {
 	f := newDeletionTestFixture(t, db, "student-block")
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Existing", "Student", "2a")
 	request := f.request("student-block", nil)
-	f.child(request.ID, "Approved", enrollmentModels.ChildStatusApproved, &student.ID)
+	f.child(request.ID, "Approved", enrollmentNative.ChildStatusApproved, &student.ID)
 
-	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).PreviewRequest(ctx, request.ID)
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []int64{student.ID}, preview.BlockingStudentIDs)
-	_, err = tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	_, err = tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).DeleteRequest(ctx, request.ID, f.actor, "Darf nicht gelöscht werden")
 	})
-	require.ErrorIs(t, err, capability.ErrEnrollmentDeletionStudentExists)
+	require.ErrorIs(t, err, enrollmentNative.ErrEnrollmentDeletionStudentExists)
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.requests", "id = ?", request.ID))
 	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Zero(t, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ?", f.scope.TenantID))
@@ -358,11 +361,11 @@ func TestEnrollmentDeletion_AuditFailureRollsBackAllDeletes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "rollback")
 	request := f.request("rollback", nil)
-	f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
+	f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("rollback-%d", request.ID), map[string]any{})
 
 	expected := errors.New("audit unavailable")
-	_, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	_, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(failingDeletionAudit{err: expected}, nil).DeleteRequest(ctx, request.ID, f.actor, "Rollback prüfen")
 	})
 	require.ErrorIs(t, err, expected)
@@ -377,12 +380,12 @@ func TestEnrollmentDeletion_RLSDeniesOtherTenant(t *testing.T) {
 	tenantA := newDeletionTestFixture(t, db, "rls-a")
 	tenantB := newDeletionTestFixture(t, db, "rls-b")
 	requestB := tenantB.request("rls-target", nil)
-	tenantB.child(requestB.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
+	tenantB.child(requestB.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
 
-	_, err := tenantCall(t, db, tenantA.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+	_, err := tenantCall(t, db, tenantA.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return tenantA.service(nil, nil).PreviewRequest(ctx, requestB.ID)
 	})
-	require.ErrorIs(t, err, capability.ErrEnrollmentDeletionNotFound)
+	require.ErrorIs(t, err, enrollmentNative.ErrEnrollmentDeletionNotFound)
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.requests", "id = ?", requestB.ID))
 }
 
@@ -393,7 +396,7 @@ type deletionLockSignalRepository struct {
 	once     sync.Once
 }
 
-func (r *deletionLockSignalRepository) RequestByID(ctx context.Context, id int64, forUpdate bool) (*capability.Request, error) {
+func (r *deletionLockSignalRepository) RequestByID(ctx context.Context, id int64, forUpdate bool) (*enrollmentNative.Request, error) {
 	if id == r.targetID {
 		r.once.Do(func() { close(r.started) })
 	}
@@ -406,21 +409,21 @@ func TestEnrollmentDeletion_ConcurrentDecisionIsRecheckedUnderLock(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "concurrent")
 	request := f.request("concurrent", nil)
-	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
+	child := f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
 
 	decisionTx, err := db.BeginTx(f.scope.Context(), nil)
 	require.NoError(t, err)
 	defer func() { _ = decisionTx.Rollback() }()
 	_, err = decisionTx.ExecContext(f.scope.Context(), `SELECT id FROM enrollment.requests WHERE id = ? FOR UPDATE`, request.ID)
 	require.NoError(t, err)
-	_, err = decisionTx.ExecContext(f.scope.Context(), `UPDATE enrollment.request_children SET status = ?, reviewed_at = ? WHERE id = ?`, enrollmentModels.ChildStatusUnderReview, time.Now(), child.ID)
+	_, err = decisionTx.ExecContext(f.scope.Context(), `UPDATE enrollment.request_children SET status = ?, reviewed_at = ? WHERE id = ?`, enrollmentNative.ChildStatusUnderReview, time.Now(), child.ID)
 	require.NoError(t, err)
 
 	started := make(chan struct{})
 	requestRepo := &deletionLockSignalRepository{EnrollmentDeletionOwner: f.repos.Enrollment(), targetID: request.ID, started: started}
 	finished := make(chan error, 1)
 	go func() {
-		_, deleteErr := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
+		_, deleteErr := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 			return f.service(nil, requestRepo).DeleteChild(ctx, request.ID, child.ID, f.actor, "Parallelentscheidung prüfen")
 		})
 		finished <- deleteErr
@@ -436,7 +439,7 @@ func TestEnrollmentDeletion_ConcurrentDecisionIsRecheckedUnderLock(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("deletion did not finish after concurrent decision committed")
 	}
-	require.ErrorIs(t, err, capability.ErrEnrollmentDeletionNotAllowed)
+	require.ErrorIs(t, err, enrollmentNative.ErrEnrollmentDeletionNotAllowed)
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.request_children", "id = ?", child.ID))
 }
 
@@ -446,7 +449,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	f := newDeletionTestFixture(t, db, "retention-audit")
 	request := f.request("retention-audit", nil)
-	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
+	child := f.child(request.ID, "Rejected", enrollmentNative.ChildStatusRejected, nil)
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("cleanup-%d", request.ID), map[string]any{})
 	expectedOutboxRows := tableCount(t, db, "platform.email_outbox", "id = ?", outbox.ID)
 	oldReview := time.Now().Add(-100 * 24 * time.Hour)
@@ -456,7 +459,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 	sources := f.sources(nil, nil)
 	sources.Settings = cleanupRetentionSettings{days: 90}
 	cleaner := api.NewEnrollmentDeletionModule(sources).Cleanup
-	result, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (capability.RejectedEnrollmentCleanupResult, error) {
+	result, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (enrollmentNative.RejectedEnrollmentCleanupResult, error) {
 		return cleaner.CleanupRejectedEnrollments(ctx)
 	})
 	require.NoError(t, err)
@@ -465,15 +468,15 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 	assert.Zero(t, tableCount(t, db, "enrollment.requests", "id = ?", request.ID))
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'cancelled'", outbox.ID))
 	assert.Equal(t, 1, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ? AND request_id = ? AND actor_type = 'system' AND actor_account_id IS NULL", f.scope.TenantID, request.ID))
-	retry, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (capability.RejectedEnrollmentCleanupResult, error) {
+	retry, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (enrollmentNative.RejectedEnrollmentCleanupResult, error) {
 		return cleaner.CleanupRejectedEnrollments(ctx)
 	})
 	require.NoError(t, err)
-	require.Equal(t, capability.RejectedEnrollmentCleanupResult{}, retry)
+	require.Equal(t, enrollmentNative.RejectedEnrollmentCleanupResult{}, retry)
 	require.Equal(t, 1, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ? AND request_id = ?", f.scope.TenantID, request.ID), "retry must not append a second deletion audit")
 	observed, err := json.MarshalIndent(struct {
-		FirstRun capability.RejectedEnrollmentCleanupResult `json:"first_run"`
-		Retry    capability.RejectedEnrollmentCleanupResult `json:"retry"`
+		FirstRun enrollmentNative.RejectedEnrollmentCleanupResult `json:"first_run"`
+		Retry    enrollmentNative.RejectedEnrollmentCleanupResult `json:"retry"`
 	}{result, retry}, "", "  ")
 	require.NoError(t, err)
 	expected, err := os.ReadFile("testdata/rejected_cleanup.golden")

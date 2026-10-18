@@ -67,12 +67,18 @@ func TestModuleDirectoryFilterRejectsUnusableWindows(t *testing.T) {
 
 func TestModuleDirectoryAllCareStatusNeedsNoDay(t *testing.T) {
 	t.Parallel()
-	module := peopledirectory.NewModule(&recordingEngine{})
+	expected := []peopledirectory.StudentRecord{{SchoolClass: "1A", Status: "active"}}
+	engine := &recordingEngine{directoryRows: expected}
+	module := peopledirectory.NewModule(engine)
 
-	_, err := module.ListStudentDirectory(context.Background(), peopledirectory.StudentDirectoryFilter{
+	rows, err := module.ListStudentDirectory(context.Background(), peopledirectory.StudentDirectoryFilter{
 		CareStatus: peopledirectory.StudentCareStatusAll,
 	})
 	require.NoError(t, err, "an unbounded selection has no boundary to freeze")
+	assert.Equal(t, expected, rows, "the facade must return the actual directory result")
+	assert.Equal(t, peopledirectory.StudentCareStatusAll, engine.directory.CareStatus)
+	assert.Empty(t, engine.directory.CareStatusOn)
+	assert.Equal(t, 1, engine.calls)
 }
 
 func TestModuleRecordReadsValidateBeforeTheEngine(t *testing.T) {

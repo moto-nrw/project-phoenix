@@ -11,16 +11,9 @@ import (
 )
 
 // The mail seams the legacy composition binds for the invitation, password
-// reset and operator link flows run beside the flow's tenant transaction.
+// reset and operator link flows join the flow's tenant transaction.
 // What they do with that transaction is decided here, where the tenant
 // runtime is reachable (#2747).
-
-// DetachedMailContext isolates asynchronous mail delivery from the request
-// transaction, its commit hooks and its cancellation while keeping the
-// tenant and the runtime.
-func DetachedMailContext(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(context.WithoutCancel(ctx)))
-}
 
 // RunMailStepInSavepoint runs a best-effort step of a welcome mail in its own
 // savepoint of the flow's transaction, so a failed statement cannot abort

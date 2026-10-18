@@ -53,17 +53,28 @@ func setupStudentsRouteWithCareLifecycle(t *testing.T, authoritative bool, clock
 }
 func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.Time) *testContext {
 	t.Helper()
-	db, svc := setupStudentModule(t, clocks...)
+	db := testpkg.SetupTestDB(t)
+	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc, live, people, audit, decisions, groupLive, err := api.NewStudentHTTPTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, broadcaster, clocks...)
+	require.NoError(t, err)
+	liveEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	livePeople := api.BindStudentTestPeople(api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...), svc)
+	livePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveTimetable, _ := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveDevices := api.NewActiveTestDevices(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	_, _, _, _, resource, _, mount, err := api.NewStudentHTTPTestResources(
-		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, broadcaster, tenantScopedCaller{svc.UserContext},
+		testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), svc, live, liveSettings, liveEducation, liveCaller, livePeople, livePresence, liveTimetable, people, audit, groupLive, broadcaster, tenantScopedCaller{liveCaller},
 		testpkg.StudentDirectory{}, &testpkg.FeedbackEntryCounterMock{}, testpkg.RequestAuditActor,
-		deviceAuthenticator(t, db, svc), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
+		deviceAuthenticator(t, db, liveDevices, liveSettings), testutil.AuthenticatedDeviceID, authoritative, firstClock(clocks),
 	)
 	require.NoError(t, err)
 	router := func() chi.Router { return mount(nil) }
-	return &testContext{careRequests: svc.CareRequests, enrollmentDecision: svc.EnrollmentDecision, db: db, resource: resource,
-		settingsService: svc.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
+	return &testContext{careRequests: svc.CareRequests, enrollmentDecision: decisions, db: db, resource: resource,
+		settingsService: liveSettings.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
 }
 
 type tenantScopedCaller struct{ *api.CallerRows }
@@ -88,9 +99,9 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 	return testutil.ExecuteRequestForTest(t, tc.router(), req)
 }
 
-// newStudentTestRepositories composes the retained repositories the suites
-// arrange through, recording into the test audit store.
-var newStudentTestRepositories = api.MustNewStudentHTTPTestRows
+// newStudentTestPeopleRows composes the People Directory rows the suites
+// arrange through.
+var newStudentTestPeopleRows = api.MustNewStudentHTTPTestPeopleRows
 
 // previewStudentDeletion reads the delete-impact preview the confirmed
 // deletion has to quote back (#2710): the permanent deletion is never
@@ -128,21 +139,11 @@ func deleteStudentConfirmed(t *testing.T, tc *testContext, claims sessiontoken.A
 
 // deviceAuthenticator is the kiosk device authentication over the module's
 // fleet and settings, with the root's guard against deleted schools.
-func deviceAuthenticator(t testing.TB, db *bun.DB, svc api.StudentTestModule) common.Middleware {
+func deviceAuthenticator(t testing.TB, db *bun.DB, live api.DeviceTestModule, liveSettings api.ActiveSettings) common.Middleware {
 	t.Helper()
 	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), schools, svc.Settings, testDevicePIN).Device()
-}
-
-func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.StudentTestModule) {
-	t.Helper()
-	db := testpkg.SetupTestDB(t)
-	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
-	module, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
-	require.NoError(t, err)
-	return db, module
+	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, liveSettings.Settings, testDevicePIN).Device()
 }
 
 const testDevicePIN = "1234"

@@ -23,7 +23,18 @@ type settingsTestContext struct {
 	}
 }
 
+// settingsValueSetHook holds the side effect a test installs; the operations
+// run it after a value is set.
+type settingsValueSetHook struct {
+	run func(context.Context, int64, string, any) (func(), error)
+}
+
 func setupSettingsModule(t *testing.T) *settingsTestContext {
+	t.Helper()
+	return setupSettingsModuleWithHook(t, &settingsValueSetHook{})
+}
+
+func setupSettingsModuleWithHook(t *testing.T, hook *settingsValueSetHook) *settingsTestContext {
 	t.Helper()
 
 	db, svc := composeSettingsModule(t)
@@ -41,13 +52,15 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 	})
 	homeLayouts, ok := svc.Settings.(settingsHTTP.HomeLayoutOperations)
 	require.True(t, ok)
-	resource := settingsHTTP.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
-
-	return &settingsTestContext{
-		db:       db,
-		resource: resource,
-		settings: svc.Settings,
-	}
+	ctx := &settingsTestContext{db: db, settings: svc.Settings}
+	operations := svc.TenantSettingsWithHook(func(hookCtx context.Context, tenantID int64, key string, value any) (func(), error) {
+		if hook.run == nil {
+			return nil, nil
+		}
+		return hook.run(hookCtx, tenantID, key, value)
+	})
+	ctx.resource = settingsHTTP.NewSettingsResource(operations, homeLayouts, runtime)
+	return ctx
 }
 
 // =============================================================================
@@ -324,17 +337,18 @@ func TestSettingsGetLoginImage_Success(t *testing.T) {
 func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	var callbackKey string
 	var callbackValue any
 	var callbackTenantID int64
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
+	hook.run = func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		callbackTenantID = tenantID
 		callbackKey = key
 		callbackValue = value
 		return nil, nil
-	})
+	}
 
 	router := ctx.resource.SettingsRouter()
 
@@ -357,11 +371,12 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return nil, errors.New("hook failed")
-	})
+	}
 
 	router := ctx.resource.SettingsRouter()
 
@@ -388,13 +403,14 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	callbackInvoked := false
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		callbackInvoked = true
 		return nil, nil
-	})
+	}
 
 	router := ctx.resource.SettingsRouter()
 
@@ -420,14 +436,15 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	postCommitRan := false
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return func() {
 			postCommitRan = true
 		}, nil
-	})
+	}
 
 	router := ctx.resource.SettingsRouter()
 
@@ -448,10 +465,11 @@ func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	postCommitRan := false
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		// Return BOTH a closure and an error — the handler must not run
 		// the closure because the tx rolled back. Returning the closure
 		// alongside the error proves the handler honours the contract by
@@ -459,7 +477,7 @@ func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 		return func() {
 			postCommitRan = true
 		}, errors.New("hook failed")
-	})
+	}
 
 	router := ctx.resource.SettingsRouter()
 
@@ -501,7 +519,8 @@ func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -515,12 +534,12 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	var callbackKey string
 	var callbackValue any
 	var callbackTenantID int64
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
+	hook.run = func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		callbackTenantID = tenantID
 		callbackKey = key
 		callbackValue = value
 		return nil, nil
-	})
+	}
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
 		testutil.WithTestTenant(t),
@@ -536,7 +555,8 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -547,10 +567,10 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, 200)
 
 	var called bool
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		called = true
 		return nil, nil
-	})
+	}
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/checkout.schulhof_enabled", nil,
 		testutil.WithTestTenant(t),
@@ -567,7 +587,8 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsModule(t)
+	hook := &settingsValueSetHook{}
+	ctx := setupSettingsModuleWithHook(t, hook)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -577,9 +598,9 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, seed)
 	testutil.AssertSuccessResponse(t, rr, 200)
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	hook.run = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return nil, errors.New("hook failed")
-	})
+	}
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
 		testutil.WithTestTenant(t),

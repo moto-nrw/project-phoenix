@@ -24,7 +24,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 
 	deleteErr := errors.New("delete failed")
 	var results []string
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
 			return ports.StudentChangeLogCleanupResult{}, deleteErr
 		},
@@ -60,7 +60,7 @@ func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 	scheduleNow := berlin(14, 2, 0)
 
 	calls := 0
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
 			calls++
 			return ports.StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil

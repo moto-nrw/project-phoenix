@@ -31,7 +31,7 @@ func TestAnnouncementReminderWindow(t *testing.T) {
 	t.Parallel()
 
 	t.Run("the first window after boot recovers only the bounded lookback", func(t *testing.T) {
-		s := unitScheduler(&Scheduler{logger: slog.Default()})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 		now := time.Date(2026, 9, 24, 8, 3, 0, 0, time.UTC)
 
 		from, to := s.announcementReminderWindow(7, now)
@@ -42,7 +42,7 @@ func TestAnnouncementReminderWindow(t *testing.T) {
 	})
 
 	t.Run("consecutive ticks cover adjacent windows", func(t *testing.T) {
-		s := unitScheduler(&Scheduler{logger: slog.Default()})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 		first := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
 		second := first.Add(announcementReminderInterval)
 
@@ -54,7 +54,7 @@ func TestAnnouncementReminderWindow(t *testing.T) {
 	})
 
 	t.Run("a window is clamped after downtime", func(t *testing.T) {
-		s := unitScheduler(&Scheduler{logger: slog.Default()})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 		bootTime := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
 		s.markAnnouncementReminderScanned(7, bootTime)
 
@@ -65,7 +65,7 @@ func TestAnnouncementReminderWindow(t *testing.T) {
 	})
 
 	t.Run("a failed tenant scan keeps its boundary and is retried", func(t *testing.T) {
-		s := unitScheduler(&Scheduler{logger: slog.Default()})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 		first := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
 		second := first.Add(announcementReminderInterval)
 
@@ -77,7 +77,7 @@ func TestAnnouncementReminderWindow(t *testing.T) {
 	})
 
 	t.Run("each tenant has an independent boundary", func(t *testing.T) {
-		s := unitScheduler(&Scheduler{logger: slog.Default()})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
 		first := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
 		s.markAnnouncementReminderScanned(7, first)
 
@@ -95,7 +95,7 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 
 	t.Run("hands the exact window to the sender", func(t *testing.T) {
 		sender := &fakeAnnouncementReminderSender{sent: 2}
-		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default(), announcementReminders: sender})
 
 		_, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 
 	t.Run("a sender failure is reported so the boundary does not advance", func(t *testing.T) {
 		sender := &fakeAnnouncementReminderSender{err: errors.New("outbox unavailable")}
-		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default(), announcementReminders: sender})
 
 		_, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
 		require.Error(t, err)
@@ -115,7 +115,7 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 	t.Run("a temporary suppression retains the reminder in the next window", func(t *testing.T) {
 		retryAt := scanFrom.Add(2 * time.Minute)
 		sender := &fakeAnnouncementReminderSender{retryFrom: &retryAt}
-		s := unitScheduler(&Scheduler{logger: slog.Default(), announcementReminders: sender})
+		s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default(), announcementReminders: sender})
 
 		scannedAt, err := s.runAnnouncementRemindersForTenant(context.Background(), 7, scanFrom, scanTo)
 
@@ -127,12 +127,12 @@ func TestRunAnnouncementRemindersForTenant(t *testing.T) {
 func TestAnnouncementReminderTaskRegistersOnlyWithASender(t *testing.T) {
 	t.Parallel()
 
-	without := unitScheduler(&Scheduler{logger: slog.Default(), tasks: map[string]*ScheduledTask{}})
+	without := unitScheduler(&unitSchedulerDependencies{logger: slog.Default(), tasks: map[string]*ScheduledTask{}})
 	without.scheduleAnnouncementReminderTask()
 	_, registered := without.tasks["announcement-reminders"]
 	assert.False(t, registered, "no sender, no tick")
 
-	with := unitScheduler(&Scheduler{logger: slog.Default(), tasks: map[string]*ScheduledTask{}, announcementReminders: &fakeAnnouncementReminderSender{}})
+	with := unitScheduler(&unitSchedulerDependencies{logger: slog.Default(), tasks: map[string]*ScheduledTask{}, announcementReminders: &fakeAnnouncementReminderSender{}})
 	with.scheduleAnnouncementReminderTask()
 	_, registered = with.tasks["announcement-reminders"]
 	assert.True(t, registered)

@@ -80,7 +80,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     43,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":  37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":  22,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails": 25,
@@ -123,8 +123,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                44,
 	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
 	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
-
-	"modules/facilities/compose/legacy/projections.go:historyNames": 24,
 
 	"modules/filestorage/internal/application/attachments.go:(*Service).DeleteAttachment": 29,
 	"modules/filestorage/internal/application/attachments.go:(*Service).UploadAttachment": 17,
@@ -188,7 +186,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/peopledirectory/departure/companion_note.go:NormalizeCompanionNote":                          20,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                        41,
-	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":    30,
+	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":    26,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":       23,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).decideStranding":     18,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).reconcileCompanions": 19,
@@ -203,24 +201,23 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/requestreview/compose/corrections.go:(correctionLog).History": 19,
 	"modules/requestreview/query.go:(*ListQuery).validate":                 21,
 
-	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                                18,
-	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                        22,
-	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":                   58,
-	"modules/schoolcalendar/portal/internal/application/ics.go:(*service).ParentAppointmentICS":                         24,
-	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).dispatchGuardianDevicesAfterCommit": 18,
-	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":                    26,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).GetParentAppointmentOverview":             28,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).ListMyParentEvents":                       22,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RecipientOptions":                         52,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RespondToParentInvitation":                41,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).buildAppointmentOverview":                 16,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).cancelStaffAppointment":                   18,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).createStaffAppointment":                   22,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandAppointmentEvents":                  18,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandGuardianAppointmentEvents":          20,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).guardianRecipientStatusForStudents":       16,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).staffShiftEventsWithCancelled":            19,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":                   29,
+	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                          18,
+	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                  22,
+	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":             58,
+	"modules/schoolcalendar/portal/internal/application/ics.go:(*service).ParentAppointmentICS":                   24,
+	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":              26,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).GetParentAppointmentOverview":       28,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).ListMyParentEvents":                 22,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RecipientOptions":                   52,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RespondToParentInvitation":          41,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).buildAppointmentOverview":           16,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).cancelStaffAppointment":             18,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).createStaffAppointment":             22,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandAppointmentEvents":            18,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandGuardianAppointmentEvents":    20,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).guardianRecipientStatusForStudents": 16,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).staffShiftEventsWithCancelled":      19,
+	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":             29,
 
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListGuests":                         18,
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListTeachers":                       17,
@@ -246,7 +243,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
-	"modules/workforce/http/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":               19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        19,
 	"modules/workforce/internal/application/absence.go:(*Service).UpdateAbsenceType":                                                            23,
@@ -307,17 +303,14 @@ var moduleComplexityAllowlist = map[string]int{
 	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":     28,
 	"workflows/parentportal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":         24,
 
-	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":                  20,
-	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig":               20,
-	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).dispatchReminderPushes": 57,
-	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":                     29,
-	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":                 18,
+	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":    20,
+	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig": 20,
+	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":       29,
+	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":   18,
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 
-	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
-
-	"workflows/studentdeletion/compose/new.go:Assemble":                         16,
+	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot":            17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).checkCompanionStranding": 19,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":              17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).lockCompanionGraph":      19,

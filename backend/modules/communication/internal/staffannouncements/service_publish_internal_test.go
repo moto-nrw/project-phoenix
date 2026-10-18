@@ -182,11 +182,11 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
+		// The file side of the attachments (#2890): Delete records the
+		// cleanup intents for the attachment bytes through it and refuses to
+		// run without one, so every service under test gets a stub.
+		Attachments: &stubPurger{},
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	// The file side of the attachments (#2890): Delete records the cleanup
-	// intents for the attachment bytes through it and refuses to run without
-	// one, so every service under test gets a stub.
-	svc.SetAttachmentPurger(&stubPurger{})
 	return svc
 }
 
@@ -310,9 +310,8 @@ func TestDelete_CancelsPendingDeliveries(t *testing.T) {
 	pushOutbox := &fakePushOutbox{}
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: outbox,
-		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
+		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(), Attachments: &stubPurger{},
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	svc.SetAttachmentPurger(&stubPurger{})
 
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)

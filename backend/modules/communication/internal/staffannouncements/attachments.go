@@ -66,14 +66,6 @@ type AttachmentSupport interface {
 	AnnouncementEditable(ctx context.Context, announcementID int64) (bool, error)
 	LockAnnouncementForAttachmentChange(ctx context.Context, announcementID int64) (bool, bool, error)
 	ResetAnnouncementEngagement(ctx context.Context, announcementID int64) error
-	SetAttachmentPurger(purger AttachmentPurger)
-}
-
-// SetAttachmentPurger injects the file side. A service without one refuses to
-// delete an announcement that could still own attachments rather than
-// orphaning their bytes silently.
-func (s *service) SetAttachmentPurger(purger AttachmentPurger) {
-	s.attachments = purger
 }
 
 // AnnouncementExists reports whether the announcement exists in the current

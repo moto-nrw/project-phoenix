@@ -12,7 +12,7 @@ import (
 )
 
 type ActivityRecoveryRepository struct {
-	store       *postgres.Store
+	completionClock
 	assignments application.AssignmentRecovery
 	application.PresenceRecovery
 }
@@ -21,11 +21,7 @@ func NewActivityRecoveryRepository(db *bun.DB, assignments application.Assignmen
 	if assignments == nil || presence == nil {
 		panic("activity recovery: timetable assignments and presence are required")
 	}
-	return &ActivityRecoveryRepository{store: postgres.New(databaseRuntime(db)), assignments: assignments, PresenceRecovery: presence}
-}
-
-func (r *ActivityRecoveryRepository) CompletionTimestamp(ctx context.Context) (time.Time, error) {
-	return r.store.TransactionTimestamp(ctx)
+	return &ActivityRecoveryRepository{completionClock: postgres.New(databaseRuntime(db)), assignments: assignments, PresenceRecovery: presence}
 }
 
 func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
@@ -63,4 +59,8 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModel.InstanceStudentRepository) scheduleModel.ActivityRecoveryRepository {
 	recoveryAssignments, recoveryPresence := application.RetainedActivityRecovery(assignments)
 	return NewActivityRecoveryRepository(db, recoveryAssignments, recoveryPresence)
+}
+
+type completionClock interface {
+	CompletionTimestamp(context.Context) (time.Time, error)
 }

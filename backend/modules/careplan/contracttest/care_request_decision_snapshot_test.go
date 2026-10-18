@@ -34,7 +34,7 @@ func (s failingPickupReadService) GetStudentPickupSchedules(context.Context, int
 // the "data changed after the decision" step of the freeze scenario.
 func upsertMondayPickup(t *testing.T, f *careFixture, hour, minute int) {
 	t.Helper()
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(
 		f.staffCtx(f.staffAccount),
 		&careplan.PickupSchedule{
 			StudentID:  f.chain.StudentID,
@@ -127,11 +127,12 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
 	rejectingService := newCareScheduleRequestService(
-		f.repos.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
-		f.sf,
+		f.reposCare.CarePlan(),
+		f.persons,
+		f.schedules.Arrivals,
+		failingPickupReadService{PickupScheduleService: f.schedules.Pickups, err: readErr},
+		f.caller,
+		f.services,
 		nil,
 		nil,
 		slog.Default(),
@@ -164,7 +165,7 @@ func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
 	// Guardian withdrawal was retired in #2267 (guardians edit instead); the
 	// withdrawn STATUS survives for historic rows, so it is written straight
 	// through the repository here.
-	err := careplantest.NewScheduleRecords(f.repos.CarePlan()).CareScheduleChangeRequest.Decide(
+	err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Decide(
 		f.staffCtx(f.chain.AccountID), req.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)

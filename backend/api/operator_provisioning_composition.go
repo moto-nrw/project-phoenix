@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -20,55 +19,30 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// operatorProvisioningOwners are the owners the root composed that operator
-// provisioning (#3253) binds alongside the values of the service graph.
-type operatorProvisioningOwners struct {
-	DB            transactionruntime.Database
-	Organizations organizationtenancy.Capability
-	Persons       ProvisioningPersonDirectory
-	Membership    schoolmembership.Query
-	PersonRows    provisioningPersonRows
-	StaffRows     provisioningStaffRows
-	AuditLog      operatorAuditEntries
-}
-
-// compose binds Organisation & Tenancy's provisioning to the root's owners
-// and the service graph's values.
-func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSources) (organizationtenancy.Provisioning, error) {
-	adapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
-		PersonStudents: operatorPersonStudentMembership(owners.DB),
-		Devices:        sources.Devices,
-		Persons:        owners.Persons,
-		Membership:     owners.Membership,
-		PersonRows:     owners.PersonRows,
-		StaffRows:      owners.StaffRows,
-		Accounts:       sources.Identity,
-		ActiveGroups:   sources.Sessions,
-		Supervisors:    sources.Supervisions,
-		Categories:     sources.Categories,
-		AuditLog:       owners.AuditLog,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
-	}
-	identity := sources.Identity
+// newOperatorProvisioning composes Organisation & Tenancy's provisioning
+// (#3253) over the organisations, the Identity & Access module and account
+// directory, the adapters NewOperatorProvisioningAdapters bound and the
+// settings.
+func newOperatorProvisioning(
+	organizations organizationtenancy.Capability, identity *identityaccess.Module, accounts OperatorAccountDirectory,
+	adapters OperatorProvisioningAdapters, settings settingsCompose.SettingsService, logger *slog.Logger,
+) (organizationtenancy.Provisioning, error) {
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		PWAUsageWindowDays: deliveryCompose.PWAUsageWindowDays,
-		Organizations:      owners.Organizations,
+		Organizations:      organizations,
 		Identity: provisioningIdentity{
 			sessions: identity, invitations: identity, provisioning: identity,
-			administration: identity, schoolIdentity: identity, roles: identity, accounts: sources.Accounts,
+			administration: identity, schoolIdentity: identity, roles: identity, accounts: accounts,
 		},
-		Devices:             adapters.Devices,
-		People:              adapters.People,
-		Presence:            adapters.Presence,
-		Categories:          adapters.Categories,
-		Settings:            provisioningSettings{settings: sources.Settings},
-		Audit:               adapters.Audit,
-		Secrets:             provisioningSecrets{},
-		Logger:              sources.Logger,
-		ActiveAccountCounts: adapters.ActiveAccountCounts,
-	})
+		Devices:    adapters.Devices,
+		People:     adapters.People,
+		Presence:   adapters.Presence,
+		Categories: adapters.Categories,
+		Settings:   provisioningSettings{settings: settings},
+		Audit:      adapters.Audit,
+		Secrets:    provisioningSecrets{},
+		Logger:     logger,
+	}, newOperatorDashboard(adapters.ActiveAccountCounts))
 }
 
 // provisioningSecrets draws the provisioning secrets from Security Runtime.

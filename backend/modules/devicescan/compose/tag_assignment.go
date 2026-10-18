@@ -13,11 +13,14 @@ import (
 type TagAssignments = devicescan.TagAssignments
 
 // NewTagAssignments composes bracelet lookup and staff assignment without the scan recorder.
-func NewTagAssignments(users PersonDirectory, logger *slog.Logger) devicescan.TagAssignments {
+func NewTagAssignments(users PersonDirectory, logger *slog.Logger, principal devicescan.DevicePrincipal) devicescan.TagAssignments {
+	if principal == nil {
+		panic("device scan composition: principal is required")
+	}
 	if users == nil {
 		panic("tag assignment composition: users are required")
 	}
-	return application.NewTagAssignments(tagPeople{people{users}}, principals{}, clock{now: time.Now}, logger)
+	return application.NewTagAssignments(tagPeople{people{users}}, principal, clock{now: time.Now}, logger)
 }
 
 func (p tagPeople) FindStaff(ctx context.Context, staffID int64) (*ports.StaffMember, error) {

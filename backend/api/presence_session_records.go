@@ -29,29 +29,18 @@ func newPresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *
 	return records
 }
 
-// SessionRecordOwners are the owners the Student Presence session records
-// project their rooms, activities, devices and supervising staff through.
-// Devices may be nil: device reads then fail loudly.
-type SessionRecordOwners struct {
-	// Now fixes the supervision "today"; nil is the Berlin clock.
-	Now        func() time.Time
-	Devices    devicefleet.Query
-	Rooms      facilitiesModule.Query
-	Timetable  timetable.Capability
-	Membership schoolmembership.Query
-	Persons    peopledirectory.Query
-}
-
 // sessionRecordDependencies binds every owner directory of the Student
-// Presence session records (#2743); the caller adds the database.
-func sessionRecordDependencies(owners SessionRecordOwners) presenceCompose.SessionRecordDependencies {
+// Presence session records (#2743): now fixes the supervision "today" (nil
+// is the Berlin clock); devices may be nil, device reads then fail loudly.
+// The caller adds the database.
+func sessionRecordDependencies(now func() time.Time, devices devicefleet.Query, rooms facilitiesModule.Query, activities timetable.Capability, membership schoolmembership.Query, persons peopledirectory.Query) presenceCompose.SessionRecordDependencies {
 	deps := presenceCompose.SessionRecordDependencies{
-		Now: owners.Now, Rooms: activeRoomDirectory{rooms: owners.Rooms},
-		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(owners.Timetable))),
-		Staff:      presenceSupervisionStaff{membership: owners.Membership, persons: owners.Persons},
+		Now: now, Rooms: activeRoomDirectory{rooms: rooms},
+		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(activities))),
+		Staff:      presenceSupervisionStaff{membership: membership, persons: persons},
 	}
-	if owners.Devices != nil {
-		deps.Devices = activeDeviceDirectory{devices: owners.Devices}
+	if devices != nil {
+		deps.Devices = activeDeviceDirectory{devices: devices}
 	}
 	return deps
 }
@@ -61,7 +50,7 @@ func sessionRecordDependencies(owners SessionRecordOwners) presenceCompose.Sessi
 // person facts.
 type presenceSupervisionStaff struct {
 	membership schoolMembershipCompose.StaffLookup
-	persons    peopledirectory.Query
+	persons    personsByIDQuery
 }
 
 func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs []int64) (map[int64]*presenceCompose.SessionStaff, error) {
@@ -84,12 +73,12 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 
 // personGroupSupervisorRepository attaches Staff.Person to active-group
 // supervisions.
-func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, staff map[int64]*presenceCompose.SessionStaff) error {
+func attachSupervisionPersons(ctx context.Context, query personsByIDQuery, staff map[int64]*presenceCompose.SessionStaff) error {
 	ids := make([]int64, 0, len(staff))
 	for _, member := range staff {
 		ids = append(ids, member.PersonID)
 	}
-	persons, err := peopleCompose.PersonsByID(ctx, query, ids)
+	persons, err := livePersonsByID(ctx, query, ids)
 	if err != nil {
 		return err
 	}

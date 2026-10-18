@@ -71,8 +71,8 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
 	objects, err := nativeUploads.PrivateUploadsBackend()
 	require.NoError(t, err)
-	db, svc := setupFileStoreModule(t, objects)
-	resource := filestoreAPI.NewResource(svc.FileStore, slog.Default())
+	db, files, setSetting := setupFileStoreModule(t, objects)
+	resource := filestoreAPI.NewResource(files, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/files", resource.Router(rootAPI.ProtectedTenantRoutes))
@@ -86,9 +86,9 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 		}
 	})
 	return &apiContext{
-		t: t, db: db, files: svc.FileStore, router: router, admin: adminAccount.ID, member: memberAccount.ID,
+		t: t, db: db, files: files, router: router, admin: adminAccount.ID, member: memberAccount.ID,
 		setStaffUploadEnabled: func() error {
-			return svc.Settings.SetValue(testpkg.Ctx(t), "files.staff_upload_enabled", true, nil, nil)
+			return setSetting(testpkg.Ctx(t), "files.staff_upload_enabled", true)
 		},
 	}
 }

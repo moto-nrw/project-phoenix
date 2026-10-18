@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

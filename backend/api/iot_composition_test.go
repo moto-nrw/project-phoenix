@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 
 	"github.com/stretchr/testify/require"
@@ -15,12 +17,16 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupIoTActiveModule(t *testing.T) (*bun.DB, ActiveTestModule) {
+func setupIoTActiveModule(t *testing.T) (*bun.DB, DeviceTestModule, ActiveTimetable, activityContract.ActivityService, ActivePresence, ActivePeople) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	_, err := NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	moduleTimetable, activityService := NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	modulePresence := NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	modulePeople := NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleDevices := NewActiveTestDevices(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	return db, moduleDevices, moduleTimetable, activityService, modulePresence, modulePeople
 }
 
 func setupIoTSettingsModule(t *testing.T) (*bun.DB, settingsCompose.SettingsService) {
@@ -31,18 +37,18 @@ func setupIoTSettingsModule(t *testing.T) (*bun.DB, settingsCompose.SettingsServ
 	return db, module.Settings
 }
 
-func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule) {
+func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule, DeviceTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, _, _, _, devices, _, _, err := NewIoTDataTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	return db, module, devices
 }
 
 func setupIoTTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, TimetableTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, _, _, err := NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	return db, module
 }

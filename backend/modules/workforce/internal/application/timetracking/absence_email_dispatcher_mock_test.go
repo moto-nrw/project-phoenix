@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type capturingAbsenceEmails struct {
@@ -16,7 +18,12 @@ func newCapturingAbsenceEmails() *capturingAbsenceEmails {
 	return &capturingAbsenceEmails{changed: make(chan struct{})}
 }
 
-func (c *capturingAbsenceEmails) Dispatch(_ context.Context, message AbsenceEmailMessage) {
+func (c *capturingAbsenceEmails) Enqueue(ctx context.Context, message AbsenceEmailMessage) error {
+	tenant.RegisterAfterCommit(ctx, func() { c.capture(message) })
+	return nil
+}
+
+func (c *capturingAbsenceEmails) capture(message AbsenceEmailMessage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.messages = append(c.messages, message)

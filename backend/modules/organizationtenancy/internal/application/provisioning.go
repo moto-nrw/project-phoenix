@@ -22,7 +22,7 @@ type ProvisioningDependencies struct {
 	// owner's normalisation and validation apply.
 	Organizations organizationtenancy.Capability
 	Transaction   ports.Transaction
-	Dashboard     ports.OperatorDashboard
+	Dashboard     organizationtenancy.OperatorDashboard
 	Identity      ports.ProvisioningIdentity
 	Devices       ports.ProvisioningDevices
 	People        ports.ProvisioningPeople
@@ -41,7 +41,7 @@ type Provisioning struct {
 	pwaUsageWindowDays int
 	organizations      organizationtenancy.Capability
 	tx                 ports.Transaction
-	dashboard          ports.OperatorDashboard
+	dashboard          organizationtenancy.OperatorDashboard
 	identity           ports.ProvisioningIdentity
 	devices            ports.ProvisioningDevices
 	people             ports.ProvisioningPeople

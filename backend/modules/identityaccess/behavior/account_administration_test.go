@@ -23,7 +23,7 @@ func TestFindOwnAccountIgnoresTheManagementBoundary(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 
 	// An account with no membership at the school in context: the
 	// administration may not touch it, its holder may still read it.
@@ -48,7 +48,7 @@ func TestUpdateManageableAccountNormalisesTheAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 	tenantID := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "update-normalised")
@@ -75,7 +75,7 @@ func TestUpdateManageableAccountRefusesAnEmptyAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 	tenantID := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "update-nameless")
@@ -100,7 +100,7 @@ func TestChangeAccountPasswordKeepsTheCredentialOnAWrongCurrentPassword(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 
 	email := fmt.Sprintf("change-password-%d@test.local", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)

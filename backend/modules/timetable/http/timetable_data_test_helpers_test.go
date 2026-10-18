@@ -189,7 +189,10 @@ var RootCompositions struct {
 	OfferingSources func(t *testing.T, db *bun.DB) (timetableModule.OfferingSourceSupport, error)
 	// StaffAccountPeople is the operations' person port for an acting account
 	// that is this person and staff member.
-	StaffAccountPeople func(personID, staffID int64) timetablePorts.OperationPeople
+	StaffAccountPeople func(personID, staffID int64, session timetablePorts.RequestSession) interface {
+		timetablePorts.OperationPeople
+		timetablePorts.OperationCaller
+	}
 	// ErrCareOfferingInvalid is what Care Plan's care-offering checks return
 	// for an offering a template change would invalidate.
 	ErrCareOfferingInvalid error

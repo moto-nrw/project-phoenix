@@ -8,8 +8,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -18,17 +18,17 @@ import (
 // OperatorDependencies are what the operator's school settings need from
 // the root. Notify and OpenAttendance are optional.
 type OperatorDependencies struct {
-	Settings configSvc.SettingsService
+	Settings configModel.SettingsService
 	// DB opens the school's tenant transaction.
 	DB *bun.DB
 	// Notify tells open tenant tabs that a setting changed, so they drop
 	// their settings caches. Nil disables the broadcast.
-	Notify configSvc.SettingsChangedNotifier
+	Notify configModel.SettingsChangedNotifier
 	// OpenAttendance feeds the presence-mode switch guard. Nil disables it.
 	OpenAttendance configSvc.OpenAttendanceChecker
 	// OnValueSet runs a write's side effects inside the tenant transaction;
 	// the closure it returns runs only after a successful commit.
-	OnValueSet configSvc.OperatorValueSetHook
+	OnValueSet configModel.OperatorValueSetHook
 	Logger     *slog.Logger
 }
 
@@ -41,33 +41,29 @@ func NewOperatorSchoolSettings(deps OperatorDependencies) settings.OperatorSchoo
 	}
 	runtime := operatorSettingsRuntime{db: deps.DB}
 	return &operatorSchoolSettings{
-		settings: deps.Settings,
-		runtime:  runtime,
-		writes: configSvc.NewOperatorSettingsService(
+		settings:        deps.Settings,
+		runtime:         runtime,
+		SettingsSchemas: deps.Settings,
+		OperatorSettingsService: configSvc.NewOperatorSettingsService(
 			deps.Settings,
 			runtime,
 			deps.Notify,
 			deps.OpenAttendance,
-			logger,
+			logger, deps.OnValueSet,
 		),
-		onValueSet: deps.OnValueSet,
 	}
 }
 
 type operatorSchoolSettings struct {
-	settings   configSvc.SettingsService
-	runtime    operatorSettingsRuntime
-	writes     configSvc.OperatorSettingsService
-	onValueSet configSvc.OperatorValueSetHook
-}
-
-func (s *operatorSchoolSettings) CheckOperatorWritable(key string) error {
-	return s.settings.CheckOperatorWritable(key)
+	configModel.SettingsSchemas
+	configSvc.OperatorSettingsService
+	settings configModel.SettingsService
+	runtime  operatorSettingsRuntime
 }
 
 // Schema passes nil permissions: operators see every setting.
 func (s *operatorSchoolSettings) Schema(ctx context.Context, schoolID int64) (json.RawMessage, error) {
-	var schema *configSvc.SettingsSchema
+	var schema *configModel.SettingsSchema
 	err := s.runtime.WithinTenant(ctx, schoolID, func(ctx context.Context) error {
 		var schemaErr error
 		schema, schemaErr = s.settings.GetSchemaForOperator(ctx, nil)
@@ -87,14 +83,6 @@ func (s *operatorSchoolSettings) Reveal(ctx context.Context, schoolID int64, key
 		return resolveErr
 	})
 	return value, err
-}
-
-func (s *operatorSchoolSettings) SetValue(ctx context.Context, schoolID int64, key string, value any, changedBy int64, force bool) error {
-	return s.writes.SetValue(ctx, schoolID, key, value, changedBy, force, s.onValueSet)
-}
-
-func (s *operatorSchoolSettings) ResetValue(ctx context.Context, schoolID int64, key string, changedBy int64) error {
-	return s.writes.ResetValue(ctx, schoolID, key, changedBy, s.onValueSet)
 }
 
 type operatorSettingsRuntime struct{ db *bun.DB }

@@ -174,19 +174,22 @@ func (e *recordingEngine) PurgeStudentPhotos(context.Context) ([]string, error) 
 
 func (e *recordingEngine) ApplyStudentPhotoConsent(
 	_ context.Context, current peopledirectory.StudentPhotoState, _ *bool,
-) peopledirectory.StudentPhotoState {
+) (peopledirectory.StudentPhotoState, error) {
 	e.calls++
-	return current
+	return current, nil
 }
 
-func (e *recordingEngine) ScheduleStudentPhotoUnlink(context.Context, string) { e.calls++ }
+func (e *recordingEngine) ScheduleStudentPhotoUnlink(context.Context, string) error {
+	e.calls++
+	return nil
+}
 
 func (e *recordingEngine) ListStudentDirectory(
 	_ context.Context, filter peopledirectory.StudentDirectoryFilter,
 ) ([]peopledirectory.StudentRecord, error) {
 	e.calls++
 	e.directory = filter
-	return nil, nil
+	return e.directoryRows, nil
 }
 
 func (e *recordingEngine) CountStudentDirectory(

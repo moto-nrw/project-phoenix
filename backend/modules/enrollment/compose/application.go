@@ -84,30 +84,29 @@ type PhaseDependencies struct {
 	Calendar                        CalendarPeriods
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
-	// SourcedTemplates resolves the decision flow's sourced-template
-	// resyncer on every edit, so the root can bind it after the phase
-	// administration exists.
-	SourcedTemplates func() enrollment.SourcedTemplateResyncer
-	Settings         CollectionSettings
-	Roster           enrollment.PhaseResponseRoster
-	CareExits        enrollment.PhaseResponseCareExits
-	PortalAccounts   enrollment.PhaseResponsePortalAccounts
-	Logger           *slog.Logger
-	Today            func() calendar.Date
+	// Resyncer keeps the templates sourcing the phase's offerings in step.
+	Resyncer       enrollment.SourcedTemplateResyncer
+	Settings       CollectionSettings
+	Roster         enrollment.PhaseResponseRoster
+	CareExits      enrollment.PhaseResponseCareExits
+	PortalAccounts enrollment.PhaseResponsePortalAccounts
+	Logger         *slog.Logger
+	Today          func() calendar.Date
 }
 
-// NewPhases composes the phase administration in the ambient tenant
-// transaction.
-func NewPhases(deps PhaseDependencies) *Phases {
+// NewResyncingPhases composes the phase administration in the ambient tenant
+// transaction over the sourced-template resyncer; a missing resyncer, record
+// or offering port or recurrence lock is a construction error.
+func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 	var responses *application.PhaseResponseSources
 	if deps.Roster != nil || deps.CareExits != nil || deps.PortalAccounts != nil {
 		responses = &application.PhaseResponseSources{Roster: deps.Roster, CareExits: deps.CareExits, PortalAccounts: deps.PortalAccounts}
 	}
-	return application.NewPhases(application.PhaseDependencies{
+	return application.NewResyncingPhases(application.PhaseDependencies{
 		Records: deps.Records, Offerings: deps.Offerings, Calendar: deps.Calendar,
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
-		SourcedTemplates:                deps.SourcedTemplates,
+		Resyncer:                        deps.Resyncer,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

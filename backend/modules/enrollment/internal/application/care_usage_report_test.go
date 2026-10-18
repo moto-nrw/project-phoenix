@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // pickupWeekdayMonday is Monday in the ISO weekday numbering of the pickup
@@ -28,7 +27,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	studentID := int64(700)
 	excludedStudentID := int64(701)
 	guardianEmail := "max@example.org"
-	guardianRepo := &fakeClassRosterRequestGuardianRepo{guardians: []*enrollment.RequestGuardian{{
+	guardianRepo := &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentNative.RequestGuardian{{
 		RequestID: 11,
 		FirstName: "Max",
 		LastName:  "Muster",
@@ -43,7 +42,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		// The phase starts after this day, so the report reads the selection
 		// at the phase start rather than today.
 		Now: func() time.Time { return reportDate.AddDays(-30).BerlinMidnight() },
-		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
 			ID:                11,
 			GuardianFirstName: "Eva",
 			GuardianLastName:  "Muster",
@@ -57,22 +56,22 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 			RequestID:        11,
 			FirstName:        "Lina",
 			LastName:         "Muster",
-			Status:           enrollmentModels.ChildStatusApproved,
+			Status:           enrollmentNative.ChildStatusApproved,
 			CreatedStudentID: &studentID,
 		}, {
 			ID: 22, RequestID: 12, FirstName: "Nicht", LastName: "Enthalten",
-			Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &excludedStudentID,
+			Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &excludedStudentID,
 		}}},
 		Guardians: guardianRepo,
 		Offerings: &fakeClassRosterCareOfferingRepo{},
-		Phases: &fakeClassRosterPhaseRepo{phase: &enrollment.Phase{
-			ServiceStartDate: enrollment.Date(reportDate),
-			ServiceEndDate:   enrollment.Date(reportDate.AddDays(365)),
+		Phases: &fakeClassRosterPhaseRepo{phase: &enrollmentNative.Phase{
+			ServiceStartDate: enrollmentNative.Date(reportDate),
+			ServiceEndDate:   enrollmentNative.Date(reportDate.AddDays(365)),
 		}},
 		PickupSchedules: pickupSvc,
 	})
 
-	report, err := svc.careUsage(context.Background(), enrollment.CareUsageFilters{PhaseID: 55, Status: "all", Search: "Lina"}, true)
+	report, err := svc.careUsage(context.Background(), enrollmentNative.CareUsageFilters{PhaseID: 55, Status: "all", Search: "Lina"}, true)
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -97,7 +96,7 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 
 	studentID := int64(700)
 	svc := NewReports(ReportDependencies{
-		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
 			ID:          11,
 			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
@@ -106,7 +105,7 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 			RequestID:        11,
 			FirstName:        "Lina",
 			LastName:         "Muster",
-			Status:           enrollmentModels.ChildStatusSubmitted,
+			Status:           enrollmentNative.ChildStatusSubmitted,
 			MatchedStudentID: &studentID,
 		}}},
 		Offerings: &fakeClassRosterCareOfferingRepo{},
@@ -118,7 +117,7 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 		}}},
 	})
 
-	report, err := svc.careUsage(context.Background(), enrollment.CareUsageFilters{PhaseID: 55, Status: "all"}, true)
+	report, err := svc.careUsage(context.Background(), enrollmentNative.CareUsageFilters{PhaseID: 55, Status: "all"}, true)
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -130,7 +129,7 @@ func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
 
 	enrichmentErr := errors.New("enrichment unavailable")
 	svc := NewReports(ReportDependencies{
-		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+		Requests: &fakeCareUsageRequestRepo{requests: []*Request{{
 			ID:          11,
 			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
@@ -143,7 +142,7 @@ func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
 		PickupSchedules: &fakeCareUsagePickupScheduleSvc{err: enrichmentErr},
 	})
 
-	report, err := svc.CareUsage(context.Background(), enrollment.CareUsageFilters{PhaseID: 55, Status: "all"})
+	report, err := svc.CareUsage(context.Background(), enrollmentNative.CareUsageFilters{PhaseID: 55, Status: "all"})
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)

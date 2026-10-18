@@ -43,5 +43,5 @@ type PasswordResetStore interface {
 // resolves the portal host for the scope and records the delivery outcome
 // through the module once the send settles.
 type PasswordResetDelivery interface {
-	DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration)
+	DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) error
 }

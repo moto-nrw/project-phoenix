@@ -51,7 +51,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	probe := &failingRolloverDeadlineProbe{
 		description: fmt.Sprintf("rollover-deadline-rollback-%d", time.Now().UnixNano()),
 	}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		schoolRepo:             dbTenantDirectory{db: db},
 		tenantRuntime:          dbTenantRuntime(t, db),
 		rolloverDeadlineRunner: probe,

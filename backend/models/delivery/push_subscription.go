@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"time"
 )
 
 // Push subscription portal constants: through which portal the device
@@ -61,15 +60,17 @@ func ValidatePushEndpoint(endpoint string) error {
 // a guardian linked to several schools holds one row per school for the
 // same endpoint.
 type PushSubscription struct {
-	base.Model `bun:"schema:iot,table:push_subscriptions"`
-	base.TenantModel
-	AccountID     int64  `bun:"account_id,notnull" json:"account_id"`
-	Portal        string `bun:"portal,notnull" json:"portal"`
-	Endpoint      string `bun:"endpoint,notnull" json:"endpoint"`
-	P256dh        string `bun:"p256dh,notnull" json:"-"`
-	Auth          string `bun:"auth,notnull" json:"-"`
-	UserAgent     string `bun:"user_agent,notnull,default:''" json:"user_agent"`
-	TokenFamilyID string `bun:"token_family_id,notnull,default:''" json:"-"`
+	ID            int64     `json:"id"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	TenantID      int64     `json:"tenant_id"`
+	AccountID     int64     `json:"account_id"`
+	Portal        string    `json:"portal"`
+	Endpoint      string    `json:"endpoint"`
+	P256dh        string    `json:"-"`
+	Auth          string    `json:"-"`
+	UserAgent     string    `json:"user_agent"`
+	TokenFamilyID string    `json:"-"`
 }
 
 // Validate ensures push subscription data is valid.
@@ -96,11 +97,10 @@ func (s *PushSubscription) Validate() error {
 // All reads/writes are tenant-scoped (RLS); callers outside tenant middleware
 // must wrap calls in tenant.WithTenantTx.
 type PushSubscriptionRepository interface {
-	base.CRUDRepository[*PushSubscription]
 
 	// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
 	// endpoint).
-	Upsert(ctx context.Context, sub *PushSubscription) error
+	RegisterSubscription(ctx context.Context, sub *PushSubscription) error
 	// DeleteByEndpoint removes the caller's staff-portal subscription for the
 	// current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error

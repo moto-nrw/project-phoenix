@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	users "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // The workflow used the retained validator's partially normalized value even

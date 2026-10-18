@@ -32,7 +32,7 @@
     "sources": [
       "backend/modules/schedulerruntime/ports/worker.go",
       "backend/modules/schedulerruntime/compose/compose.go",
-      "backend/services/scheduler/worker.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/worker.go",
       "backend/api/server.go",
       "backend/architecture/policy.json"
     ],

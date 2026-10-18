@@ -24,10 +24,9 @@ type PhaseDependencies struct {
 	Calendar                        CalendarPeriods
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
-	// SourcedTemplates resolves the decision flow's sourced-template
-	// resyncer on every edit, so the composition can bind it after the
-	// phase administration exists.
-	SourcedTemplates func() enrollment.SourcedTemplateResyncer
+	// Resyncer keeps the rosters of the templates sourcing the phase's
+	// offerings in step with a window change or a delete.
+	Resyncer enrollment.SourcedTemplateResyncer
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -61,9 +60,9 @@ type Phases struct {
 	logger *slog.Logger
 }
 
-// NewPhases builds the phase administration. A nil logger falls back to
+// newPhases builds the phase administration. A nil logger falls back to
 // slog.Default().
-func NewPhases(deps PhaseDependencies) *Phases {
+func newPhases(deps PhaseDependencies) *Phases {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -71,18 +70,21 @@ func NewPhases(deps PhaseDependencies) *Phases {
 	return &Phases{deps: deps, logger: logger}
 }
 
+// NewResyncingPhases builds the phase administration over the
+// sourced-template resyncer it keeps the rosters in step through. The
+// records, the offerings, the recurrence lock and the resyncer are required.
+func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
+	if deps.Records == nil || deps.Offerings == nil || deps.LockTemplateRecurrence == nil || deps.Resyncer == nil {
+		return nil, errors.New("enrollment phases: records, offerings, template recurrence lock and sourced-template resyncer are required")
+	}
+	return newPhases(deps), nil
+}
+
 func (s *Phases) todayDate() calendar.Date {
 	if s.deps.Today != nil {
 		return s.deps.Today()
 	}
 	return calendar.TodayDate()
-}
-
-func (s *Phases) sourcedTemplates() enrollment.SourcedTemplateResyncer {
-	if s.deps.SourcedTemplates == nil {
-		return nil
-	}
-	return s.deps.SourcedTemplates()
 }
 
 func (s *Phases) notFound(err error) bool {
@@ -253,12 +255,6 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 // (#2147 review). The recurrence lock is taken before the existing row is
 // read and stays held for the whole update transaction.
 func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (bool, error) {
-	if s.deps.ValidateCareOfferingPhaseChange == nil && s.sourcedTemplates() == nil {
-		return false, nil
-	}
-	if s.deps.LockTemplateRecurrence == nil {
-		return false, errors.New("phase update care-offering validation requires the template recurrence lock")
-	}
 	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
 		return false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
@@ -295,21 +291,13 @@ func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enr
 // skipping the template. Runs under the recurrence lock the update already
 // holds; history before today stays untouched.
 func (s *Phases) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
-	resyncer := s.sourcedTemplates()
-	if resyncer == nil {
-		// Focused tests may run without the enrollment decision wiring; the
-		// composition always binds it.
-		s.logger.Warn("phase update: sourced-template resyncer not configured; sourced rosters may be stale",
-			slog.Int64("phase_id", phaseID))
-		return nil
-	}
 	offeringIDs, err := s.deps.Offerings.OfferingIDsForPhase(ctx, phaseID)
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
 	today := s.todayDate()
 	for _, offeringID := range offeringIDs {
-		if err := resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
+		if err := s.deps.Resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
 			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
 				// The tenant transaction commits ordinary 4xx responses.
 				// Mark the ambient transaction so the already-written phase
@@ -331,17 +319,6 @@ func (s *Phases) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64)
 // recurrence lock. Deliberately no source validation is involved, so a
 // drifted-invalid source never blocks the delete.
 func (s *Phases) detachPhaseSourcedTemplates(ctx context.Context, phaseID int64) error {
-	resyncer := s.sourcedTemplates()
-	if resyncer == nil || s.deps.Offerings == nil {
-		// Focused tests may run without the enrollment decision wiring; the
-		// composition always binds it.
-		s.logger.Warn("phase delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
-			slog.Int64("phase_id", phaseID))
-		return nil
-	}
-	if s.deps.LockTemplateRecurrence == nil {
-		return errors.New("phase delete sourced-template detach requires the template recurrence lock")
-	}
 	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
 		return fmt.Errorf("lock template recurrence for phase delete: %w", err)
 	}
@@ -351,7 +328,7 @@ func (s *Phases) detachPhaseSourcedTemplates(ctx context.Context, phaseID int64)
 	}
 	today := s.todayDate()
 	for _, offeringID := range offeringIDs {
-		if err := resyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
+		if err := s.deps.Resyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
 			return fmt.Errorf("phase delete: detach templates sourcing offering %d: %w", offeringID, err)
 		}
 	}

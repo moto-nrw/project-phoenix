@@ -39,7 +39,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 
 	sweeps := &pwaUsageSweeps{}
 	cleanup := sweeps.cleanup
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		pwaUsageCleanup: cleanup,
 		cleanupClock:    func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{

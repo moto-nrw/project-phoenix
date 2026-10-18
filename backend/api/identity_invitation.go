@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -26,6 +27,7 @@ import (
 // with. dispatcher may be nil: the link is then not mailed, as before.
 type InvitationWiring struct {
 	Dispatcher  *email.Dispatcher
+	Durable     DurableMailOutbox
 	DefaultFrom email.Email
 	// StaffURL and schoolURL are the portal hosts an invitee accepts on.
 	StaffURL  string
@@ -40,12 +42,12 @@ type InvitationWiring struct {
 	// carries; nil leaves them out and /help asks.
 	Settings tenantSettingsResolver
 	// Outbox persists the staff welcome in the invitation transaction.
-	Outbox func() MailOutbox
+	Outbox MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
 }
 
-func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -56,10 +58,12 @@ func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 	return &identityaccessCompose.SchoolInvitationDependencies{
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
-		Delivery: invitationDelivery{
-			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
-			identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-			settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
+			return invitationDelivery{
+				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
+				identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+			}
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.Expiry,
@@ -80,19 +84,26 @@ func (RoleGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissi
 	}, actorPermissions)
 }
 
+// schoolInvitationRecords records an invitation mail's outcome in Identity &
+// Access.
+type schoolInvitationRecords interface {
+	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error
+}
+
 // invitationDelivery mails an invitation and records the outcome through the
 // module once the send settles.
 type invitationDelivery struct {
 	dispatcher   *email.Dispatcher
+	durable      DurableMailOutbox
 	from         email.Email
 	staffURL     string
 	schoolURL    string
 	identity     email.ReplyToResolver
 	backoff      []time.Duration
-	invitations  func() identityaccess.SchoolInvitations
+	invitations  schoolInvitationRecords
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
-	outbox       func() MailOutbox
+	outbox       MailOutbox
 	welcomeDelay time.Duration
 }
 
@@ -100,38 +111,22 @@ func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) st
 	return identityaccess.SchoolInvitationOrigin(portal, d.staffURL, d.schoolURL)
 }
 
-func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
-	d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry)
+func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) error {
+	return d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry)
 }
 
-func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) error {
 	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
-			slog.Int64("invitation_id", invitation.ID))
-		return
+		return nil
 	}
 	mail := identityaccess.SchoolInvitationMail(invitation, schoolName, d.portalURL(portal), expiry)
-	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
-	// reach the OGS, not moto (#1936). The invitation names its school;
-	// create queues this after commit on a detached context that has no
-	// ambient tenant.
 	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, invitation.TenantID, d.logger)
 	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), mail)
 	message.ReplyTo = email.NewEmail(replyIdentity.Name, replyIdentity.Address)
-	meta := email.DeliveryMetadata{
-		Type:        "invitation",
-		ReferenceID: invitation.ID,
-		Token:       invitation.Token,
-		Recipient:   invitation.Email,
-	}
-	baseRetry := invitation.Delivery.RetryCount
-	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.WithInteractiveRetry(email.DeliveryRequest{
-		Message:  message,
-		Metadata: meta,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
-			d.recordDelivery(cbCtx, meta, baseRetry, result)
-		},
-	}, d.backoff))
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		TenantID: invitation.TenantID, Message: message, Type: "invitation", ReferenceID: invitation.ID,
+		Backoff: d.backoff, BaseRetry: invitation.Delivery.RetryCount, ExpiresAt: invitation.ExpiresAt,
+	})
 }
 
 // QueueSchoolWelcome persists the welcome with the invitation. Its renderer
@@ -143,7 +138,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 			slog.Int64("invitation_id", invitation.ID))
 		return nil
 	}
-	if d.outbox == nil || d.outbox() == nil {
+	if d.outbox == nil {
 		return fmt.Errorf("staff welcome outbox is not configured")
 	}
 	frontend := d.portalURL(portal)
@@ -165,7 +160,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)
 	}
-	if err := d.outbox().EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+	if err := d.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:              identityaccess.MailKindStaffWelcome,
 		Payload:           payload,
 		RelatedEntityType: identityaccess.MailRelatedSchoolInvitation,
@@ -194,7 +189,7 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
-	if err := d.invitations().RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
+	if err := d.invitations.RecordSchoolInvitationDelivery(ctx, meta.ReferenceID, delivery); err != nil {
 		d.logger.Error("failed to update invitation delivery status",
 			slog.Int64("invitation_id", meta.ReferenceID),
 			slog.Any("error", err),

@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	clockCompose "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock"
 )
 
 // The staff-clock workflow (the kiosk's check-in and check-out) is bound here
@@ -20,8 +23,8 @@ import (
 
 // newStaffClockService composes the staff-clock workflow over the retained
 // person service, the card owner's capability and the Workforce time clock.
-func newStaffClockService(people peoplePorts.PersonDirectory, cards identityaccess.RFIDCards, clock workforceModule.TimeClock) *staffclock.Service {
-	return staffclock.NewService(staffclock.Dependencies{
+func newStaffClockService(people peoplePorts.PersonDirectory, cards identityaccess.RFIDCards, clock workforceModule.TimeClock) devicescan.StaffClock {
+	return clockCompose.NewService(staffclock.Dependencies{
 		Cards:     staffClockCards{cards: cards},
 		Staff:     newStaffClockStaffLookup(people),
 		TimeClock: newStaffClockTimeClock(clock),

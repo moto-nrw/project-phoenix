@@ -29,7 +29,7 @@ type CourseGroup struct {
 // LockCourseGroups serializes capacity checks and the enrollment write for
 // every shared course group. IDs are ordered so overlapping approvals cannot
 // deadlock.
-func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64) ([]CourseGroup, error) {
+func (Reader) LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64) ([]CourseGroup, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -74,7 +74,7 @@ func participantLimit(limit int) *int {
 // [from, until). A seat is held for the full enrollment window, independently
 // of individual days. excludeStudentID omits an existing seat of the child
 // currently being checked.
-func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
+func (Reader) CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -124,7 +124,7 @@ func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int6
 
 // CountSourceEnrollments counts the timetable enrollments an enrollment
 // request (childID nil) or one of its children sourced.
-func CountSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64, childID *int64) (int, error) {
+func (Reader) CountSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64, childID *int64) (int, error) {
 	if childID == nil {
 		return CountRequestSourceEnrollments(ctx, db, tenantID, requestID)
 	}
@@ -171,3 +171,23 @@ func wrapCountError(err error) error {
 	}
 	return fmt.Errorf("timetable projection: count enrollments: %w", err)
 }
+
+// StudentEnrollments is the deletion's bounded read capability.
+type EnrollmentDatabase func(context.Context) (bun.IDB, int64, error)
+type StudentEnrollments struct {
+	database EnrollmentDatabase
+}
+
+func (Reader) StudentEnrollments(database EnrollmentDatabase) StudentEnrollments {
+	return StudentEnrollments{database: database}
+}
+func (r StudentEnrollments) CountStudentEnrollments(ctx context.Context, id int64) (int, error) {
+	db, tenantID, err := r.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return CountStudentEnrollments(ctx, db, tenantID, id)
+}
+
+// Reader serves the root-bound course and enrollment projections.
+type Reader struct{}

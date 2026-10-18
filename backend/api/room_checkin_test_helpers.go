@@ -15,17 +15,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-type RoomsTestModule struct {
-	ActiveTestModule
-	ListExport *lists.RendererService
-}
-
-func NewRoomsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (RoomsTestModule, error) {
+// NewRoomsTestModule composes the active graph the room routes run over and
+// returns it with the list export the room lists render through.
+func NewRoomsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (ActiveTestModule, *lists.RendererService, error) {
 	active, err := NewActiveTestModule(db, unit)
 	if err != nil {
-		return RoomsTestModule{}, err
+		return ActiveTestModule{}, nil, err
 	}
-	return RoomsTestModule{ActiveTestModule: active, ListExport: lists.NewRendererService()}, nil
+	return active, lists.NewRendererService(), nil
 }
 
 // CheckinTestModule composes the device-scan workflow (#2698) over the
@@ -33,7 +30,6 @@ func NewRoomsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 // depend on tenant settings alone, never on the developer's environment.
 // Rosters is the block roster lookup the workflow reads.
 type CheckinTestModule struct {
-	ActiveTestModule
 	DeviceScan devicescanCompose.DeviceScan
 	Rosters    devicescanCompose.Rosters
 }
@@ -43,27 +39,33 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
+	moduleDevices := NewActiveTestDevices(db, unit, clocks...)
+	modulePresence := NewActiveTestPresence(db, unit, clocks...)
+	modulePeople := NewActiveTestPeople(db, unit, clocks...)
+	_, activityService := NewActiveTestTimetable(db, unit, clocks...)
+	moduleEducation := NewActiveTestEducation(db, unit, clocks...)
+	moduleSettings := NewActiveTestSettings(db, unit, clocks...)
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := NewUnobservedTimetableDependencies(db).Capability
-	scan := devicescanCompose.New(devicescanCompose.Dependencies{
-		Fleet:      module.IoT.Fleet(),
+	rosters := MustNewUnobservedTimetable(db)
+	scan := devicescanCompose.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
+		Fleet:      moduleDevices.IoT.Fleet(),
 		Presence:   NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,
-		Active:     module.Active,
-		Users:      NewDeviceScanPeople(module.Users),
-		Activities: DeviceActivityCatalog(module.Activities),
+		Active:     modulePresence.Active,
+		Users:      NewDeviceScanPeople(modulePeople.Users),
+		Activities: DeviceActivityCatalog(activityService),
 		Rosters:    rosters,
-		Education:  module.Education,
+		Education:  moduleEducation.Education,
 		Pickups:    module.PickupSchedule,
-		Settings:   newDeviceScanSettings(module.Settings),
+		Settings:   newDeviceScanSettings(moduleSettings.Settings),
 		Now:        OptionalClock(clocks),
 		Logger:     logger,
 	})
-	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan, Rosters: rosters}, nil
+	return CheckinTestModule{DeviceScan: scan, Rosters: rosters}, nil
 }
 
 // NewCheckinTestPresence builds the same unobserved presence reader used by

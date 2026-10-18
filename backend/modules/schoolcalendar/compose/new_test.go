@@ -42,7 +42,26 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *s
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe, Today: func() string { return fixedToday }})
+	return buildCalendar(t, db, observe, unboundFederalState, func(context.Context) error { return nil },
+		func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil })
+}
+
+// unboundFederalState is the federal state of a tenant without the setting.
+func unboundFederalState(context.Context) (string, error) {
+	return "", errors.New("school calendar: federal state resolver is not bound")
+}
+
+// buildCalendar composes the records and the period administration over
+// the fixed calendar day.
+func buildCalendar(t *testing.T, db *bun.DB, observe func(Observation), federalState func(context.Context) (string, error),
+	gate func(context.Context) error, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error,
+) *schoolcalendar.Module {
+	t.Helper()
+	records, err := NewRecords(RecordsDependencies{DB: db, Observe: observe, FederalState: federalState})
+	require.NoError(t, err)
+	module, err := NewAdministration(records, AdministrationDependencies{
+		DB: db, Observe: observe, RecurrenceGate: gate, CareOfferingGuard: guard, Today: func() string { return fixedToday },
+	})
 	require.NoError(t, err)
 	return module
 }
@@ -87,7 +106,9 @@ func idsOf(periods []schoolcalendar.CalendarPeriod) []int64 {
 
 func TestNewRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
-	_, err := New(Dependencies{})
+	_, err := NewRecords(RecordsDependencies{})
+	require.Error(t, err)
+	_, err = NewAdministration(nil, AdministrationDependencies{})
 	require.Error(t, err)
 }
 

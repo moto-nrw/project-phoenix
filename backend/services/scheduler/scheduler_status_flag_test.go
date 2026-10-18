@@ -87,7 +87,7 @@ func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 	// synctest freezes this test's clock at 2000-01-01 UTC for this call.
 	synctest.Test(t, func(t *testing.T) {
 		archives := &statusFlagArchives{}
-		s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
+		s := unitScheduler(&unitSchedulerDependencies{studentStatusDayRepo: archives})
 
 		affected, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
 
@@ -105,7 +105,7 @@ func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 // scheduler fails loudly instead of silently no-oping.
 func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
 	t.Parallel()
-	s := unitScheduler(&Scheduler{})
+	s := unitScheduler(&unitSchedulerDependencies{})
 	_, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
 	assert.Error(t, err)
 }
@@ -174,7 +174,7 @@ func TestCheckAndRunStatusFlagClear_SkipsOutsideEndOfDay(t *testing.T) {
 			"operations.excused_clear_mode": "end_of_day",
 		},
 	}
-	s := unitScheduler(&Scheduler{settings: settings})
+	s := unitScheduler(&unitSchedulerDependencies{settings: settings})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 	s.checkAndRunStatusFlagClear(context.Background(), task)
@@ -191,7 +191,7 @@ func TestCheckAndRunStatusFlagClear_SkipsOutsideEndOfDay(t *testing.T) {
 func TestRunStatusFlagClear_FiresBothModes(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.sick_clear_mode":    "end_of_day",
@@ -215,13 +215,15 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&Scheduler{
+		s := unitScheduler(&unitSchedulerDependencies{
 			done:     make(chan struct{}),
 			settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
 
 		task := &ScheduledTask{Name: "status-flag-clear"}
-		s.wg.Add(1)
-		go s.runStatusFlagClearTaskPolling(task)
+		s.wg.Go(func() {
+			s.runStatusFlagClearTaskPolling(task)
+		})
+
 		// Let the goroutine settle past the immediate-run branch.
 		synctest.Wait()
 		close(s.done)
@@ -235,7 +237,7 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 func TestClearStatusFlag_ArchivesExcusedFlag(t *testing.T) {
 	t.Parallel()
 	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
+	s := unitScheduler(&unitSchedulerDependencies{studentStatusDayRepo: archives})
 
 	affected, err := s.clearStatusFlag(context.Background(), "excused", "excused_since")
 
@@ -253,7 +255,7 @@ func TestClearStatusFlag_ArchivesExcusedFlag(t *testing.T) {
 func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	t.Parallel()
 	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentStatusDayRepo: archives,
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
@@ -279,7 +281,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	t.Parallel()
 	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentStatusDayRepo: archives,
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
@@ -304,7 +306,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsUnconfiguredModes(t *testing.
 	t.Parallel()
 	require.Equal(t, "end_of_day", clearModeEndOfDay, "the fallback is the registry default")
 	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentStatusDayRepo: archives,
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{},
@@ -322,7 +324,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsUnconfiguredModes(t *testing.
 func TestRunStatusFlagClear_ArchiveFailureKeepsTheDayOpen(t *testing.T) {
 	t.Parallel()
 	archives := &statusFlagArchives{err: errors.New("archive unavailable")}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentStatusDayRepo: archives,
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
@@ -348,7 +350,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 		t.Skip("running inside the end-of-day minute")
 	}
 	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{
+	s := unitScheduler(&unitSchedulerDependencies{
 		studentStatusDayRepo: archives,
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{

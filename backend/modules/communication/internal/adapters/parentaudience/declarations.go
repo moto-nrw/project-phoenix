@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+
 	"github.com/uptrace/bun"
 )
 
@@ -47,10 +49,10 @@ type declarationChildRow struct {
 	SchoolClass    string `bun:"school_class"`
 }
 
-func declarationChildren(rows []declarationChildRow) []*DeclarationChild {
-	out := make([]*DeclarationChild, 0, len(rows))
+func declarationChildren(rows []declarationChildRow) []*contract.DeclarationChild {
+	out := make([]*contract.DeclarationChild, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, &DeclarationChild{
+		out = append(out, &contract.DeclarationChild{
 			AnnouncementID: row.AnnouncementID, StudentID: row.StudentID, FirstName: row.FirstName,
 			LastName: row.LastName, SchoolClass: row.SchoolClass,
 		})
@@ -59,7 +61,7 @@ func declarationChildren(rows []declarationChildRow) []*DeclarationChild {
 }
 
 // DeclarationChildren returns every child the declaration reaches.
-func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announcementID int64, history []DeclarationHistoryLink) ([]*DeclarationChild, error) {
+func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announcementID int64, history []contract.DeclarationHistoryLink) ([]*contract.DeclarationChild, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -115,19 +117,19 @@ type declarationSignerRow struct {
 
 // DeclarationSigners returns the guardians who may declare for the children
 // of one school.
-func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*DeclarationSigner, error) {
+func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
 	return p.declarationSigners(ctx, schoolID, studentIDs)
 }
 
 // DeclarationSignersForStudents is DeclarationSigners for children of several
 // schools; the ids come from an already authorized feed.
-func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*DeclarationSigner, error) {
+func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
 	return p.declarationSigners(ctx, 0, studentIDs)
 }
 
-func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*DeclarationSigner, error) {
+func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
 	if len(studentIDs) == 0 {
-		return []*DeclarationSigner{}, nil
+		return []*contract.DeclarationSigner{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -137,9 +139,9 @@ func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, stu
 	if err := db.NewRaw(declarationSignersSQL, p.guardianLinks(db, schoolID), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration signers: %w", err)
 	}
-	out := make([]*DeclarationSigner, 0, len(rows))
+	out := make([]*contract.DeclarationSigner, 0, len(rows))
 	for _, row := range rows {
-		signer := DeclarationSigner(row)
+		signer := contract.DeclarationSigner(row)
 		out = append(out, &signer)
 	}
 	return out, nil
@@ -194,9 +196,9 @@ const declarationChildrenForAccountSQL = `
 
 // DeclarationChildrenForAccount returns the account's reached children per
 // declaration announcement.
-func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64, history []DeclarationHistoryLink) ([]*DeclarationChild, error) {
+func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64, history []contract.DeclarationHistoryLink) ([]*contract.DeclarationChild, error) {
 	if len(announcementIDs) == 0 {
-		return []*DeclarationChild{}, nil
+		return []*contract.DeclarationChild{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -250,7 +252,7 @@ type declarationSignerContextRow struct {
 
 // HoldDeclarationSigner reads and share-locks the authorizing relationship,
 // or returns nil when the account may not declare for the child.
-func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*DeclarationSignerContext, error) {
+func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*contract.DeclarationSignerContext, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -267,7 +269,7 @@ func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announ
 	if err != nil {
 		return nil, fmt.Errorf("hold parent declaration signer: %w", err)
 	}
-	signer := DeclarationSignerContext(row)
+	signer := contract.DeclarationSignerContext(row)
 	return &signer, nil
 }
 
@@ -296,7 +298,7 @@ const holdHistoricalDeclarationSignerSQL = `
 // relationship for an account's own historical declaration. It deliberately
 // does not re-evaluate the activity enrollment: that check would make a
 // recorded consent impossible to revoke after the activity has ended.
-func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, schoolID, accountID, studentID int64) (*DeclarationSignerContext, error) {
+func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, schoolID, accountID, studentID int64) (*contract.DeclarationSignerContext, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -311,11 +313,11 @@ func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, school
 	if err != nil {
 		return nil, fmt.Errorf("hold historical parent declaration signer: %w", err)
 	}
-	signer := DeclarationSignerContext(row)
+	signer := contract.DeclarationSignerContext(row)
 	return &signer, nil
 }
 
-func declarationHistoryJSON(history []DeclarationHistoryLink) (string, error) {
+func declarationHistoryJSON(history []contract.DeclarationHistoryLink) (string, error) {
 	encoded, err := json.Marshal(history)
 	if err != nil {
 		return "", fmt.Errorf("encode declaration history: %w", err)
@@ -342,7 +344,7 @@ const historicalDeclarationAccessSQL = `
 
 // HistoricalDeclarationAccess reports whether the account still has portal
 // access to a child from its own preserved declaration history.
-func (p *Projection) HistoricalDeclarationAccess(ctx context.Context, schoolID, accountID int64, history []DeclarationHistoryLink) (bool, error) {
+func (p *Projection) HistoricalDeclarationAccess(ctx context.Context, schoolID, accountID int64, history []contract.DeclarationHistoryLink) (bool, error) {
 	if len(history) == 0 {
 		return false, nil
 	}
@@ -389,9 +391,9 @@ const historicalDeclarationFeedSQL = `
 // HistoricalDeclarationFeed returns the current, portal-accessible declaration
 // announcements the account has previously submitted for but no longer reaches
 // through an activity enrollment.
-func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID int64, scope ParentAnnouncementFeedScope, history []DeclarationHistoryLink) ([]*ParentAnnouncementFeedItem, error) {
+func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID int64, scope contract.ParentAnnouncementFeedScope, history []contract.DeclarationHistoryLink) ([]*contract.ParentAnnouncementFeedItem, error) {
 	if scope.IsEmpty() || len(history) == 0 {
-		return []*ParentAnnouncementFeedItem{}, nil
+		return []*contract.ParentAnnouncementFeedItem{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -408,9 +410,9 @@ func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID in
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list historical parent declaration feed: %w", err)
 	}
-	items := make([]*ParentAnnouncementFeedItem, 0, len(rows))
+	items := make([]*contract.ParentAnnouncementFeedItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &ParentAnnouncementFeedItem{
+		items = append(items, &contract.ParentAnnouncementFeedItem{
 			ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
 			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,

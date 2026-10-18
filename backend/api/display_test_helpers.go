@@ -11,6 +11,7 @@ import (
 // aggregates. The screens themselves live behind the Device Fleet owner
 // (#2676), so no display repository is part of this bundle; the settings
 // stores come from the Settings composition (NewDisplayTestRepositories).
+// The live sessions come from MustNewTimetablePresenceRows (#4080).
 type DisplayReadRepositories struct {
 	TimetableTestRepositories
 	StudentPickupNote timetablePorts.CarePickupNoteRows
