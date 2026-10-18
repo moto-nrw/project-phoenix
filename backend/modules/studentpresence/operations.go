@@ -95,6 +95,12 @@ func (e *OperationError) Unwrap() error {
 	return e.Err
 }
 
+// SchoolStatusReadFailed is the masked failure of a school-status read: the
+// public text of the retained Active service, without the owner's details.
+func SchoolStatusReadFailed() error {
+	return &OperationError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
+}
+
 // RoomCapacityCode is the stable error code of a web admission refused
 // because the room is full (#3633). Clients map it to their own text. The
 // kiosk keeps its own ROOM_CAPACITY_EXCEEDED contract.
