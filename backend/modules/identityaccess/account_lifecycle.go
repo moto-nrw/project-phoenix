@@ -217,6 +217,13 @@ func IsPlatformCaregiverRole(role *RoleFacts) bool {
 	}
 }
 
+// PlatformCaregiverRoleNames are the system roles that make their holder an
+// operational caregiver: the platform caregiver role and its retired
+// predecessor, the roles IsPlatformCaregiverRole recognises.
+func PlatformCaregiverRoleNames() []string {
+	return []string{BaseRoleUser, legacyTeacherRoleName}
+}
+
 // SchoolIdentityInput describes the identity to provision for an account at
 // the school in context.
 type SchoolIdentityInput struct {

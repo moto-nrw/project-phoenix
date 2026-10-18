@@ -7,28 +7,9 @@ import (
 	"time"
 )
 
-// The guardian invitation mails (#2722, #3320, #3534): the queued payload the
-// flows write and what the queued mail says when Delivery renders it.
-
-// The outbox payload keys of the guardian invitation and welcome mails.
-const (
-	GuardianPayloadRecipientEmail = "recipient_email"
-	GuardianPayloadFirstName      = "first_name"
-	GuardianPayloadLastName       = "last_name"
-	GuardianPayloadInvitationURL  = "invitation_url"
-	GuardianPayloadLogoURL        = "logo_url"
-	GuardianPayloadSchoolName     = "school_name"
-	GuardianPayloadExpiryHours    = "expiry_hours"
-	// GuardianPayloadExistingAccount marks the variant for an address that
-	// already owns an account: invitation_url is then the parents portal
-	// login, and the mail asks for the existing credentials (#3320).
-	GuardianPayloadExistingAccount = "existing_account"
-	// The welcome mail (#3534) carries the help article and the Elterninfo
-	// instead of an accept link.
-	GuardianPayloadHelpURL           = "help_url"
-	GuardianPayloadParentInfoURL     = "parent_info_url"
-	GuardianPayloadPrecedingOutboxID = "preceding_outbox_id"
-)
+// The guardian invitation mails (#2722, #3320, #3534): what the flows queue
+// and what the queued mail says when Delivery renders it. The root stores a
+// GuardianMail in the outbox payload and reads it back.
 
 // GuardianInvitationExpiryFallback applies when neither the school setting
 // nor the deployment name a guardian token lifetime. 48 hours matches the
@@ -55,67 +36,84 @@ type GuardianMailRecipient struct {
 	Email     string
 }
 
-// guardianPayload builds the fields every guardian mail shares. linkPath is
-// appended to the parents portal origin.
-func guardianPayload(recipient GuardianMailRecipient, origin, linkPath, schoolName string) map[string]any {
+// GuardianMail is what a queued guardian mail names: the invitation with its
+// accept link, the variant for an address that already owns an account, or
+// the welcome that follows either.
+type GuardianMail struct {
+	Recipient     string
+	FirstName     string
+	LastName      string
+	InvitationURL string
+	LogoURL       string
+	SchoolName    string
+	// ExpiryHours is the "valid for N hours" of the invitation.
+	ExpiryHours int
+	// ExistingAccount marks the variant whose link is the parents portal
+	// login, asking for the existing credentials (#3320).
+	ExistingAccount bool
+	// HelpURL, ParentInfoURL and PrecedingOutboxID belong to the welcome
+	// (#3534): the help article, the Elterninfo and the queued mail it
+	// waits for.
+	HelpURL           string
+	ParentInfoURL     string
+	PrecedingOutboxID int64
+}
+
+// guardianMail fills what every guardian mail shares. linkPath is appended
+// to the parents portal origin.
+func guardianMail(recipient GuardianMailRecipient, origin, linkPath, schoolName string) GuardianMail {
 	origin = MailOrigin(origin)
-	return map[string]any{
-		GuardianPayloadRecipientEmail: strings.TrimSpace(recipient.Email),
-		GuardianPayloadFirstName:      strings.TrimSpace(recipient.FirstName),
-		GuardianPayloadLastName:       strings.TrimSpace(recipient.LastName),
-		GuardianPayloadInvitationURL:  origin + linkPath,
-		GuardianPayloadLogoURL:        origin + motoLogoPath,
-		GuardianPayloadSchoolName:     schoolName,
+	return GuardianMail{
+		Recipient:     strings.TrimSpace(recipient.Email),
+		FirstName:     strings.TrimSpace(recipient.FirstName),
+		LastName:      strings.TrimSpace(recipient.LastName),
+		InvitationURL: origin + linkPath,
+		LogoURL:       origin + motoLogoPath,
+		SchoolName:    schoolName,
 	}
 }
 
-// GuardianInvitationPayload is the mail carrying the accept link. expiresAt
+// GuardianInvitationMailOf is the mail carrying the accept link. expiresAt
 // becomes the "valid for N hours" the mail states, floored at one hour so a
 // link that is about to expire never advertises zero.
-func GuardianInvitationPayload(recipient GuardianMailRecipient, origin, token string, expiresAt time.Time, schoolName string) map[string]any {
-	expiryHours := int(time.Until(expiresAt) / time.Hour)
-	if expiryHours < 1 {
-		expiryHours = 1
-	}
-	payload := guardianPayload(recipient, origin, "/accept-guardian-invite/"+token, schoolName)
-	payload[GuardianPayloadExpiryHours] = expiryHours
-	return payload
+func GuardianInvitationMailOf(recipient GuardianMailRecipient, origin, token string, expiresAt time.Time, schoolName string) GuardianMail {
+	mail := guardianMail(recipient, origin, "/accept-guardian-invite/"+token, schoolName)
+	mail.ExpiryHours = max(int(time.Until(expiresAt)/time.Hour), 1)
+	return mail
 }
 
-// GuardianExistingAccountPayload is the variant for an address that already
+// GuardianExistingAccountMailOf is the variant for an address that already
 // owns an account (#3320): no registration and no token, just the parents
 // portal login and a hint to use the existing credentials. A blank address
-// gets no mail: the payload is nil.
-func GuardianExistingAccountPayload(recipient GuardianMailRecipient, origin, schoolName string) map[string]any {
+// gets no mail.
+func GuardianExistingAccountMailOf(recipient GuardianMailRecipient, origin, schoolName string) (GuardianMail, bool) {
 	if strings.TrimSpace(recipient.Email) == "" {
-		return nil
+		return GuardianMail{}, false
 	}
-	payload := guardianPayload(recipient, origin, "/login", schoolName)
-	payload[GuardianPayloadExistingAccount] = true
-	return payload
+	mail := guardianMail(recipient, origin, "/login", schoolName)
+	mail.ExistingAccount = true
+	return mail, true
 }
 
 // errGuardianWelcomePredecessorRequired refuses a welcome that names no
 // preceding mail: it could overtake the mail that granted the access.
 var errGuardianWelcomePredecessorRequired = errors.New("guardian welcome email: preceding outbox ID is required")
 
-// GuardianWelcomePayload is the welcome that follows a new access (#3534):
-// the help article for parents and the Elterninfo, released once the mail in
-// outbox row precedingOutboxID was accepted. A blank address gets no mail:
-// the payload is nil.
-func GuardianWelcomePayload(recipient GuardianMailRecipient, origin, schoolName, helpURL, parentInfoURL string, precedingOutboxID int64) (map[string]any, error) {
+// GuardianWelcomeMailOf is the welcome that follows a new access (#3534):
+// the help article for parents and the Elterninfo, carrying no accept link,
+// released once the mail in outbox row precedingOutboxID was accepted. A
+// blank address gets no mail.
+func GuardianWelcomeMailOf(recipient GuardianMailRecipient, origin, schoolName, helpURL, parentInfoURL string, precedingOutboxID int64) (GuardianMail, bool, error) {
 	if precedingOutboxID <= 0 {
-		return nil, errGuardianWelcomePredecessorRequired
+		return GuardianMail{}, false, errGuardianWelcomePredecessorRequired
 	}
 	if strings.TrimSpace(recipient.Email) == "" {
-		return nil, nil
+		return GuardianMail{}, false, nil
 	}
-	payload := guardianPayload(recipient, origin, "/login", schoolName)
-	delete(payload, GuardianPayloadInvitationURL)
-	payload[GuardianPayloadHelpURL] = helpURL
-	payload[GuardianPayloadParentInfoURL] = parentInfoURL
-	payload[GuardianPayloadPrecedingOutboxID] = precedingOutboxID
-	return payload, nil
+	mail := guardianMail(recipient, origin, "/login", schoolName)
+	mail.InvitationURL = ""
+	mail.HelpURL, mail.ParentInfoURL, mail.PrecedingOutboxID = helpURL, parentInfoURL, precedingOutboxID
+	return mail, true, nil
 }
 
 // GuardianWelcomeIdempotencyKey names the guardian contact, which belongs to
@@ -125,73 +123,58 @@ func GuardianWelcomeIdempotencyKey(guardianProfileID int64) string {
 	return fmt.Sprintf("guardian_welcome:%d", guardianProfileID)
 }
 
-// GuardianInvitationMail renders a queued guardian invitation and returns
-// the address it goes to.
-func GuardianInvitationMail(payload map[string]any) (Mail, string, error) {
-	recipient, _ := payload[GuardianPayloadRecipientEmail].(string)
-	if recipient == "" {
-		return Mail{}, "", fmt.Errorf("guardian invitation payload missing recipient_email")
+// GuardianInvitationMail renders a queued invitation or existing-account
+// mail.
+func GuardianInvitationMail(mail GuardianMail) (Mail, error) {
+	if mail.Recipient == "" {
+		return Mail{}, errors.New("guardian invitation payload missing recipient_email")
 	}
-	invitationURL, _ := payload[GuardianPayloadInvitationURL].(string)
-	if invitationURL == "" {
-		return Mail{}, "", fmt.Errorf("guardian invitation payload missing invitation_url")
+	if mail.InvitationURL == "" {
+		return Mail{}, errors.New("guardian invitation payload missing invitation_url")
 	}
-	firstName, _ := payload[GuardianPayloadFirstName].(string)
-	lastName, _ := payload[GuardianPayloadLastName].(string)
-	logoURL, _ := payload[GuardianPayloadLogoURL].(string)
-	schoolName, _ := payload[GuardianPayloadSchoolName].(string)
-	expiryHours := payloadInt(payload, GuardianPayloadExpiryHours)
+	expiryHours := mail.ExpiryHours
 	if expiryHours <= 0 {
 		expiryHours = int(GuardianInvitationExpiryFallback / time.Hour)
 	}
-	existingAccount, _ := payload[GuardianPayloadExistingAccount].(bool)
 	subject := "Einladung zum Eltern-Portal"
-	if existingAccount {
+	if mail.ExistingAccount {
 		subject = "Ihr Zugang zum Eltern-Portal"
 	}
 	return Mail{
-		Subject:  schoolSubject(subject, schoolName),
+		Subject:  schoolSubject(subject, mail.SchoolName),
 		Template: "guardian-invitation.html",
 		Content: map[string]any{
-			"InvitationURL":   invitationURL,
-			"FirstName":       firstName,
-			"LastName":        lastName,
+			"InvitationURL":   mail.InvitationURL,
+			"FirstName":       mail.FirstName,
+			"LastName":        mail.LastName,
 			"ExpiryHours":     expiryHours,
-			"LogoURL":         logoURL,
-			"SchoolName":      schoolName,
-			"ExistingAccount": existingAccount,
+			"LogoURL":         mail.LogoURL,
+			"SchoolName":      mail.SchoolName,
+			"ExistingAccount": mail.ExistingAccount,
 		},
-	}, recipient, nil
+	}, nil
 }
 
-// GuardianWelcomeMail renders a queued guardian welcome and returns the
-// address it goes to.
-func GuardianWelcomeMail(payload map[string]any) (Mail, string, error) {
-	recipient, _ := payload[GuardianPayloadRecipientEmail].(string)
-	if recipient == "" {
-		return Mail{}, "", fmt.Errorf("guardian welcome payload missing recipient_email")
+// GuardianWelcomeMail renders a queued welcome.
+func GuardianWelcomeMail(mail GuardianMail) (Mail, error) {
+	if mail.Recipient == "" {
+		return Mail{}, errors.New("guardian welcome payload missing recipient_email")
 	}
-	helpURL, _ := payload[GuardianPayloadHelpURL].(string)
-	if helpURL == "" {
-		return Mail{}, "", fmt.Errorf("guardian welcome payload missing help_url")
+	if mail.HelpURL == "" {
+		return Mail{}, errors.New("guardian welcome payload missing help_url")
 	}
-	parentInfoURL, _ := payload[GuardianPayloadParentInfoURL].(string)
-	firstName, _ := payload[GuardianPayloadFirstName].(string)
-	lastName, _ := payload[GuardianPayloadLastName].(string)
-	logoURL, _ := payload[GuardianPayloadLogoURL].(string)
-	schoolName, _ := payload[GuardianPayloadSchoolName].(string)
 	return Mail{
-		Subject:  schoolSubject("Willkommen bei moto", schoolName),
+		Subject:  schoolSubject("Willkommen bei moto", mail.SchoolName),
 		Template: "guardian-welcome.html",
 		Content: map[string]any{
-			"HelpURL":       helpURL,
-			"ParentInfoURL": parentInfoURL,
-			"FirstName":     firstName,
-			"LastName":      lastName,
-			"LogoURL":       logoURL,
-			"SchoolName":    schoolName,
+			"HelpURL":       mail.HelpURL,
+			"ParentInfoURL": mail.ParentInfoURL,
+			"FirstName":     mail.FirstName,
+			"LastName":      mail.LastName,
+			"LogoURL":       mail.LogoURL,
+			"SchoolName":    mail.SchoolName,
 		},
-	}, recipient, nil
+	}, nil
 }
 
 // MailRelease is whether a queued follow-up mail may be rendered now.
@@ -206,16 +189,6 @@ const (
 	MailCancelled
 )
 
-// GuardianWelcomePrecedingOutboxID is the outbox row of the mail that granted
-// the access the welcome follows.
-func GuardianWelcomePrecedingOutboxID(payload map[string]any) (int64, error) {
-	id, ok := payloadInt64(payload, GuardianPayloadPrecedingOutboxID)
-	if !ok || id <= 0 {
-		return 0, fmt.Errorf("guardian welcome payload missing %s", GuardianPayloadPrecedingOutboxID)
-	}
-	return id, nil
-}
-
 // GuardianWelcomeRelease renders the welcome only after the mail that
 // granted the access was accepted, and never once that mail can no longer
 // arrive.
@@ -227,35 +200,5 @@ func GuardianWelcomeRelease(precedingSent, precedingTerminal bool) MailRelease {
 		return MailDeferred
 	default:
 		return MailReleased
-	}
-}
-
-// payloadInt64 reads an integer the payload stored; a JSON round trip turns
-// it into a float64, which counts only when it is whole.
-func payloadInt64(payload map[string]any, key string) (int64, bool) {
-	switch value := payload[key].(type) {
-	case int:
-		return int64(value), true
-	case int64:
-		return value, true
-	case float64:
-		return int64(value), value == float64(int64(value))
-	default:
-		return 0, false
-	}
-}
-
-// payloadInt reads a count the payload stored, truncating a float64 from a
-// JSON round trip; anything else reads as zero.
-func payloadInt(payload map[string]any, key string) int {
-	switch value := payload[key].(type) {
-	case int:
-		return value
-	case int64:
-		return int(value)
-	case float64:
-		return int(value)
-	default:
-		return 0
 	}
 }

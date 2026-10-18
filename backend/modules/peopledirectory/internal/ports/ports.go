@@ -27,6 +27,8 @@ type Store interface {
 	// updated_at still equals the previewed value. False means the row moved.
 	AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, domain.OperationStats, error)
 	SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error)
+	// SetNames writes the names of the person, deleted or not, as given.
+	SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error)
 	SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error)
 	LockHeldTags(context.Context, []int64) ([]domain.ReleasedTag, domain.OperationStats, error)
 	ClearTags(context.Context, []int64) (domain.OperationStats, error)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,10 +12,10 @@ func TestStaffWelcomeRendererWaitsForInvitationDelivery(t *testing.T) {
 	t.Parallel()
 	delivered := false
 	payload := map[string]any{
-		identityaccess.StaffWelcomePayloadRecipientEmail: "ada@example.test",
-		identityaccess.StaffWelcomePayloadHelpURL:        "https://moto.example.test/help/einladung-annehmen-und-konto-einrichten?role=caregiver",
-		identityaccess.StaffWelcomePayloadFirstName:      "Ada",
-		identityaccess.StaffWelcomePayloadSchoolName:     "OGS Am Berg",
+		staffWelcomePayloadRecipientEmail: "ada@example.test",
+		staffWelcomePayloadHelpURL:        "https://moto.example.test/help/einladung-annehmen-und-konto-einrichten?role=caregiver",
+		staffWelcomePayloadFirstName:      "Ada",
+		staffWelcomePayloadSchoolName:     "OGS Am Berg",
 	}
 
 	_, err := renderStaffWelcome(context.Background(), 7, 3, payload, StaffWelcomeRendererConfig{

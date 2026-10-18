@@ -12,6 +12,39 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
+const (
+	staffWelcomePayloadRecipientEmail = "recipient_email"
+	staffWelcomePayloadHelpURL        = "help_url"
+	staffWelcomePayloadFirstName      = "first_name"
+	staffWelcomePayloadLogoURL        = "logo_url"
+	staffWelcomePayloadSchoolName     = "school_name"
+)
+
+// staffWelcomePayload stores the welcome Identity & Access composed.
+func staffWelcomePayload(welcome identityaccess.StaffWelcome) map[string]any {
+	return map[string]any{
+		staffWelcomePayloadRecipientEmail: welcome.Recipient,
+		staffWelcomePayloadHelpURL:        welcome.HelpURL,
+		staffWelcomePayloadFirstName:      welcome.FirstName,
+		staffWelcomePayloadLogoURL:        welcome.LogoURL,
+		staffWelcomePayloadSchoolName:     welcome.SchoolName,
+	}
+}
+
+// storedStaffWelcome reads the welcome back; a field of the wrong type reads
+// as absent.
+func storedStaffWelcome(payload map[string]any) identityaccess.StaffWelcome {
+	text := func(key string) string {
+		value, _ := payload[key].(string)
+		return value
+	}
+	return identityaccess.StaffWelcome{
+		Recipient: text(staffWelcomePayloadRecipientEmail), HelpURL: text(staffWelcomePayloadHelpURL),
+		FirstName: text(staffWelcomePayloadFirstName), LogoURL: text(staffWelcomePayloadLogoURL),
+		SchoolName: text(staffWelcomePayloadSchoolName),
+	}
+}
+
 // StaffWelcomeRendererConfig supplies the renderer with process-static mail
 // defaults and the delivery state of the preceding invitation.
 type StaffWelcomeRendererConfig struct {
@@ -51,12 +84,13 @@ func renderStaffWelcome(ctx context.Context, tenantID, invitationID int64, paylo
 	if !sent {
 		return nil, fmt.Errorf("%w: staff invitation email has not been accepted", deliveryCompose.ErrRenderDeferred)
 	}
-	mail, recipient, err := identityaccess.StaffWelcomeMail(payload, func() bool {
+	welcome := storedStaffWelcome(payload)
+	mail, err := identityaccess.StaffWelcomeMail(welcome, func() bool {
 		replyIdentity := email.ResolveReplyToIdentity(ctx, cfg.MailIdentity, tenantID, logger)
 		return strings.TrimSpace(replyIdentity.Address) != ""
 	})
 	if err != nil {
 		return nil, err
 	}
-	return identityMessage(cfg.DefaultFrom, email.NewEmail("", recipient), mail), nil
+	return identityMessage(cfg.DefaultFrom, email.NewEmail("", welcome.Recipient), mail), nil
 }

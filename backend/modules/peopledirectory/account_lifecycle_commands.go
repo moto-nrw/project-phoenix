@@ -3,6 +3,7 @@ package peopledirectory
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // Invited guardians are reached by e-mail and spoken to in German until they
@@ -57,6 +58,13 @@ type AccountLifecycleCommand interface {
 	// the invited address and returns its ID. ErrGuardianEmailTaken reports a
 	// duplicate e-mail.
 	CreateInvitedGuardian(context.Context, InvitedGuardian) (int64, error)
+	// CreateAccountPerson inserts the person of an account that has none,
+	// when its holder first edits their profile. Both names are required.
+	CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error
+	// RenamePerson replaces the given names of a person of the school; a nil
+	// name keeps the stored one. ErrPersonNotFound when the school has no
+	// such person.
+	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 }
 
 // CreateSchoolIdentityPerson trims and requires both names. Unlike
@@ -86,6 +94,28 @@ func (m *Module) CreateInvitedGuardian(ctx context.Context, guardian InvitedGuar
 		FirstName: guardian.FirstName, LastName: guardian.LastName, Email: &email,
 		PreferredContactMethod: invitedGuardianContactMethod, LanguagePreference: invitedGuardianLanguage,
 	})
+}
+
+// CreateAccountPerson stores the names as the profile flow always did:
+// trimmed, but neither capped nor required to keep a character after the
+// trim.
+func (m *Module) CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error {
+	if firstName == "" || lastName == "" {
+		return invalid("first name and last name are required")
+	}
+	_, err := m.engine.Create(ctx, CreatePerson{
+		FirstName: strings.TrimSpace(firstName), LastName: strings.TrimSpace(lastName), AccountID: &accountID,
+	})
+	return err
+}
+
+// RenamePerson refuses an empty name; the stored names are trimmed but not
+// capped, like the profile flow's own.
+func (m *Module) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
+	if firstName != nil && *firstName == "" || lastName != nil && *lastName == "" {
+		return invalid("first name and last name are required")
+	}
+	return m.engine.RenamePerson(ctx, personID, firstName, lastName)
 }
 
 // GuardianLifecycleCommand are the guardian profile and relationship writes

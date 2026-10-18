@@ -15,6 +15,7 @@ import (
 // errors onto the contract (#4084).
 type Engine struct {
 	*GuardianLifecycle
+	PersonRenames
 	service         *Service
 	students        *StudentService
 	guardians       *GuardianService
@@ -42,8 +43,8 @@ type EngineServices struct {
 // NewEngine serves the capability over services.
 func NewEngine(services EngineServices) Engine {
 	return Engine{
-		GuardianLifecycle: services.GuardianLifecycle,
-		service:           services.Service, students: services.Students, guardians: services.Guardians,
+		GuardianLifecycle: services.GuardianLifecycle, PersonRenames: PersonRenames{persons: services.Service},
+		service: services.Service, students: services.Students, guardians: services.Guardians,
 		studentAudit: services.StudentAudit, studentConsents: services.StudentConsents,
 		studentPhotos: services.StudentPhotos, studentNotes: services.StudentNotes, observe: services.Observe,
 	}

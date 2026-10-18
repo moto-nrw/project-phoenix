@@ -11,11 +11,12 @@ import (
 // template renders it and where its links point. The composition root only
 // addresses a Mail, attaches the sender and hands it to Delivery.
 
-// Mail is the content of one Identity & Access mail.
+// Mail is the content of one Identity & Access mail: the subject, the
+// template and the values the template renders.
 type Mail struct {
 	Subject  string
 	Template string
-	Content  map[string]any
+	Content  any
 }
 
 // localPortalOrigin is where a mail link points when the portal URL is not
@@ -109,28 +110,25 @@ func SchoolInvitationMail(invitation SchoolInvitation, schoolName, origin string
 
 // --- the staff welcome --------------------------------------------------------
 
-// The outbox payload keys of the staff welcome.
-const (
-	StaffWelcomePayloadRecipientEmail = "recipient_email"
-	StaffWelcomePayloadHelpURL        = "help_url"
-	StaffWelcomePayloadFirstName      = "first_name"
-	StaffWelcomePayloadLogoURL        = "logo_url"
-	StaffWelcomePayloadSchoolName     = "school_name"
-)
+// StaffWelcome is what a queued staff welcome names.
+type StaffWelcome struct {
+	Recipient  string
+	HelpURL    string
+	FirstName  string
+	LogoURL    string
+	SchoolName string
+}
 
-// StaffWelcomePayload is the durable payload of the welcome that follows a
-// school invitation accepted at origin.
-func StaffWelcomePayload(invitation SchoolInvitation, schoolName, origin, helpURL string) map[string]any {
+// NewStaffWelcome is the welcome that follows a school invitation accepted
+// at origin.
+func NewStaffWelcome(invitation SchoolInvitation, schoolName, origin, helpURL string) StaffWelcome {
 	firstName := ""
 	if invitation.FirstName != nil {
 		firstName = strings.TrimSpace(*invitation.FirstName)
 	}
-	return map[string]any{
-		StaffWelcomePayloadRecipientEmail: invitation.Email,
-		StaffWelcomePayloadHelpURL:        helpURL,
-		StaffWelcomePayloadFirstName:      firstName,
-		StaffWelcomePayloadLogoURL:        origin + motoLogoPath,
-		StaffWelcomePayloadSchoolName:     schoolName,
+	return StaffWelcome{
+		Recipient: invitation.Email, HelpURL: helpURL, FirstName: firstName,
+		LogoURL: origin + motoLogoPath, SchoolName: schoolName,
 	}
 }
 
@@ -146,32 +144,27 @@ func StaffWelcomeCancelled(err error) bool {
 	return false
 }
 
-// StaffWelcomeMail renders a queued staff welcome and returns the address it
-// goes to. replyGoesToSchool, asked once the payload is complete, tells the
-// reader whether answering reaches the school rather than moto.
-func StaffWelcomeMail(payload map[string]any, replyGoesToSchool func() bool) (Mail, string, error) {
-	recipient, _ := payload[StaffWelcomePayloadRecipientEmail].(string)
-	if recipient == "" {
-		return Mail{}, "", fmt.Errorf("staff welcome payload missing recipient_email")
+// StaffWelcomeMail renders a queued staff welcome. replyGoesToSchool, asked
+// once the welcome is complete, tells the reader whether answering reaches
+// the school rather than moto.
+func StaffWelcomeMail(welcome StaffWelcome, replyGoesToSchool func() bool) (Mail, error) {
+	if welcome.Recipient == "" {
+		return Mail{}, errors.New("staff welcome payload missing recipient_email")
 	}
-	helpURL, _ := payload[StaffWelcomePayloadHelpURL].(string)
-	if helpURL == "" {
-		return Mail{}, "", fmt.Errorf("staff welcome payload missing help_url")
+	if welcome.HelpURL == "" {
+		return Mail{}, errors.New("staff welcome payload missing help_url")
 	}
-	firstName, _ := payload[StaffWelcomePayloadFirstName].(string)
-	logoURL, _ := payload[StaffWelcomePayloadLogoURL].(string)
-	schoolName, _ := payload[StaffWelcomePayloadSchoolName].(string)
 	return Mail{
-		Subject:  schoolSubject("Willkommen bei moto", schoolName),
+		Subject:  schoolSubject("Willkommen bei moto", welcome.SchoolName),
 		Template: "staff-welcome.html",
 		Content: map[string]any{
-			"HelpURL":           helpURL,
-			"FirstName":         strings.TrimSpace(firstName),
-			"LogoURL":           logoURL,
-			"SchoolName":        schoolName,
+			"HelpURL":           welcome.HelpURL,
+			"FirstName":         strings.TrimSpace(welcome.FirstName),
+			"LogoURL":           welcome.LogoURL,
+			"SchoolName":        welcome.SchoolName,
 			"ReplyGoesToSchool": replyGoesToSchool(),
 		},
-	}, recipient, nil
+	}, nil
 }
 
 // --- password reset -----------------------------------------------------------

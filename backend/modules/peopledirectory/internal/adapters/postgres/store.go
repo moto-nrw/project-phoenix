@@ -309,6 +309,21 @@ func (s *Store) SetAccount(ctx context.Context, personID int64, accountID *int64
 	return execOne(ctx, query, "set person account")
 }
 
+// SetNames leaves updated_at to the row trigger, like every write of the
+// profile flow.
+func (s *Store) SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*personRow)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(`first_name = ?`, firstName).
+		Set(`last_name = ?`, lastName).
+		Where(`"person".id = ?`, personID), tenantID)
+	return execOne(ctx, query, "set person names")
+}
+
 func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

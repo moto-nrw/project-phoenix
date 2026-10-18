@@ -178,6 +178,7 @@ type engine interface {
 	guardianEngine
 	guardianPortalEngine
 	GuardianLifecycleCommand
+	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error

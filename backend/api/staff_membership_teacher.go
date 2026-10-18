@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -330,10 +331,6 @@ func (r TeacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Con
 
 // --- caregivers ---
 
-// caregiverRoleNames are the system roles that make a teacher an operational
-// caregiver.
-var caregiverRoleNames = []string{"user", "teacher"}
-
 type activeCaregiverCandidate struct {
 	caregiver *userModels.ActiveCaregiver
 	tenantID  int64
@@ -465,7 +462,7 @@ func (r TeacherMembershipRepository) caregiverAccountFacts(ctx context.Context, 
 		facts.active[candidateTenantID] = idSet(allowed)
 		facts.activeAccountIDs = append(facts.activeAccountIDs, allowed...)
 
-		withRole, err := r.Deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
+		withRole, err := r.Deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, identityaccess.PlatformCaregiverRoleNames(), candidateTenantID)
 		if err != nil {
 			return caregiverAccounts{}, err
 		}

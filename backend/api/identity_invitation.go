@@ -171,7 +171,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if err := identityaccessCompose.RunMailStepInSavepoint(ctx, resolveHelpURL); err != nil {
 		return fmt.Errorf("resolve staff welcome help URL: %w", err)
 	}
-	payload := identityaccess.StaffWelcomePayload(invitation, schoolName, frontend, helpURL)
+	payload := staffWelcomePayload(identityaccess.NewStaffWelcome(invitation, schoolName, frontend, helpURL))
 	deliverAfter := time.Time{}
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)

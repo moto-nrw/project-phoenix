@@ -12,8 +12,8 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
-// The guardian invitation mail: this file queues the outbox payload
-// Identity & Access writes, which the renderer next door hands back to it at
+// The guardian invitation mail: this file stores the guardian mail Identity &
+// Access composes as the outbox payload the renderer next door reads back at
 // dispatch time. The composition root binds it
 // as the owner module's delivery seam (#2722). The email_sent_at /
 // email_error / email_retry_count columns of auth.guardian_invitations stay
@@ -60,7 +60,7 @@ func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitat
 	}
 	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindGuardianInvitation,
-		Payload:           identityaccess.GuardianInvitationPayload(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, token, expiresAt, schoolName),
+		Payload:           guardianInvitationPayload(identityaccess.GuardianInvitationMailOf(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, token, expiresAt, schoolName)),
 		RelatedEntityType: platformModels.EmailRelatedTypeGuardianInvitation,
 		RelatedEntityID:   invitationID,
 	})
@@ -76,8 +76,8 @@ func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitat
 // EnqueueExistingAccount queues the variant for an address that already owns
 // an account (#3320).
 func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, recipient GuardianMailRecipient, schoolName string) (int64, bool) {
-	payload := identityaccess.GuardianExistingAccountPayload(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName)
-	if payload == nil {
+	mail, addressed := identityaccess.GuardianExistingAccountMailOf(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName)
+	if !addressed {
 		return 0, false
 	}
 	if m.outbox == nil {
@@ -86,7 +86,7 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 	}
 	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:    platformModels.EmailKindGuardianInvitation,
-		Payload: payload,
+		Payload: guardianExistingAccountPayload(mail),
 	})
 	if err != nil {
 		m.logger.Error("guardian portal access email: outbox enqueue failed",
@@ -102,9 +102,9 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 // It returns the enqueue failure so the caller can roll back its savepoint;
 // a guardian who was already welcomed is not a failure.
 func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianProfileID int64, recipient GuardianMailRecipient, schoolName, helpURL string, precedingOutboxID int64) error {
-	payload, err := identityaccess.GuardianWelcomePayload(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName, helpURL,
+	mail, addressed, err := identityaccess.GuardianWelcomeMailOf(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName, helpURL,
 		identityaccess.MailOrigin(m.frontendURL)+parentInfoPath, precedingOutboxID)
-	if err != nil || payload == nil {
+	if err != nil || !addressed {
 		return err
 	}
 	if m.outbox == nil {
@@ -114,7 +114,7 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 	}
 	err = m.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindGuardianWelcome,
-		Payload:           payload,
+		Payload:           guardianWelcomePayload(mail),
 		RelatedEntityType: platformModels.EmailRelatedTypeGuardianProfile,
 		RelatedEntityID:   guardianProfileID,
 		IdempotencyKey:    identityaccess.GuardianWelcomeIdempotencyKey(guardianProfileID),
@@ -134,6 +134,40 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 			slog.String("error", err.Error()))
 		return err
 	}
+}
+
+// guardianPayload stores the fields every guardian mail shares.
+func guardianPayload(mail identityaccess.GuardianMail) map[string]any {
+	return map[string]any{
+		guardianPayloadRecipientEmail: mail.Recipient,
+		guardianPayloadFirstName:      mail.FirstName,
+		guardianPayloadLastName:       mail.LastName,
+		guardianPayloadInvitationURL:  mail.InvitationURL,
+		guardianPayloadLogoURL:        mail.LogoURL,
+		guardianPayloadSchoolName:     mail.SchoolName,
+	}
+}
+
+func guardianInvitationPayload(mail identityaccess.GuardianMail) map[string]any {
+	payload := guardianPayload(mail)
+	payload[guardianPayloadExpiryHours] = mail.ExpiryHours
+	return payload
+}
+
+func guardianExistingAccountPayload(mail identityaccess.GuardianMail) map[string]any {
+	payload := guardianPayload(mail)
+	payload[guardianPayloadExistingAccount] = true
+	return payload
+}
+
+// guardianWelcomePayload carries no accept link.
+func guardianWelcomePayload(mail identityaccess.GuardianMail) map[string]any {
+	payload := guardianPayload(mail)
+	delete(payload, guardianPayloadInvitationURL)
+	payload[guardianPayloadHelpURL] = mail.HelpURL
+	payload[guardianPayloadParentInfoURL] = mail.ParentInfoURL
+	payload[guardianPayloadPrecedingOutboxID] = mail.PrecedingOutboxID
+	return payload
 }
 
 // guardianMailLogger keeps the mailer nil-safe for the bare values tests
