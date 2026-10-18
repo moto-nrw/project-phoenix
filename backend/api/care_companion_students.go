@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -55,7 +53,7 @@ func NewCompanionStudents(students companionStudentRows, people CompanionStudent
 func companionStudent(row *users.Student) carePlanCompose.CompanionStudent {
 	return carePlanCompose.CompanionStudent{
 		ID:               row.ID,
-		HasCompanionNote: row.DepartureCompanionNote != nil && strings.TrimSpace(*row.DepartureCompanionNote) != "",
+		HasCompanionNote: peopledirectory.HasCompanionNote(row.DepartureCompanionNote),
 		AccompaniedDays:  users.AccompaniedWeekdays(row.AllowedDepartureModes, row.DepartureDays),
 	}
 }
@@ -121,13 +119,7 @@ func (s CompanionStudents) ExtendAccompaniedDays(ctx context.Context, studentID 
 	if companion == nil {
 		return careplan.ErrCompanionNotFound
 	}
-	allowed := users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
-	var missing []string
-	for _, day := range careplan.CompanionWeekdays {
-		if slices.Contains(days, day) && !allowed[day] {
-			missing = append(missing, day)
-		}
-	}
+	missing := peopledirectory.MissingAccompaniedDays(companion.AllowedDepartureModes, companion.DepartureDays, days)
 	if len(missing) == 0 {
 		return nil
 	}

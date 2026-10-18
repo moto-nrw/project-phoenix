@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -410,10 +411,6 @@ func offeringChangeDatabaseError(op string, err error) error {
 	return fmt.Errorf("database error during %s: %w", op, err)
 }
 
-// errParentRequestEventIncomplete refuses a ledger entry that cannot name its
-// request.
-var errParentRequestEventIncomplete = errors.New("parent request event: student, request and event type are required")
-
 // ParentRequestLedger is the one append-only history of every parent request
 // (#2267), shared by all four queues so a request's history survives the
 // edits, decisions and corrections that overwrite the request rows. People
@@ -443,8 +440,8 @@ func (l *ParentRequestLedger) Record(ctx context.Context, entry carePlanCompose.
 	if l == nil {
 		return nil
 	}
-	if entry.StudentID <= 0 || entry.RequestID <= 0 || entry.RequestType == "" || entry.EventType == "" {
-		return errParentRequestEventIncomplete
+	if err := peopledirectory.ValidateParentRequestEvent(entry.StudentID, entry.RequestType, entry.RequestID, entry.EventType); err != nil {
+		return err
 	}
 	event := &usersModels.ParentRequestEvent{
 		StudentID:   entry.StudentID,

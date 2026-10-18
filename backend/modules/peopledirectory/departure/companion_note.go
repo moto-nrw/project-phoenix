@@ -11,6 +11,12 @@ const MaxDepartureCompanionNoteLen = 255
 
 var ErrDepartureCompanionNoteRequired = errors.New("departure_companion_note is required when a day allows the accompanied departure mode")
 
+// HasCompanionNote reports whether the free-text "mit wem" note carries the
+// detail. A blank note is no answer.
+func HasCompanionNote(note *string) bool {
+	return note != nil && strings.TrimSpace(*note) != ""
+}
+
 // NormalizeCompanionNote validates per-day companion coverage and bounds the
 // optional note. A structured link covers only its own weekday.
 func NormalizeCompanionNote(days DepartureDays, modes AllowedDepartureModes, note *string, covered map[string]bool) (*string, error) {
