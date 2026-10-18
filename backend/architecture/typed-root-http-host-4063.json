@@ -47,7 +47,7 @@
     "source": "Local run on the PR branch. The roots call the same functions; the session runtime is the same TokenAuth built from the same configuration values, now through Identity's composition. The evidence is the selector, composition and moved tests, the route suites in api and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/internal/architecture/http_host_rule.go",
-      "backend/modules/identityaccess/compose/configured_session_tokens.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/modules/identityaccess/compose/configured_session_tokens.go",
       "backend/api/base.go",
       "backend/architecture/policy.json"
     ],
