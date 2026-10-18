@@ -54,7 +54,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Presence:   NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,
 		Active:     module.Active,
-		Users:      module.Users,
+		Users:      NewDeviceScanPeople(module.Users),
 		Activities: module.Activities,
 		Rosters:    rosters,
 		Education:  module.Education,

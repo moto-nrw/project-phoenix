@@ -4692,7 +4692,7 @@ pickup decision that adds a child to Timetable blocks and lets Student
 Presence reapply the day statuses. It declares its own ports. The root
 binds the owners' public facades and maps types. Every call joins the
 caller's tenant transaction, and the care-exit transaction stays the unit
-of work. Policy epoch 74 -> 75 registers the owner, its package and four
+of work. Policy epoch 75 -> 76 registers the owner, its package and four
 production rules from `care-exit/public` into the `public` roles of
 `care-plan`, `enrollment`, `student-presence` and `timetable-activities`.
 No key, alias or exception is added.

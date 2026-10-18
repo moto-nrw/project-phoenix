@@ -114,6 +114,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	dependencies.Tenants = settings.TenantFacts(displaySchools{db: db})
 	dependencies.Now = firstClock(clocks)
 	dependencies.Observe = func(devicefleetCompose.Observation) {}
+	dependencies.APIKeys = DeviceAPIKeys{}
 	fleet, err := devicefleetCompose.New(dependencies)
 	require.NoError(t, err)
 	return testpkg.TenantRuntimeMiddleware(t, db)(NewDisplayHTTPRouter(fleet, settings.FeatureEnabled))

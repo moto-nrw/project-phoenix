@@ -3,8 +3,8 @@
 package compose
 
 import (
-	workforcePostgres "github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforcePostgres "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/workforcepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/uptrace/bun"
 )

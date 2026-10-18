@@ -115,6 +115,7 @@ func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(contex
 		DB:           db.Pool(),
 		Rooms:        rooms,
 		OnlineWindow: onlineWindow,
+		APIKeys:      DeviceAPIKeys{},
 		Observe:      func(devicefleetCompose.Observation) {},
 	})
 }

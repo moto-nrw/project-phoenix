@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/credentials"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/postgres"
@@ -77,7 +76,9 @@ type Dependencies struct {
 	// setting. Graphs without a settings service leave it unset and the owner
 	// falls back to defaultDeviceOnlineWindow.
 	OnlineWindow func(context.Context) time.Duration
-	Observe      func(Observation)
+	// APIKeys mints device API keys; the root binds Security Runtime's minter.
+	APIKeys interface{ Mint() (string, error) }
+	Observe func(Observation)
 }
 
 // New composes the Device Fleet module.
@@ -86,8 +87,8 @@ type Dependencies struct {
 // before any tenant is known, so the store applies the caller's tenant as a
 // predicate only when there is one; RLS remains the boundary otherwise.
 func New(dependencies Dependencies) (*devicefleet.Module, error) {
-	if dependencies.DB == nil || dependencies.Rooms == nil || dependencies.Observe == nil {
-		return nil, errors.New("devicefleet compose: database, rooms, and observer are required")
+	if dependencies.DB == nil || dependencies.Rooms == nil || dependencies.APIKeys == nil || dependencies.Observe == nil {
+		return nil, errors.New("devicefleet compose: database, rooms, API keys and observer are required")
 	}
 	now := dependencies.Now
 	if now == nil {
@@ -126,7 +127,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Tenants:   tenants,
 		Tx:        transaction{db: dependencies.DB},
 		Tokens:    credentials.DisplayTokens{},
-		APIKeys:   deviceAPIKeys{},
+		APIKeys:   dependencies.APIKeys,
 		Now:       ports.Clock(now),
 		Window:    ports.WindowResolver(dependencies.OnlineWindow),
 		Observe:   observe,
@@ -243,7 +244,3 @@ func (r presenceReader) ListPresentStudents(ctx context.Context, today time.Time
 	}
 	return present, nil
 }
-
-type deviceAPIKeys struct{}
-
-func (deviceAPIKeys) Mint() (string, error) { return randstr.APIKey() }

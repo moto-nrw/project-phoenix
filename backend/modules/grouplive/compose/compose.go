@@ -4,7 +4,7 @@ package compose
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
+	legacy "github.com/moto-nrw/project-phoenix/modules/grouplive/internal/adapters/nameorder"
 )
 
 // New builds the live-group view; it lists groups in German dictionary order.

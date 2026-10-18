@@ -117,7 +117,7 @@ func New(deps Dependencies) DeviceScan {
 		Presence:   deps.Presence,
 		Rooms:      deps.Rooms,
 		Principals: principals{},
-		People:     people{users: deps.Users},
+		People:     people{deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
 		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},

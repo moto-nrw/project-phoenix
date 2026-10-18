@@ -1,8 +1,8 @@
 package compose
 
 import (
-	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryRepo "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres"
 	"github.com/uptrace/bun"
 )
 

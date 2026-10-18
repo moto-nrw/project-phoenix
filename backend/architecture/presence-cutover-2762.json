@@ -48,7 +48,7 @@
       "docs/operations/presence-storage-cutover-2762.sql",
       "backend/database/migrations/presence_cutover_test.go",
       "backend/modules/studentpresence/compose/session_storage_test.go",
-      "backend/modules/timetable/compose/httpintegration/legacy_presence_cutover_composition_test.go",
+      "backend/modules/timetable/compose/httpintegration/presence_cutover_composition_test.go",
       "backend/test/presence_storage_caller_inventory_test.go",
       "backend/test/query_budgets.go"
     ],

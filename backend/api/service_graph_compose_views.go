@@ -57,7 +57,7 @@ func composeViews(b graphBuild) (graphBuild, error) {
 		Students: b.Persons, Persons: b.Persons, Groups: b.Groups, Rooms: b.Rooms, CareDays: b.graph.CareDay,
 		PickupTimes: b.graph.PickupSchedule, ArrivalTimes: b.graph.ArrivalSchedule, PickupBaselines: b.pickupBaselines,
 		Settings: ClassDaySlotListSettings{Settings: b.settingsService}, Access: ClassDaySlotListAccess{Staff: b.userContext},
-		ListExport: ClassDaySlotListRenderer{Renderer: b.Platform.ListExport},
+		ListExport: ClassDaySlotListRenderer{Renderer: b.Platform.ListExport}, EnrolledOn: ClassDayEnrolledOn,
 	})
 	return composeDeviceServices(composePlanExport(b)), nil
 }
