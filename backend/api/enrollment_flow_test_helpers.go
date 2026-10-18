@@ -6,11 +6,13 @@ import (
 	"context"
 	"log/slog"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -43,7 +45,7 @@ const (
 func NewEnrollmentFlowDelivery(db transactionruntime.Database) (*delivery.Module, error) {
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
 		DB: db.Pool(), People: enrollmentFlowGuardianDirectory{},
-		Observe: func(delivery.Observation) {},
+		Observe: func(deliveryContract.Observation) {},
 	})
 	if err != nil {
 		return nil, err
@@ -56,17 +58,17 @@ func NewEnrollmentFlowDelivery(db transactionruntime.Database) (*delivery.Module
 
 type enrollmentFlowDeliveryProvider struct{}
 
-func (enrollmentFlowDeliveryProvider) SendEmail(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
+func (enrollmentFlowDeliveryProvider) SendEmail(context.Context, deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	return deliveryContract.ProviderResult{}, nil
 }
 
-func (enrollmentFlowDeliveryProvider) SendPush(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
+func (enrollmentFlowDeliveryProvider) SendPush(context.Context, deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	return deliveryContract.ProviderResult{}, nil
 }
 
 type enrollmentFlowGuardianDirectory struct{}
 
-func (enrollmentFlowGuardianDirectory) ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error) {
+func (enrollmentFlowGuardianDirectory) ResolveGuardianDisplays(context.Context, []int64) ([]deliveryContract.GuardianDisplay, error) {
 	return nil, nil
 }
 

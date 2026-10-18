@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -23,7 +23,7 @@ import (
 // composed with. dispatcher may be nil: the link is then not mailed, as
 // before.
 type operatorLinkWiring struct {
-	dispatcher  *email.Dispatcher
+	dispatcher  email.Dispatcher
 	durable     DurableMailOutbox
 	defaultFrom email.Email
 	// frontendURL is the host of the staff frontend, which serves the
@@ -84,7 +84,7 @@ type operatorLinkRecords interface {
 // change messages, and records the outcome of the two that carry a link
 // back through the module once the send settles.
 type operatorLinkDelivery struct {
-	dispatcher  *email.Dispatcher
+	dispatcher  email.Dispatcher
 	durable     DurableMailOutbox
 	from        email.Email
 	frontendURL string

@@ -4,7 +4,8 @@ import (
 	"database/sql"
 	"testing"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ type (
 	stubBroadcaster       struct{ realtime.Broadcaster }
 	stubChildAccess       struct{ GuardianChildAccessRepository }
 	stubPushSubscriptions struct {
-		deliveryModels.PushSubscriptionRepository
+		deliveryPorts.PushSubscriptionRepository
 	}
 	stubPushOutbox     struct{ PushOutbox }
 	stubService        struct{ Service }

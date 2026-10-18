@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,15 +24,15 @@ type synchronousTestMailer struct {
 
 type panickingSynchronousMailer struct{}
 
-func (panickingSynchronousMailer) Send(Message) error {
+func (panickingSynchronousMailer) Send(mailcontract.Message) error {
 	panic("transport invariant violated")
 }
 
-func (m *synchronousTestMailer) Send(message Message) error {
+func (m *synchronousTestMailer) Send(message mailcontract.Message) error {
 	return m.SendContext(context.Background(), message)
 }
 
-func (m *synchronousTestMailer) SendContext(ctx context.Context, _ Message) error {
+func (m *synchronousTestMailer) SendContext(ctx context.Context, _ mailcontract.Message) error {
 	m.mu.Lock()
 	m.attempts++
 	attempt := m.attempts
@@ -61,13 +63,13 @@ func (m *synchronousTestMailer) Attempts() int {
 	return m.attempts
 }
 
-func synchronousTestRequest() DeliveryRequest {
-	return DeliveryRequest{
-		Message: Message{
-			To:       Email{Address: "recipient@example.invalid"},
+func synchronousTestRequest() mailcontract.DeliveryRequest {
+	return mailcontract.DeliveryRequest{
+		Message: mailcontract.Message{
+			To:       mailcontract.Email{Address: "recipient@example.invalid"},
 			Template: "mfa-email-code.html",
 		},
-		Metadata: DeliveryMetadata{
+		Metadata: mailcontract.DeliveryMetadata{
 			Type:      "mfa_challenge",
 			Recipient: "recipient@example.invalid",
 		},
@@ -199,7 +201,7 @@ func TestDispatcherDeliverFailsWhenTransportIsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	err := NewDispatcher(nil, slog.Default()).Deliver(context.Background(), synchronousTestRequest())
-	require.ErrorIs(t, err, ErrDeliveryUnavailable)
+	require.ErrorIs(t, err, mailcontract.ErrDeliveryUnavailable)
 }
 
 func TestDispatcherDeliverConvertsTransportPanicToFailure(t *testing.T) {

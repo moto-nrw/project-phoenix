@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,7 @@ func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedT
 	if err != nil {
 		return 0, err
 	}
-	rows, err := a.module.Statuses(ctx, tenantID.Int64(), delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
+	rows, err := a.module.Statuses(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	return len(rows), err
 }
 
@@ -37,15 +39,15 @@ func (a testEnrollmentDelivery) CancelRelatedEmails(ctx context.Context, related
 	if err != nil {
 		return 0, err
 	}
-	return a.module.Cancel(ctx, tenantID.Int64(), delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
+	return a.module.Cancel(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
-func enqueueTestEnrollmentEmail(t *testing.T, db *orm.DB, tenantID, requestID int64, key string, payload map[string]any) delivery.Enqueued {
+func enqueueTestEnrollmentEmail(t *testing.T, db *orm.DB, tenantID, requestID int64, key string, payload map[string]any) deliveryContract.Enqueued {
 	t.Helper()
 	capability := newTestEnrollmentDelivery(t, db)
 	encoded, err := json.Marshal(payload)
 	require.NoError(t, err)
-	var result delivery.Enqueued
+	var result deliveryContract.Enqueued
 	err = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ orm.Tx) error {
 		var enqueueErr error
 		result, enqueueErr = enqueueTestEnrollmentEmailInContext(ctx, capability, tenantID, requestID, key, encoded)
@@ -55,9 +57,9 @@ func enqueueTestEnrollmentEmail(t *testing.T, db *orm.DB, tenantID, requestID in
 	return result
 }
 
-func enqueueTestEnrollmentEmailInContext(ctx context.Context, capability testEnrollmentDelivery, tenantID, requestID int64, key string, payload json.RawMessage) (delivery.Enqueued, error) {
-	return capability.module.EnqueueEmail(ctx, delivery.EmailIntent{
-		TenantID: tenantID, Template: "enrollment_test", Recipient: delivery.EmailRecipient{Address: "guardian@example.invalid"},
-		Payload: payload, IdempotencyKey: key, Related: delivery.RelatedEntity{Type: "enrollment_request", ID: requestID},
+func enqueueTestEnrollmentEmailInContext(ctx context.Context, capability testEnrollmentDelivery, tenantID, requestID int64, key string, payload json.RawMessage) (deliveryContract.Enqueued, error) {
+	return capability.module.EnqueueEmail(ctx, deliveryContract.EmailIntent{
+		TenantID: tenantID, Template: "enrollment_test", Recipient: deliveryContract.EmailRecipient{Address: "guardian@example.invalid"},
+		Payload: payload, IdempotencyKey: key, Related: deliveryContract.RelatedEntity{Type: "enrollment_request", ID: requestID},
 	})
 }

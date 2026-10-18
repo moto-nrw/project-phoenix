@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -24,7 +25,7 @@ import (
 
 // IdentityMailState reads Delivery's state of a queued mail; Identity's
 // welcome mails wait for the mail they follow (#4006).
-type IdentityMailState func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error)
+type IdentityMailState func(ctx context.Context, tenantID, id int64) (deliveryContract.State, bool, error)
 
 // buildIdentityAccess builds Identity & Access over the owners and the
 // values the root built before it (#4006): sessions, the account lifecycle,
@@ -35,7 +36,7 @@ func buildIdentityAccess(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, tokens TokenAdapter,
 	organizations organizationtenancy.Capability, persons peopledirectory.Capability, membership schoolmembership.Capability,
 	settings settingsCompose.BatchSettingsService, audit AuditOwner, operatorAuditLog operatorAuditEntries,
-	transport MailTransport, deliveryRuntime *deliveryCompose.Runtime, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
+	mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, deliveryRuntime *deliveryCompose.Runtime, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRepository, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
 	sessions *presenceCompose.SessionRecords, presence *studentpresence.Module,
@@ -64,7 +65,7 @@ func buildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	mfaMail, err := newMFAMailer(db, deliveryRuntime, transport.Mailer, transport.DefaultFrom, links.FrontendURL, authLogger, nil)
+	mfaMail, err := newMFAMailer(db, deliveryRuntime, mailSender, mailFrom, links.FrontendURL, authLogger, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +92,7 @@ func buildIdentityAccess(
 		return nil, nil, err
 	}
 	demo, err := demoDependencies(
-		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger, durable),
+		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), mailDispatcher, mailFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger, durable),
 		organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")), organizations)
 	if err != nil {
 		return nil, nil, err
@@ -102,19 +103,19 @@ func buildIdentityAccess(
 		DB: db.Pool(), Observe: requiredIdentityAccessObservation(env.Observe.IdentityAccess), TenantRuntime: unit,
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, Durable: durable,
+			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable,
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
 		Invitations: invitationDependencies(&InvitationWiring{
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
+			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
 			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
 			Settings:     settings,
 			Outbox:       outbox,
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		}, tokens.SessionTokens, authLogger),
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
-			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom, durable: durable,
+			dispatcher: mailDispatcher, defaultFrom: mailFrom, durable: durable,
 			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
 			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
 			logger: platformLogger,

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,9 +36,9 @@ func dispatchWithRecordingSentry(t *testing.T, mailer *mockMailer, attempts, cal
 	dispatcher := NewDispatcher(mailer, slog.New(slog.DiscardHandler))
 	dispatcher.SetDefaults(attempts, []time.Duration{time.Millisecond})
 	tracker := newCallbackTracker()
-	dispatcher.Dispatch(ctx, DeliveryRequest{
-		Message:  Message{Subject: "Einladung"},
-		Metadata: DeliveryMetadata{Type: "invitation"},
+	dispatcher.Dispatch(ctx, mailcontract.DeliveryRequest{
+		Message:  mailcontract.Message{Subject: "Einladung"},
+		Metadata: mailcontract.DeliveryMetadata{Type: "invitation"},
 		Callback: tracker.callback,
 	})
 	require.True(t, tracker.waitForResults(callbacks, time.Second))
@@ -89,7 +91,7 @@ func TestDispatcher_Dispatch_RetriedSuccessSendsNoSentryEvent(t *testing.T) {
 
 	results := tracker.getResults()
 	require.Len(t, results, 2)
-	assert.Equal(t, DeliveryStatusSent, results[1].Status)
+	assert.Equal(t, mailcontract.DeliveryStatusSent, results[1].Status)
 	select {
 	case event := <-transport:
 		t.Fatalf("a delivery made good by a retry was reported: %v", event.Exception)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -48,7 +50,7 @@ func requestShareVisibility(db transactionruntime.Database) (eventContract.Share
 // buildCarePlanRequests binds the parent request queues over the schedules,
 // the offerings, the caller context, the review policy and the effect sinks.
 func buildCarePlanRequests(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, carePlan careplan.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, carePlan careplan.Capability,
 	persons peopledirectory.Capability, people PeopleRows, schedules CarePlanSchedules, offerings CarePlanOfferings,
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
@@ -62,7 +64,7 @@ func buildCarePlanRequests(
 	requests := CarePlanRequests{
 		CareRequests: NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 			carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
-			schedules.AutoExcusal, carePlan, caller, emitter, transport.Hub,
+			schedules.AutoExcusal, carePlan, caller, emitter, hub,
 			reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
 			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today),
 		),
@@ -82,11 +84,11 @@ func buildCarePlanRequests(
 	// retained directories, the review policy and the effect sinks.
 	if requests.Excused, err = NewExcusedAbsenceRequestService(
 		carePlan, people.Students, people.Persons, ParentRequestReviewScope(reviews, permissions),
-		emitter, transport.Hub, events, absences, shares, env.Observe.CarePlan, env.Logger.With("service", "excused-requests"), nil,
+		emitter, hub, events, absences, shares, env.Observe.CarePlan, env.Logger.With("service", "excused-requests"), nil,
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose excused absence requests: %w", err)
 	}
-	return buildCarePlanDecisions(db, env, transport, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests)
+	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests)
 }
 
 // buildOfferingChanges binds the offering-change review over Enrollment's
@@ -123,7 +125,7 @@ func buildOfferingChanges(
 // queue is bound at construction, or the resolve route would answer
 // conflict_kind_unsupported for the missing one.
 func buildCarePlanDecisions(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, carePlan careplan.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, carePlan careplan.Capability,
 	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter eventContract.Emitter,
 	caller *CallerRows, reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string,
 	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests,
@@ -140,7 +142,7 @@ func buildCarePlanDecisions(
 	if requests.MasterData, err = NewMasterDataDecisions(
 		carePlan, persons, people.Students, people.Persons,
 		services.StudentAudit, ParentRequestWriteScope(reviews, permissions),
-		emitter, transport.Hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today,
+		emitter, hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today,
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose master data decisions: %w", err)
 	}

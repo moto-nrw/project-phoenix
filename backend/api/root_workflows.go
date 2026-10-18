@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -44,7 +46,7 @@ func buildGradeTransition(
 // buildStudentDeletion binds the permanent child deletion (#2710), which
 // unlinks a deleted child's photo through the photo lifecycle.
 func buildStudentDeletion(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, persons peopledirectory.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, persons peopledirectory.Capability,
 	carePlan careplan.Capability, timetableOwner timetable.Capability, owner TimetableOwner, feedback studentdeletioncompose.Feedback,
 	verifiedStaff func(context.Context) (bool, error), photos peoplePorts.StudentPhotoService, audit AuditOwner,
 ) (*studentdeletion.Workflow, error) {
@@ -57,7 +59,7 @@ func buildStudentDeletion(
 		Feedback: feedback, IsVerifiedStaff: verifiedStaff,
 		LockCareBookingWrites: owner.RecurrenceLock.LockRecurrenceWrites,
 		UnlinkPhoto:           photos.ScheduleUnlinkAfterCommit,
-		Broadcaster:           transport.Hub, Logger: env.Logger.With("workflow", "student_deletion"), Audit: audit.Command,
+		Broadcaster:           hub, Logger: env.Logger.With("workflow", "student_deletion"), Audit: audit.Command,
 	}, NewStudentActivityEnrollments())
 	if err != nil {
 		return nil, fmt.Errorf("compose student deletion workflow: %w", err)

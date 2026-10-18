@@ -10,7 +10,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -151,7 +151,7 @@ func newMFAMailer(db transactionruntime.Database, runtime *deliveryCompose.Runti
 	if runtime == nil {
 		return mail, errors.New("mfa mail requires the delivery runtime")
 	}
-	outbox := OutboxEnqueuer{Module: runtime.Module}
+	outbox := OutboxEnqueuer{Runtime: runtime}
 	provider := &deliveryCompose.MailPushProvider{
 		Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{transactionalMailKind: transactionalMailRenderer{logger: logger}}),
 		Mailer:   transport, Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(db.Pool()),

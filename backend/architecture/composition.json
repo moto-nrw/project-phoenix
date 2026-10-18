@@ -74,47 +74,6 @@
         114
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/worker_test.go",
-      "declaration": "TestNewWorkerRejectsMissingJobs",
-      "target": "services/scheduler.NewWorker",
-      "lines": [
-        63
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/worker_test.go",
-      "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
-      "target": "services/scheduler.NewWorker",
-      "lines": [
-        55
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/worker_test.go",
-      "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
-      "target": "services/scheduler.NewWorker",
-      "lines": [
-        86
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/worker_test.go",
-      "declaration": "TestNewWorkerRejectsTypedNilDependencies",
-      "target": "services/scheduler.NewWorker",
-      "lines": [
-        102,
-        113
-      ],
-      "tables": []
     }
   ],
   "evidence_commit": "8dc3a9ca8ac7cb8edbfa3c17760d92c02751bc3e",

@@ -10,13 +10,15 @@ import (
 	"testing"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -125,10 +127,10 @@ func (f *failAfterDurableEnqueue) EnqueueMail(ctx context.Context, req TestMail)
 		return err
 	}
 	address, _ := req.Payload["recipient_email"].(string)
-	_, err = f.module.EnqueueEmail(ctx, deliveryModule.EmailIntent{
+	_, err = f.module.EnqueueEmail(ctx, deliveryContract.EmailIntent{
 		TenantID: tenant.FromContext(ctx), Template: req.Kind,
-		Recipient: deliveryModule.EmailRecipient{Address: address}, Payload: payload,
-		Related: deliveryModule.RelatedEntity{Type: req.RelatedEntityType, ID: req.RelatedEntityID},
+		Recipient: deliveryContract.EmailRecipient{Address: address}, Payload: payload,
+		Related: deliveryContract.RelatedEntity{Type: req.RelatedEntityType, ID: req.RelatedEntityID},
 	})
 	if err != nil {
 		return err

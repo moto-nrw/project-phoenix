@@ -7,12 +7,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	transport "github.com/moto-nrw/project-phoenix/email"
+
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 // Message and Mailer name the delivery contract a test double sends or
 // receives, so a behaviour suite outside the Delivery Platform can implement
 // a refusing or flaky transport without importing the transport package.
+
 type Message = email.Message
 type Mailer = email.Mailer
 
@@ -43,7 +46,7 @@ func NewCapturingMailer() *CapturingMailer {
 // the capture, as the production transport carries it: the capture then
 // holds only what would leave the demo environment.
 func (m *CapturingMailer) InDemoEnvironment() email.Mailer {
-	return email.RestrictToDemoMails(m, "demo", nil)
+	return transport.RestrictToDemoMails(m, "demo", nil)
 }
 
 // Send implements email.Mailer by capturing the message.

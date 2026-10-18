@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 81,
+  "policy_epoch": 82,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1612,21 +1612,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery",
-      "owner": "delivery-platform",
-      "role": "contract",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/compose",
-      "owner": "delivery-platform",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/delivery/compose/email",
       "owner": "delivery-platform",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -2298,7 +2284,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/scheduler",
+      "path": "modules/schedulerruntime/internal/application",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -3460,20 +3446,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/base",
-      "owner": "transaction-runtime",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/delivery",
-      "owner": "delivery-platform",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/staffannouncementaudience/contract",
       "owner": "staff-announcement-audience",
       "role": "public",
@@ -3511,6 +3483,48 @@
     {
       "path": "modules/presenceprojection/presencecontract",
       "owner": "presence-legacy-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/protocol",
+      "owner": "transaction-runtime",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/mail",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/subscriptions",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/subscriptiontest",
+      "owner": "delivery-platform",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/contract",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/runtime",
+      "owner": "delivery-platform",
       "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -15260,61 +15274,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery-platform.workflow-integration-test.delivery-platform-legacy-model",
-      "description": "Allows one dependency introduced by the Delivery package cutover. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "delivery.adapter-test.legacy-model",
-      "description": "Delivery Postgres adapter tests construct owned domain values. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "owner-compose.platform.legacy-model",
-      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "compose",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
-      "id": "platform.application-legacy-model",
-      "description": "platform application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "application",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
-      "id": "platform.postgres-legacy-model",
-      "description": "platform Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "postgres",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "staff-announcement-audience.postgres.staff-audience.native-public",
       "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
       "scopes": [
@@ -15595,6 +15554,86 @@
       "target_owner": "timetable-activities",
       "target_role": "contract",
       "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "transaction-runtime.postgres.native-protocol",
+      "description": "The transaction adapter uses native outcome errors moved from its database implementation; same owner and original marker/error contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "contract",
+      "target_package": "modules/transactionruntime/protocol"
+    },
+    {
+      "id": "delivery.postgres.native-subscriptions",
+      "description": "Same-owner native subscription values replace the exact legacy-model capability; actual definitions, no ORM or generic API.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/subscriptions"
+    },
+    {
+      "id": "delivery.port.native-subscriptions",
+      "description": "Native public values replace the same Delivery capability; no implementation grant or legacy alias.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "port",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/subscriptions"
+    },
+    {
+      "id": "delivery.application.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.test-support.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.public.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "public",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.workflow-integration-test.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
     }
   ],
   "relocations": [
@@ -15771,6 +15810,11 @@
     {
       "from": "services/parentmessaging",
       "to": "modules/communication/internal/application/parentmessaging",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/scheduler",
+      "to": "modules/schedulerruntime/internal/application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

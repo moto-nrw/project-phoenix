@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
@@ -114,7 +115,7 @@ func dataRetentionSteps(
 	settings retentionSettings, unregisteredTagScans devicefleet.UnregisteredTagScanRetention,
 	statusDays carePlanModule.StudentStatusDayRetention, parentMessages communicationModule.ParentMessageCleanup,
 	settledEnrollments enrollmentModule.SettledEnrollmentRetention, staffSickNotes workforceModule.SickNoteRetention,
-	auditLedgers retentionAuditLedgers, deliveries deliveryModule.Retention,
+	auditLedgers retentionAuditLedgers, deliveries deliveryContract.Retention,
 ) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if unregisteredTagScans != nil {

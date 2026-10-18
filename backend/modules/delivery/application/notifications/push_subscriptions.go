@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -64,7 +66,7 @@ type PushSubscriptionService interface {
 
 type pushSubscriptionService struct {
 	db             *bun.DB
-	repo           deliveryModels.PushSubscriptionRepository
+	repo           deliveryPorts.PushSubscriptionRepository
 	accountTenants GuardianSchools
 	vapid          VAPIDConfig
 	logger         *slog.Logger
@@ -81,7 +83,7 @@ func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context
 // NewPushSubscriptionService builds the push subscription service.
 func NewPushSubscriptionService(
 	db *bun.DB,
-	repo deliveryModels.PushSubscriptionRepository,
+	repo deliveryPorts.PushSubscriptionRepository,
 	accountTenants GuardianSchools,
 	vapid VAPIDConfig,
 	logger *slog.Logger,

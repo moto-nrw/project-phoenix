@@ -17,7 +17,7 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"

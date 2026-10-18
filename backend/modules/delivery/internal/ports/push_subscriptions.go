@@ -1,97 +1,10 @@
-package delivery
+package ports
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/url"
-	"strings"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 )
-
-// Push subscription portal constants: through which portal the device
-// registered. Tenant/admin-scoped pushes go only to staff devices, guardian
-// pushes only to parent devices.
-const (
-	PushPortalStaff  = "staff"
-	PushPortalParent = "parent"
-	// PushPortalSchool marks a device registered through "moto schule" (#2208).
-	PushPortalSchool = "school"
-)
-
-var trustedPushServiceHosts = map[string]struct{}{
-	"fcm.googleapis.com":                {},
-	"updates.push.services.mozilla.com": {},
-	"web.push.apple.com":                {},
-}
-
-// ValidatePushEndpoint restricts outbound delivery to browser-managed push
-// services. Subscription endpoints are otherwise attacker-controlled URLs and
-// must never turn the notification worker into a general-purpose HTTP client.
-func ValidatePushEndpoint(endpoint string) error {
-	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		return fmt.Errorf("endpoint must be a valid URL: %w", err)
-	}
-	if parsed.Scheme != "https" || parsed.Hostname() == "" {
-		return errors.New("endpoint must be an https URL")
-	}
-	if parsed.User != nil || parsed.Fragment != "" {
-		return errors.New("endpoint must not contain user information or a fragment")
-	}
-	if port := parsed.Port(); port != "" && port != "443" {
-		return errors.New("endpoint must use the default https port")
-	}
-
-	host := strings.ToLower(parsed.Hostname())
-	if _, ok := trustedPushServiceHosts[host]; ok {
-		return nil
-	}
-	if strings.HasSuffix(host, ".notify.windows.com") &&
-		host != "notify.windows.com" {
-		return nil
-	}
-	return errors.New("endpoint host is not a trusted push service")
-}
-
-// PushSubscription is one browser/device registration for Web Push
-// (RFC 8030). endpoint/p256dh/auth come verbatim from the browser's
-// PushSubscription JSON. One account can hold many rows (multiple devices);
-// a guardian linked to several schools holds one row per school for the
-// same endpoint.
-type PushSubscription struct {
-	ID            int64     `json:"id"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	TenantID      int64     `json:"tenant_id"`
-	AccountID     int64     `json:"account_id"`
-	Portal        string    `json:"portal"`
-	Endpoint      string    `json:"endpoint"`
-	P256dh        string    `json:"-"`
-	Auth          string    `json:"-"`
-	UserAgent     string    `json:"user_agent"`
-	TokenFamilyID string    `json:"-"`
-}
-
-// Validate ensures push subscription data is valid.
-func (s *PushSubscription) Validate() error {
-	if s.AccountID <= 0 {
-		return errors.New("account_id is required")
-	}
-	if s.Portal != PushPortalStaff && s.Portal != PushPortalParent && s.Portal != PushPortalSchool {
-		return errors.New("portal must be 'staff', 'parent' or 'school'")
-	}
-	if strings.TrimSpace(s.Endpoint) == "" {
-		return errors.New("endpoint is required")
-	}
-	if err := ValidatePushEndpoint(s.Endpoint); err != nil {
-		return err
-	}
-	if strings.TrimSpace(s.P256dh) == "" || strings.TrimSpace(s.Auth) == "" {
-		return errors.New("subscription keys are required")
-	}
-	return nil
-}
 
 // PushSubscriptionRepository defines operations for Web Push subscriptions.
 // All reads/writes are tenant-scoped (RLS); callers outside tenant middleware
@@ -100,7 +13,7 @@ type PushSubscriptionRepository interface {
 
 	// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
 	// endpoint).
-	RegisterSubscription(ctx context.Context, sub *PushSubscription) error
+	RegisterSubscription(ctx context.Context, sub *subscriptions.PushSubscription) error
 	// DeleteByEndpoint removes the caller's staff-portal subscription for the
 	// current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error
@@ -116,7 +29,7 @@ type PushSubscriptionRepository interface {
 	DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error
 	// DeleteExpiredIfUnchanged removes a subscription only if its persisted
 	// ownership, key material, and update timestamp still match the sent snapshot.
-	DeleteExpiredIfUnchanged(ctx context.Context, sub *PushSubscription) (bool, error)
+	DeleteExpiredIfUnchanged(ctx context.Context, sub *subscriptions.PushSubscription) (bool, error)
 	// DeleteParentByEndpoint removes every parent-portal binding for an endpoint
 	// across tenants. Callers must use an admin transaction.
 	DeleteParentByEndpoint(ctx context.Context, endpoint string) error
@@ -157,19 +70,19 @@ type PushSubscriptionRepository interface {
 	// parent rows stay if any parent session exists on the account.
 	DeleteOrphanedSubscriptions(ctx context.Context) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
-	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
+	FindForTenantStaff(ctx context.Context) ([]*subscriptions.PushSubscription, error)
 
 	// FindForStaffAccounts returns the staff-portal subscriptions of the given
 	// accounts in the current tenant. Same eligibility rules as
 	// FindForTenantStaff, narrowed to named recipients — the addressing
 	// primitive for personal notifications.
-	FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
+	FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*subscriptions.PushSubscription, error)
 	// FindForSchoolAccounts returns school-portal subscriptions for named
 	// accounts in the current tenant.
-	FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
+	FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*subscriptions.PushSubscription, error)
 	// FindForTenantAdmins returns staff-portal subscriptions of accounts with
 	// effective admin scope in the current tenant.
-	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)
+	FindForTenantAdmins(ctx context.Context) ([]*subscriptions.PushSubscription, error)
 	// FindForGuardians returns parent-portal subscriptions of guardian accounts
 	// with active guardian access in the current tenant. Pending-enrollment-only
 	// recipients are deliberately excluded from Web Push.
@@ -178,5 +91,5 @@ type PushSubscriptionRepository interface {
 	// least one of those children on the caller's student-guardian relationship,
 	// so a notification about a child reaches only the accounts that may still
 	// hear about it at delivery time. Pass nil for events about no child.
-	FindForGuardians(ctx context.Context, guardianAccountIDs []int64, studentIDs []int64) ([]*PushSubscription, error)
+	FindForGuardians(ctx context.Context, guardianAccountIDs []int64, studentIDs []int64) ([]*subscriptions.PushSubscription, error)
 }

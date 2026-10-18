@@ -64,7 +64,7 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			delivery, err := api.NewDeliveryTestModule(database, testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			invitations, err := api.NewGuardianInvitationServiceForTests(database, testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
-				Outbox: api.OutboxEnqueuer{Module: delivery.Delivery, Outbox: delivery.EmailOutbox},
+				Outbox: api.OutboxEnqueuer{Runtime: delivery.Runtime, Outbox: delivery.EmailOutbox},
 			})
 			require.NoError(t, err)
 			resource := enrollmentAPI.NewResource(nil, nil, requests, nil, nil, decision, nil, nil, nil, nil,

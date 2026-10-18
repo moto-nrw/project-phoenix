@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
-
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -184,8 +182,8 @@ type MailResultOutbox interface {
 // OutboxEnqueuer serves MailOutbox and MailResultOutbox over the Delivery
 // enqueue facade.
 type OutboxEnqueuer struct {
-	Outbox *deliveryCompose.EmailOutbox
-	Module *delivery.Module
+	Outbox  *deliveryCompose.EmailOutbox
+	Runtime *deliveryCompose.Runtime
 }
 
 func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req deliveryCompose.MailEnqueueRequest) error {

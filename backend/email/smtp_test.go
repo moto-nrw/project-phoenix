@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wneessen/go-mail"
@@ -18,7 +20,7 @@ import (
 func TestSMTPMailer_ImplementsMailer(t *testing.T) {
 	t.Parallel()
 	// SMTPMailer should implement Mailer interface
-	var _ Mailer = &SMTPMailer{}
+	var _ mailcontract.Mailer = &SMTPMailer{}
 }
 
 // =============================================================================
@@ -40,7 +42,7 @@ func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
 		0644,
 	))
 
-	mailer, err := NewMailer(MailerConfig{TemplateDir: templatesDir})
+	mailer, err := NewMailer(mailcontract.MailerConfig{TemplateDir: templatesDir})
 	require.NoError(t, err)
 	assert.NotNil(t, mailer)
 
@@ -64,12 +66,12 @@ func TestNewMailer_WithSMTPHost_ConfiguresClient(t *testing.T) {
 		0644,
 	))
 
-	mailer, err := NewMailer(MailerConfig{
+	mailer, err := NewMailer(mailcontract.MailerConfig{
 		Host:        "localhost",
 		Port:        587,
 		User:        "testuser",
 		Password:    "testpass",
-		DefaultFrom: NewEmail("Test Sender", "test@example.com"),
+		DefaultFrom: mailcontract.NewEmail("Test Sender", "test@example.com"),
 		TemplateDir: templatesDir,
 	})
 	require.NoError(t, err)
@@ -99,7 +101,7 @@ func TestNewMailer_Port465_ConfiguresSSL(t *testing.T) {
 		0644,
 	))
 
-	mailer, err := NewMailer(MailerConfig{
+	mailer, err := NewMailer(mailcontract.MailerConfig{
 		Host:        "localhost",
 		Port:        465,
 		User:        "testuser",
@@ -119,7 +121,7 @@ func TestNewMailer_NoTemplates_ReturnsError(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Should fail because no templates directory exists
-	mailer, err := NewMailer(MailerConfig{TemplateDir: filepath.Join(tempDir, "templates")})
+	mailer, err := NewMailer(mailcontract.MailerConfig{TemplateDir: filepath.Join(tempDir, "templates")})
 
 	// Either error or nil mailer expected when templates missing
 	if err == nil {
@@ -137,15 +139,15 @@ func TestSMTPMailer_Send_UsesDefaultFrom(t *testing.T) {
 
 	// This test verifies the defaultFrom logic without actual SMTP connection
 	smtpMailer := &SMTPMailer{
-		defaultFrom: Email{
+		defaultFrom: mailcontract.Email{
 			Name:    "Default Sender",
 			Address: "default@example.com",
 		},
 	}
 
 	// Message without From address
-	msg := Message{
-		To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+	msg := mailcontract.Message{
+		To:      mailcontract.Email{Name: "Recipient", Address: "recipient@example.com"},
 		Subject: "Test",
 	}
 
@@ -226,10 +228,10 @@ func TestParseTemplates_MultipleTemplates(t *testing.T) {
 func TestMessage_Parse_RequiresTemplates(t *testing.T) {
 	t.Parallel()
 
-	msg := Message{
+	msg := renderedMessage{Message: mailcontract.Message{
 		Template: "nonexistent.html",
 		Content:  map[string]string{"key": "value"},
-	}
+	}}
 
 	require.ErrorContains(t, msg.parse(nil), "not configured")
 }
@@ -255,10 +257,10 @@ func TestMessage_Parse_WithValidTemplate(t *testing.T) {
 	templates, err := parseTemplates(templatesDir)
 	require.NoError(t, err)
 
-	msg := Message{
+	msg := renderedMessage{Message: mailcontract.Message{
 		Template: "greeting.html",
 		Content:  struct{ Name string }{Name: "World"},
-	}
+	}}
 
 	err = msg.parse(templates)
 	assert.NoError(t, err)
@@ -319,7 +321,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		client:    client,
 		templates: templates,
 		logger:    slog.New(slog.DiscardHandler),
-		defaultFrom: Email{
+		defaultFrom: mailcontract.Email{
 			Name:    "System",
 			Address: "system@example.com",
 		},
@@ -339,9 +341,9 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := mailer.Send(Message{
-				From:     Email{Name: tc.displayName, Address: "from@example.com"},
-				To:       Email{Name: tc.displayName, Address: "to@example.com"},
+			err := mailer.Send(mailcontract.Message{
+				From:     mailcontract.Email{Name: tc.displayName, Address: "from@example.com"},
+				To:       mailcontract.Email{Name: tc.displayName, Address: "to@example.com"},
 				Subject:  "Regression #1193",
 				Template: "regression.html",
 				Content:  map[string]string{"Message": "hi"},
@@ -366,10 +368,10 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 	}
 
 	t.Run("reply-to header", func(t *testing.T) {
-		message := Message{
-			From:     NewEmail("moto", "kontakt@moto.nrw"),
-			ReplyTo:  NewEmail(`OGS "Am Berg", Grundschule`, "ogs@schule-am-berg.example"),
-			To:       NewEmail("Erika Muster", "erika@example.test"),
+		message := mailcontract.Message{
+			From:     mailcontract.NewEmail("moto", "kontakt@moto.nrw"),
+			ReplyTo:  mailcontract.NewEmail(`OGS "Am Berg", Grundschule`, "ogs@schule-am-berg.example"),
+			To:       mailcontract.NewEmail("Erika Muster", "erika@example.test"),
 			Subject:  "Einladung zum Eltern-Portal",
 			Template: "regression.html",
 			Content:  map[string]string{"Message": "Hallo"},
@@ -384,7 +386,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		require.Len(t, from, 1)
 		assert.Contains(t, from[0], "kontakt@moto.nrw")
 
-		message.ReplyTo = Email{}
+		message.ReplyTo = mailcontract.Email{}
 		built, err = mailer.buildMessage(message)
 		require.NoError(t, err)
 		assert.Empty(t, built.GetAddrHeaderString(mail.HeaderReplyTo))

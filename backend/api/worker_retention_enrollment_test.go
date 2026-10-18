@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -156,12 +157,12 @@ func (f enrollmentFixture) mail(t *testing.T, requestID int64) int64 {
 	t.Helper()
 	module, err := NewEnrollmentFlowDelivery(testpkg.MustDatabase(f.admin))
 	require.NoError(t, err)
-	var queued delivery.Enqueued
+	var queued deliveryContract.Enqueued
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), f.admin, f.tenantID, func(ctx context.Context, _ bun.Tx) error {
-		queued, err = module.EnqueueEmail(ctx, delivery.EmailIntent{
-			TenantID: f.tenantID, Template: "enrollment_test", Recipient: delivery.EmailRecipient{Address: "guardian@example.invalid"},
+		queued, err = module.EnqueueEmail(ctx, deliveryContract.EmailIntent{
+			TenantID: f.tenantID, Template: "enrollment_test", Recipient: deliveryContract.EmailRecipient{Address: "guardian@example.invalid"},
 			Payload: []byte("{}"), IdempotencyKey: fmt.Sprintf("settled-%d", requestID),
-			Related: delivery.RelatedEntity{Type: "enrollment_request", ID: requestID},
+			Related: deliveryContract.RelatedEntity{Type: "enrollment_request", ID: requestID},
 		})
 		return err
 	}))

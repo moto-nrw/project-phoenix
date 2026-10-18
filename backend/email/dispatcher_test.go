@@ -9,6 +9,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +21,7 @@ import (
 
 type mockMailer struct {
 	mu           sync.Mutex
-	messages     []Message
+	messages     []mailcontract.Message
 	sendError    error
 	sendAttempts int
 	failCount    int  // Number of times to fail before succeeding
@@ -30,7 +32,7 @@ func newMockMailer() *mockMailer {
 	return &mockMailer{}
 }
 
-func (m *mockMailer) Send(msg Message) error {
+func (m *mockMailer) Send(msg mailcontract.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -57,10 +59,10 @@ func (m *mockMailer) Send(msg Message) error {
 	return nil
 }
 
-func (m *mockMailer) getSentMessages() []Message {
+func (m *mockMailer) getSentMessages() []mailcontract.Message {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	result := make([]Message, len(m.messages))
+	result := make([]mailcontract.Message, len(m.messages))
 	copy(result, m.messages)
 	return result
 }
@@ -77,7 +79,7 @@ func (m *mockMailer) setFailCount(count int) {
 
 type callbackTracker struct {
 	mu      sync.Mutex
-	results []DeliveryResult
+	results []mailcontract.DeliveryResult
 	ch      chan struct{}
 }
 
@@ -87,7 +89,7 @@ func newCallbackTracker() *callbackTracker {
 	}
 }
 
-func (ct *callbackTracker) callback(_ context.Context, result DeliveryResult) {
+func (ct *callbackTracker) callback(_ context.Context, result mailcontract.DeliveryResult) {
 	ct.mu.Lock()
 	ct.results = append(ct.results, result)
 	ct.mu.Unlock()
@@ -119,10 +121,10 @@ func (ct *callbackTracker) waitForResults(count int, timeout time.Duration) bool
 	}
 }
 
-func (ct *callbackTracker) getResults() []DeliveryResult {
+func (ct *callbackTracker) getResults() []mailcontract.DeliveryResult {
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
-	result := make([]DeliveryResult, len(ct.results))
+	result := make([]mailcontract.DeliveryResult, len(ct.results))
 	copy(result, ct.results)
 	return result
 }
@@ -211,15 +213,15 @@ func TestDispatcher_Dispatch_Success(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	msg := Message{
-		From:    Email{Name: "Test", Address: "test@example.com"},
-		To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+	msg := mailcontract.Message{
+		From:    mailcontract.Email{Name: "Test", Address: "test@example.com"},
+		To:      mailcontract.Email{Name: "Recipient", Address: "recipient@example.com"},
 		Subject: "Test Email",
 	}
 
-	req := DeliveryRequest{
+	req := mailcontract.DeliveryRequest{
 		Message: msg,
-		Metadata: DeliveryMetadata{
+		Metadata: mailcontract.DeliveryMetadata{
 			Type:        "test",
 			ReferenceID: 123,
 			Recipient:   "recipient@example.com",
@@ -234,7 +236,7 @@ func TestDispatcher_Dispatch_Success(t *testing.T) {
 
 	results := tracker.getResults()
 	require.Len(t, results, 1)
-	assert.Equal(t, DeliveryStatusSent, results[0].Status)
+	assert.Equal(t, mailcontract.DeliveryStatusSent, results[0].Status)
 	assert.Equal(t, 1, results[0].Attempt)
 	assert.True(t, results[0].Final)
 	assert.Nil(t, results[0].Err)
@@ -253,8 +255,8 @@ func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
 
 		tracker := newCallbackTracker()
 
-		req := DeliveryRequest{
-			Message:  Message{Subject: "Test"},
+		req := mailcontract.DeliveryRequest{
+			Message:  mailcontract.Message{Subject: "Test"},
 			Callback: tracker.callback,
 		}
 
@@ -275,13 +277,13 @@ func TestDispatcher_Dispatch_NoCallback(t *testing.T) {
 		mailer := newMockMailer()
 		dispatcher := NewDispatcher(mailer, slog.Default())
 
-		msg := Message{
-			From:    Email{Name: "Test", Address: "test@example.com"},
-			To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+		msg := mailcontract.Message{
+			From:    mailcontract.Email{Name: "Test", Address: "test@example.com"},
+			To:      mailcontract.Email{Name: "Recipient", Address: "recipient@example.com"},
 			Subject: "Test Email",
 		}
 
-		req := DeliveryRequest{
+		req := mailcontract.DeliveryRequest{
 			Message:  msg,
 			Callback: nil, // No callback
 		}
@@ -313,9 +315,9 @@ func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	req := DeliveryRequest{
-		Message: Message{Subject: "Test"},
-		Metadata: DeliveryMetadata{
+	req := mailcontract.DeliveryRequest{
+		Message: mailcontract.Message{Subject: "Test"},
+		Metadata: mailcontract.DeliveryMetadata{
 			Type:      "test",
 			Recipient: "test@example.com",
 		},
@@ -331,17 +333,17 @@ func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
 	require.Len(t, results, 3)
 
 	// First two should be failures
-	assert.Equal(t, DeliveryStatusFailed, results[0].Status)
+	assert.Equal(t, mailcontract.DeliveryStatusFailed, results[0].Status)
 	assert.Equal(t, 1, results[0].Attempt)
 	assert.False(t, results[0].Final)
 	assert.NotNil(t, results[0].Err)
 
-	assert.Equal(t, DeliveryStatusFailed, results[1].Status)
+	assert.Equal(t, mailcontract.DeliveryStatusFailed, results[1].Status)
 	assert.Equal(t, 2, results[1].Attempt)
 	assert.False(t, results[1].Final)
 
 	// Third should be success
-	assert.Equal(t, DeliveryStatusSent, results[2].Status)
+	assert.Equal(t, mailcontract.DeliveryStatusSent, results[2].Status)
 	assert.Equal(t, 3, results[2].Attempt)
 	assert.True(t, results[2].Final)
 	assert.Nil(t, results[2].Err)
@@ -359,9 +361,9 @@ func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	req := DeliveryRequest{
-		Message: Message{Subject: "Test"},
-		Metadata: DeliveryMetadata{
+	req := mailcontract.DeliveryRequest{
+		Message: mailcontract.Message{Subject: "Test"},
+		Metadata: mailcontract.DeliveryMetadata{
 			Type:      "test",
 			Recipient: "test@example.com",
 		},
@@ -378,7 +380,7 @@ func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
 
 	// All should be failures
 	for i, result := range results {
-		assert.Equal(t, DeliveryStatusFailed, result.Status)
+		assert.Equal(t, mailcontract.DeliveryStatusFailed, result.Status)
 		assert.Equal(t, i+1, result.Attempt)
 		assert.NotNil(t, result.Err)
 	}
@@ -405,8 +407,8 @@ func TestDispatcher_Dispatch_CustomMaxAttempts(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	req := DeliveryRequest{
-		Message:     Message{Subject: "Test"},
+	req := mailcontract.DeliveryRequest{
+		Message:     mailcontract.Message{Subject: "Test"},
 		MaxAttempts: 2, // Custom: only 2 attempts
 		Callback:    tracker.callback,
 	}
@@ -434,8 +436,8 @@ func TestDispatcher_Dispatch_CustomBackoff(t *testing.T) {
 	// Custom backoff policy
 	customBackoff := []time.Duration{10 * time.Millisecond}
 
-	req := DeliveryRequest{
-		Message:       Message{Subject: "Test"},
+	req := mailcontract.DeliveryRequest{
+		Message:       mailcontract.Message{Subject: "Test"},
 		BackoffPolicy: customBackoff,
 		Callback:      tracker.callback,
 	}
@@ -465,15 +467,15 @@ func TestDispatcher_Dispatch_MetadataPassedToCallback(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	metadata := DeliveryMetadata{
+	metadata := mailcontract.DeliveryMetadata{
 		Type:        "invitation",
 		ReferenceID: 12345,
 		Token:       "secret-token",
 		Recipient:   "user@example.com",
 	}
 
-	req := DeliveryRequest{
-		Message:  Message{Subject: "Test"},
+	req := mailcontract.DeliveryRequest{
+		Message:  mailcontract.Message{Subject: "Test"},
 		Metadata: metadata,
 		Callback: tracker.callback,
 	}
@@ -503,13 +505,13 @@ func TestDispatcher_Dispatch_MessageCopied(t *testing.T) {
 
 	tracker := newCallbackTracker()
 
-	msg := Message{
-		From:    Email{Name: "Original", Address: "original@example.com"},
-		To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+	msg := mailcontract.Message{
+		From:    mailcontract.Email{Name: "Original", Address: "original@example.com"},
+		To:      mailcontract.Email{Name: "Recipient", Address: "recipient@example.com"},
 		Subject: "Original Subject",
 	}
 
-	req := DeliveryRequest{
+	req := mailcontract.DeliveryRequest{
 		Message:  msg,
 		Callback: tracker.callback,
 	}
@@ -578,9 +580,9 @@ func TestBackoffDuration_NegativeAttempt(t *testing.T) {
 func TestDeliveryStatus_Values(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, DeliveryStatus("pending"), DeliveryStatusPending)
-	assert.Equal(t, DeliveryStatus("sent"), DeliveryStatusSent)
-	assert.Equal(t, DeliveryStatus("failed"), DeliveryStatusFailed)
+	assert.Equal(t, mailcontract.DeliveryStatus("pending"), mailcontract.DeliveryStatusPending)
+	assert.Equal(t, mailcontract.DeliveryStatus("sent"), mailcontract.DeliveryStatusSent)
+	assert.Equal(t, mailcontract.DeliveryStatus("failed"), mailcontract.DeliveryStatusFailed)
 }
 
 // =============================================================================
@@ -597,8 +599,8 @@ func TestDeliveryResult_SentAt(t *testing.T) {
 
 	before := time.Now()
 
-	req := DeliveryRequest{
-		Message:  Message{Subject: "Test"},
+	req := mailcontract.DeliveryRequest{
+		Message:  mailcontract.Message{Subject: "Test"},
 		Callback: tracker.callback,
 	}
 
@@ -635,9 +637,9 @@ func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			req := DeliveryRequest{
-				Message: Message{Subject: "Test " + string(rune('A'+idx))},
-				Metadata: DeliveryMetadata{
+			req := mailcontract.DeliveryRequest{
+				Message: mailcontract.Message{Subject: "Test " + string(rune('A'+idx))},
+				Metadata: mailcontract.DeliveryMetadata{
 					ReferenceID: int64(idx),
 				},
 				Callback: tracker.callback,
@@ -656,7 +658,7 @@ func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 
 	// All should be successful
 	for _, result := range results {
-		assert.Equal(t, DeliveryStatusSent, result.Status)
+		assert.Equal(t, mailcontract.DeliveryStatusSent, result.Status)
 	}
 
 	// All messages should be sent
@@ -681,7 +683,7 @@ func TestDispatcher_Dispatch_ContextPassedToCallback(t *testing.T) {
 		var receivedCtx context.Context
 		var mu sync.Mutex
 
-		callback := func(ctx context.Context, _ DeliveryResult) {
+		callback := func(ctx context.Context, _ mailcontract.DeliveryResult) {
 			mu.Lock()
 			receivedCtx = ctx
 			mu.Unlock()
@@ -689,8 +691,8 @@ func TestDispatcher_Dispatch_ContextPassedToCallback(t *testing.T) {
 
 		ctx := context.WithValue(context.Background(), testKey, "test-value")
 
-		req := DeliveryRequest{
-			Message:  Message{Subject: "Test"},
+		req := mailcontract.DeliveryRequest{
+			Message:  mailcontract.Message{Subject: "Test"},
 			Callback: callback,
 		}
 

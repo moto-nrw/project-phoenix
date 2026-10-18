@@ -9,18 +9,18 @@ import (
 	"net/http"
 	"time"
 
-	provider "github.com/SherClockHolmes/webpush-go"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	provider "github.com/SherClockHolmes/webpush-go"
 )
 
 type Sender struct {
-	config  delivery.WebPushConfig
+	config  deliveryContract.WebPushConfig
 	client  *http.Client
-	cleanup func(context.Context, delivery.ClaimedIntent) error
+	cleanup func(context.Context, deliveryContract.ClaimedIntent) error
 }
 
-func New(config delivery.WebPushConfig, cleanup func(context.Context, delivery.ClaimedIntent) error) *Sender {
+func New(config deliveryContract.WebPushConfig, cleanup func(context.Context, deliveryContract.ClaimedIntent) error) *Sender {
 	return &Sender{
 		config:  config,
 		cleanup: cleanup,
@@ -31,16 +31,16 @@ func New(config delivery.WebPushConfig, cleanup func(context.Context, delivery.C
 	}
 }
 
-func (s *Sender) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
 	if !s.config.Configured() {
-		return delivery.ProviderResult{}, errors.New("delivery provider: web push is not configured")
+		return deliveryContract.ProviderResult{}, errors.New("delivery provider: web push is not configured")
 	}
-	if err := delivery.ValidatePushEndpoint(intent.PushRecipient.Endpoint); err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: invalid push endpoint: %w", err)
+	if err := deliveryContract.ValidatePushEndpoint(intent.PushRecipient.Endpoint); err != nil {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: invalid push endpoint: %w", err)
 	}
 	payload, err := json.Marshal(intent.PushPayload)
 	if err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: encode push payload: %w", err)
+		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: encode push payload: %w", err)
 	}
 	response, err := provider.SendNotificationWithContext(ctx, payload, &provider.Subscription{
 		Endpoint: intent.PushRecipient.Endpoint,
@@ -50,23 +50,23 @@ func (s *Sender) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (d
 		VAPIDPrivateKey: s.config.PrivateKey, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
 	})
 	if err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", err)
+		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	_, _ = io.Copy(io.Discard, response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
 			if s.cleanup == nil {
-				return delivery.ProviderResult{StatusCode: response.StatusCode}, errors.New("delivery provider: expired push subscription cleanup is not configured")
+				return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, errors.New("delivery provider: expired push subscription cleanup is not configured")
 			}
 			if err := s.cleanup(ctx, intent); err != nil {
-				return delivery.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: remove expired push subscription: %w", err)
+				return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: remove expired push subscription: %w", err)
 			}
-			return delivery.ProviderResult{StatusCode: response.StatusCode}, delivery.ErrCancelled
+			return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, deliveryContract.ErrCancelled
 		}
-		return delivery.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: push service returned %s", response.Status)
+		return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: push service returned %s", response.Status)
 	}
-	return delivery.ProviderResult{StatusCode: response.StatusCode}, nil
+	return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, nil
 }
 
 func pushTTL(priority string) int {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,12 +15,12 @@ type recordingEngine struct {
 	pushCalled bool
 }
 
-func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, error) {
-	return Enqueued{}, nil
+func (*recordingEngine) EnqueueEmail(context.Context, deliveryContract.EmailIntent) (deliveryContract.Enqueued, error) {
+	return deliveryContract.Enqueued{}, nil
 }
 
-func (*recordingEngine) EnqueueDeferredPush(context.Context, DeferredPushIntent) (Enqueued, error) {
-	return Enqueued{}, nil
+func (*recordingEngine) EnqueueDeferredPush(context.Context, deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
+	return deliveryContract.Enqueued{}, nil
 }
 
 type recordingWorkerEngine struct {
@@ -27,9 +29,9 @@ type recordingWorkerEngine struct {
 	err                    error
 }
 
-func (e *recordingWorkerEngine) RunOnce(_ context.Context, batchSize, maxAttempts int) (WorkerStats, error) {
+func (e *recordingWorkerEngine) RunOnce(_ context.Context, batchSize, maxAttempts int) (deliveryContract.WorkerStats, error) {
 	e.batchSize, e.maxAttempts = batchSize, maxAttempts
-	return WorkerStats{Claimed: 4, DeadLettered: e.deadLettered}, e.err
+	return deliveryContract.WorkerStats{Claimed: 4, DeadLettered: e.deadLettered}, e.err
 }
 
 func (*recordingWorkerEngine) Backlog(context.Context) (int, error) { return 0, nil }
@@ -70,29 +72,29 @@ func TestWorkerFailsRunWithDeadLetteredDeliveries(t *testing.T) {
 
 	processed, err := NewWorker(&recordingWorkerEngine{deadLettered: 2}).RunOnce(context.Background(), 25, 3)
 	assert.Equal(t, 4, processed)
-	require.ErrorIs(t, err, ErrDeadLettered)
+	require.ErrorIs(t, err, deliveryContract.ErrDeadLettered)
 	assert.Contains(t, err.Error(), ": 2")
 
 	_, err = NewWorker(&recordingWorkerEngine{}).RunOnce(context.Background(), 25, 3)
 	assert.NoError(t, err)
 }
-func (e *recordingEngine) EnqueuePush(context.Context, PushIntent) (Enqueued, error) {
+func (e *recordingEngine) EnqueuePush(context.Context, deliveryContract.PushIntent) (deliveryContract.Enqueued, error) {
 	e.pushCalled = true
-	return Enqueued{}, nil
+	return deliveryContract.Enqueued{}, nil
 }
-func (*recordingEngine) Cancel(context.Context, int64, Transport, RelatedEntity, string) (int64, error) {
+func (*recordingEngine) Cancel(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity, string) (int64, error) {
 	return 0, nil
 }
-func (*recordingEngine) Statuses(context.Context, int64, Transport, RelatedEntity) ([]Status, error) {
+func (*recordingEngine) Statuses(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity) ([]deliveryContract.Status, error) {
 	return nil, nil
 }
-func (*recordingEngine) ReplaceEmailDeliveries(context.Context, int64, RelatedEntity, []EmailDelivery) error {
+func (*recordingEngine) ReplaceEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity, []deliveryContract.EmailDelivery) error {
 	return nil
 }
-func (*recordingEngine) DeleteEmailDeliveries(context.Context, int64, RelatedEntity) (int64, error) {
+func (*recordingEngine) DeleteEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity) (int64, error) {
 	return 0, nil
 }
-func (*recordingEngine) EmailDeliveryStatuses(context.Context, int64, RelatedEntity) ([]EmailDeliveryStatus, error) {
+func (*recordingEngine) EmailDeliveryStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.EmailDeliveryStatus, error) {
 	return nil, nil
 }
 func (*recordingEngine) AttachEmailOutbox(context.Context, int64, int64, int64) error { return nil }
@@ -106,11 +108,11 @@ func TestEnqueuePushRejectsUntrustedEndpoint(t *testing.T) {
 	engine := &recordingEngine{}
 	module := NewModule(engine)
 	tenantID := int64(42)
-	_, err := module.EnqueuePush(context.Background(), PushIntent{
+	_, err := module.EnqueuePush(context.Background(), deliveryContract.PushIntent{
 		TenantID: tenantID, Template: "appointment", IdempotencyKey: "appointment:1",
-		Related:   RelatedEntity{Type: "appointment", ID: 1},
-		Recipient: PushRecipient{Endpoint: "https://127.0.0.1/push", P256DH: "key", Auth: "auth"},
-		Payload:   PushPayload{Title: "Termin"},
+		Related:   deliveryContract.RelatedEntity{Type: "appointment", ID: 1},
+		Recipient: deliveryContract.PushRecipient{Endpoint: "https://127.0.0.1/push", P256DH: "key", Auth: "auth"},
+		Payload:   deliveryContract.PushPayload{Title: "Termin"},
 	})
 
 	require.Error(t, err)
