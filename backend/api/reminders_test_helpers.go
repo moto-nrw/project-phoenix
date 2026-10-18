@@ -36,7 +36,7 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	members := MustNewMembershipTestRepositories(db)
 	presence, err := NewTimetablePresenceRows(db, r, members)
 	if err != nil {
-		return RemindersTestModule{}, err
+		return RemindersTestModule{}, SettingsTestModule{}, err
 	}
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
