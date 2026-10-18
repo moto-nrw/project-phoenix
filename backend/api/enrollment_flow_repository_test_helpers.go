@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -53,7 +52,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 		StudentGuardian:            members.StudentGuardian,
 		GuardianProfile:            members.GuardianProfile,
 		GuardianPhoneNumber:        peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		CareWithdrawal:             NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:             NewCareWithdrawalCompletionRepository(care),
 	}, nil
 }
 

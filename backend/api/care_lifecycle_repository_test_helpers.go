@@ -34,8 +34,7 @@ type CareLifecycleTestRepositories struct {
 // CareWithdrawal is the People Directory's withdrawal completion port over
 // the Care Plan rows.
 func (r CareLifecycleTestRepositories) CareWithdrawal() usersModels.CareWithdrawalCompletionRepository {
-	care := r.carePlan
-	return NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care })
+	return NewCareWithdrawalCompletionRepository(r.carePlan)
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {

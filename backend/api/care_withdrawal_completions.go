@@ -19,22 +19,14 @@ import (
 // the children's names and classes from the named student directory
 // projection. It contains no persistence of its own.
 type careWithdrawalCompletionRepository struct {
-	carePlan func() careplan.Capability
+	carePlan careplan.Capability
 }
 
 var _ userModels.CareWithdrawalCompletionRepository = careWithdrawalCompletionRepository{}
 
 // NewCareWithdrawalCompletionRepository adapts the Care Plan owner to the
-// retained care withdrawal completion contract.
+// retained care withdrawal completion contract. The owner is required.
 func NewCareWithdrawalCompletionRepository(carePlan careplan.Capability) userModels.CareWithdrawalCompletionRepository {
-	return NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return carePlan })
-}
-
-// NewLateBoundCareWithdrawalCompletionRepository adapts the owner capability to the
-// legacy model contract. It is read on every call rather than captured; an
-// unbound capability fails the call in owner(), it is not a construction
-// error.
-func NewLateBoundCareWithdrawalCompletionRepository(carePlan func() careplan.Capability) userModels.CareWithdrawalCompletionRepository {
 	if carePlan == nil {
 		panic("care withdrawal repository: Care Plan binding is required")
 	}
@@ -42,11 +34,7 @@ func NewLateBoundCareWithdrawalCompletionRepository(carePlan func() careplan.Cap
 }
 
 func (r careWithdrawalCompletionRepository) owner() (careplan.Capability, error) {
-	carePlan := r.carePlan()
-	if carePlan == nil {
-		return nil, errors.New("care withdrawal repository: Care Plan capability is not bound")
-	}
-	return carePlan, nil
+	return r.carePlan, nil
 }
 
 // FindByID preserves this contract's nil-on-not-found behavior.

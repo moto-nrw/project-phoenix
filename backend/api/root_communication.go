@@ -22,10 +22,10 @@ import (
 // flows (#1671).
 func buildParentEventEmitter(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport,
-	settings settingsCompose.BatchSettingsService, threads parentStore.ParentMessageThreadRepository, notifications DeliveryNotifications,
+	settings settingsCompose.BatchSettingsService, messaging parentStore.MessagingRepositories, notifications DeliveryNotifications,
 ) *communicationCompose.ParentEventEmitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, unit), ThreadRepo: threads,
+		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, unit), ThreadRepo: messaging.ParentMessageThread,
 		MessageRepo: parentStore.NewParentMessageRepository(db.Pool()), Settings: settingsValues.NewParentEventValues(settings),
 		Broadcaster: transport.Hub, Logger: env.Logger.With("service", "parent-events"),
 		DecisionNotifier: deliveryCompose.NewRequestDecisionNotifier(notifications.Notifier, notifications.Preferences),
@@ -37,11 +37,11 @@ func buildParentEventEmitter(
 // (#2601). File Storage hands it the attachment side at construction (#2890).
 func buildParentAnnouncements(
 	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module *deliveryModule.Module,
-	notifications DeliveryNotifications, announcements parentStore.ParentAnnouncementRepository,
+	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
 	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
-		Repo: announcements, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
+		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,

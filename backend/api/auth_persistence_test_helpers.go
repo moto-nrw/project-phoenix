@@ -38,8 +38,7 @@ func newInvitationMembershipRepositories(db transactionruntime.Database) (people
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()))
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()), groupTeachers)
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }
