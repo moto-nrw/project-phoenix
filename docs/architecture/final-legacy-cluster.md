@@ -32,7 +32,7 @@ The original Data Import authorization key and the zero-baseline regression test
 |---|---|---|
 | `services/scheduler` | `modules/schedulerruntime/internal/application` | 66 Go files, identical file set and normalized bytes; same owner/application/test roles via ADR 0020 |
 | Worker registry directory and `services/scheduler/worker.go` literals in composition discovery | Corresponding internal Scheduler directory and `worker.go` | 27 job IDs before and after, identical order; constructor identities and fixed-commit evidence remain unchanged |
-| SQLSTATE skip prefix `models/base/` | `modules/transactionruntime/internal/adapters/postgres/` | One prefix replaces one prefix; 4 non-comment SQLSTATE literal hits before and after; empty per-file allowance map stays empty |
+| SQLSTATE skip prefix `models/base/` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | One prefix replaces one prefix and narrows to the canonical file; 4 non-comment SQLSTATE literal hits before and after; empty per-file allowance map stays empty |
 | `models/base/db_errors.go` | `modules/transactionruntime/internal/adapters/postgres/unique_violation.go` | Exact bytes after normalizing only `package base` to `package postgres` |
 | `database/tenant_runtime.go` | Transaction Runtime private Postgres adapter plus `protocol` errors | Same transaction context keys, role/tenant setup, commit/rollback/retry/savepoint behavior, error text and Unwrap/marker protocol |
 
