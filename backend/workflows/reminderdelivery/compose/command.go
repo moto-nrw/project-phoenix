@@ -23,3 +23,8 @@ func NewPushDelivery(runtime ports.CommandRuntime, deps ports.DeliveryDependenci
 func NewPreparation(runtime ports.CommandRuntime, deps ports.DeliveryDependencies) ports.GuardianPreparation {
 	return application.NewPreparation(deps, runtime)
 }
+
+// NewQuery constructs the single reminder query provider.
+func NewQuery(deps ports.QueryDependencies) reminder.Query {
+	return application.NewQuery(deps)
+}

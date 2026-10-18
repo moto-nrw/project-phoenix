@@ -13,12 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	statsContract "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
 )
 
-type DatabaseStatsReader func(context.Context) (*transactionruntime.DatabaseStatsResponse, error)
+type DatabaseStatsReader func(context.Context) (*statsContract.StatsResponse, error)
 
-func NewDatabaseStatsReader(service transactionruntime.DatabaseStats, capabilities func(context.Context) transactionruntime.DatabaseStatsCapabilities) DatabaseStatsReader {
-	return func(ctx context.Context) (*transactionruntime.DatabaseStatsResponse, error) {
+func NewDatabaseStatsReader(service statsContract.Service, capabilities func(context.Context) statsContract.StatsCapabilities) DatabaseStatsReader {
+	return func(ctx context.Context) (*statsContract.StatsResponse, error) {
 		return service.GetStats(ctx, capabilities(ctx))
 	}
 }
@@ -36,7 +37,7 @@ func DatabaseStatsPermissions() []string {
 func newDatabaseStats(people peopleCompose.Repositories, groups EducationGroupRepository, roomOwner facilitiesModule.Capability, timetable timetableCompose.Repositories, identity *identityaccess.Module, deviceOwner devicefleet.Capability, logger *slog.Logger) DatabaseStatsReader {
 	rooms := facilitiesCompose.NewRoomRepository(roomOwner)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(deviceOwner)
-	stats := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
+	stats := transactionruntime.NewDatabaseStats(statsContract.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
 			return people.Students.CountEnrolled(ctx)
 		},
@@ -69,7 +70,7 @@ func newDatabaseStats(people peopleCompose.Repositories, groups EducationGroupRe
 			return len(rows), err
 		},
 	}, logger.With("service", "database"))
-	return NewDatabaseStatsReader(stats, func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
+	return NewDatabaseStatsReader(stats, func(ctx context.Context) statsContract.StatsCapabilities {
 		return securityruntime.DatabaseStatsCapabilities(requestTokenReads.Permissions(ctx))
 	})
 }

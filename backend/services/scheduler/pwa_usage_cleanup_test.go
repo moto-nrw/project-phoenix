@@ -39,10 +39,10 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 
 	sweeps := &pwaUsageSweeps{}
 	cleanup := sweeps.cleanup
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.pwaUsageCleanup = cleanup
-		unit.cleanupClock = func() time.Time { return scheduleNow }
-		unit.settings = &fakeSettingsResolver{
+	s := unitScheduler(&unitSchedulerDependencies{
+		pwaUsageCleanup: cleanup,
+		cleanupClock:    func() time.Time { return scheduleNow },
+		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -52,9 +52,8 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 			intValues: map[string]int{
 				settingDataCleanupTimeoutMinutes: 30,
 			},
-		}
-		unit.logger = slog.Default()
-	})
+		},
+		logger: slog.Default()})
 
 	s.checkAndRunPWAUsageCleanup(context.Background(), &ScheduledTask{Name: "pwa-usage-cleanup"})
 

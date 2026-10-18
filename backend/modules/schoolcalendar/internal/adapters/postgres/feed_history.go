@@ -6,18 +6,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 type feedCancellationRow struct {
-	bun.BaseModel `bun:"table:staff_feed_tombstones,alias:staff_feed_tombstone"`
-	Source        string       `bun:"source"`
-	SourceID      int64        `bun:"source_id"`
-	Title         string       `bun:"title"`
-	EventDate     calendarDate `bun:"event_date,type:date"`
-	StartTime     time.Time    `bun:"start_time"`
-	EndTime       time.Time    `bun:"end_time"`
-	CancelledAt   time.Time    `bun:"cancelled_at"`
+	bun.BaseModel `bun:"table:calendar.staff_feed_tombstones,alias:staff_feed_tombstone"`
+	Source        string        `bun:"source"`
+	SourceID      int64         `bun:"source_id"`
+	Title         string        `bun:"title"`
+	EventDate     calendar.Date `bun:"event_date,type:date"`
+	StartTime     time.Time     `bun:"start_time"`
+	EndTime       time.Time     `bun:"end_time"`
+	CancelledAt   time.Time     `bun:"cancelled_at"`
 }
 
 func (s *Store) ListFeedCancellations(ctx context.Context, staffID int64, since time.Time) ([]domain.FeedCancellation, error) {

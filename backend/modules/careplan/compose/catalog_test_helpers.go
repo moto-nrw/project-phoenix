@@ -5,10 +5,10 @@ package compose
 import (
 	"errors"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/uptrace/bun"
 )
 

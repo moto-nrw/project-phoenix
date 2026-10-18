@@ -8,10 +8,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

@@ -9,12 +9,12 @@ import (
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -22,7 +22,7 @@ import (
 // with the side effects of a settings change registered.
 type SettingsCallbacksTestModule struct {
 	Settings       settingsCompose.SettingsService
-	TenantSettings *settingsCompose.TenantOperations
+	TenantSettings configModel.TenantOperationsService
 }
 
 // NewSettingsCallbacksTestModule composes the tenant settings over db and

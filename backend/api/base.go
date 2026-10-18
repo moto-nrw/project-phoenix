@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
@@ -15,7 +17,6 @@ import (
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -168,7 +169,7 @@ func observeFileStorage(observation filestorageCompose.Observation) {
 	observability.ObserveFileStorageOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, filestorageModule.ErrorCode(observation.Err), observation.Err)
 }
 
-func observeDataImport(observation dataImportRetained.ImportObservation) {
+func observeDataImport(observation importModels.ImportObservation) {
 	observability.ObserveDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
 	if observation.DryRun {
 		return

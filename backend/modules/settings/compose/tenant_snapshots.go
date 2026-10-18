@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // TenantSnapshot is one school's settings resolved ahead of use. Bind returns
@@ -23,8 +22,8 @@ var errBatchUnsupported = errors.New("settings service does not resolve many sch
 // NewTenantSnapshots binds the cross-tenant batch read of the retained
 // settings service, for consumers that preload the settings of every school
 // at once, such as the Worker's minute snapshot (#2746).
-func NewTenantSnapshots(service configSvc.SettingsService) (TenantSnapshots, error) {
-	batch, ok := service.(configSvc.BatchSettingsService)
+func NewTenantSnapshots(service configModel.SettingsService) (TenantSnapshots, error) {
+	batch, ok := service.(configModel.BatchSettingsService)
 	if !ok {
 		return nil, errBatchUnsupported
 	}
@@ -44,11 +43,11 @@ func NewTenantSnapshots(service configSvc.SettingsService) (TenantSnapshots, err
 }
 
 type tenantSnapshot struct {
-	snapshot *configSvc.SettingsSnapshot
+	snapshot *configModel.SettingsSnapshot
 }
 
 func (s tenantSnapshot) Bind(ctx context.Context) context.Context {
-	return configSvc.WithSettingsSnapshot(ctx, s.snapshot)
+	return configModel.WithSettingsSnapshot(ctx, s.snapshot)
 }
 
 // VerifyPreloadKeys refuses keys a consumer preloads for every school when

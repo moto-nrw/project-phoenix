@@ -9,11 +9,11 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -39,7 +39,7 @@ func NewMasterDataDecisions(
 			students: students, persons: persons, details: fields,
 			writes: peopleCompose.NewAuditedStudentUpdates(students, audit),
 		},
-		Today: carePlanCompose.Today, Logger: logger,
+		Today: careplan.Today, Logger: logger,
 	}
 	if today != nil {
 		deps.Today = func() careplan.Date { return careplan.Date(today()) }

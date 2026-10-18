@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

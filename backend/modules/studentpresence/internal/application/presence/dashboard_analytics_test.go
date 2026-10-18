@@ -164,7 +164,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		name          string
 		activeVisits  []studentpresence.Visit
 		activeGroups  []*ports.ActiveGroup
-		rooms         []*ports.SessionRoom
+		rooms         []*studentpresence.SessionRoom
 		expectedCount int
 		description   string
 	}{
@@ -177,7 +177,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*ports.ActiveGroup{
 				{ID: 100, RoomID: 10},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 2,
@@ -193,7 +193,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 				{ID: 100, RoomID: 10},
 				{ID: 200, RoomID: 20},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
@@ -209,7 +209,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*ports.ActiveGroup{
 				{ID: 200, RoomID: 20},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 20, Name: "Schulhof", Category: ptrtest.Ptr("Schulhof")},
 			},
 			expectedCount: 0,
@@ -223,7 +223,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*ports.ActiveGroup{
 				{ID: 100, RoomID: 10, EndTime: ptrtest.Ptr(time.Now())},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -237,7 +237,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*ports.ActiveGroup{
 				{ID: 100, RoomID: 10},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -247,7 +247,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			name:          "Empty visits and groups",
 			activeVisits:  []studentpresence.Visit{},
 			activeGroups:  []*ports.ActiveGroup{},
-			rooms:         []*ports.SessionRoom{},
+			rooms:         []*studentpresence.SessionRoom{},
 			expectedCount: 0,
 			description:   "No students when there are no visits or groups",
 		},
@@ -259,7 +259,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 			activeGroups: []*ports.ActiveGroup{
 				{ID: 100, RoomID: 10},
 			},
-			rooms: []*ports.SessionRoom{
+			rooms: []*studentpresence.SessionRoom{
 				{ID: 10, Name: "Raum 101", Category: ptrtest.Ptr("Klassenraum")},
 			},
 			expectedCount: 0,
@@ -271,7 +271,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Build room data
 			roomData := &dashboardRoomData{
-				roomByID:        make(map[int64]*ports.SessionRoom),
+				roomByID:        make(map[int64]*studentpresence.SessionRoom),
 				occupiedRooms:   make(map[int64]bool),
 				roomStudentsMap: make(map[int64]map[int64]struct{}),
 			}

@@ -3,8 +3,8 @@ package users
 import (
 	"context"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 

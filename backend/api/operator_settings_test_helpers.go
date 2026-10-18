@@ -23,7 +23,7 @@ import (
 // NewOperatorSettingsTestModule (#4080).
 type OperatorSettingsTestModule struct {
 	Settings            settingsCompose.BatchSettingsService
-	SettingsSideEffects *settingsCompose.SideEffectRegistry
+	SettingsSideEffects configModels.SideEffectDispatcher
 	schoolSlugs         settingsOperatorAPI.SchoolLookup
 	// operator are the root's required dependencies of the operator's school
 	// settings; OperatorSchoolSettingsWith adds the optional ones.

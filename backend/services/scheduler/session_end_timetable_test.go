@@ -42,11 +42,10 @@ func (r *endedSessionSteps) CompleteActiveByActiveGroupIDs(_ context.Context, ac
 func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	t.Parallel()
 	rows := &endedSessionSteps{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.instanceStudentRepo = rows
-		unit.timetableBridge = rows
-		unit.logger = slog.Default()
-	})
+	s := unitScheduler(&unitSchedulerDependencies{
+		instanceStudentRepo: rows,
+		timetableBridge:     rows,
+		logger:              slog.Default()})
 
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &ports.DailySessionsEnded{
 		EndedActiveGroupIDs: []int64{811, 812},
@@ -68,11 +67,7 @@ func TestCompleteTimetableInstancesForEndedSessionsPropagatesFailures(t *testing
 		"complete instances": {completeErr: errors.New("completion failed")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			s := unitScheduler(func(unit *Scheduler) {
-				unit.instanceStudentRepo = rows
-				unit.timetableBridge = rows
-				unit.logger = slog.Default()
-			})
+			s := unitScheduler(&unitSchedulerDependencies{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
 
 			_, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &ports.DailySessionsEnded{
 				EndedActiveGroupIDs: []int64{821},
@@ -86,11 +81,7 @@ func TestCompleteTimetableInstancesForEndedSessionsPropagatesFailures(t *testing
 func TestCompleteTimetableInstancesForEndedSessionsSkipsWithoutEndedGroups(t *testing.T) {
 	t.Parallel()
 	rows := &endedSessionSteps{}
-	s := unitScheduler(func(unit *Scheduler) {
-		unit.instanceStudentRepo = rows
-		unit.timetableBridge = rows
-		unit.logger = slog.Default()
-	})
+	s := unitScheduler(&unitSchedulerDependencies{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
 
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &ports.DailySessionsEnded{})
 

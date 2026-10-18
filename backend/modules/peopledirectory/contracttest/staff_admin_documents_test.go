@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

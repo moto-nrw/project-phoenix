@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 

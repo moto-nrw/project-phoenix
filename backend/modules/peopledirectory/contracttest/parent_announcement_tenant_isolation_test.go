@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

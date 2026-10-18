@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func nativeParentRequestEvent(row *models.ParentRequestEvent) (*directory.ParentRequestEventSnapshot, error) {

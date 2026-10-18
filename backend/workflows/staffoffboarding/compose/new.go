@@ -6,10 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -96,7 +94,7 @@ func Authorize(ctx context.Context, resolveActor func(context.Context) (int64, e
 
 // New constructs only the required owner capabilities.
 // It does not build or retain a service/repository factory.
-func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
+func New(deps Dependencies, work staffoffboarding.Workforce, groupAccessChanged func(context.Context)) (*staffoffboarding.Workflow, error) {
 	if deps.DB == nil || deps.Access == nil || deps.Membership == nil || deps.Retirement == nil || deps.Timetable == nil || deps.LockSupervision == nil || deps.Authorize == nil || deps.Cleanup == nil ||
 		deps.Audit == nil || deps.AbsenceDeletionRecord == nil || deps.StaffDeletionRecord == nil {
 		return nil, errors.New("staff offboarding composition: required dependency is missing")
@@ -106,33 +104,6 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 		logger = slog.Default()
 	}
 	membership := deps.Membership
-	work, err := workforcecompose.NewOffboarding(workforcecompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		DB: deps.DB, Observe: func(workforcecompose.Observation) {},
-		LiveStaffIDs: func(ctx context.Context, membershipIDs []int64) ([]int64, error) {
-			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: membershipIDs, MembershipOnly: true})
-			if err != nil {
-				return nil, err
-			}
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				ids = append(ids, row.ID)
-			}
-			return ids, nil
-		},
-	}, func(ctx context.Context, absence workforce.StaffAbsence, actorID int64) error {
-		record, err := deps.AbsenceDeletionRecord(absence, actorID)
-		if err != nil {
-			return err
-		}
-		return deps.Audit.Append(ctx, record)
-	})
-	if err != nil {
-		return nil, err
-	}
 	return staffoffboarding.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
 		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
@@ -149,10 +120,8 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 		AppendAudit: func(ctx context.Context, actor staffoffboarding.Actor, result staffoffboarding.Result) error {
 			return deps.Audit.Append(ctx, deps.StaffDeletionRecord(actor, result))
 		},
-		Cleanup: deps.Cleanup,
-		GroupAccessChanged: func(ctx context.Context) {
-			realtimeevents.QueueGroupAccessChanged(ctx, deps.Broadcaster, logger, "staff_offboarding")
-		},
+		Cleanup:            deps.Cleanup,
+		GroupAccessChanged: groupAccessChanged,
 		Observe: func(event staffoffboarding.Observation) {
 			logger.Debug("staff offboarding operation",
 				"operation", event.Operation,

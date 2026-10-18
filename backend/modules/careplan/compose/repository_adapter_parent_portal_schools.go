@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 )
 
 // ParentPortalSchool is the Organisation & Tenancy school fact the guardian

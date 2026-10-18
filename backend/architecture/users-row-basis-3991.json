@@ -33,7 +33,7 @@
   "runtime_evidence": {
     "source": "PR #3999 CI at commit 576496910d and local verification in the detached PR worktree on 2026-10-13. CI passed the deterministic architecture check but rejected the three unclaimed test dependency removals.",
     "sources": [
-      "backend/models/users/model.go",
+      "backend/modules/peopledirectory/internal/rows/model.go",
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/repository_vocabulary.go",
       "backend/modules/careplan/withdrawal_record_test.go",
       "https://github.com/moto-nrw/project-phoenix/blob/eeed4921619960c7a951fe7e5e3d45fec2229234/backend/models/users/parent_message_read_receipts_test.go",

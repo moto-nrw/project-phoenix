@@ -7,7 +7,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
+	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/imports"
+	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -30,10 +31,10 @@ type importIdentity interface {
 
 // imports is the set of import services the API resource is wired with.
 type imports struct {
-	Student        *dataImportRetained.ImportService[importModels.StudentImportRow]
-	Staff          *dataImportRetained.ImportService[importModels.StaffImportRow]
-	ClassList      *dataImportRetained.ImportService[importModels.ClassListEntryImportRow]
-	OpeningBalance dataImportRetained.OpeningBalanceImportFactory
+	Student        importModels.RowImporter[importModels.StudentImportRow]
+	Staff          importModels.RowImporter[importModels.StaffImportRow]
+	ClassList      importModels.RowImporter[importModels.ClassListEntryImportRow]
+	OpeningBalance importModels.OpeningBalanceImportFactory
 }
 
 // The Data Import (#2708) commits student, staff and class-list rows through
@@ -45,8 +46,8 @@ type imports struct {
 
 // newImportRuntime is the transaction runner, audit trail and observation
 // sink every import service of one root shares.
-func newImportRuntime(audit auditModels.Command, observe func(dataImportRetained.ImportObservation)) dataImportRetained.ImportRuntime {
-	return dataImportRetained.ImportRuntime{
+func newImportRuntime(audit auditModels.Command, observe func(importModels.ImportObservation)) importPorts.ImportRuntime {
+	return importPorts.ImportRuntime{
 		Transactions: dataImportCompose.NewTransactions(), Audit: audit, Observe: observe,
 		Fingerprint: securityruntime.Fingerprint,
 	}
@@ -56,14 +57,14 @@ func newImportRuntime(audit auditModels.Command, observe func(dataImportRetained
 // Directory's guardian port; a suite may decorate it to observe an owner
 // failure mid-batch.
 func newStudentImport(
-	runtime dataImportRetained.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
-	persons peopledirectory.Capability, guardians dataImportRetained.GuardianPort, carePlan careplan.Capability,
+	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
+	persons peopledirectory.Capability, guardians importPorts.GuardianDirectory, carePlan careplan.Capability,
 	presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
-) *dataImportRetained.ImportService[importModels.StudentImportRow] {
+) importModels.RowImporter[importModels.StudentImportRow] {
 	references := dataImportCompose.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
 	return dataImportRetained.NewImportService(dataImportRetained.NewStudentImportConfig(
-		dataImportRetained.StudentImportDeps{
+		importPorts.StudentImportDeps{
 			Transactions:    runtime.Transactions,
 			Persons:         persons,
 			Students:        persons,
@@ -85,12 +86,12 @@ func newStudentImport(
 // immediately and issues an invitation for rows with an e-mail; accepting
 // links the account to the imported person (#2600).
 func newStaffImport(
-	runtime dataImportRetained.ImportRuntime, identity importIdentity, invitations identityaccess.SchoolInvitations,
+	runtime importPorts.ImportRuntime, identity importIdentity, invitations identityaccess.SchoolInvitations,
 	organizations organizationtenancy.Capability, persons peopledirectory.Capability,
 	membership schoolmembership.Capability, workforce workforceModule.Capability,
-) *dataImportRetained.ImportService[importModels.StaffImportRow] {
+) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
-		dataImportRetained.StaffImportDeps{
+		importPorts.StaffImportDeps{
 			Authorization:       dataImportCompose.NewAuthorization(),
 			Transactions:        runtime.Transactions,
 			Invitations:         dataImportCompose.NewStaffInviter(invitations),
@@ -111,10 +112,10 @@ func newStaffImport(
 // created through the Membership owner, so the duplicate guards and the
 // audit trail apply to imported rows too.
 func newClassListImport(
-	runtime dataImportRetained.ImportRuntime, membership schoolmembership.Capability, persons peopledirectory.Capability,
-) *dataImportRetained.ImportService[importModels.ClassListEntryImportRow] {
+	runtime importPorts.ImportRuntime, membership schoolmembership.Capability, persons peopledirectory.Capability,
+) importModels.RowImporter[importModels.ClassListEntryImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewClassListImportConfig(
-		dataImportRetained.ClassListImportDeps{
+		importPorts.ClassListImportDeps{
 			Transactions: runtime.Transactions,
 			Membership:   membership,
 			Persons:      persons,
@@ -130,12 +131,12 @@ func newClassListImport(
 // upload form), so the factory closes over the request-independent
 // dependencies and builds one service per request.
 func newOpeningBalanceImport(
-	runtime dataImportRetained.ImportRuntime, deps dataImportRetained.OpeningBalanceImportDeps,
+	runtime importPorts.ImportRuntime, deps importPorts.OpeningBalanceImportDeps,
 	membership schoolmembership.Capability, persons peopledirectory.Capability, workforce workforceModule.Capability,
-) dataImportRetained.OpeningBalanceImportFactory {
+) importModels.OpeningBalanceImportFactory {
 	deps.Transactions = runtime.Transactions
 	deps.References = dataImportCompose.NewOpeningReferences(membership, persons, workforce)
-	return dataImportRetained.OpeningBalanceImportFactory(
+	return importModels.OpeningBalanceImportFactory(
 		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) importModels.RowImporter[importModels.OpeningBalanceImportRow] {
 			config := dataImportRetained.NewOpeningBalanceImportConfig(deps, effectiveDate, note, decidedByStaffID)
 			return dataImportRetained.NewImportService(config, runtime)
@@ -157,7 +158,7 @@ func newServeImports(
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons),
-		OpeningBalance: newOpeningBalanceImport(runtime, dataImportRetained.OpeningBalanceImportDeps{
+		OpeningBalance: newOpeningBalanceImport(runtime, importPorts.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
 		}, membership, persons, workTime),

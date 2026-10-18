@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetupview"
@@ -22,6 +21,7 @@ type Dependencies struct {
 	// Settings resolves the school's settings that decide which steps apply;
 	// the root binds it to the Settings Platform.
 	Settings schoolsetup.Settings
+	Store    schoolsetup.Store
 }
 
 // New returns the wizard service.
@@ -29,7 +29,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 	if deps.Settings == nil {
 		return nil, errors.New("school setup compose: settings are required")
 	}
-	store := configRepo.NewSchoolSetupRepository[schoolsetup.State](ambientRuntime{})
+	store := deps.Store
 	projection := schoolsetupview.New(ambientTx)
 	return application.New(store, progress{projection: projection}, deps.Settings, time.Now)
 }
@@ -37,8 +37,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 // NewStaffOnboarding returns the first steps of care workers (#3748): the
 // person's own progress and the same progress projection, which says whether
 // the school has a group or a child yet.
-func NewStaffOnboarding() (schoolsetup.StaffOnboardingService, error) {
-	store := configRepo.NewStaffOnboardingRepository[schoolsetup.StaffState](ambientRuntime{})
+func NewStaffOnboarding(store schoolsetup.StaffStore) (schoolsetup.StaffOnboardingService, error) {
 	projection := schoolsetupview.New(ambientTx)
 	return application.NewStaffOnboarding(store, progress{projection: projection}, time.Now)
 }
@@ -62,12 +61,12 @@ func ambientTx(ctx context.Context) (bun.IDB, error) {
 	return nil, fmt.Errorf("school setup: unsupported transaction %T", transaction)
 }
 
-// ambientRuntime hands the store the request's tenant transaction. Without
+// AmbientRuntime hands the store the request's tenant transaction. Without
 // one it panics: a store call outside the tenant transaction is a
 // composition bug, not a request error.
-type ambientRuntime struct{}
+type AmbientRuntime struct{}
 
-func (ambientRuntime) DB(ctx context.Context) bun.IDB {
+func (AmbientRuntime) DB(ctx context.Context) bun.IDB {
 	db, err := ambientTx(ctx)
 	if err != nil {
 		panic(err)

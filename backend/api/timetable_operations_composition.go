@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

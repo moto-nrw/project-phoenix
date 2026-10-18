@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolsetuphttp "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ type staffHarness struct {
 func newStaffHarness(t *testing.T) (*staffHarness, *harness) {
 	t.Helper()
 	h := newHarness(t)
-	service, err := compose.NewStaffOnboarding()
+	service, err := api.NewStaffOnboardingTestService()
 	require.NoError(t, err)
 	return &staffHarness{router: schoolsetuphttp.NewStaffResource(service, harnessRuntime(h.db)).Router()}, h
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

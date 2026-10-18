@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -16,7 +18,7 @@ import (
 // SettingsTestModule contains only the settings application capabilities.
 type SettingsTestModule struct {
 	Settings       settingsCompose.BatchSettingsService
-	TenantSettings *settingsCompose.TenantOperations
+	TenantSettings configModel.TenantOperationsService
 	payroll        settingsCompose.PayrollStatusGetter
 	runtime        settingsCompose.TenantOperationsRuntime
 }
@@ -66,7 +68,7 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 
 // TenantSettingsWithHook is TenantSettings with the value-set side effect
 // hook bound at construction.
-func (m SettingsTestModule) TenantSettingsWithHook(hook func(context.Context, int64, string, any) (func(), error)) *settingsCompose.TenantOperations {
+func (m SettingsTestModule) TenantSettingsWithHook(hook func(context.Context, int64, string, any) (func(), error)) configModel.TenantOperationsService {
 	return settingsCompose.NewTenantOperations(m.Settings, m.payroll, m.runtime, hook, nil)
 }
 

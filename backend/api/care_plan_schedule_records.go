@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -20,7 +19,7 @@ func NewCarePlanRows(capability careplan.Capability) timetablePorts.CarePlanRows
 	return timetablePorts.CarePlanRows{
 		Records: carePlanRecords{capability: capability},
 		Errors:  transactionruntime.RecordErrors{},
-		Today:   func() timetablePorts.CareDate { return timetablePorts.CareDate(carePlanCompose.Today()) },
+		Today:   func() timetablePorts.CareDate { return timetablePorts.CareDate(careplan.Today()) },
 	}
 }
 

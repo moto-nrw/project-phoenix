@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"

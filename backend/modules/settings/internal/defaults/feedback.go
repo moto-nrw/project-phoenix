@@ -1,0 +1,40 @@
+package defaults
+
+import (
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+)
+
+func init() {
+	registerDefinitions(feedback_init_feedback_0Definitions)
+
+}
+
+var feedback_init_feedback_0Definitions = []config.Definition{
+	{
+		Key:             config.KeyFeedbackEnabled,
+		Label:           "Feedback der Kinder beim Gehen",
+		Description:     "Kinder zeigen beim Gehen am Tablet mit einem Smiley, wie ihr Tag war. Das Team sieht die Rückmeldungen beim Kind. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "feedback",
+		SortOrder:       20,
+	},
+	{
+		Key:             config.KeyFeedbackDataRetentionDays,
+		Label:           "Rückmeldungen aufbewahren (Tage)",
+		Description:     "Danach löscht moto die Rückmeldungen der Kinder.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "feedback",
+		SortOrder:       21,
+		Validation:      config.Range(7, 365),
+		DependsOn:       config.DependsOnEq(config.KeyFeedbackEnabled, true),
+	},
+}

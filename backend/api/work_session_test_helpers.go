@@ -6,16 +6,17 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
 // NewWorkSessionTestModule composes the stamp side of the Workforce
 // time-tracking composition and the staff-clock workflow over it.
-func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (*workforceCompose.TimeTracking, *staffclock.Service, error) {
+func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (*workforceCompose.TimeTracking, devicescan.StaffClock, error) {
 	members := MustNewMembershipTestRepositories(db)
 	r, err := NewWorkSessionTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {

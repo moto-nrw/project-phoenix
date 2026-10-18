@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +50,7 @@ func TestListMyStaffEventsQueryBudget(t *testing.T) {
 		counter.Reset()
 		events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), weekStart, weekStart.AddDays(6))
 		require.NoError(t, err)
-		require.Len(t, eventDates(events, calModels.EventSourceAppointment), created)
+		require.Len(t, eventDates(events, calendarSvc.EventSourceAppointment), created)
 		return counter.Total()
 	}
 

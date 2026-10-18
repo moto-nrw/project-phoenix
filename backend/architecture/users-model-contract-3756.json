@@ -41,8 +41,8 @@
     "source": "Local runs on the #3756 branch on 2026-09-30 against the local postgres-test server.",
     "sources": [
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/repository_vocabulary.go",
-      "backend/models/users/student.go",
-      "backend/models/users/student_document.go",
+      "backend/modules/peopledirectory/internal/rows/student.go",
+      "backend/modules/peopledirectory/internal/rows/student_document.go",
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/composition_support.go",
       "backend/api/care_plan_request_people.go"
     ],

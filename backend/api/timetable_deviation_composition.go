@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // The Timetable owner's deviation writes, attendance corrections and
