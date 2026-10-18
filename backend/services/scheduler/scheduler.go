@@ -107,7 +107,8 @@ type Scheduler struct {
 
 	// Outbox worker (parent-enrollment PR 5).
 	// Nil → outbox task does not register.
-	outboxWorker ports.OutboxWorkerRunner
+	outboxWorker           ports.OutboxWorkerRunner
+	settleExpiredTransfers func(context.Context, int) (int, error)
 
 	// Rollover deadline resolver (phase rollover slice 1).
 	rolloverDeadlineRunner ports.RolloverDeadlineRunner
@@ -220,6 +221,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		studentLifecycleAudit:  deps.StudentLifecycleAudit,
 		careExitEffector:       deps.CareExitEffector,
 		outboxWorker:           deps.OutboxWorker,
+		settleExpiredTransfers: deps.SettleExpiredTransfers,
 		rolloverDeadlineRunner: deps.RolloverDeadlineRunner,
 		reminderNotifications:  deps.ReminderNotifications,
 		appointmentReminders:   deps.AppointmentReminders,

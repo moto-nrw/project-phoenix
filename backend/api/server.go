@@ -19,6 +19,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
@@ -392,6 +393,7 @@ func newWorker(
 		StudentLifecycleAudit:     schedulerStudentAudit(studentAudit),
 		CareExitEffector:          schedules.Lifecycle,
 		OutboxWorker:              outbox,
+		SettleExpiredTransfers:    exportTransferCompose.NewDispatchRecovery(),
 		AppointmentReminders:      reminders,
 		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
 		BookingConsistency:        bookings,

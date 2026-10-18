@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 )
@@ -69,7 +70,9 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	ctx = s.withUnitOfWork(ctx)
 
 	const batchSize = 25
+	_, recoveryErr := s.settleExpiredTransfers(ctx, batchSize)
 	processed, err := s.outboxWorker.RunOnce(ctx, batchSize, maxAttempts)
+	err = errors.Join(recoveryErr, err)
 	if err != nil {
 		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)

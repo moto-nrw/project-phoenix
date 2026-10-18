@@ -45,6 +45,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
 		OperatorRetention:         ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
 		AccountRetention:          fakeAccountRetention{},
+		SettleExpiredTransfers:    noExpiredTransfers,
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
 		CleanupRuns:               newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{

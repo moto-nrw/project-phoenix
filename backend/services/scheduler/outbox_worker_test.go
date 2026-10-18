@@ -42,9 +42,10 @@ func TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence(t *testing.T) {
 	var results []string
 	var logs bytes.Buffer
 	scheduler := newScheduler(ports.WorkerDependencies{
-		Logger:        slog.New(slog.NewTextHandler(&logs, nil)),
-		TenantRuntime: unitTenantRuntime(),
-		OutboxWorker:  runner,
+		Logger:                 slog.New(slog.NewTextHandler(&logs, nil)),
+		TenantRuntime:          unitTenantRuntime(),
+		OutboxWorker:           runner,
+		SettleExpiredTransfers: noExpiredTransfers,
 		UnitOfWorkObserver: func(entryPoint, kind, result string, _ time.Duration, _ int) {
 			if entryPoint == "worker" && kind == "transaction" {
 				results = append(results, result)
@@ -67,9 +68,10 @@ func TestRunOutboxOnceReportsFailure(t *testing.T) {
 	runner := &unitOfWorkOutboxRunner{err: errors.New("claim failed")}
 	var operation, outcome string
 	scheduler := newScheduler(ports.WorkerDependencies{
-		Logger:        slog.Default(),
-		TenantRuntime: unitTenantRuntime(),
-		OutboxWorker:  runner,
+		Logger:                 slog.Default(),
+		TenantRuntime:          unitTenantRuntime(),
+		OutboxWorker:           runner,
+		SettleExpiredTransfers: noExpiredTransfers,
 		Tracer: ports.WorkerTracer{Failure: func(_ context.Context, gotOperation, gotOutcome string, _ error) {
 			operation, outcome = gotOperation, gotOutcome
 		}},
@@ -86,7 +88,7 @@ func TestRunOutboxOncePassesRetryLimitOnEachTick(t *testing.T) {
 	runner := &unitOfWorkOutboxRunner{}
 	settings := &fakeSettingsResolver{intValues: map[string]int{settingEnrollmentOutboxMaxAttempts: 3}}
 	scheduler := newScheduler(ports.WorkerDependencies{
-		Logger: slog.Default(), TenantRuntime: unitTenantRuntime(), OutboxWorker: runner, Settings: settings,
+		Logger: slog.Default(), TenantRuntime: unitTenantRuntime(), OutboxWorker: runner, SettleExpiredTransfers: noExpiredTransfers, Settings: settings,
 	})
 	task := &ScheduledTask{}
 	scheduler.runOutboxOnce(context.Background(), task)
@@ -102,9 +104,10 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 	runner := &unitOfWorkOutboxRunner{err: errors.New("claim failed")}
 	correlated := false
 	scheduler := newScheduler(ports.WorkerDependencies{
-		Logger:        slog.Default(),
-		TenantRuntime: unitTenantRuntime(),
-		OutboxWorker:  runner,
+		Logger:                 slog.Default(),
+		TenantRuntime:          unitTenantRuntime(),
+		OutboxWorker:           runner,
+		SettleExpiredTransfers: noExpiredTransfers,
 		Tracer: ports.WorkerTracer{
 			StartJob: func(ctx context.Context, _ string) (context.Context, error) {
 				return context.WithValue(ctx, workerCorrelationKey{}, true), nil
@@ -119,3 +122,5 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 
 	assert.True(t, correlated)
 }
+
+func noExpiredTransfers(context.Context, int) (int, error) { return 0, nil }

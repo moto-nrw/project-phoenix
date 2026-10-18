@@ -6,6 +6,7 @@
 package ports
 
 import (
+	"context"
 	"log/slog"
 	"time"
 )
@@ -68,8 +69,10 @@ type WorkerDependencies struct {
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
-	RolloverDeadlineRunner    RolloverDeadlineRunner
-	ReminderNotifications     ReminderNotificationTick
+	// SettleExpiredTransfers terminalizes ambiguous manual uploads, never retries them.
+	SettleExpiredTransfers func(context.Context, int) (int, error)
+	RolloverDeadlineRunner RolloverDeadlineRunner
+	ReminderNotifications  ReminderNotificationTick
 	// Lease elects the single Worker that runs jobs (#2726). Every Worker
 	// process, embedded in Serve or standalone, runs under it.
 	Lease WorkerLease
