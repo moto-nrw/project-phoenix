@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -75,10 +75,14 @@ func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exp
 		return nil, errors.New("export transfer compose: setting keys are required")
 	}
 
-	journal := postgres.New(database())
-
-	resolver := settingsResolver{settings: dependencies.Settings, keys: dependencies.Keys}
-	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, journal, transactionLifecycle{}, dependencies.Logger)
+	resolver := application.SettingsResolver{Settings: application.Settings(dependencies.Settings), Keys: application.SettingKeys(dependencies.Keys)}
+	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, postgres.New(database()), ports.CommandRuntime{
+		Active: tenant.HasAfterCommitHooks,
+		Detached: func(ctx context.Context) context.Context {
+			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+		},
+		WithinTenant: tenant.WithinCurrentTenant,
+	}, dependencies.Logger)
 	return exporttransfer.NewModule(engine{service: service}), nil
 }
 
@@ -124,130 +128,6 @@ func (u uploader) Prepare(ctx context.Context, target domain.Target, filename st
 	return pending.Commit, pending.Rollback, nil
 }
 
-type transactionLifecycle struct{}
-
-func (transactionLifecycle) Active(ctx context.Context) bool {
-	return tenant.HasAfterCommitHooks(ctx)
-}
-
-func (transactionLifecycle) AfterCommit(ctx context.Context, fn func()) {
-	tenant.RegisterAfterCommit(ctx, fn)
-}
-
-func (transactionLifecycle) AfterRollback(ctx context.Context, fn func()) {
-	tenant.RegisterAfterRollback(ctx, fn)
-}
-
-// settingsResolver turns the seven settings into a validated target.
-//
-// Completeness is decided here; reachability is not. Whether the host is a
-// public address and presents the configured key is decided at connect time
-// by the transport — those are properties of the network, not of a form.
-type settingsResolver struct {
-	settings Settings
-	keys     SettingKeys
-}
-
-func (r settingsResolver) read(ctx context.Context) (bool, domain.Target, error) {
-	enabled, err := r.settings.Enabled(ctx)
-	if err != nil {
-		return false, domain.Target{}, fmt.Errorf("resolve sftp enabled: %w", err)
-	}
-
-	target := domain.Target{}
-	// Trimmed: surrounding whitespace in a host, path or fingerprint is
-	// always a copy-paste artefact, never part of the value.
-	for _, field := range []struct {
-		read func(context.Context) (string, error)
-		into *string
-		name string
-	}{
-		{r.settings.Host, &target.Host, "host"},
-		{r.settings.Username, &target.Username, "username"},
-		{r.settings.RemoteDirectory, &target.RemoteDirectory, "remote directory"},
-		{r.settings.HostKeyFingerprint, &target.HostKeyFingerprint, "host key fingerprint"},
-	} {
-		value, err := field.read(ctx)
-		if err != nil {
-			return false, domain.Target{}, fmt.Errorf("resolve sftp %s: %w", field.name, err)
-		}
-		*field.into = strings.TrimSpace(value)
-	}
-
-	// The password is taken EXACTLY as stored. Trimming it would authenticate
-	// with a different secret than the school entered, and the failure would
-	// look like a wrong password on the far side.
-	password, err := r.settings.Password(ctx)
-	if err != nil {
-		return false, domain.Target{}, fmt.Errorf("resolve sftp password: %w", err)
-	}
-	target.Password = password
-
-	port, err := r.settings.Port(ctx)
-	if err != nil {
-		return false, domain.Target{}, fmt.Errorf("resolve sftp port: %w", err)
-	}
-	target.Port = port
-
-	return enabled, target, nil
-}
-
-// missing lists the setting keys that block a transfer, in form order. The
-// password is checked for presence only; its content is never inspected.
-func (r settingsResolver) missing(target domain.Target) []string {
-	var missing []string
-	if target.Host == "" {
-		missing = append(missing, r.keys.Host)
-	}
-	if !domain.ValidPort(target.Port) {
-		missing = append(missing, r.keys.Port)
-	}
-	if target.Username == "" {
-		missing = append(missing, r.keys.Username)
-	}
-	if target.Password == "" {
-		missing = append(missing, r.keys.Password)
-	}
-	if !domain.ValidRemoteDirectory(target.RemoteDirectory) {
-		missing = append(missing, r.keys.RemoteDirectory)
-	}
-	if !domain.ValidFingerprint(target.HostKeyFingerprint) {
-		missing = append(missing, r.keys.HostKeyFingerprint)
-	}
-	return missing
-}
-
-func (r settingsResolver) Resolve(ctx context.Context) (domain.Target, error) {
-	enabled, target, err := r.read(ctx)
-	if err != nil {
-		return domain.Target{}, err
-	}
-	if !enabled {
-		return domain.Target{}, fmt.Errorf("%w: transfer is switched off", domain.ErrNotConfigured)
-	}
-	if missing := r.missing(target); len(missing) > 0 {
-		return domain.Target{}, fmt.Errorf("%w: missing %s", domain.ErrNotConfigured, strings.Join(missing, ", "))
-	}
-	return target, nil
-}
-
-func (r settingsResolver) State(ctx context.Context) (domain.TargetState, error) {
-	enabled, target, err := r.read(ctx)
-	if err != nil {
-		return domain.TargetState{}, err
-	}
-	state := domain.TargetState{
-		Enabled:         enabled,
-		Host:            target.Host,
-		RemoteDirectory: target.RemoteDirectory,
-		MissingSettings: r.missing(target),
-	}
-	if domain.ValidPort(target.Port) {
-		state.Port = target.Port
-	}
-	return state, nil
-}
-
 // engine translates between the domain values the application works on and
 // the public capability types. Keeping the translation here is what lets the
 // application layer stay free of the contract package.
@@ -274,6 +154,7 @@ func (e engine) Transfer(ctx context.Context, request exporttransfer.Request) (e
 		Format:         request.Format,
 		Filename:       request.Filename,
 		Data:           request.Data,
+		PrepareFile:    request.PrepareFile,
 		ActorAccountID: request.ActorAccountID,
 		ActorName:      request.ActorName,
 	})
