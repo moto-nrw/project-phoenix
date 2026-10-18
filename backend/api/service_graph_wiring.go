@@ -385,7 +385,7 @@ type EnrollmentDecisionSources struct {
 	Persons                enrollmentPersonRows
 	Staff                  enrollmentStaffRows
 	Students               enrollmentStudentRows
-	StudentEnrollment      enrollmentCompose.DecisionStudentEnrollment
+	StudentEnrollment      EnrollmentDecisionPeople
 	Companions             EnrollmentDepartureCompanions
 	DeleteCompanions       func(context.Context, []int64) error
 	StudentGuardians       enrollmentStudentGuardianRows
@@ -678,7 +678,7 @@ type ParentRequestScopePolicy interface {
 // dependencies. Nil effects are skipped.
 type MasterDataDecisionWiring struct {
 	CarePlan    careplan.Capability
-	Fields      peopledirectory.StudentFieldReviewQuery
+	Fields      MasterDataPeople
 	Students    masterDataStudentRows
 	Persons     masterDataPersonRows
 	Audit       peoplePorts.StudentChangeRecorder

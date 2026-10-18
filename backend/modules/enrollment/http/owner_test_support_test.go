@@ -32,7 +32,6 @@ type (
 	TestDirectoryGuardian          = enrollmentTest.DirectoryGuardian
 	TestDecisionChildren           = enrollmentTest.DecisionChildren
 	TestDecisionGuardianAccess     = enrollmentTest.DecisionGuardianAccess
-	TestDecisionStudentEnrollment  = enrollmentTest.DecisionStudentEnrollment
 	TestDecisionBookings           = enrollmentTest.DecisionBookings
 	TestMail                       = enrollmentTest.Mail
 )

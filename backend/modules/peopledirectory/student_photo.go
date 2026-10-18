@@ -18,6 +18,14 @@ var (
 	ErrPhotoNotSet             = errors.New("no photo set for this student")
 )
 
+// StudentPhotosSwitchedOff reports whether a new value of the school's photo
+// feature setting turns the feature off, which detaches every photo. Only an
+// explicit false does; any other value leaves the photos in place.
+func StudentPhotosSwitchedOff(value any) bool {
+	enabled, ok := value.(bool)
+	return ok && !enabled
+}
+
 // StudentPhotoState is the photo slice of a child's row: where the image is
 // stored and whether the voluntary consent behind it is on record.
 type StudentPhotoState struct {

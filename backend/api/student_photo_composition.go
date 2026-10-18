@@ -172,8 +172,7 @@ func (s studentPhotos) PurgeAllPhotos(ctx context.Context, tenantID int64) (func
 
 func (s studentPhotos) HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (func(), error) {
 	notify := s.deferTenantSettingsChanged(tenantID, configModel.KeyStudentPhotosEnabled)
-	enabled, ok := value.(bool)
-	if !ok || enabled {
+	if !peopleModule.StudentPhotosSwitchedOff(value) {
 		return func() {
 			s.runtime.BroadcastPhotoChange(tenantID, 0, photoSourceFeatureEnabled)
 			notify()

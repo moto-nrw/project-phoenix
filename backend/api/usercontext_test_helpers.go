@@ -37,9 +37,13 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 	if err != nil {
 		return nil, err
 	}
+	people, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, err
+	}
 	tt := r.Timetable
 	return NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts: r.Profile, Persons: tt.Person, Membership: membership, StaffGroups: r.StaffGroups,
+		Accounts: r.Profile, Persons: callerPersons{rows: tt.Person, people: people}, Membership: membership, StaffGroups: r.StaffGroups,
 		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             NewLoggedStudentPresence(db, slog.Default()),
 		Settings:             settings,

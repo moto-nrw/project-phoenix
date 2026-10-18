@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -96,33 +95,14 @@ type operatorLinkDelivery struct {
 	logger      *slog.Logger
 }
 
-func (d operatorLinkDelivery) logoURL() string {
-	return fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", d.frontendURL)
-}
-
 func (d operatorLinkDelivery) DispatchOperatorInvitation(ctx context.Context, invitation identityaccess.OperatorInvitation, inviterName string, expiry time.Duration) {
 	if d.dispatcher == nil {
 		d.logger.Warn("email dispatcher unavailable, skipping operator invitation email",
 			slog.Int64("invitation_id", invitation.ID))
 		return
 	}
-	if inviterName == "" {
-		inviterName = "Ein Operator"
-	}
-	// The path is /invite, not /operator/invite: the operator subdomain
-	// proxy rewrites it internally.
-	message := email.Message{
-		From:     d.from,
-		To:       email.NewEmail("", invitation.Email),
-		Subject:  "Einladung als Operator zu moto",
-		Template: "operator-invitation.html",
-		Content: map[string]any{
-			"InvitationURL": fmt.Sprintf("%s/invite?token=%s", d.operatorURL, invitation.Token),
-			"ExpiryHours":   int(expiry.Hours()),
-			"LogoURL":       d.logoURL(),
-			"InviterName":   inviterName,
-		},
-	}
+	message := *identityMessage(d.from, email.NewEmail("", invitation.Email),
+		identityaccess.OperatorInvitationMail(invitation, inviterName, d.frontendURL, d.operatorURL, expiry))
 	meta := email.DeliveryMetadata{
 		Type: "operator_invitation", ReferenceID: invitation.ID,
 		Token: invitation.Token, Recipient: invitation.Email,
@@ -136,20 +116,8 @@ func (d operatorLinkDelivery) DispatchOperatorEmailChangeVerification(ctx contex
 			slog.Int64("operator_id", change.OperatorID))
 		return
 	}
-	// The link goes through /operator/* → operator subdomain redirect, which
-	// preserves the query. The page strips the token from the URL on mount,
-	// so no later Referer carries it.
-	message := email.Message{
-		From:     d.from,
-		To:       email.NewEmail("", change.NewEmail),
-		Subject:  "E-Mail-Adresse bestätigen",
-		Template: "operator-email-change-verify.html",
-		Content: map[string]any{
-			"VerifyURL":     fmt.Sprintf("%s/operator/email-confirm?token=%s", d.frontendURL, change.Token),
-			"ExpiryMinutes": int(expiry.Minutes()),
-			"LogoURL":       d.logoURL(),
-		},
-	}
+	message := *identityMessage(d.from, email.NewEmail("", change.NewEmail),
+		identityaccess.OperatorEmailChangeVerificationMail(change, d.frontendURL, expiry))
 	meta := email.DeliveryMetadata{
 		Type: "operator_email_change_verify", ReferenceID: change.ID,
 		Token: change.Token, Recipient: change.NewEmail,
@@ -163,33 +131,18 @@ func (d operatorLinkDelivery) DispatchOperatorEmailChangeRequested(ctx context.C
 			slog.Int64("operator_id", operator.ID))
 		return
 	}
-	d.dispatch(ctx, email.Message{
-		From:     d.from,
-		To:       email.NewEmail(operator.DisplayName, operator.Email),
-		Subject:  "E-Mail-Änderung angefordert",
-		Template: "operator-email-change-notify.html",
-		Content: map[string]any{
-			"LogoURL":        d.logoURL(),
-			"MaskedNewEmail": maskedNewEmail,
-			"DisplayName":    operator.DisplayName,
-		},
-	}, email.DeliveryMetadata{Recipient: operator.Email}, 0, nil)
+	d.dispatch(ctx, *identityMessage(d.from, email.NewEmail(operator.DisplayName, operator.Email),
+		identityaccess.OperatorEmailChangeRequestedMail(operator, maskedNewEmail, d.frontendURL)),
+		email.DeliveryMetadata{Recipient: operator.Email}, 0, nil)
 }
 
 func (d operatorLinkDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
 	if d.dispatcher == nil {
 		return
 	}
-	d.dispatch(ctx, email.Message{
-		From:     d.from,
-		To:       email.NewEmail(displayName, oldEmail),
-		Subject:  "E-Mail-Adresse wurde geändert",
-		Template: "operator-email-change-confirmed.html",
-		Content: map[string]any{
-			"LogoURL":     d.logoURL(),
-			"DisplayName": displayName,
-		},
-	}, email.DeliveryMetadata{Recipient: oldEmail}, 0, nil)
+	d.dispatch(ctx, *identityMessage(d.from, email.NewEmail(displayName, oldEmail),
+		identityaccess.OperatorEmailChangeConfirmedMail(displayName, d.frontendURL)),
+		email.DeliveryMetadata{Recipient: oldEmail}, 0, nil)
 }
 
 func (d operatorLinkDelivery) dispatch(
