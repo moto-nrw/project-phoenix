@@ -12,7 +12,8 @@ func RoutePattern(r *http.Request) string {
 			return pattern
 		}
 	}
-	return unmatchedRoute
+	return UnmatchedRoute
 }
 
-const unmatchedRoute = "unmatched"
+// UnmatchedRoute is the route fact for requests without a matched chi pattern.
+const UnmatchedRoute = "unmatched"

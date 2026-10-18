@@ -47,12 +47,12 @@ func repositoryPolicy(t *testing.T) *Policy {
 	return policy
 }
 
-// sharedKernelPolicies returns the repository policy as the candidate and a
-// base one epoch older without the shared-kernel rule, so the comparison runs
-// against the real owner map and package classification.
+// sharedKernelPolicies retains the historical Common owner alongside the
+// current repository so the negative target remains real after its retirement.
+// The base is one epoch older and has no shared-kernel grant.
 func sharedKernelPolicies(t *testing.T) (*Policy, *Policy) {
 	t.Helper()
-	candidate := repositoryPolicy(t)
+	candidate := historicalCommonHTTPPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), func(rule Rule) bool {

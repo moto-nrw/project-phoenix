@@ -8,7 +8,7 @@ import (
 
 func TestCommonHTTPPermissionsRequireReviewedEpoch(t *testing.T) {
 	t.Parallel()
-	candidate := repositoryPolicy(t)
+	candidate := historicalCommonHTTPPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), reviewedCommonHTTPRule)
@@ -33,7 +33,7 @@ func TestCommonHTTPEpochGrantsOnlyTheNamedContracts(t *testing.T) {
 		{ID: "other.http", Description: "test", SourceOwner: "other-inbound", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
 		{ID: "common.models", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 	} {
-		candidate := repositoryPolicy(t)
+		candidate := historicalCommonHTTPPolicy(t)
 		// Keep the unrelated owner independent of production inbound retirements.
 		candidate.Owners = append(candidate.Owners, Owner{ID: "other-inbound", Kind: "inbound"})
 		base := *candidate
@@ -80,4 +80,19 @@ func TestCommonHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 	if reviewedCommonHTTPRule(sessionTest) {
 		t.Fatal("session test rule gained production access")
 	}
+}
+
+// historicalCommonHTTPPolicy keeps the original epoch contracts independent
+// of the production owner retirement. The final tool cutover removes this
+// temporary historical guard together with its production matcher.
+func historicalCommonHTTPPolicy(t *testing.T) *Policy {
+	t.Helper()
+	policy := repositoryPolicy(t)
+	policy.Owners = append(policy.Owners, Owner{ID: "inbound-common", Kind: "inbound"})
+	policy.Rules = append(policy.Rules,
+		Rule{ID: "inbound-common.http.tenant-runtime-public", Description: "The standing shared HTTP runtime consumes tenant scope, transactions and rollback markers (ADR 0046, #2738, #3898).", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
+		Rule{ID: "inbound-common.http.security-runtime-contract", Description: "The standing shared HTTP runtime consumes validated principals and the permission registry (ADR 0046, #2738, #3898).", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "contract", Scopes: []string{"production"}},
+		Rule{ID: "inbound-common.http.security-runtime-public", Description: "The standing shared HTTP runtime consumes authorization decisions, local-seeder gates and upload filename entropy (ADR 0046, #2738, #3898).", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
+	)
+	return policy
 }
