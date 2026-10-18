@@ -31,6 +31,7 @@ func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { retu
 func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 	t.Helper()
 	return ports.WorkerDependencies{
+		SettleExpiredTransfers:    noExpiredTransfers,
 		Logger:                    slog.Default(),
 		SchoolRepo:                dbTenantDirectory{},
 		TenantRuntime:             unitTenantRuntime(),

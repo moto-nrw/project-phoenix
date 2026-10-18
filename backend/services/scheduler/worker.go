@@ -44,6 +44,7 @@ func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 		{name: "operator account retention", value: deps.OperatorRetention.Accounts},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
+		{name: "export transfer recovery", value: deps.SettleExpiredTransfers},
 	}
 	for _, dependency := range required {
 		if isNilDependency(dependency.value) {
