@@ -88,9 +88,9 @@ func NewCalendarTestRepositories(db transactionruntime.Database, members Members
 	return CalendarTestRepositories{
 		TimetableTestRepositories: tt, MembershipTestRepositories: members, TimetablePresenceRows: presence, TimetableCarePlanRows: care, TimetableRoomRows: rooms,
 		Profile: identity.Profile, StaffGroups: staffGroups,
-		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
+		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
 		ParentPortalRepositories: parents.ParentPortalRepositories, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
-		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,
+		CalendarStaffFeedTombstone: NewCalendarFeedTestTombstones(db), appointments: appointments, schoolCalendar: calendar,
 	}, nil
 }
 
@@ -103,14 +103,20 @@ func (r CalendarTestRepositories) ParentChildLinks() carePlanCompose.ParentChild
 func (r CalendarTestRepositories) Appointments() appointments.Capability     { return r.appointments }
 func (r CalendarTestRepositories) SchoolCalendar() schoolcalendar.Capability { return r.schoolCalendar }
 
+// CalendarFeedTestRepositories are the Identity & Access feed tokens; the
+// staff feed tombstones come from NewCalendarFeedTestTombstones.
 type CalendarFeedTestRepositories struct {
 	ParentFeed identityaccess.ParentCalendarFeeds
 	StaffFeed  identityaccess.StaffCalendarFeeds
-	Tombstone  schoolcalendar.FeedHistory
 }
 
 func NewCalendarFeedTestRepositories(db transactionruntime.Database) CalendarFeedTestRepositories {
 	identity := NewPeopleIdentityAccess(db, nil)
-	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity,
-		Tombstone: schoolCalendarCompose.NewFeedHistory(db.Pool())}
+	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity}
+}
+
+// NewCalendarFeedTestTombstones is the School Calendar's staff feed history
+// over db.
+func NewCalendarFeedTestTombstones(db transactionruntime.Database) schoolcalendar.FeedHistory {
+	return schoolCalendarCompose.NewFeedHistory(db.Pool())
 }

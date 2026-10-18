@@ -19,7 +19,8 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 	if err != nil {
 		return nil, err
 	}
-	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	members := MustNewMembershipTestRepositories(db)
+	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +33,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Locales:         ParentPortalLocales(),
 		Runtime:         ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
-		StudentGuardianRepo: NewParentStudentGuardianReads(parents.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(parents.GuardianProfile),
+		StudentGuardianRepo: NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(members.GuardianProfile),
 		Settings: BindParentSettings(module.Settings), ArrivalSchedules: NewParentArrivalSchedules(module.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(module.PickupSchedule),
 		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),
 		FamilyProtectionEvents: BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(repos.ParentRequestShare),

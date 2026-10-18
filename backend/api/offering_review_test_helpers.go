@@ -35,7 +35,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 	}
 	return careplanCompose.NewOfferingReviews(db.Pool(), func(careplanCompose.Observation) {}, careplanCompose.OfferingReviewDependencies{
 		People:     offeringReviewTestDirectory{people: people},
-		Enrollment: offeringReviewTestEnrollment{enrollment: repos.Enrollment(), bookings: careplanCompose.NewOfferingBookings()},
+		Enrollment: offeringReviewTestEnrollment{enrollment: repos.Enrollment()},
 		Courses:    offeringReviewTestCourses{query: repos.Timetable},
 		Scope: func(context.Context) (careplanCompose.ReviewScope, error) {
 			return careplanCompose.ReviewScope{SchoolWide: true}, nil
@@ -92,9 +92,11 @@ func (d offeringReviewTestDirectory) SearchStudentIDs(_ context.Context, _ strin
 	return within, nil
 }
 
+// offeringReviewTestEnrollment serves the review's Enrollment reads from the
+// projection and the bookings from Care Plan's tenant-scoped offering
+// bookings, which carry no state and are composed per read.
 type offeringReviewTestEnrollment struct {
 	enrollment EnrollmentBookingProjection
-	bookings   careplan.OfferingBookingQueries
 }
 
 func (e offeringReviewTestEnrollment) Children(ctx context.Context, ids []int64) ([]careplanCompose.OfferingReviewChild, error) {
@@ -148,7 +150,7 @@ func (e offeringReviewTestEnrollment) Phases(ctx context.Context, ids []int64) (
 }
 
 func (e offeringReviewTestEnrollment) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]careplanCompose.OfferingReviewBooking, error) {
-	rows, err := e.bookings.CareOfferingBookingsAtDates(ctx, dates)
+	rows, err := careplanCompose.NewOfferingBookings().CareOfferingBookingsAtDates(ctx, dates)
 	if err != nil {
 		return nil, err
 	}

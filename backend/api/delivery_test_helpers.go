@@ -99,12 +99,9 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
-	if err != nil {
-		return DeliveryTestModule{}, err
-	}
+	parentMembers := MustNewMembershipTestRepositories(db)
 	service := deliveryCompose.NewNotifier(settings.Settings, logger, func(string, string, string, time.Duration, error) {},
-		deliveryCompose.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), deliveryCompose.WithGuardianChildAccess(db.Pool(), parents.StudentGuardian, logger)),
+		deliveryCompose.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), deliveryCompose.WithGuardianChildAccess(db.Pool(), parentMembers.StudentGuardian, logger)),
 		deliveryCompose.NewDurableWebPushChannel(db.Pool(), pushRepo, vapid, deliveryCompose.NewDurablePushOutbox(delivery.Module), logger))
 	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	push := deliveryCompose.NewPushSubscriptionService(db.Pool(), pushRepo, members, vapid, logger)

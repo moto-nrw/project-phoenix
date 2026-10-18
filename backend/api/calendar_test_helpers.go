@@ -35,7 +35,8 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	members := MustNewMembershipTestRepositories(db)
+	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
@@ -73,7 +74,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	calendarConfig.Outbox = newCalendarOutbox(delivery.EmailOutbox)
 	calendarConfig.PushOutbox = deliveryCompose.NewDurablePushOutbox(delivery.Delivery)
 	calendarConfig.Settings = settings.Settings
-	calendarConfig.StaffFeedTombstoneRepo = feeds.Tombstone
+	calendarConfig.StaffFeedTombstoneRepo = NewCalendarFeedTestTombstones(db)
 	calendarConfig.ParentsURL = cfg.ParentsURL
 	calendarConfig.FrontendURL = cfg.FrontendURL
 	calendarConfig.Notifier = newCalendarNotifier(delivery.Notifications)
