@@ -36,7 +36,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Monat", "Karte")
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

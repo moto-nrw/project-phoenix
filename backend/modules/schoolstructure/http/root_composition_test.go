@@ -12,16 +12,19 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, api.GroupsTestModule) {
+func setupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, api.GroupsTestModule, api.ActivePresence, api.ActivePeople, *api.CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	var module api.GroupsTestModule
+	var presence api.ActivePresence
+	var people api.ActivePeople
+	var caller *api.CallerRows
 	var err error
 	if len(publishers) > 0 && publishers[0] != nil {
-		module, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), publishers[0])
+		module, presence, people, caller, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), publishers[0])
 	} else {
-		module, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		module, presence, people, caller, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	}
 	require.NoError(t, err)
-	return db, module
+	return db, module, presence, people, caller
 }

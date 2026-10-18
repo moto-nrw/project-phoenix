@@ -25,15 +25,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *api.EnrollmentFlowTestRepositories, *bun.DB, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, api.TimetableSchoolCalendar, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
-	repoFactory := flowRepositories(t, db)
+	repoFactory, repoFactoryCare, _, _, repoFactoryCalendar, _ := flowRepositories(t, db)
 	svc := NewTestPhases(TestPhaseDependencies{
 		Records:                repoFactory.Enrollment(),
-		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactoryCare.CarePlan)},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		Resyncer:               &recordingSourcedTemplateResyncer{},
 		Logger:                 slog.Default(),
@@ -56,7 +56,7 @@ func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *api.Enr
 			Where("tenant_id = ? AND name LIKE ?", tenantID, phaseNamePrefix+"%").
 			Exec(bg)
 	}
-	return svc, repoFactory, db, cleanup
+	return svc, repoFactory, repoFactoryCare, repoFactoryCalendar, db, cleanup
 }
 
 func minimalPhase(t *testing.T, suffix string) *enrollmentOwner.Phase {
@@ -75,7 +75,7 @@ func minimalPhase(t *testing.T, suffix string) *enrollmentOwner.Phase {
 func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -89,7 +89,7 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -104,7 +104,7 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -118,7 +118,7 @@ func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -135,7 +135,7 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -151,7 +151,7 @@ func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -173,7 +173,7 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, repoFactoryCare, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -184,7 +184,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 	validatorCalls := 0
 	guardedService := NewTestPhases(TestPhaseDependencies{
 		Records:   repoFactory.Enrollment(),
-		Offerings: phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		Offerings: phaseOfferings{rows: newCareOfferingFixtures(repoFactoryCare.CarePlan)},
 		LockTemplateRecurrence: func(context.Context) error {
 			lockCalls++
 			return nil
@@ -247,7 +247,7 @@ func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, repoFactoryCare, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -262,12 +262,12 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{}
 	svc := NewTestPhases(TestPhaseDependencies{
 		Records:                repoFactory.Enrollment(),
-		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactoryCare.CarePlan)},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		Resyncer:               resyncer,
 		Logger:                 slog.Default(),
@@ -294,7 +294,7 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, repoFactoryCare, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
 
@@ -309,14 +309,14 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{
 		err: fmt.Errorf("offering roster resync: template 7: %w", timetable.ErrOfferingSourceInvalid),
 	}
 	svc := NewTestPhases(TestPhaseDependencies{
 		Records:                repoFactory.Enrollment(),
-		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactoryCare.CarePlan)},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		Resyncer:               resyncer,
 		Logger:                 slog.Default(),
@@ -345,7 +345,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -363,7 +363,7 @@ func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -380,7 +380,7 @@ func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -395,7 +395,7 @@ func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -448,7 +448,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	t.Parallel()
 
-	svc, repoFactory, _, cleanup := setupPhaseTest(t)
+	svc, _, repoFactoryCare, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -463,7 +463,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Create(ctx, offering))
 
 	require.NoError(t, svc.DeletePhase(ctx, phase.ID),
 		"phase with care offerings must be deletable")
@@ -471,7 +471,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	_, err = svc.PhaseByID(ctx, phase.ID)
 	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound),
 		"phase must be gone after delete")
-	remaining, err := newCareOfferingFixtures(repoFactory.CarePlan()).CountByPhaseID(ctx, phase.ID)
+	remaining, err := newCareOfferingFixtures(repoFactoryCare.CarePlan).CountByPhaseID(ctx, phase.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining, "care offerings must cascade away with the phase")
 }
@@ -483,7 +483,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T) {
 	t.Parallel()
 
-	svc, repoFactory, db, cleanup := setupPhaseTest(t)
+	svc, repoFactory, _, _, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -541,7 +541,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	t.Parallel()
 
-	svc, repoFactory, db, cleanup := setupPhaseTest(t)
+	svc, repoFactory, repoFactoryCare, _, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -562,7 +562,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Create(ctx, offering))
 
 	req := &enrollmentAPI.Request{
 		PhaseID:           phase.ID,
@@ -595,7 +595,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -611,7 +611,7 @@ func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, cleanup := setupPhaseTest(t)
+	svc, _, _, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
@@ -649,11 +649,11 @@ func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentOwner.
 // on top of the standard setup so the link validation actually runs.
 func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *api.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
-	_, repoFactory, db, cleanup := setupPhaseTest(t)
+	_, repoFactory, repoFactoryCare, repoFactoryCalendar, db, cleanup := setupPhaseTest(t)
 	svc := NewTestPhases(TestPhaseDependencies{
 		Records:                repoFactory.Enrollment(),
-		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
-		Calendar:               repoFactory.SchoolCalendar(),
+		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(repoFactoryCare.CarePlan)},
+		Calendar:               repoFactoryCalendar.SchoolCalendar(),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		Resyncer:               &recordingSourcedTemplateResyncer{},
 		Logger:                 slog.Default(),

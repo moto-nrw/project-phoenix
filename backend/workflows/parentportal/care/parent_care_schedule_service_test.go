@@ -34,20 +34,21 @@ import (
 // buildCareScheduleService wires the parent service with the full care-schedule
 // request stack (arrival/pickup read services + the schedule-domain request
 // service), so the Stammdaten read view and request lifecycle run for real.
-func buildCareScheduleService(t *testing.T, notesEnabled bool) (*parentportal.ChildFlows, *bun.DB, *api.RepositoryTestFactory) {
+func buildCareScheduleService(t *testing.T, notesEnabled bool) (*parentportal.ChildFlows, *bun.DB, *api.RepositoryTestFactory, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	return careScheduleServiceOn(t, db, repos, reposPeople, notesEnabled), db, repos, reposPeople
 }
 
 // careScheduleServiceOn wires the same parent service against an EXISTING
 // db/repos, so a test can rebuild the service with a different messaging toggle
 // while keeping the seeded guardian chain and persisted requests. Allocating a
 // fresh SetupTestDB instead would point the rebuilt service at an empty schema.
-func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, notesEnabled bool) *parentportal.ChildFlows {
+func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, reposPeople *api.PeopleRepositorySuiteFactory, notesEnabled bool) *parentportal.ChildFlows {
 	t.Helper()
-	return careScheduleServiceWithSettings(t, db, repos, map[string]bool{
+	return careScheduleServiceWithSettings(t, db, repos, reposPeople, map[string]bool{
 		parentportal.KeyParentSickNoteEnabled:           true,
 		parentportal.KeyParentNotesEnabled:              notesEnabled,
 		parentportal.KeyParentCareArrivalRequestEnabled: true,
@@ -56,7 +57,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFa
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *parentportal.ChildFlows {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, reposPeople *api.PeopleRepositorySuiteFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *parentportal.ChildFlows {
 	t.Helper()
 	sfRequests, schedules, _, _, _, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
@@ -71,7 +72,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
-		StudentRepo:    api.NewParentStudentReads(repos.Student),
+		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{
@@ -102,7 +103,7 @@ func carePayload() map[string]any {
 func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, _, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	view, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
@@ -115,7 +116,7 @@ func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 func TestGetChildCareScheduleKeepsCareDayWithoutArrivalTime(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, _, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Plan", "OhneZeit")
 	testpkg.CreateTestArrivalSchedule(t, db, chain.StudentID, 1, staff.ID, "")
@@ -134,7 +135,7 @@ func TestGetChildCareScheduleKeepsCareDayWithoutArrivalTime(t *testing.T) {
 func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, _, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// Grant chat (notes.write) + visibility but explicitly NOT request.submit.
@@ -157,7 +158,7 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, false) // messaging OFF
+	svc, db, _, _ := buildCareScheduleService(t, false) // messaging OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	view, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
@@ -168,10 +169,10 @@ func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *testing.T) {
 	t.Parallel()
 
-	_, db, repos := buildCareScheduleService(t, true)
+	_, db, repos, reposPeople := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
+	svc := careScheduleServiceWithSettings(t, db, repos, reposPeople, map[string]bool{
 		parentportal.KeyParentCareArrivalRequestEnabled: true,
 		parentportal.KeyParentCarePickupRequestEnabled:  true,
 		parentportal.KeyParentCareModeRequestEnabled:    true,
@@ -199,10 +200,10 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 	t.Parallel()
 
-	_, db, repos := buildCareScheduleService(t, true)
+	_, db, repos, reposPeople := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
+	svc := careScheduleServiceWithSettings(t, db, repos, reposPeople, map[string]bool{})
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, view.CanRequest)
@@ -215,7 +216,7 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, _, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// Before any request: the view loads and, with messaging on + request.submit,
@@ -241,7 +242,7 @@ func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, _, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// Strip every parent_portal permission, including access.

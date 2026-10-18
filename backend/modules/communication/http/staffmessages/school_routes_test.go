@@ -40,7 +40,7 @@ func decodeData[T any](t *testing.T, body []byte) T {
 
 func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := setupStaffMessagingModule(t)
+	db, serviceFactory, setSetting := setupStaffMessagingModule(t)
 	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging)
 	schoolRouter := chi.NewRouter()
 	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter(rootAPI.ProtectedSchoolRoutes))
@@ -49,8 +49,8 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 	// Pin the chat on explicitly so the test does not hang on the registry
 	// default (opt-out since #3254).
-	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, true, nil, nil,
+	require.NoError(t, setSetting(
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, true,
 	))
 
 	unique := time.Now().UnixNano()
@@ -148,7 +148,7 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := setupStaffMessagingModule(t)
+	db, serviceFactory, setSetting := setupStaffMessagingModule(t)
 	schoolRouter := chi.NewRouter()
 	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter(rootAPI.ProtectedSchoolRoutes))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -169,8 +169,8 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// The school switches it off.
-	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, false, nil, nil,
+	require.NoError(t, setSetting(
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, false,
 	))
 
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)

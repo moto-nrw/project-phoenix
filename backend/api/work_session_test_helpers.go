@@ -13,41 +13,41 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
-// WorkSessionTestModule is the stamp side of the Workforce time-tracking
-// composition with the staff-clock workflow over it.
-type WorkSessionTestModule struct {
-	TimeTracking *workforceCompose.TimeTracking
-	StaffClock   *staffclock.Service
-}
-
-func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkSessionTestModule, error) {
-	r, err := NewWorkSessionTestRepositories(db, clocks...)
+// NewWorkSessionTestModule composes the stamp side of the Workforce
+// time-tracking composition and the staff-clock workflow over it.
+func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (*workforceCompose.TimeTracking, *staffclock.Service, error) {
+	members := MustNewMembershipTestRepositories(db)
+	r, err := NewWorkSessionTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
-		return WorkSessionTestModule{}, err
+		return nil, nil, err
+	}
+	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+	if err != nil {
+		return nil, nil, err
+	}
+	presence, err := NewTimetablePresenceRows(db, timetable, members, clocks...)
+	if err != nil {
+		return nil, nil, err
 	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return WorkSessionTestModule{}, err
+		return nil, nil, err
 	}
-	identity, err := NewRFIDTestModule(db)
+	people, err := NewRFIDTestPeople(db)
 	if err != nil {
-		return WorkSessionTestModule{}, err
-	}
-	rfid, err := NewRFIDTestRepositories(db)
-	if err != nil {
-		return WorkSessionTestModule{}, err
+		return nil, nil, err
 	}
 	audits := NewTestAuditPersistence(db, nil)
-	timeTracking, err := newTimeTrackingTestModule(db, r, timeTrackingTestGraph{
+	timeTracking, err := newTimeTrackingTestModule(db, r, members.Staff, presence, settings.Settings, timeTrackingTestGraph{
 		Audits: timeTrackingAudits{
-			WorkSessionEdit: r.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
+			WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
-		Settings: settings.Settings, People: identity.Users, Holidays: noHolidays{},
+		People: people, Holidays: noHolidays{},
 		Events: timeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), ShiftPlanSync: noSickCascade{}, Logger: slog.Default(),
 	})
 	if err != nil {
-		return WorkSessionTestModule{}, err
+		return nil, nil, err
 	}
-	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: newStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
+	return timeTracking, newStaffClockService(people, NewPeopleIdentityAccess(db, nil), timeTracking.TimeClock), nil
 }

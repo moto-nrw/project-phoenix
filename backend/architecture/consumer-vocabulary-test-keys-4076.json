@@ -46,7 +46,7 @@
       "backend/api/room_activity_names.go",
       "backend/api/timetable_people_views.go",
       "backend/api/calendar_portal.go",
-      "backend/api/service_graph_wiring.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_wiring.go",
       "backend/api/display_http.go",
       "backend/modules/facilities/compose/legacy/projections.go"
     ],

@@ -31,15 +31,15 @@ type feedbackTestContext struct {
 func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 	t.Helper()
 
-	db, svc := composeFeedbackModule(t)
+	db, svc, settings, identity := composeFeedbackModule(t)
 	setEnabled := func(enabled bool) {
-		require.NoError(t, svc.Settings.SetValue(testpkg.Ctx(t), feedbackEnabledSetting, enabled, nil, nil))
+		require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), feedbackEnabledSetting, enabled, nil, nil))
 	}
 	setEnabled(true)
 
 	// Create feedback resource
 	resource := dataAPI.NewFeedbackResource(
-		svc.FeedbackStudents,
+		identity.FeedbackStudents,
 		svc.Feedback,
 		func(int, string) {},
 		testRuntime(),

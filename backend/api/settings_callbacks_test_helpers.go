@@ -17,20 +17,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// SettingsCallbacksTestModule is the Settings Platform's tenant settings
+// with the side effects of a settings change registered.
 type SettingsCallbacksTestModule struct {
 	Settings       settingsCompose.SettingsService
 	TenantSettings *settingsCompose.TenantOperations
-	RealtimeHub    *realtime.Hub
 }
 
-func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peoplePorts.PhotoUnlinker) (SettingsCallbacksTestModule, error) {
-	module, err := NewOperatorSettingsTestModule(db, unit)
+// NewSettingsCallbacksTestModule composes the tenant settings over db and
+// returns them with the realtime hub a settings change broadcasts on.
+func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, unlinker peoplePorts.PhotoUnlinker) (SettingsCallbacksTestModule, *realtime.Hub, error) {
+	module, _, err := NewOperatorSettingsTestModule(db, unit)
 	if err != nil {
-		return SettingsCallbacksTestModule{}, err
+		return SettingsCallbacksTestModule{}, nil, err
 	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return SettingsCallbacksTestModule{}, err
+		return SettingsCallbacksTestModule{}, nil, err
 	}
 	hub := deliveryCompose.NewRealtimeHub(slog.Default())
 	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
@@ -40,7 +43,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		StudentPhotos: studentPhotoSlot{slot: photoRuntime},
 	})
 	if err != nil {
-		return SettingsCallbacksTestModule{}, err
+		return SettingsCallbacksTestModule{}, nil, err
 	}
 	photos := NewStudentPhotos(directory, photoRuntime, StudentPhotoRuntimeDependencies{
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
@@ -52,5 +55,5 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
 		})
-	return SettingsCallbacksTestModule{Settings: settings.Settings, TenantSettings: operations, RealtimeHub: hub}, nil
+	return SettingsCallbacksTestModule{Settings: settings.Settings, TenantSettings: operations}, hub, nil
 }

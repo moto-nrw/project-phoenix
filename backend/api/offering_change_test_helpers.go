@@ -50,18 +50,23 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	students, repos, err := NewStudentTestRepositories(db, auditCommand)
+	if err != nil {
+		return nil, err
+	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
 	deps, err := offeringChangeOwners(
-		repos.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, repos.CareWithdrawal, options.Settings,
+		students.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, studentPeople.CareWithdrawal, options.Settings,
 		offeringChangeTestScope(options.Scope), requestTokenReads.Permissions, nil, nil,
 	)
 	if err != nil {
 		return nil, err
 	}
-	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
+	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
 	deps.Bookings = options.Bookings
 	deps.Today = options.Today
 	deps.Logger = slog.Default()

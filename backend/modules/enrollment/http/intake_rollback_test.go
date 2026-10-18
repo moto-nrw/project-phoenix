@@ -12,6 +12,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -309,7 +310,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			var offeringIDs []int64
 			for _, name := range []string{"First", "Second"} {
 				offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-				require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
+				require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Create(ctx, offering))
 				offeringIDs = append(offeringIDs, offering.ID)
 			}
 			failure := errors.New("injected after offering link write")
@@ -348,7 +349,7 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-	require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Create(ctx, offering))
 	failure := errors.New("injected after Care Plan booking command")
 	config := env.config
 	calls := 0

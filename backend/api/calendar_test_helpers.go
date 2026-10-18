@@ -35,7 +35,11 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	reposRooms := MustNewTimetableRoomRows(db)
+	reposSchools := NewOrganizationTestRows(db)
+	members := MustNewMembershipTestRepositories(db)
+	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
@@ -63,17 +67,17 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	logger := slog.Default()
 	cfg := CurrentServiceConfig()
 	calendarConfig := NewCalendarFacts(repos.Staff, repos.Student, NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
-		repos.StudentGuardian, parents.ParentChildLinks(), repos.Group)
-	calendarConfig = BindCalendarScheduleFacts(calendarConfig, repos.InstanceStaff, repos.ActivityInstance, repos.Room, repos.StaffShift, repos.ShiftType)
-	calendarConfig = BindCalendarFeedFacts(calendarConfig, repos.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
-	calendarConfig = BindCalendarCaller(calendarConfig, identity.UserContext.Caller())
+		repos.StudentGuardian, parents.ParentChildLinks(), NewSchoolStructureSuiteRepositories(db).Group)
+	calendarConfig = BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
+	calendarConfig = BindCalendarFeedFacts(calendarConfig, reposSchools.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
+	calendarConfig = BindCalendarCaller(calendarConfig, identity.Caller())
 	calendarConfig.Appointments = appointments
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
 	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)
 	calendarConfig.Outbox = newCalendarOutbox(delivery.EmailOutbox)
 	calendarConfig.PushOutbox = deliveryCompose.NewDurablePushOutbox(delivery.Delivery)
 	calendarConfig.Settings = settings.Settings
-	calendarConfig.StaffFeedTombstoneRepo = feeds.Tombstone
+	calendarConfig.StaffFeedTombstoneRepo = NewCalendarFeedTestTombstones(db)
 	calendarConfig.ParentsURL = cfg.ParentsURL
 	calendarConfig.FrontendURL = cfg.FrontendURL
 	calendarConfig.Notifier = newCalendarNotifier(delivery.Notifications)

@@ -12,16 +12,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// EnrollmentBookingFixture writes test arrangements through the two storage owners.
+// EnrollmentBookingFixture writes test arrangements through the two storage
+// owners: the Enrollment projection it holds and Care Plan's tenant-scoped
+// offering bookings, which carry no state and are composed per command.
 // Production workflows use the owner commands directly.
 type EnrollmentBookingFixture struct {
 	EnrollmentBookingProjection
-	bookings     *careplan.OfferingBookings
 	withinTenant func(context.Context, func(context.Context) error) error
 }
 
 func NewEnrollmentBookingFixtureWithin(withinTenant func(context.Context, func(context.Context) error) error) EnrollmentBookingFixture {
-	return EnrollmentBookingFixture{NewEnrollmentBookingProjection(NewEnrollmentBookings()), carePlanCompose.NewOfferingBookings(), withinTenant}
+	return EnrollmentBookingFixture{NewEnrollmentBookingProjection(NewEnrollmentBookings()), withinTenant}
 }
 
 // These retained composition methods translate the old fixture-facing command
@@ -52,7 +53,7 @@ func (a EnrollmentBookingFixture) InsertRequestChildOffering(ctx context.Context
 				return err
 			}
 		}
-		if err := a.bookings.RecordCareOfferingBookings(ctx, selection.RequestChildID, bookings); err != nil {
+		if err := carePlanCompose.NewOfferingBookings().RecordCareOfferingBookings(ctx, selection.RequestChildID, bookings); err != nil {
 			return err
 		}
 		return a.refreshBookingCommandRows(ctx, selection.RequestChildID, []*enrollment.RequestChildOffering{selection})
@@ -65,7 +66,7 @@ func (a EnrollmentBookingFixture) ReplaceRequestChildOfferings(ctx context.Conte
 		if err != nil {
 			return err
 		}
-		if err := a.bookings.ReplaceCareOfferingBookings(ctx, childID, bookings); err != nil {
+		if err := carePlanCompose.NewOfferingBookings().ReplaceCareOfferingBookings(ctx, childID, bookings); err != nil {
 			return fmt.Errorf("failed to insert replacement request child offerings: %w", err)
 		}
 		return a.refreshBookingCommandRows(ctx, childID, rows)
@@ -81,7 +82,7 @@ func (a EnrollmentBookingFixture) ScheduleRequestChildOfferings(ctx context.Cont
 		if err != nil {
 			return err
 		}
-		if err := a.bookings.ScheduleCareOfferingBookings(ctx, childID, careplan.Date(from), bookings); err != nil {
+		if err := carePlanCompose.NewOfferingBookings().ScheduleCareOfferingBookings(ctx, childID, careplan.Date(from), bookings); err != nil {
 			return err
 		}
 		return a.refreshBookingCommandRows(ctx, childID, rows)

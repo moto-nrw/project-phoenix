@@ -43,7 +43,7 @@ func buildWorkSessionSide(
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
 		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NonWorkingDays{Calendar: calendar},
 		Events:       timeTrackingEvents(transport.Hub),
-		AbsenceEmail: absenceEmailDependencies(settings, transport, mailIdentity, env.Links.FrontendURL, logger, people.Staff, organizations),
+		AbsenceEmail: absenceEmailDependencies(settings, transport, mailIdentity, env.Links.FrontendURL, logger, people, organizations),
 		Logger:       logger,
 	}, timeTrackingAudits{
 		WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
@@ -61,14 +61,14 @@ func buildWorkSessionSide(
 // subdomain.
 func absenceEmailDependencies(
 	settings settingsCompose.SettingsService, transport MailTransport, mailIdentity email.ReplyToResolver, frontendURL string,
-	logger *slog.Logger, staff peoplePorts.StaffRepository, organizations organizationtenancy.Query,
+	logger *slog.Logger, people PeopleRows, organizations organizationtenancy.Query,
 ) *workforceCompose.AbsenceEmailDeps {
 	return &workforceCompose.AbsenceEmailDeps{
 		Settings: settingsCompose.PresenceSettings(settings),
 		Dispatcher: absenceEmailDispatcher{
 			dispatcher: transport.Dispatcher, from: transport.DefaultFrom, identity: mailIdentity, logger: logger,
 		},
-		StaffRepo:   absenceEmailStaffDirectory{source: staff},
+		StaffRepo:   absenceEmailStaffDirectory{source: people.Staff},
 		SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
 		FrontendURL: frontendURL,
 		Logger:      logger,

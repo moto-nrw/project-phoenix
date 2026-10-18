@@ -112,7 +112,8 @@ func createCareBookingOffering(
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
 		DaysOfWeekMode:     enrollmentFixture.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
-		AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true,
+		AutoAddGradeLevels: []int{}, IsActive: true,
+		CountsAsCare: true,
 	}
 	offering.TenantID = scope.TenantID
 	testpkg.InsertTestCareOffering(t, db, scope.Context(), offering)
@@ -178,7 +179,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 
 	_, err = svc.ApplyBookingAuthoritySetting(ctx, today, true)
 	require.ErrorIs(t, err, careplan.ErrBookingAuthorityBlocked)
-	rows, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	assert.Zero(t, total)
 	assert.Empty(t, rows)
@@ -188,7 +189,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 		_, err = svc.ApplyBookingAuthoritySetting(ctx, today, true)
 		require.NoError(t, err)
 	}
-	rows, total, err = api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err = api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 1, total)
 	assert.Equal(t, planned.ID, *rows[0].StudentID)
@@ -279,7 +280,7 @@ func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Live", "Sicher", "2a")
 	studentID := student.ID
 	firstGap := calendar.TodayDate().AddDays(2)
-	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
 		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
@@ -357,13 +358,13 @@ func TestNaturalBookingEndSchedulerIsIdempotent(t *testing.T) {
 
 	_, err := svc.ApplyDueEffects(ctx, calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
-	rows, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	updatedAt := map[int64]time.Time{*rows[0].StudentID: rows[0].UpdatedAt, *rows[1].StudentID: rows[1].UpdatedAt}
 	_, err = svc.ApplyDueEffects(ctx, calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
-	rows, total, err = api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err = api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	assert.ElementsMatch(t, []calendar.Date{plannedGap, overdueGap}, []calendar.Date{
@@ -384,7 +385,7 @@ func TestNaturalSchedulerPreservesConfirmedWithdrawalAudit(t *testing.T) {
 	gap := calendar.TodayDate().AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "audit", nil, &gap)
 	studentID := student.ID
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now().Add(-time.Hour),
@@ -419,7 +420,7 @@ func TestOverdueRebookingReplacesTheStaleCompletion(t *testing.T) {
 	oldGap := calendar.NewDate(2026, 8, 24).AddDays(-2)
 	newGap := calendar.NewDate(2026, 8, 24).AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "renewed", &oldGap, &newGap)
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	studentID := student.ID
 	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: oldGap,
@@ -442,7 +443,7 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 	createCareBooking(t, db, scope, student.ID, "old-window", nil, &oldGap)
 	svc := bookingAuthorityService(t, db, true)
 	require.NoError(t, svc.ReconcileAuthoritativeBookingChange(scope.Context(), careplan.CareWithdrawalBookingChange{StudentID: student.ID}))
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	oldTask := requirePendingCompletion(t, repo, scope.Context(), student.ID)
 
 	if newGap.Before(oldGap) {
@@ -488,7 +489,7 @@ func TestBookingMutationPlansFutureNaturalEndImmediately(t *testing.T) {
 		scope.Context(), careplan.CareWithdrawalBookingChange{StudentID: student.ID, ConfirmedRole: "admin"},
 	)
 	require.NoError(t, err)
-	rows, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
+	rows, total, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20},
 	)
 	require.NoError(t, err)
@@ -510,7 +511,7 @@ func TestConfirmedWithdrawalCannotBypassBookingAuthority(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	rows, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
+	rows, total, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{StudentID: student.ID, Page: 1, PageSize: 1},
 	)
 	require.NoError(t, err)
@@ -534,7 +535,7 @@ func assertNonCareMutationKeepsConfirmedWithdrawal(t *testing.T, authoritative b
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Bleibt", "3f")
 	studentID := student.ID
 	gap := calendar.TodayDate().AddDays(4)
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -574,7 +575,7 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	_, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
+	_, total, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20},
 	)
 	require.NoError(t, err)

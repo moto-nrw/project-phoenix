@@ -28,6 +28,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		GuardianPolicy: api.NewParentGuardianPolicy(),
 
@@ -36,7 +37,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    api.NewParentStudentReads(repos.Student),
+		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
@@ -54,6 +55,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	arrivalRules, arrivalDeps, err := api.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil, nil, slog.Default())
 	require.NoError(t, err)
 	arrivals, err := careplanCompose.NewArrivalSchedules(db, repos.CarePlan(), nil, arrivalRules, arrivalDeps)
@@ -71,7 +73,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),
 		StatusDayRepo:    repos.StudentStatusDay,
-		StudentRepo:      api.NewParentStudentReads(repos.Student),
+		StudentRepo:      api.NewParentStudentReads(reposPeople.Student),
 		ArrivalSchedules: api.NewParentArrivalSchedules(arrivals),
 		PickupSchedules:  api.NewParentPickupSchedules(pickups),
 		Logger:           slog.Default(),
@@ -102,7 +104,7 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
+			return api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
 	return true

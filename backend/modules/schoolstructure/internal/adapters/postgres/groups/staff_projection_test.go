@@ -20,6 +20,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")
@@ -38,7 +39,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, goneSubstitute.ID, today.AddDays(-1), today.AddDays(1))
 	require.NoError(t, factory.Staff.Delete(ctx, goneSubstitute.ID))
 
-	pairs, err := factory.Group.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+	pairs, err := factoryStructure.Group.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
 	require.NoError(t, err)
 
 	staffIDs := make([]int64, 0, len(pairs))
@@ -55,7 +56,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	require.NotEmpty(t, staffIDs)
 	assert.Equal(t, teacher.StaffID, staffIDs[0])
 
-	empty, err := factory.Group.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
+	empty, err := factoryStructure.Group.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
 	require.NoError(t, err)
 	assert.Empty(t, empty, "an empty request must not resolve to everybody")
 }

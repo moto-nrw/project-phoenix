@@ -27,7 +27,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +43,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
 		Records:          env.repos.CarePlan(),
 
-		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
+		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople)),
 
 		CareParticipation: participation,
 	})
@@ -52,7 +52,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 }
 
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careplan.PickupBaselineReader {
-	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos),
+	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople),
 		func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
@@ -101,10 +101,10 @@ func setArrivalClassTimes(t *testing.T, env *decisionTestEnv, class string, time
 func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	student, err := env.repos.Student.FindByID(ctx, studentID)
+	student, err := env.reposPeople.Student.FindByID(ctx, studentID)
 	require.NoError(t, err)
 	student.SchoolClass = class
-	require.NoError(t, env.repos.Student.Update(ctx, student))
+	require.NoError(t, env.reposPeople.Student.Update(ctx, student))
 }
 
 func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.T) {
@@ -186,7 +186,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	assert.Nil(t, projection.ForDate(studentID, thursday),
 		"a stored row on an unbooked weekday must not make the child expected")
 
-	stored, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	stored, err := env.reposSchedules.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Len(t, stored, 1, "the stale row is ignored on read, never deleted behind the school's back")
 }
@@ -293,7 +293,7 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 	assert.Equal(t, scheduleModels.WeekdayMonday, week[0].Weekday)
 
 	require.NoError(t, pickups.UpsertBulkStudentPickupSchedules(ctx, studentID, week))
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := env.reposSchedules.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2, "saving the visible booked week must preserve ignored legacy rows")
 

@@ -31,7 +31,7 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	supervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
 
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factory := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
@@ -62,7 +62,7 @@ func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factory := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestStudentRosterGroupNamesAreEmptyWithoutGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.CreateTestStudent(t, db, "Ohne", "Gruppe", "1a")
 
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	rows, err := factory.Student.FindAllWithGroups(testpkg.Ctx(t))
 	require.NoError(t, err)

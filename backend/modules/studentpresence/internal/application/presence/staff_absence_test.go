@@ -20,7 +20,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StaffAbsence
+	repo := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StaffAbsence
+	repo := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absence for specific date", func(t *testing.T) {

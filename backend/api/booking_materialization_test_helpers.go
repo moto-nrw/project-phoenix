@@ -9,7 +9,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -41,7 +40,6 @@ type BookingMaterializationTestOptions struct {
 	Withdrawals                 careplanCompose.BookingWithdrawals
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	Broadcaster                 realtime.Broadcaster
 	GuardianNotifier            interface {
 		BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 	}
@@ -63,15 +61,17 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	students, repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	reposCalendar := MustNewTimetableSchoolCalendar(db)
 	settings, err := bookingTestSettings(db, unit, options)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	catalog, err := bookingTestCatalog(repos.TimetableTestRepositories, settings, options)
+	catalog, err := bookingTestCatalog(db, reposTimetable, settings, options)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -84,22 +84,22 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 		return BookingMaterializationTestModule{}, err
 	}
 	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: people})
-	pickup, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approved, func(ctx context.Context) (bool, error) {
+	pickup, err := careplanCompose.NewPickupBaselines(students.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
 	deps, err := bookingMaterializationOwners(
-		repos.Timetable, repos.RosterMaintenance(slog.Default(), nil), people, repos.SchoolCalendar(), repos.Enrollment(),
-		approved, repos.EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, repos.CarePlan,
+		reposTimetable.Timetable, reposTimetable.RosterMaintenance(slog.Default(), nil), people, reposCalendar.SchoolCalendar(), repos.Enrollment(),
+		approved, NewStudentAuditRows(db, auditCommand).EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, students.CarePlan,
 	)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
 	deps.Catalog = catalog
 	deps.Settings = settingsModule.NewCareBookingValues(settings)
-	deps.Bookings = repos.CarePlan
+	deps.Bookings = students.CarePlan
 	deps.Withdrawals = options.Withdrawals
 	deps.LockTemplateRecurrence = options.LockRecurrence
 	deps.ResyncPickupAutoExcusals = options.ResyncPickupAutoExcusals
@@ -107,7 +107,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	deps.PickupGuardians = options.GuardianNotifier
 	deps.Today = options.Today
 	deps.Logger = slog.Default()
-	bookings, err := newBookingMaterialization(deps, options.Broadcaster)
+	bookings, err := newBookingMaterialization(deps, nil)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -154,11 +154,11 @@ func (s bookingTestOverlaySettings) ResolveInt(ctx context.Context, key string) 
 	return s.ints.ResolveInt(ctx, key)
 }
 
-func bookingTestCatalog(r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func bookingTestCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	if options.Catalog != nil {
 		return options.Catalog, nil
 	}
-	return newTestCareOfferingCatalog(r, settings, CareOfferingCatalogTestOptions{
+	return newTestCareOfferingCatalog(db, r, settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: options.LockRecurrence, Today: options.Today,
 	})
 }

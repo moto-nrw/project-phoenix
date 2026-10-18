@@ -37,7 +37,8 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	factory := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	devices, err := NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 
@@ -53,7 +54,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		rooms, err := testpkg.SessionRooms(ctx, factory.ActiveGroup, []int64{activeGroup.ID})
+		rooms, err := testpkg.SessionRooms(ctx, factoryPresence.ActiveGroup, []int64{activeGroup.ID})
 		require.NoError(t, err)
 		require.NotNil(t, rooms[activeGroup.ID], "active group carries its room")
 		assert.Equal(t, room.Name, rooms[activeGroup.ID].Name)

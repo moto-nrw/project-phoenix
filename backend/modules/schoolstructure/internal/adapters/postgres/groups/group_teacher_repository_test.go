@@ -23,7 +23,7 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group-teacher assignment", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
+	factory := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	repo := factory.GroupTeacher
 	ctx := testpkg.Ctx(t)
 
@@ -78,7 +78,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing assignment", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group-teacher assignment", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing assignment", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all assignments", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by group ID", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by teacher ID", func(t *testing.T) {
@@ -251,7 +251,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -305,7 +305,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GroupTeacher
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by group_id", func(t *testing.T) {

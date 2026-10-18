@@ -280,7 +280,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			enrollment = buildEnrollmentRows(bookings, carePlan, persons)
-			delivery, err = buildDeliveryRuntime(db, env, people.GuardianProfiles)
+			delivery, err = buildDeliveryRuntime(db, env, guardian)
 			return
 		},
 		func() (err error) {
@@ -305,17 +305,17 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			notifications, err = buildDeliveryNotifications(db, unit, env, transport, deliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging.ParentMessageThread)
+				consent, identity, people, structure, workTime, messaging)
 			return
 		},
 		func() (err error) {
-			emitter = buildParentEventEmitter(db, unit, env, transport, settings.Service, messaging.ParentMessageThread, notifications)
+			emitter = buildParentEventEmitter(db, unit, env, transport, settings.Service, messaging, notifications)
 			purger, err = buildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
 			announcements, err = buildParentAnnouncements(env, settings.Service, delivery.Outbox, deliveryModuleOf(delivery),
-				notifications, messaging.ParentAnnouncement, purger)
+				notifications, messaging, purger)
 			return
 		},
 		func() (err error) {
@@ -328,7 +328,7 @@ func composeServeRoot(
 				guardian, studentAudit, photoRuntime, NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
 				supervisions, substitutions, structure,
 				arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor}, settings.Service)
-			payroll = payrollStatus(settings.Service, people.Staff)
+			payroll = payrollStatus(settings.Service, people)
 			return nil
 		},
 		func() (err error) {

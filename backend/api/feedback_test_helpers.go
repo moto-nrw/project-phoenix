@@ -11,24 +11,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// FeedbackTestModule is the Feedback owner with the settings it reads and the
-// RFID graph the kiosk feedback routes run beside.
+// FeedbackTestModule is the Feedback owner the kiosk feedback routes drive;
+// the feedback students come from NewRFIDTestModule.
 type FeedbackTestModule struct {
-	RFIDTestModule
-	SettingsTestModule
 	Feedback *feedbackModule.Module
 }
 
 // NewFeedbackTestModule composes the Feedback owner over db with its tenant
 // settings bound, as the root binds them.
 func NewFeedbackTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (FeedbackTestModule, error) {
+	feedback, _, err := NewFeedbackTestModuleWithSettings(db, unit)
+	return feedback, err
+}
+
+// NewFeedbackTestModuleWithSettings is NewFeedbackTestModule together with
+// the tenant settings the owner reads, for suites that switch them.
+func NewFeedbackTestModuleWithSettings(db transactionruntime.Database, unit tenant.UnitOfWork) (FeedbackTestModule, SettingsTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return FeedbackTestModule{}, err
-	}
-	identity, err := NewRFIDTestModule(db)
-	if err != nil {
-		return FeedbackTestModule{}, err
+		return FeedbackTestModule{}, SettingsTestModule{}, err
 	}
 	resolvers := feedbackCompose.NewSettings()
 	resolvers.Bind(func(ctx context.Context) (bool, error) {
@@ -40,7 +41,7 @@ func NewFeedbackTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		DB: db.Pool(), Settings: resolvers, Today: feedbackModule.Today, Observe: func(feedbackCompose.Observation) {},
 	})
 	if err != nil {
-		return FeedbackTestModule{}, err
+		return FeedbackTestModule{}, SettingsTestModule{}, err
 	}
-	return FeedbackTestModule{RFIDTestModule: identity, SettingsTestModule: settings, Feedback: feedback}, nil
+	return FeedbackTestModule{Feedback: feedback}, settings, nil
 }

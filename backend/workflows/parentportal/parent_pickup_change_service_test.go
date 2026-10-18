@@ -28,6 +28,7 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -41,7 +42,7 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
@@ -76,6 +77,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	db := testpkg.SetupTestDB(t)
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	_, schedules, sfServices, caller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
@@ -95,7 +97,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		caller,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.NewRequestReviewPolicy(caller, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
+		testpkg.NewRequestReviewPolicy(caller, reposPeople.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
 		sfServices.StudentAudit,
@@ -115,7 +117,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Attendance:      parentAttendance(t, db),
 		CareRequests:    careRequests,

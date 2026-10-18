@@ -67,7 +67,7 @@ func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...api.AuthTest
 	svc := setupAuthModuleOn(t, db, options...)
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, demoOrigins)
 	require.NoError(t, err)
-	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	auth.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())

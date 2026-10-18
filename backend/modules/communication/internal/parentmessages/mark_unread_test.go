@@ -161,7 +161,7 @@ func TestMarkUnread_RepeatKeepsSameVisibleState(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -189,7 +189,7 @@ func TestMarkUnread_RepeatDuringOpenSurvives(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -213,7 +213,7 @@ func TestClearStaffUnreadMark_KeepsNewerMark(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -239,7 +239,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	staffCtx := adminCtx(t, f.staffAccount)
 	guardianCtx := adminCtx(t, f.chain.AccountID)
 	started, err := f.svc.StartThread(staffCtx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -324,12 +324,14 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	threadID := startReadThread(t, f)
 	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
-		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(repos.ParentMessageRead),
-		Persons:     newPersons(repos, f.db),
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, f.db),
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
 		Broadcaster: f.bc, Logger: slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

@@ -43,12 +43,13 @@ func NewMembershipTestRepositories(db transactionruntime.Database) (MembershipTe
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	members := NewMembershipRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), membership, rooms, workTime)
+	persons, identity := NewPersonRepository(db), NewPeopleIdentityAccess(db, nil)
+	members := NewMembershipRepositories(db, persons, identity, membership, rooms, workTime)
 	members.People = people
 	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
 	members.StudentGuardian = NewStudentGuardianRepository(db)
-	members.GroupSubstitution = NewGroupSubstitutionRepository(members.Group, membership, workTime)
+	members.GroupSubstitution = NewGroupSubstitutionRepository(NewSchoolStructureRepositories(db, persons, identity, membership, rooms, workTime).Group, membership, workTime)
 	return members, nil
 }
 
@@ -77,7 +78,7 @@ func identityChainOf(db transactionruntime.Database, members MembershipTestRepos
 	return LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
-		People: members.People, Membership: members.Membership,
+		People: members.People, Membership: MustNewSchoolMembership(db),
 	}
 }
 
@@ -115,10 +116,12 @@ func NewEducationGroupRepository(db transactionruntime.Database, options ...educ
 	return NewEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), options...)
 }
 
-// MembershipTestRepositories are the People Directory and School Membership
-// repositories the retained graphs read through. services composes them where
-// it composes the owners; the test graphs build them through
-// api.NewMembershipTestRepositories (#2743, #4005).
+// MembershipTestRepositories are the People Directory repositories over
+// School Membership the retained graphs read through. services composes them
+// where it composes the owners; the test graphs build them through
+// api.NewMembershipTestRepositories (#2743, #4005). The group store and the
+// teaching assignments come from SchoolStructureSuiteRepositories, the owner
+// itself from MustNewSchoolMembership (#4080).
 type MembershipTestRepositories struct {
 	// People is the People Directory owner the student rows translate to.
 	People          peopledirectory.Capability
@@ -129,28 +132,58 @@ type MembershipTestRepositories struct {
 	Staff           peoplePorts.StaffRepository
 	Teacher         peoplePorts.TeacherRepository
 	Guest           peoplePorts.GuestRepository
-	Group           EducationGroupRepository
-	GroupTeacher    GroupTeacherRepository
-	ClassTeacher    ClassTeacherRepository
 	// GroupSubstitution is the Workforce group substitution contract over the
 	// group store and School Membership.
 	GroupSubstitution GroupSubstitutionRepository
-	// Membership is the owner capability itself; the class-list entries
-	// (#2382) are read and written through it.
-	Membership schoolmembership.Capability
 }
 
 // NewMembershipRepositories composes the staff, teacher and guest adapters
 // over membership, with the group store and the teaching assignments they
-// resolve through. members.People, Person, Student and the guardian fields
-// stay unset; the caller composes them.
+// resolve through. members.People, Student and the guardian fields stay
+// unset; the caller composes them.
 func NewMembershipRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
-	staff, teacher, guest, group, groupTeacher, classTeacher := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
-	return MembershipTestRepositories{
-		Person: persons, Staff: staff, Teacher: teacher, Guest: guest,
-		Group: group, GroupTeacher: groupTeacher, ClassTeacher: classTeacher,
-		Membership: membership,
-	}
+	staff, teacher, guest, _, _, _ := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return MembershipTestRepositories{Person: persons, Staff: staff, Teacher: teacher, Guest: guest}
+}
+
+// SchoolStructureSuiteRepositories are the School Structure group store and
+// the teaching assignments over School Membership the retained graphs read
+// through.
+type SchoolStructureSuiteRepositories struct {
+	Group        EducationGroupRepository
+	GroupTeacher GroupTeacherRepository
+	ClassTeacher ClassTeacherRepository
+}
+
+// NewSchoolStructureRepositories composes the group store and the teaching
+// assignments over membership, as NewMembershipRepositories composes the
+// staff adapters beside them.
+func NewSchoolStructureRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) *SchoolStructureSuiteRepositories {
+	_, _, _, group, groupTeacher, classTeacher := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return &SchoolStructureSuiteRepositories{Group: group, GroupTeacher: groupTeacher, ClassTeacher: classTeacher}
+}
+
+// NewSchoolStructureSuiteRepositories composes the group store and the
+// teaching assignments over the unobserved owners of db.
+func NewSchoolStructureSuiteRepositories(db transactionruntime.Database) *SchoolStructureSuiteRepositories {
+	membership := MustNewSchoolMembership(db)
+	return NewSchoolStructureRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), membership, MustNewUnobservedRooms(db), MustNewWorkforce(db))
+}
+
+// SchoolMembershipSuiteRepositories serve the School Membership owner the
+// staff adapters and the class-list entries (#2382) read through.
+type SchoolMembershipSuiteRepositories struct {
+	Membership schoolmembership.Capability
+}
+
+// SchoolMembership is the owner capability.
+func (r *SchoolMembershipSuiteRepositories) SchoolMembership() schoolmembership.Capability {
+	return r.Membership
+}
+
+// NewSchoolMembershipSuiteRepositories composes the unobserved owner of db.
+func NewSchoolMembershipSuiteRepositories(db transactionruntime.Database) *SchoolMembershipSuiteRepositories {
+	return &SchoolMembershipSuiteRepositories{Membership: MustNewSchoolMembership(db)}
 }
 
 // NewGroupTeacherRepository serves the retained teaching-assignment contract

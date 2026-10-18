@@ -64,11 +64,12 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Broadcaster: bc, Logger: slog.Default(),
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
 		Today: func() calendar.Date { return calendar.NewDate(2026, 8, 24) },
-	})
+	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person}, nil, bc)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
@@ -83,7 +84,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    sickRequiresApproval,

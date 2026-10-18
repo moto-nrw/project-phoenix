@@ -22,6 +22,8 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	factoryMessages := NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryCare := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
@@ -117,7 +119,7 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			return len(profiles), err
 		})
 		measure("messageable_guardians", iteration, false, func(txCtx context.Context) (int, error) {
-			guardians, err := factory.ParentMessageThread.ListGuardiansForStudent(txCtx, chain.StudentID)
+			guardians, err := factoryMessages.ParentMessageThread.ListGuardiansForStudent(txCtx, chain.StudentID)
 			return len(guardians), err
 		})
 		measure("messageable_staff", iteration, false, func(txCtx context.Context) (int, error) {
@@ -133,11 +135,11 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			return len(kinds), err
 		})
 		measure("parent_children", iteration, true, func(txCtx context.Context) (int, error) {
-			children, err := factory.ParentChild.ListByAccount(txCtx, chain.AccountID)
+			children, err := factoryCare.ParentChild.ListByAccount(txCtx, chain.AccountID)
 			return len(children), err
 		})
 		measure("parent_submit_status", iteration, true, func(txCtx context.Context) (int, error) {
-			status, err := factory.ParentEnrollablePhase.GuardianSubmitStatus(txCtx, chain.AccountID, chain.TenantID)
+			status, err := factoryCare.ParentEnrollablePhase.GuardianSubmitStatus(txCtx, chain.AccountID, chain.TenantID)
 			if err != nil || status == nil {
 				return 0, err
 			}

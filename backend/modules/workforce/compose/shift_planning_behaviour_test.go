@@ -90,7 +90,7 @@ func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capabil
 	t.Helper()
 	ownersRooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
-	staffByID, err := api.NewPlanStaffDirectory(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
+	staffByID, err := api.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
 	require.NoError(t, err)
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)

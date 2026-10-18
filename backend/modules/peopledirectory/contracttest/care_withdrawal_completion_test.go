@@ -113,7 +113,7 @@ func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t 
 	ctx := testpkg.Ctx(t)
 	lifecycle, err := api.NewPeopleRepositorySuiteCareLifecycle(testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
-	repo := lifecycle.CareWithdrawal
+	repo := lifecycle.CareWithdrawal()
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-confirmer")
 	gap := calendar.NewDate(2026, 8, 24)
 

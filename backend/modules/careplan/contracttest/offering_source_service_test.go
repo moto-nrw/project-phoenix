@@ -796,11 +796,11 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 
 	// The confirmed edit carries the new Jahrgang on the request child; the
 	// sync re-derives school_class from it.
-	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), childID)
 	require.NoError(t, err)
 	newGrade := int16(3)
 	child.TargetGradeLevel = &newGrade
-	require.NoError(t, updateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+	require.NoError(t, updateOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
 	_, err = applier.SyncApprovedChildData(ctx, enrollmentTest.ApprovedChildSync{
@@ -1333,7 +1333,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	_, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "korrektur-multi@example.com", "Kim", 2)
-	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), childID)
 	require.NoError(t, err)
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -1422,11 +1422,12 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db))
+	repoFactoryEnrollment := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db))
 	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")
 	phaseSvc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
-		Records:                repoFactory.Enrollment(),
+		Records:                repoFactoryEnrollment.Enrollment(),
 		Offerings:              phaseOfferings{carePlan: repoFactory.CarePlan()},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		Resyncer:               sourcedResyncer,
@@ -1846,7 +1847,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	template := createSourcedTemplate(t, env, "InstanzWechselTermin", offering.ID, []int{2}, period)
 
 	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-wechsel@example.com", "Iwa", 2)
-	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), childID)
 	require.NoError(t, err)
 
 	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
@@ -1897,7 +1898,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	template := createSourcedTemplateSegment(t, env, "SegmentBehaltTermin", offering.ID, []int{2}, period, nil, &splitDate)
 
 	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "segment-behalt@example.com", "Seba", 2)
-	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), childID)
 	require.NoError(t, err)
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -2186,7 +2187,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	latePhase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, insertOwnerPhaseForTest(ctx, env.repos.Enrollment(), latePhase))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, env.reposEnrollment.Enrollment(), latePhase))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.phases").

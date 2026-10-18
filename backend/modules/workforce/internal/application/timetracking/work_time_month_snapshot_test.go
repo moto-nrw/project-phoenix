@@ -23,18 +23,21 @@ import (
 // external test package runs against the real calendar: a future month would
 // hit the Soll clamp at today and the close guard would (correctly) refuse.
 type snapshotFixture struct {
-	tenantID  int64
-	staff     int64
-	admin     int64
-	session   *timetracking.WorkSession
-	schedule  *testpkg.StaffWorkScheduleFixture
-	repos     *api.RepositoryTestFactory
-	workforce workforce.Capability
-	db        *testpkg.DB
-	ctx       context.Context
-	monthSvc  timetracking.WorkTimeMonthService
-	closeSvc  timetracking.StaffMonthCloseService
-	adjustSvc timetracking.StaffBalanceAdjustmentService
+	tenantID        int64
+	staff           int64
+	admin           int64
+	session         *timetracking.WorkSession
+	schedule        *testpkg.StaffWorkScheduleFixture
+	repos           *api.PeopleRepositorySuiteFactory
+	reposMembership *api.SchoolMembershipSuiteRepositories
+	reposAbsences   *api.StaffAbsenceSuiteRepositories
+	reposPresence   *api.PresenceSuiteRepositories
+	workforce       workforce.Capability
+	db              *testpkg.DB
+	ctx             context.Context
+	monthSvc        timetracking.WorkTimeMonthService
+	closeSvc        timetracking.StaffMonthCloseService
+	adjustSvc       timetracking.StaffBalanceAdjustmentService
 }
 
 // snapshotSessionSettings satisfies the work-session service's settings
@@ -55,8 +58,8 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 // closed month, wired exactly as services/factory.go does.
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.repos.Membership), api.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit), f.reposAbsences.StaffAbsence,
+		f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership), api.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
 		snapshotSessionSettings{}, nil, f.db, api.RenderTimeTrackingPDF,
 		api.RenderTimeTrackingWorkbook,
 	)
@@ -79,7 +82,10 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Mitarbeiter")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Leitung")
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -113,7 +119,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(workTime)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		settings, nil,
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(workTime)),
@@ -121,7 +127,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	)
 
 	closeSvc := timetracking.NewStaffMonthCloseService(
-		timetracking.MonthSnapshotCapability(workTime), monthSvc, api.MonthCloseStaff(repos.Staff), settings, nil,
+		timetracking.MonthSnapshotCapability(workTime), monthSvc, api.MonthCloseStaff(reposPeople.Staff), settings, nil,
 	)
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(
 		workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, monthSvc, settings, nil,
@@ -130,7 +136,9 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	return &snapshotFixture{
 		tenantID: tenantID, staff: staff.ID, admin: admin.ID,
-		session: session, schedule: schedule, repos: repos, workforce: workTime, db: db, ctx: ctx,
+		session: session, schedule: schedule, repos: reposPeople, reposMembership: reposPeopleMembership,
+		reposAbsences: reposAbsences,
+		reposPresence: reposPresence, workforce: workTime, db: db, ctx: ctx,
 		monthSvc: monthSvc, closeSvc: closeSvc, adjustSvc: adjustSvc,
 	}
 }

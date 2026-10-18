@@ -7,7 +7,6 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -19,7 +18,7 @@ import (
 // the notification preferences, the staff and admin accounts, the on-duty
 // staff of Workforce and the Delivery Platform's notification service.
 func newPersonalReminderTick(
-	reminders reminder.Module, notifications DeliveryNotifications, staff peoplePorts.StaffRepository, identity *identityaccess.Module,
+	reminders reminder.Module, notifications DeliveryNotifications, staff staffAccountIDs, identity *identityaccess.Module,
 	workTime workforce.Capability, runtime schedulerPorts.TenantRuntime, logger *slog.Logger,
 ) (schedulerPorts.ReminderNotificationTick, error) {
 	workSessions := workforceCompose.WorkPresence(workTime)
@@ -77,4 +76,10 @@ func personalReminderEvents(notices []reminder.PersonalReminderNotice) []deliver
 // refusals: notifications switched off, or outside the tenant's window.
 func notificationDispatchPaused(err error) bool {
 	return errors.Is(err, deliveryCompose.ErrNotificationsDisabled) || errors.Is(err, deliveryCompose.ErrOutsideNotificationWindow)
+}
+
+// staffAccountIDs lists the accounts of the staff the personal reminders
+// are addressed to.
+type staffAccountIDs interface {
+	ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
 }

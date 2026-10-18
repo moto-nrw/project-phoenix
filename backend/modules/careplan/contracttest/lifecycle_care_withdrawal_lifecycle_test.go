@@ -87,7 +87,7 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 		SourceRequestChildID:  &requestChildIDs[0],
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal, completion))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal, completion))
 
 	input := careplan.CareExitInput{
 		LastCareDay: calendar.NewDate(2026, 8, 24), Reason: careplan.CareExitReasonNoCareNeed,
@@ -171,7 +171,7 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, calendar.TodayDate())
-	changed, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	changed, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
 

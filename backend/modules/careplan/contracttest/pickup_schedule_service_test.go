@@ -384,7 +384,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	serviceFactorySchedules, err := api.NewTestCarePlanSchedules(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -402,7 +402,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
-	require.NoError(t, repoFactory.StudentPickupException.Create(ctx, guardianPickup))
+	require.NoError(t, repoFactorySchedules.StudentPickupException.Create(ctx, guardianPickup))
 
 	partial, err := serviceFactorySchedules.PartialAbsences.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: student.ID,
@@ -426,7 +426,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	)
 	require.ErrorIs(t, err, careplan.ErrCareExceptionContainsPartialAbsence)
 
-	fresh, err := repoFactory.StudentPickupException.FindByID(ctx, guardianPickup.ID)
+	fresh, err := repoFactorySchedules.StudentPickupException.FindByID(ctx, guardianPickup.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.ExcusedFrom, "failed reclaim must preserve partial metadata")

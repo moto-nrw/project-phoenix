@@ -24,8 +24,7 @@ func bindMembershipAdapters(persons staffPersonRows, identity staffIdentityQuery
 	StaffMembershipRepository, TeacherMembershipRepository, guestMembershipRepository, *groupTeacherRepository, *classTeacherRepository,
 ) {
 	groupTeachers := newGroupTeacherRepository(membership, group)
-	deps := NewStaffMembershipDeps(persons, identity, employment)
-	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	deps := NewStaffMembershipDeps(persons, identity, employment, groupTeachers)
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps},
 		guestMembershipRepository{membership: membership}, groupTeachers, &classTeacherRepository{membership: membership}
 }

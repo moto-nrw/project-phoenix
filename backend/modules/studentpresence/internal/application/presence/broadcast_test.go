@@ -43,7 +43,9 @@ func newServiceWithBroadcaster(
 func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -52,9 +54,9 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deps := active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SessionStartLock:   repos.SessionStartLock,
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SessionStartLock:   reposPresence.SessionStartLock,
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     presence,
 		AttendanceSyncer:   syncer,
 		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
@@ -62,7 +64,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
@@ -219,7 +221,9 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
@@ -227,15 +231,15 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
 		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),

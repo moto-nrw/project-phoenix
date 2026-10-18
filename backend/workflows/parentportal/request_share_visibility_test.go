@@ -21,7 +21,7 @@ func TestRequestShareVisibilityRequiresTheLedgerAndTheFamilyProtection(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
 	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	const message = "parent: request share visibility needs the sharing ledger and the family protection"
@@ -39,7 +39,8 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
@@ -63,7 +64,7 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 		Status: parentService.DataChangeStatusPending,
 	}
 	request.TenantID = author.TenantID
-	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
+	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
 	require.NoError(t, repos.ParentRequestShare.AppendParentRequestShare(ctx, &peopledirectory.ParentRequestShareRecord{
 		TenantID:  author.TenantID,
 		StudentID: author.StudentID, RequestType: parentService.RequestShareMasterData, RequestID: request.ID,

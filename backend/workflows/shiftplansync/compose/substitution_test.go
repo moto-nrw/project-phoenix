@@ -115,7 +115,9 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	})
 	require.NoError(t, err)
 
-	activeSupervisors, err := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
+	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	require.NoError(t, err)
+	activeSupervisors, err := presence.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
 	require.NoError(t, err)
 	require.Len(t, activeSupervisors, 1)
 	require.Equal(t, replacement.ID, activeSupervisors[0].StaffID)

@@ -21,7 +21,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repoFactory := flowRepositories(t, db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, db)
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	// Need a real auth.accounts row to satisfy the created_by FK.

@@ -35,14 +35,15 @@ func newProjectionWriteService(
 	db *bun.DB,
 	studentID int64,
 	hhmm string,
-) (careplan.PickupScheduleService, *api.RepositoryTestFactory) {
+) (careplan.PickupScheduleService, *api.CareScheduleSuiteRepositories) {
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposSchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: studentID, Weekday: scheduleModels.WeekdayMonday, HHMM: hhmm}, nil, pickupStudents, nil)
 	require.NoError(t, err)
-	return service, repos
+	return service, reposSchedules
 }
 
 func TestUpsertBulkPickupSchedules_DoesNotMaterializeUnchangedProjection(t *testing.T) {
@@ -51,10 +52,11 @@ func TestUpsertBulkPickupSchedules_DoesNotMaterializeUnchangedProjection(t *test
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Prova", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Prove", "Nienz")
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	repos := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
-	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, pickupStudents, nil)
+	service, err := careplanCompose.NewPickupSchedules(db, reposCare.CarePlan(), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, pickupStudents, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

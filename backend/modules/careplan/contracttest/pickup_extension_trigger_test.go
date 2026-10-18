@@ -42,7 +42,7 @@ type pickupExtensionHarness struct {
 func setupPickupExtensionHarness(t *testing.T) *pickupExtensionHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos, tt := autoExcusalRepositories(db)
+	repos, _, tt := autoExcusalRepositories(db)
 	baselines := newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t))
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), baselines, tt, true)
 	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))

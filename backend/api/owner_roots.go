@@ -34,10 +34,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The roots below build owners from the database for the CLI roots, the
-// service graph and the test graphs. NewParentPortalRepositories
-// builds the stores of several owners over the database, so no single owner
-// composition can host it (#4013).
+// The roots below build owners from the database for the CLI roots and the
+// test graphs.
 
 // NewOrganizationTenancy composes the school owner, unobserved.
 func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
@@ -52,20 +50,6 @@ func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy
 // record operator actions.
 func NewOperatorAuditLog(db transactionruntime.Database) operatorAuditEntries {
 	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).OperatorAuditLog)
-}
-
-// NewParentPortalRepositories builds the retained guardian-portal and
-// messaging repositories over the owners they read through, every one bound
-// at construction (#2743). The school names are bound by WithSchools.
-func NewParentPortalRepositories(
-	db transactionruntime.Database, people peopledirectory.Capability, groups schoolstructure.Query,
-	membership schoolmembership.Capability, identity *identityaccess.Module, enrollment *enrollmentCapability.Module,
-	now func() time.Time,
-) ParentPortalRepositories {
-	return ParentPortalRepositories{
-		ParentPortalRepositories: newParentPortalReads(db, people, identity, enrollment),
-		MessagingRepositories:    newParentMessagingRepositories(db, groups, membership, identity, enrollment, now),
-	}
 }
 
 // NewParentPortalReads builds Care Plan's guardian-portal repositories over
@@ -236,26 +220,6 @@ func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCom
 			}
 			return result, nil
 		},
-	}
-}
-
-// ParentPortalRepositories are the retained guardian-portal repositories
-// (built by the Care Plan composition) and the parent-messaging and
-// announcement repositories (built by Communication) over their owners.
-type ParentPortalRepositories struct {
-	carePlanCompose.ParentPortalRepositories
-	parentStore.MessagingRepositories
-}
-
-// WithSchools returns the repositories with the school names and the school
-// eligibility resolved through the Organisation & Tenancy owner.
-func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query) ParentPortalRepositories {
-	if schools == nil {
-		panic("parent portal repositories: organization tenancy query is required")
-	}
-	return ParentPortalRepositories{
-		ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(ParentPortalSchools{Schools: schools}),
-		MessagingRepositories:    r.WithSchoolNames(ParentPortalSchools{Schools: schools}),
 	}
 }
 
