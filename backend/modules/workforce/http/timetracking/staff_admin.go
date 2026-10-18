@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 )
@@ -117,16 +116,6 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		identity:             deps.Identity,
 		logger:               logger,
 	}
-}
-
-// Router builds a standalone /staff router for this resource. The composition
-// root registers the workforce routes into the shared /staff router via
-// RegisterStaffRoutes instead, so membership and workforce keep one prefix.
-func (rs *StaffAdminResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTenantRoutes(r, rs.RegisterStaffRoutes)
-	return r
 }
 
 // RegisterStaffRoutes mounts the workforce routes on an already protected

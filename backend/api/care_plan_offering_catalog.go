@@ -40,27 +40,6 @@ type careOfferingCatalogInputs struct {
 	Logger           *slog.Logger
 }
 
-func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
-	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
-		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")
-	}
-	return careplanCompose.NewCareOfferingCatalog(careplanCompose.CareOfferingCatalogDependencies{
-		Records:                inputs.Records,
-		Phases:                 careOfferingCatalogPhases{phases: inputs.Phases},
-		Timetable:              careOfferingCatalogTimetable{timetable: inputs.Timetable},
-		Calendar:               careOfferingCatalogCalendar{calendar: inputs.Calendar},
-		Bookings:               careOfferingCatalogBookings{bookings: inputs.Bookings},
-		Settings:               careOfferingCatalogSettings{settings: inputs.Settings},
-		Translations:           careOfferingCatalogTranslations{},
-		SourceRules:            careOfferingSourceRules{},
-		SourcedTemplates:       inputs.SourcedTemplates,
-		Pickup:                 inputs.Pickup,
-		LockTemplateRecurrence: inputs.LockRecurrence,
-		Today:                  inputs.Today,
-		Logger:                 inputs.Logger,
-	})
-}
-
 // careOfferingPhaseGuard binds the catalog's phase-window check to the phase
 // service, which describes the proposed phase in Enrollment's words.
 func careOfferingPhaseGuard(guards careplan.CareOfferingGuards) func(context.Context, int64, *enrollmentOwner.Phase) error {

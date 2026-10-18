@@ -333,26 +333,3 @@ func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.Temp
 		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.educationGroups,
 	}
 }
-
-// newTimetableTestCompanions composes the rows of the other owners the
-// suites arrange through beside timetable: Student Presence, Care Plan,
-// Facilities and the School Calendar.
-func newTimetableTestCompanions(db transactionruntime.Database, timetable TimetableTestRepositories, members MembershipTestRepositories, clocks ...func() time.Time) (TimetablePresenceRows, TimetableCarePlanRows, TimetableRoomRows, TimetableSchoolCalendar, error) {
-	presence, err := NewTimetablePresenceRows(db, timetable, members, clocks...)
-	if err != nil {
-		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
-	}
-	care, err := NewTimetableCarePlanRows(db, timetable, members)
-	if err != nil {
-		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
-	}
-	rooms, err := NewTimetableRoomRows(db)
-	if err != nil {
-		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
-	}
-	calendar, err := NewTimetableSchoolCalendar(db)
-	if err != nil {
-		return TimetablePresenceRows{}, TimetableCarePlanRows{}, TimetableRoomRows{}, TimetableSchoolCalendar{}, err
-	}
-	return presence, care, rooms, calendar, nil
-}

@@ -9,6 +9,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -212,4 +213,17 @@ func NewBookingMaterialization(db transactionruntime.Database, unit tenant.UnitO
 		option(&chosen)
 	}
 	return NewBookingMaterializationTestModule(db, unit, chosen)
+}
+
+// newBookingMaterialization composes the materialization over deps from
+// bookingMaterializationOwners. A nil logger takes the default one; the
+// broadcaster, when given, wakes the staff pickup schedule views.
+func newBookingMaterialization(deps careplanCompose.BookingMaterializationDependencies, broadcaster realtime.Broadcaster) (careplan.BookingMaterializationCapability, error) {
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
+	}
+	if broadcaster != nil {
+		deps.PickupStaff = pickupScheduleBroadcaster{broadcaster: broadcaster}
+	}
+	return careplanCompose.NewBookingMaterialization(deps)
 }

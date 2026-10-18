@@ -61,11 +61,6 @@ type CareOfferingCatalogDependencies struct {
 	Logger                 *slog.Logger
 }
 
-// NewCareOfferingCatalog composes the Care Plan care-offering catalog.
-func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.CareOfferingCatalogCapability, error) {
-	return application.NewCareOfferingCatalog(catalogDependencies(deps))
-}
-
 // NewCareOfferingCatalogWithBookings composes the catalog and the booking
 // materialization it resyncs through; their mutual references must be unset.
 func NewCareOfferingCatalogWithBookings(catalog CareOfferingCatalogDependencies, bookings BookingMaterializationDependencies) (careplan.CareOfferingCatalogCapability, careplan.BookingMaterializationCapability, error) {

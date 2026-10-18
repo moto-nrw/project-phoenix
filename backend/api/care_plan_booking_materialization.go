@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -49,19 +48,6 @@ func bookingMaterializationOwners(
 		Audit:      bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
 		Pickup:     bookingPickup{baselines: pickup, rows: pickupRows},
 	}, nil
-}
-
-// newBookingMaterialization composes the materialization over deps from
-// bookingMaterializationOwners. A nil logger takes the default one; the
-// broadcaster, when given, wakes the staff pickup schedule views.
-func newBookingMaterialization(deps careplanCompose.BookingMaterializationDependencies, broadcaster realtime.Broadcaster) (careplan.BookingMaterializationCapability, error) {
-	if deps.Logger == nil {
-		deps.Logger = slog.Default()
-	}
-	if broadcaster != nil {
-		deps.PickupStaff = pickupScheduleBroadcaster{broadcaster: broadcaster}
-	}
-	return careplanCompose.NewBookingMaterialization(deps)
 }
 
 // timetableOfferingRosterResync serves the Timetable owner's roster resync

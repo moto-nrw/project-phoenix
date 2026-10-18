@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -62,16 +61,6 @@ type BookingMaterializationDependencies struct {
 
 	Today  func() calendar.Date
 	Logger *slog.Logger
-}
-
-// NewBookingMaterialization composes the Care Plan booking materialization
-// over the catalog it applies the timetable-link rules of.
-func NewBookingMaterialization(deps BookingMaterializationDependencies) (careplan.BookingMaterializationCapability, error) {
-	catalog, ok := deps.Catalog.(*application.CareOfferingCatalog)
-	if !ok {
-		return nil, errors.New("booking materialization: the care-offering catalog must be composed by NewCareOfferingCatalog")
-	}
-	return application.NewBookingMaterialization(bookingDependencies(deps, catalog))
 }
 
 func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {

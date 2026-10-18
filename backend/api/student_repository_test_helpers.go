@@ -10,7 +10,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -23,18 +22,6 @@ import (
 type StudentTestRepositories struct {
 	CarePlan              careplan.Capability
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
-}
-
-// CareScheduleChangeRequest is the retained care-schedule change request
-// rows over the Care Plan owner.
-func (r StudentTestRepositories) CareScheduleChangeRequest() timetablePorts.CareScheduleRequestRows {
-	return NewCareScheduleChangeRequestRepository(r.CarePlan)
-}
-
-// StudentDataChangeRequest is the retained student data change request rows
-// over the Care Plan owner.
-func (r StudentTestRepositories) StudentDataChangeRequest() studentDataRequestRepository {
-	return NewStudentDataChangeRequestRepository(r.CarePlan)
 }
 
 // NewStudentTestRepositoriesWithMembers composes the student suites' Care

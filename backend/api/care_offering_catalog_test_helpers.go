@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -149,4 +150,25 @@ func (noCareOfferingResync) DetachTemplatesSourcedFromOffering(context.Context, 
 
 func (noCareOfferingResync) ReconcileOfferingPickupForOffering(context.Context, int64) error {
 	return nil
+}
+
+func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
+	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
+		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")
+	}
+	return careplanCompose.NewCareOfferingCatalog(careplanCompose.CareOfferingCatalogDependencies{
+		Records:                inputs.Records,
+		Phases:                 careOfferingCatalogPhases{phases: inputs.Phases},
+		Timetable:              careOfferingCatalogTimetable{timetable: inputs.Timetable},
+		Calendar:               careOfferingCatalogCalendar{calendar: inputs.Calendar},
+		Bookings:               careOfferingCatalogBookings{bookings: inputs.Bookings},
+		Settings:               careOfferingCatalogSettings{settings: inputs.Settings},
+		Translations:           careOfferingCatalogTranslations{},
+		SourceRules:            careOfferingSourceRules{},
+		SourcedTemplates:       inputs.SourcedTemplates,
+		Pickup:                 inputs.Pickup,
+		LockTemplateRecurrence: inputs.LockRecurrence,
+		Today:                  inputs.Today,
+		Logger:                 inputs.Logger,
+	})
 }

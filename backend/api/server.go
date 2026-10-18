@@ -274,11 +274,6 @@ func newRuntimeCapacityLogger(db transactionruntime.Database, hub *realtime.Hub,
 	}, hub, metrics, logger.With("component", "capacity"))
 }
 
-// Handler returns the fully assembled production HTTP graph.
-func (runtime *Runtime) Handler() http.Handler {
-	return runtime.handler
-}
-
 // resolveListenAddr turns a configured port into a listen address. A value
 // containing ":" (e.g. "localhost:8080" in dev) is used verbatim; a bare port
 // is prefixed with ":".

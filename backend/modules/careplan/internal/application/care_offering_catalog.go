@@ -48,14 +48,6 @@ type CareOfferingCatalog struct {
 
 var _ careplan.CareOfferingCatalogCapability = (*CareOfferingCatalog)(nil)
 
-// NewCareOfferingCatalog builds the catalog over its ports and resyncers.
-func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOfferingCatalog, error) {
-	if deps.SourcedTemplates == nil || deps.Pickup == nil {
-		return nil, errors.New("care offering catalog: the sourced-template and pickup resyncers are required")
-	}
-	return newCareOfferingCatalog(deps)
-}
-
 func newCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOfferingCatalog, error) {
 	if deps.Records == nil || deps.Phases == nil || deps.Timetable == nil || deps.Calendar == nil ||
 		deps.Bookings == nil || deps.Settings == nil || deps.Translations == nil || deps.SourceRules == nil ||

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package application
 
 import (

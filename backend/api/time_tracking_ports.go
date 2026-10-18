@@ -46,22 +46,6 @@ type timeTrackingAudits struct {
 	TimeTrackingAuditLog timeTrackingAuditFeed
 }
 
-// newTimeTracking composes the Workforce time-tracking side (#3413) over the
-// root's port bindings; the caller completes it with the sick cascade. bound
-// are the ports the caller binds: the staff absences and their audit, the
-// work-session staff, the supervisions and session records, the holidays,
-// the events, the absence mail, the logger and the clock. timeTrackingPorts sets every
-// other port over the remaining arguments and leaves these alone.
-func newTimeTracking(
-	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits timeTrackingAudits,
-	staff timeTrackingStaffRecords, people timeTrackingStaffLookup, employment workforceCompose.StaffEmploymentQuery,
-	schedules timeTrackingWorkSchedules, timeModels timeTrackingWorkTimeModels,
-	settings timeTrackingSettings, payroll settingsCompose.PayrollStatusGetter, db transactionruntime.Database,
-) (*workforceCompose.WorkSessionSide, error) {
-	ports := timeTrackingPorts(workforce, bound, audits, staff, employment, schedules, timeModels, settings, payroll, db)
-	return workforceCompose.NewWorkSessionSide(workforce, ports, staffScheduleBindings(people))
-}
-
 // timeTrackingWorkSchedules are the staff work schedules the session and
 // target ports read.
 type timeTrackingWorkSchedules interface {
@@ -116,11 +100,4 @@ func staffScheduleBindings(people timeTrackingStaffLookup) workforceCompose.Staf
 		}
 		return workforceCompose.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, nil
 	}
-}
-
-// timeTrackingStaffRows are the staff rows the time-tracking ports and the
-// absence request mails read.
-type timeTrackingStaffRows interface {
-	timeTrackingStaffRecords
-	absenceEmailStaffRecords
 }

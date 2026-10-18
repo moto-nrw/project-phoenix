@@ -415,3 +415,24 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
+
+// unsentGuardianMail serves a root composed without the guardian mail — a
+// CLI or a fixture that only reads. The flows still run; nothing is sent.
+type unsentGuardianMail struct{}
+
+func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
+	return identityaccess.GuardianInvitationExpiryFallback
+}
+
+func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
+
+func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityPorts.GuardianProfile, string) (int64, bool) {
+	return 0, false
+}
+
+func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityPorts.GuardianProfile, string) (int64, bool) {
+	return 0, false
+}
+
+func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.GuardianProfile, int64, string, int64) {
+}

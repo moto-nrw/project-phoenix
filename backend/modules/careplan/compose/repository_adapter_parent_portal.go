@@ -54,12 +54,6 @@ func NewParentPortalRepositories(deps ParentPortalDependencies) ParentPortalRepo
 	}
 }
 
-// NewParentEnrollmentRequestRepository is the account's applications over the
-// ambient tenant transaction, without the guardian links bound.
-func NewParentEnrollmentRequestRepository(db *bun.DB, applications parentRepo.EnrollmentCommands, accounts parentRepo.AccountDirectory) parentModels.EnrollmentRequestRepository {
-	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(db)), applications, accounts, nil)
-}
-
 // NewParentChildRepository lists a guardian account's children across its
 // active schools, with the students, guardian links and person names read
 // through the directory. The school names are bound by WithSchools.

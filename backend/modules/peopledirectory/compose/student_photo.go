@@ -31,11 +31,6 @@ type StudentPhotoRuntime interface {
 	) error
 }
 
-// DisabledStudentPhotos is the photo runtime of a root that serves no
-// photos: every photo route reports the feature as disabled and a consent
-// change fails.
-func DisabledStudentPhotos() StudentPhotoRuntime { return disabledStudentPhotos{} }
-
 type disabledStudentPhotos struct{}
 
 func (disabledStudentPhotos) PhotoFeatureEnabled(context.Context) (bool, error) { return false, nil }

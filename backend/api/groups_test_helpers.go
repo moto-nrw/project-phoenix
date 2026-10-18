@@ -3,7 +3,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
@@ -29,11 +28,6 @@ import (
 // NewGroupsTestModule (#4080).
 type GroupsTestModule struct {
 	Education schoolstructure.GroupManagement
-}
-
-// TeacherGroupIDs exposes the same assignment projection as attendance composition.
-func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {
-	return NewAttendanceTeacherGroups(m.Education).TeacherGroupIDs(ctx, teacherID)
 }
 
 func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, ActivePresence, ActivePeople, *CallerRows, error) {

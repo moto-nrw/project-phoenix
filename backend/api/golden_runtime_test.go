@@ -29,3 +29,8 @@ func newGoldenRuntime(t *testing.T, production *Runtime) *goldenRuntime {
 func (api *goldenRuntime) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	api.handler.ServeHTTP(w, r)
 }
+
+// Handler returns the fully assembled production HTTP graph the suites drive.
+func (runtime *Runtime) Handler() http.Handler {
+	return runtime.handler
+}

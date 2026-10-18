@@ -62,3 +62,24 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		})
 	return SettingsCallbacksTestModule{Settings: settings.Settings, TenantSettings: operations}, hub, nil
 }
+
+// NewStudentPhotos binds the owner capability and the runtime it needs, and
+// returns the retained contract the handlers call. The directory is composed
+// over NewStudentPhotoRuntime with the same dependencies.
+func NewStudentPhotos(directory StudentPhotoCapability, deps StudentPhotoRuntimeDependencies) peoplePorts.StudentPhotoService {
+	return studentPhotos{directory: directory, runtime: newStudentPhotoRuntime(deps)}
+}
+
+// NewStudentPhotoRuntime is the photo runtime a People Directory is composed
+// with (peopleCompose.Dependencies.StudentPhotos).
+func NewStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) peopleCompose.StudentPhotoRuntime {
+	return newStudentPhotoRuntime(deps)
+}
+
+func newStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) studentPhotoRuntime {
+	return studentPhotoRuntime{
+		settings: deps.Settings, broadcaster: deps.Broadcaster,
+		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
+		actor: deps.ActingAccount,
+	}
+}
