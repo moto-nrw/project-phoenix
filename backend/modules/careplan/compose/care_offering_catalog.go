@@ -39,15 +39,7 @@ type PickupResyncer = ports.PickupResyncer
 // CatalogRowNotFound marks an owner's not-found error for the catalog: a
 // phase, activity group or calendar period that does not exist in the
 // tenant. The error keeps its text.
-func CatalogRowNotFound(err error) error {
-	return &catalogRowNotFound{err: err}
-}
-
-type catalogRowNotFound struct{ err error }
-
-func (e *catalogRowNotFound) Error() string { return e.err.Error() }
-
-func (e *catalogRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrCatalogRowNotFound} }
+func CatalogRowNotFound(err error) error { return ports.CatalogRowNotFound(err) }
 
 // CareOfferingCatalogDependencies bind the catalog to its owners and the
 // resyncers an edit keeps in step.
@@ -80,11 +72,7 @@ func NewCareOfferingCatalogWithBookings(catalog CareOfferingCatalogDependencies,
 	if bookings.Catalog != nil {
 		return nil, nil, errors.New("care offering catalog with bookings: the catalog is composed here and must be unset")
 	}
-	composedCatalog, composedBookings, err := application.NewCareOfferingCatalogWithBookings(catalogDependencies(catalog), bookingDependencies(bookings, nil))
-	if err != nil {
-		return nil, nil, err
-	}
-	return composedCatalog, composedBookings, nil
+	return application.NewCareOfferingCatalogWithBookings(catalogDependencies(catalog), bookingDependencies(bookings, nil))
 }
 
 func catalogDependencies(deps CareOfferingCatalogDependencies) application.CareOfferingCatalogDependencies {

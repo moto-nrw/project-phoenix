@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 )
 
-type CareDayRecords = application.CareDayRecords
 type CareParticipationResolver = application.CareParticipationResolver
 type CareDayDependencies = application.CareDayDependencies
 

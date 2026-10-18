@@ -42,8 +42,9 @@ func bookingDependencies() BookingMaterializationDependencies {
 func TestNewCareOfferingCatalogWithBookings_BindsTheResyncers(t *testing.T) {
 	t.Parallel()
 
-	catalog, bookings, err := NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), bookingDependencies())
+	catalogCapability, bookingCapability, err := NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), bookingDependencies())
 	require.NoError(t, err)
+	catalog, bookings := catalogCapability.(*CareOfferingCatalog), bookingCapability.(*BookingMaterialization)
 	require.Same(t, catalog, bookings.catalog)
 	require.Same(t, bookings, catalog.deps.SourcedTemplates)
 	require.Same(t, bookings, catalog.deps.Pickup)

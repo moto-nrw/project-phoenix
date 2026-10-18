@@ -84,7 +84,7 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (*Bookin
 // templates and the pickup projection through the materialization. The
 // catalog's resyncers and the materialization's catalog must be unset; the
 // constructor binds them.
-func NewCareOfferingCatalogWithBookings(catalogDeps CareOfferingCatalogDependencies, bookingDeps BookingMaterializationDependencies) (*CareOfferingCatalog, *BookingMaterialization, error) {
+func NewCareOfferingCatalogWithBookings(catalogDeps CareOfferingCatalogDependencies, bookingDeps BookingMaterializationDependencies) (careplan.CareOfferingCatalogCapability, careplan.BookingMaterializationCapability, error) {
 	if catalogDeps.SourcedTemplates != nil || catalogDeps.Pickup != nil || bookingDeps.Catalog != nil {
 		return nil, nil, errors.New("care offering catalog with bookings: the resyncers and the catalog are bound by the constructor and must be unset")
 	}
