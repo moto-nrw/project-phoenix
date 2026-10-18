@@ -29,12 +29,12 @@ import (
 // weekly plans (#2079, #2706) and the push and PWA usage services.
 func composeViews(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
-	provisioning, err := b.Platform.OperatorProvisioning(OperatorProvisioningSources{
-		Identity: b.identityAccess, Accounts: NewOperatorAccountDirectory(b.identityAccess, b.Persons, b.Membership, b.Organizations),
-		Devices: b.deviceFleet, Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
-		Categories: arrivalTimetable.NewActivityCategorySeeder(repos.ActivityCategory),
-		Settings:   b.settingsService, Logger: b.Logger.With("service", "platform"),
-	})
+	provisioning, err := b.Platform.OperatorProvisioning(
+		b.identityAccess, NewOperatorAccountDirectory(b.identityAccess, b.Persons, b.Membership, b.Organizations),
+		b.deviceFleet, b.Presence.SessionRecords, b.groupSupervisions,
+		arrivalTimetable.NewActivityCategorySeeder(repos.ActivityCategory),
+		b.settingsService, b.Logger.With("service", "platform"),
+	)
 	if err != nil {
 		return b, fmt.Errorf("compose operator provisioning: %w", err)
 	}

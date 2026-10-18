@@ -3,17 +3,23 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -47,10 +53,6 @@ func NewPlatformWiring(owners PlatformWiringOwners) (PlatformWiring, error) {
 		return PlatformWiring{}, fmt.Errorf("platform wiring: compose device fleet: %w", err)
 	}
 	auditLog := NewOperatorAuditLog(owners.DB)
-	provisioning := operatorProvisioningOwners{
-		DB: owners.DB, Organizations: owners.Organizations, Persons: owners.Persons, Membership: owners.Membership,
-		PersonRows: owners.People.Persons, StaffRows: owners.People.Staff, AuditLog: auditLog,
-	}
 	parentPortal := NewParentPortalRepositories(owners.DB, ParentPortalOwners{
 		People: owners.Persons, Groups: owners.Groups, Membership: owners.Membership,
 		Identity: owners.People.Identity, Enrollment: enrollmentCompose.New(), Now: owners.Now,
@@ -77,7 +79,20 @@ func NewPlatformWiring(owners PlatformWiringOwners) (PlatformWiring, error) {
 		EnrollmentDeliveries: func(module *deliveryModule.Module) enrollmentCompose.EnrollmentDeletionDelivery {
 			return enrollmentDeliveryAdapter{module: module}
 		},
-		OperatorProvisioning: provisioning.compose,
+		OperatorProvisioning: func(
+			identity *identityaccess.Module, accounts OperatorAccountDirectory, devices devicefleetModule.Capability,
+			sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords,
+			categories OperatorCategoryCreator, settings settingsCompose.SettingsService, logger *slog.Logger,
+		) (organizationtenancy.Provisioning, error) {
+			adapters, err := NewOperatorProvisioningAdapters(
+				operatorPersonStudentMembership(owners.DB), devices, owners.Persons, owners.Membership,
+				owners.People.Persons, owners.People.Staff, identity, sessions, supervisions, categories, auditLog,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
+			}
+			return newOperatorProvisioning(owners.Organizations, identity, accounts, adapters, settings, logger)
+		},
 		PWAUsageCounts: func(provisioning organizationtenancy.Provisioning) deliveryCompose.PWAUsageCounts {
 			return pwaUsageCounts{provisioning: provisioning}
 		},

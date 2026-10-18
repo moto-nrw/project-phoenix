@@ -792,29 +792,17 @@ type PlatformWiring struct {
 	GuardianDisplays           func(GuardianDisplayQuery) deliveryCompose.GuardianDisplayResolver
 	AnnouncementDeliveries     func(*deliveryModule.Module) communicationCompose.ParentAnnouncementDeliveryRecorder
 	EnrollmentDeliveries       func(*deliveryModule.Module) enrollmentCompose.EnrollmentDeletionDelivery
-	OperatorProvisioning       func(OperatorProvisioningSources) (organizationtenancy.Provisioning, error)
-	PWAUsageCounts             func(organizationtenancy.Provisioning) deliveryCompose.PWAUsageCounts
+	OperatorProvisioning       func(
+		identity *identityaccess.Module, accounts OperatorAccountDirectory, devices devicefleetModule.Capability,
+		sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords,
+		categories OperatorCategoryCreator, settings settingsCompose.SettingsService, logger *slog.Logger,
+	) (organizationtenancy.Provisioning, error)
+	PWAUsageCounts func(organizationtenancy.Provisioning) deliveryCompose.PWAUsageCounts
 }
 
 // GuardianDisplayQuery names the guardians of the Delivery recipients.
 type GuardianDisplayQuery interface {
 	GuardianDisplays(context.Context, []int64) ([]peoplePorts.GuardianDisplay, error)
-}
-
-// OperatorProvisioningSources are the values of this graph the root binds
-// Organisation & Tenancy's operator provisioning over (#3253).
-type OperatorProvisioningSources struct {
-	Identity     *identityaccess.Module
-	Accounts     OperatorAccountDirectory
-	Devices      devicefleetModule.Capability
-	Sessions     *presenceCompose.SessionRecords
-	Supervisions studentpresence.SupervisionRecords
-	// Categories seeds the activity categories of a new school.
-	Categories interface {
-		CreateCategory(ctx context.Context, name, description, color string) error
-	}
-	Settings settingsCompose.SettingsService
-	Logger   *slog.Logger
 }
 
 // validate refuses a wiring with a missing value or constructor: the graph
