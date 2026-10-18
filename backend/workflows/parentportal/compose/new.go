@@ -106,6 +106,13 @@ func New(deps Dependencies) *parentportal.Portal {
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
+// NewRequestShareVisibility builds the request-share visibility the staff
+// request queues read (#2267, story 47) without the portal; both readers are
+// required and are the ones Dependencies carries.
+func NewRequestShareVisibility(shares messaging.RequestShareRecords, protection messaging.FamilyProtectionReads) (*messaging.ShareRecipients, error) {
+	return messaging.NewShareRecipients(shares, protection)
+}
+
 func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
 		CareExceptions: bound.careExceptions, DataRequests: deps.DataRequests,
