@@ -56,10 +56,7 @@ func buildIdentityAccess(
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
 		People: persons, Membership: membership,
 	}
-	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(identityChain, operatorAuditLog),
-		Organizations: organizations, Persons: persons, Membership: membership, Logger: platformLogger,
-	})
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(identityChain, operatorAuditLog), organizations, persons, membership, platformLogger)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -83,13 +83,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 		GuardianProfiles: m.GuardianProfiles, StudentGuardians: m.StudentGuardians,
 		People: m.Persons, Membership: m.Membership,
 	}
-	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(identityChain, m.OperatorAuditLog),
-		Organizations: m.Organizations,
-		Persons:       m.Persons,
-		Membership:    m.Membership,
-		Logger:        platformLogger,
-	})
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(identityChain, m.OperatorAuditLog), m.Organizations, m.Persons, m.Membership, platformLogger)
 	if err != nil {
 		return IdentityComposition{}, nil, err
 	}

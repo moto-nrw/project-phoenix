@@ -252,13 +252,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(r, operatorAuditLog),
-		Organizations: owners.Organizations,
-		Persons:       owners.Persons,
-		Membership:    owners.Membership,
-		Logger:        logger,
-	})
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(r, operatorAuditLog), owners.Organizations, owners.Persons, owners.Membership, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
