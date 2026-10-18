@@ -27,7 +27,7 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -74,8 +74,8 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []api.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
-			timetableDeps.Capability, false,
+			timetableOwner, false,
 		),
 		repos.CarePlan(),
 		sf.UserContext,

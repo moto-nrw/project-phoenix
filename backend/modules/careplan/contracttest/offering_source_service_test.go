@@ -1421,7 +1421,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, env.db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db))
 	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")

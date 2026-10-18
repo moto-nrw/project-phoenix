@@ -41,7 +41,7 @@ func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled b
 func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
@@ -113,7 +113,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
@@ -163,7 +163,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
@@ -258,7 +258,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	assert.Equal(t, secondProfile.ID, updated.GuardianProfileID)
 	assert.Equal(t, "selected-child@example.test", *updated.Email)
 
-	firstProfile, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).GuardianProfile.FindByID(ctx, chain.GuardianProfileID)
+	firstProfile, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID(ctx, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, firstProfile.Email)
 	assert.Equal(t, chain.Email, *firstProfile.Email)
@@ -280,7 +280,7 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, "Penicillin-Allergie", *data.HealthInfo)
 
 	// The live student record was updated.
-	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, student.HealthInfo)
 	assert.Equal(t, "Penicillin-Allergie", *student.HealthInfo)
@@ -381,7 +381,7 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 	require.NotNil(t, data.Email)
 	assert.Equal(t, newEmail, *data.Email)
 
-	profile, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).GuardianProfile.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.GuardianProfileID)
+	profile, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, newEmail, *profile.Email)

@@ -65,7 +65,7 @@ func newCareLifecycleServiceWithLockAt(
 // carePlanRecords is the Care Plan record capability the suites stage and
 // read exit reasons through.
 func carePlanRecords(db *bun.DB) careplan.Capability {
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan()
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).CarePlan()
 }
 
 // endCare runs the full product path — preview, then confirm the token it
@@ -130,7 +130,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 
 func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {
 	t.Helper()
-	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(ctx, id)
+	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Student.FindByID(ctx, id)
 	require.NoError(t, err)
 	return student
 }
@@ -318,7 +318,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 	assert.NotEmpty(t, preview.Students[0].Blocker,
 		"a child of another school is unknown here, not endable")
 
-	stored, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(
+	stored, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Student.FindByID(
 		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID), foreign.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.EnrolledUntil)
@@ -666,7 +666,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	today := calendar.NewDate(2030, 8, 26)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	actorID := careActor(t, db)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")

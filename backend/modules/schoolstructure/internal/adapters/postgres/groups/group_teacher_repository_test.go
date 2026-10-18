@@ -47,7 +47,7 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory, dependencies := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
+	factory := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
 	repo := factory.GroupTeacher
 	ctx := testpkg.Ctx(t)
 
@@ -60,7 +60,7 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, db, groupB.ID, teacher.ID)
 	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, otherTeacher.ID)
 
-	affected, err := dependencies.Membership.DeleteGroupAssignmentsByTeacher(ctx, teacher.ID)
+	affected, err := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db)).DeleteGroupAssignmentsByTeacher(ctx, teacher.ID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

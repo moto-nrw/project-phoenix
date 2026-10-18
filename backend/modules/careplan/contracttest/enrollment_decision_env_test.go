@@ -175,8 +175,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	settings := newStubRequestSettings()
 	settings.boolValues[enrollmentKeys.Enabled] = true
 	settings.boolValues[enrollmentKeys.AllowSubmissionEdit] = true
@@ -245,7 +244,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
+		timetable:       api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,

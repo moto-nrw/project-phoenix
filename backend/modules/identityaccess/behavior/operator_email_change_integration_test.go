@@ -25,7 +25,7 @@ const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlis
 // buildServiceFactory composes the service root the way the server does.
 func buildServiceFactory(t *testing.T, db *bun.DB) *api.TestServiceGraph {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

@@ -31,7 +31,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestServiceGraph) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *api.TestServiceGraph {
 	t.Helper()
 
-	factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default())
+	factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)), testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	return factory
 }
@@ -299,11 +299,11 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Staff.FindByPersonID(ctx, person.ID)
+	staff, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 
-	teacher, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Teacher.FindByStaffID(ctx, staff.ID)
+	teacher, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
 	assert.Equal(t, "Betreuungskraft", teacher.Role)

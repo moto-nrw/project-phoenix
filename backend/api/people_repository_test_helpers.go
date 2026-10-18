@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
@@ -111,25 +116,30 @@ func (f *PeopleRepositorySuiteFactory) WithSchoolProjections(schools organizatio
 // NewPeopleRepositorySuiteFactory composes the suite graph over the unobserved
 // timetable dependencies.
 func NewPeopleRepositorySuiteFactory(db transactionruntime.Database, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
-	return newPeopleRepositorySuiteFactory(db, NewUnobservedTimetableDependencies(db), clocks...)
+	return newPeopleRepositorySuiteFactory(db, MustNewUnobservedTimetable(db), MustNewPeopleDirectory(db), MustNewSchoolStructure(db),
+		MustNewUnobservedRooms(db), MustNewSchoolCalendar(db), MustNewSchoolMembership(db), MustNewWorkforce(db), clocks...)
 }
 
-func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
-	if deps.Capability == nil || deps.Students == nil || deps.Groups == nil || deps.Rooms == nil || deps.Calendar == nil || deps.Membership == nil || deps.Workforce == nil {
+func newPeopleRepositorySuiteFactory(
+	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
+	rooms facilities.Capability, calendarOwner schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
+	clocks ...func() time.Time,
+) *PeopleRepositorySuiteFactory {
+	if capability == nil || students == nil || groups == nil || rooms == nil || calendarOwner == nil || membership == nil || workTime == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
 	now := OptionalClock(clocks)
 	identity := NewPeopleIdentityAccess(db, nil)
-	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
-	members.People = deps.Students
-	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, membership, rooms, workTime)
+	members.People = students
+	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
 	members.StudentGuardian = NewStudentGuardianRepository(db)
 	// The retained repositories the repository factory used to hold read
 	// through unobserved Care Plan, School Calendar, Student Presence, Device
 	// Fleet and Enrollment owners of db, bound at construction (#2743). The
 	// school projections are bound by WithSchoolProjections.
-	carePlan, err := NewUnobservedCarePlan(db, deps)
+	carePlan, err := NewUnobservedCarePlan(db, capability, students)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose care plan: %v", err))
 	}
@@ -143,22 +153,22 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	}
 	presence := NewStudentPresenceForTests(db)
 	enrollment := enrollmentCompose.New()
-	sessions := NewSessionRecords(db, now, devices, deps.Rooms, deps.Capability, deps.Membership, deps.Students)
+	sessions := NewSessionRecords(db, now, devices, rooms, capability, membership, students)
 	return &PeopleRepositorySuiteFactory{
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
-		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
+		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), capability)),
 		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
-			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
-			Identity: NewPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
+			People: students, Groups: groups, Membership: membership,
+			Identity: NewPeopleIdentityAccess(db, nil), Enrollment: enrollment, Now: now,
 		}),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		FamilyProtection:         peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
 		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db.Pool()),
-		GroupSubstitution:        NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
-		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
+		GroupSubstitution:        NewGroupSubstitutionRepository(members.Group, membership, workTime),
+		CaregiverBindingLock:     NewCaregiverBindingLocker(membership, workTime, NewStudentPresenceForTests(db), capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
 		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
@@ -166,9 +176,9 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
 		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
-		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
-		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
-		StaffAbsence:             NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
+		GroupSupervisor:          NewGroupSupervisionRecords(sessions, groups),
+		CrossTenant:              NewCrossTenantQuery(presence, students, groups),
+		StaffAbsence:             NewStaffAbsenceRepository(workTime, membership, students),
 		SessionStartLock:         presence,
 		carePlan:                 carePlan,
 		enrollment:               enrollment,
@@ -201,8 +211,7 @@ func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audie
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
 // lock over the four owners that hold caregiver capability.
 func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Database) peoplePorts.CaregiverBindingLocker {
-	deps := NewUnobservedTimetableDependencies(db)
-	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability)
+	return NewCaregiverBindingLocker(MustNewSchoolMembership(db), MustNewWorkforce(db), NewStudentPresenceForTests(db), MustNewUnobservedTimetable(db))
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
@@ -272,15 +281,16 @@ func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelati
 // (#2743).
 type RepositoryTestFactory = PeopleRepositorySuiteFactory
 
-// NewRepositoryTestFactory composes the test graph over deps.
-func NewRepositoryTestFactory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
-	return newPeopleRepositorySuiteFactory(db, deps, clocks...)
+// NewRepositoryTestFactory composes the test graph over the unobserved
+// owners of db.
+func NewRepositoryTestFactory(db transactionruntime.Database, clocks ...func() time.Time) *RepositoryTestFactory {
+	return NewPeopleRepositorySuiteFactory(db, clocks...)
 }
 
 // NewRepositoryTestFactoryWithPeopleDirectory is NewRepositoryTestFactory for
 // suites that handle a composition error.
-func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
-	return newPeopleRepositorySuiteFactory(db, deps, clocks...), nil
+func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
+	return NewPeopleRepositorySuiteFactory(db, clocks...), nil
 }
 
 // NewUnboundStudentRepository is the retained student repository without the

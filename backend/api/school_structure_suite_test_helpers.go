@@ -23,15 +23,11 @@ import (
 // (database/repositories/education) drive (#2742), composed here so the
 // suites import neither the retained repositories nor the service graph.
 
-// SchoolStructureRepositorySuiteDependencies are the owner capabilities the
-// repository factory reads through.
-type SchoolStructureRepositorySuiteDependencies = TimetableDependencies
-
 // NewSchoolStructureRepositorySuiteGraph is the legacy repository factory
-// over the unobserved timetable dependencies, with a second set of those
-// owner capabilities for the suites that write through an owner directly.
-func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) (*PeopleRepositorySuiteFactory, SchoolStructureRepositorySuiteDependencies) {
-	return NewPeopleRepositorySuiteFactory(db), NewUnobservedTimetableDependencies(db)
+// over the unobserved owners; the suites that write through an owner
+// directly compose it with MustNewSchoolMembership or MustNewWorkforce.
+func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) *PeopleRepositorySuiteFactory {
+	return NewPeopleRepositorySuiteFactory(db)
 }
 
 // The retained School Structure service suites (services/education) may

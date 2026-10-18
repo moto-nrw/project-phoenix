@@ -64,10 +64,13 @@ func setupTestRetentionCleanup(t *testing.T) (transactionruntime.Database, organ
 // the database and schools it sweeps.
 func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organizationtenancy.Capability, sessionCleanupService) {
 	db := testpkg.SetupTestDB(t)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	sessionDevices, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	sessions := api.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, owners.Rooms, owners.Capability, owners.Membership, owners.Students)
+	sessions := api.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, rooms, timetableOwner, membership, students)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
@@ -90,7 +93,7 @@ func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organiz
 			},
 			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: api.NewTimetableRepositories(testpkg.NewDatabase(t, db), owners).ActivityInstance,
+		TimetableBridgeCompleter: api.NewUnobservedTimetableRepositories(testpkg.NewDatabase(t, db)).ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))

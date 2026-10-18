@@ -328,14 +328,10 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	timetableDependencies := TimetableDependencies{
-		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
-		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
-	}
 	// The retained activities and schedule repositories belong to Timetable
 	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
 	// read the same adapters.
-	timetableRepositories := NewTimetableRepositories(db, timetableDependencies)
+	timetableRepositories := NewTimetableRepositories(db, timetableCapability, persons, groups, rooms, calendar, membership, workTime)
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: pool,
 		Observe: func(observation appointmentsCompose.Observation) {

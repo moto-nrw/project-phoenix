@@ -41,7 +41,6 @@ type offboardingScenario struct {
 	db        *bun.DB
 	repos     *api.RepositoryTestFactory
 	timetable api.TimetableRepositories
-	owners    api.TimetableDependencies
 	workTime  workforce.Capability
 	rows      api.TimetableTestRepositories
 	authSvc   offboardingIdentity
@@ -62,8 +61,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 
 	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
@@ -89,9 +87,8 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	return &offboardingScenario{
 		db:        db,
 		repos:     repos,
-		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), owners),
-		owners:    owners,
-		workTime:  owners.Workforce,
+		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		workTime:  api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 		rows:      rows,
 		authSvc:   authService,
 		svc:       svc,
@@ -246,6 +243,7 @@ func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.
 func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
+	planner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Timetable")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent timetable")
 	date := testpkg.TodayDate().AddDays(1)
@@ -276,7 +274,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 				if operation == "move_history" {
 					return api.MoveActivityInstanceForTest(writerCtx, sc.timetable, instance.ID, testpkg.TodayDate().AddDays(1))
 				}
-				return api.AssignInstanceStaffForTest(writerCtx, sc.owners, instance.ID, staff.ID)
+				return api.AssignInstanceStaffForTest(writerCtx, planner, instance.ID, staff.ID)
 			})
 		}()
 		require.Eventually(t, func() bool {

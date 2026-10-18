@@ -31,7 +31,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc, err := api.NewStaffAdmin(stammdatenAdminDeps(db, repos))
 	require.NoError(t, err)
 

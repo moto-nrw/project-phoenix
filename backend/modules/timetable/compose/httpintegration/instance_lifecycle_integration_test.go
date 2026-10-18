@@ -1979,7 +1979,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
 	updated, err := timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2110,7 +2110,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
 	_, err = timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)

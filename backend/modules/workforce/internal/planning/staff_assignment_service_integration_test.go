@@ -51,12 +51,12 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	// Another person on the same block — must never leak into Anna's list.
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
 		ActivityInstanceRepo: timetableRepos.InstanceReads(),
-		RoomRepo:             api.NewTimetableRoomNames(owners.Rooms),
+		RoomRepo:             api.NewTimetableRoomNames(rooms),
 		ActivityGroupRepo:    timetableRepos.GroupReads(),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)

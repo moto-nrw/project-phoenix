@@ -73,7 +73,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	factory, dependencies := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
+	factory := api.NewSchoolStructureRepositorySuiteGraph(testpkg.NewDatabase(t, db))
 	repo := factory.GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
@@ -95,7 +95,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
 		today.AddDays(5), today.AddDays(10))
 
-	affected, err := dependencies.Workforce.DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
+	affected, err := api.MustNewWorkforce(testpkg.NewDatabase(t, db)).DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

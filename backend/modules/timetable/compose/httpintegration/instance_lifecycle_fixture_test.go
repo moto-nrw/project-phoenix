@@ -63,8 +63,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -93,7 +92,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		presence:  newInstancePresence(t, db),
 		factory:   serviceFactory,
 		repos:     repoFactory,
-		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies),
+		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		db:        db,
 		ctx:       ctx,
 		roomID:    room.ID,

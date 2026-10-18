@@ -188,6 +188,6 @@ type shiftTypeTestRows struct {
 }
 
 func newShiftTypeTestRows(db *bun.DB) shiftTypeTestRows {
-	workforce := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce
+	workforce := api.MustNewWorkforce(testpkg.MustDatabase(db))
 	return shiftTypeTestRows{StaffShift: planning.NewShiftRows(workforce), ShiftType: planning.NewShiftTypeRows(workforce)}
 }

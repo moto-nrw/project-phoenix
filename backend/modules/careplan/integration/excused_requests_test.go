@@ -42,7 +42,7 @@ type excusedFixture struct {
 func newExcusedFixture(t *testing.T) *excusedFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	return &excusedFixture{db: db, repos: repos, chain: testpkg.CreateTestParentGuardianChain(t, db), requests: newExcusedRequests(t, repos, repos.CarePlan())}
 }
 

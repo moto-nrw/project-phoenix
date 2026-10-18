@@ -46,8 +46,8 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -62,11 +62,11 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	})
 
 	svc := timetracking.NewStaffAbsenceService(
-		repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationQuotas,
-		workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
+		repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).VacationQuotas,
+		workforceCompose.NewStaffAbsenceAuditRepository(workTime), wtmIntSettings{}, nil,
 		timetracking.WithAbsenceToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
-		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
+		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(workTime).VacationOpenings),
 		timetracking.WithAbsenceDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
@@ -74,7 +74,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		tenantID:  tenantID,
 		db:        db,
 		repos:     repos,
-		workforce: owners.Workforce,
+		workforce: workTime,
 		ctx:       ctx,
 		staff:     staff.ID,
 		admin:     admin.ID,

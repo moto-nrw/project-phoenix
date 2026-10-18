@@ -67,14 +67,13 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -282,7 +281,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -369,9 +368,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	// Use a fresh tenant id that we know has no active periods.
 	//
@@ -401,9 +399,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
@@ -651,14 +648,14 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 // rules the period editor enforces.
 func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Create(ctx, period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.
 func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CalendarPeriod
 	require.NoError(t, repo.Update(ctx, period))
 }
 

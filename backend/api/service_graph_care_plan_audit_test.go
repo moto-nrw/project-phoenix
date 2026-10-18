@@ -16,7 +16,7 @@ func TestServiceGraphRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	_, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 

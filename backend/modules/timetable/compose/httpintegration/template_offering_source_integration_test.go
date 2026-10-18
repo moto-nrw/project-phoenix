@@ -59,7 +59,7 @@ func createSourceCareOfferingOnDays(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
@@ -88,7 +88,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group
@@ -889,7 +889,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 		IsActive:        true,
 	}
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
@@ -1078,7 +1078,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
 	t.Helper()
 	isTemplate := true
-	sourced, err := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+	sourced, err := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, s.db)).ListGroups(s.ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
 	})
 	require.NoError(t, err)

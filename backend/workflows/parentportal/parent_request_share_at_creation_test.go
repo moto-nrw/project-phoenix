@@ -23,7 +23,7 @@ import (
 func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parentService.RequestSharingService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
 	})

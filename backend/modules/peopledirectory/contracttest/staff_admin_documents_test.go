@@ -37,8 +37,8 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	ownersWorkforce := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	admin, err := api.NewStaffAdmin(api.StaffAdminDependencies{
 		DB: testpkg.NewDatabase(t, db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
@@ -52,7 +52,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	return &staffDocumentScenario{
 		db:       db,
 		repos:    repos,
-		workTime: owners.Workforce,
+		workTime: ownersWorkforce,
 		svc:      admin,
 		ctx:      testpkg.Ctx(t),
 		staffID:  staff.ID,

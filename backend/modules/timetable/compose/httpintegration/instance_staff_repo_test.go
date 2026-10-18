@@ -17,7 +17,7 @@ import (
 
 func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
-	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return factory.InstanceStaff.(instanceStaffQueryRepository)
 }
 
@@ -26,7 +26,7 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date schedul
 
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
-	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 	ctx := testpkg.Ctx(t)
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -214,7 +214,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability.DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
+	affected, err := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)).DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 
@@ -546,7 +546,7 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date scheduleModel
 func moveInstanceTo(t *testing.T, db *bun.DB, inst *scheduleModels.ActivityInstance, status string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
 	if status == scheduleModels.InstanceStatusActive || status == scheduleModels.InstanceStatusCompleted {
 		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
 		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)

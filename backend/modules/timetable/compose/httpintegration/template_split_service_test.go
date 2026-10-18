@@ -252,7 +252,7 @@ func createLinkedCareOffering(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID,
@@ -343,7 +343,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -785,7 +785,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 // the rows the template writes assign through.
 func scenarioPlanningTracks(t *testing.T, db *bun.DB) timetable.PlanningTrackAdministration {
 	t.Helper()
-	return timetableCompose.NewPlanningTrackAdministration(api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability, db)
+	return timetableCompose.NewPlanningTrackAdministration(api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), db)
 }
 
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
@@ -2080,7 +2080,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }

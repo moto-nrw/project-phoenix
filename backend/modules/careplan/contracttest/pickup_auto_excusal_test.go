@@ -70,8 +70,8 @@ func (failingPickupBaseline) HasBookedOfferingPickupForWeekday(
 // autoExcusalRepositories is the one repository graph the pickup trigger
 // tests share (auto excusal and later-pickup tasks).
 func autoExcusalRepositories(db *bun.DB) (*api.RepositoryTestFactory, timetable.Capability) {
-	deps := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), deps), deps.Capability
+	timetableOwner := api.MustNewUnobservedTimetable(testpkg.MustDatabase(db))
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db)), timetableOwner
 }
 
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
@@ -223,7 +223,7 @@ func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, after.Status)
 	assert.Nil(t, after.PickupExceptionID)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, h.db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db))
 	gone, err := repos.StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
 	require.NoError(t, err)
 	assert.Nil(t, gone)
@@ -423,7 +423,7 @@ func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
 
 func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPickupException {
 	t.Helper()
-	row, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, h.db))).StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
+	row, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db)).StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
 	require.NoError(t, err)
 	return row
 }
@@ -537,7 +537,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	t.Parallel()
 
 	h := setupAutoExcusalHarness(t, true)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, h.db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, h.db))
 	timetableRepos := testTimetableRepositories(h.db)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)

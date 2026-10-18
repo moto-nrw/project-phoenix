@@ -30,7 +30,7 @@ func TestServiceGraphComposesItsServices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NotNil(t, repos)
 
 	graph, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
@@ -76,7 +76,7 @@ func TestServiceGraph_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	graph, err := NewServiceGraphForTestsWithConfig(NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
+	graph, err := NewServiceGraphForTestsWithConfig(NewRepositoryTestFactory(testpkg.NewDatabase(t, db)), testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 
 	_, err = graph.EnrollmentDeletion.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
@@ -87,7 +87,7 @@ func TestServiceGraph_RejectsPartialVAPIDConfig(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	cfg := testServiceConfig()
 	cfg.VAPIDPublicKey = "configured-without-the-other-required-values"
 
@@ -103,7 +103,7 @@ func TestServiceGraph_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	graph, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), cfg)
@@ -117,7 +117,7 @@ func TestServiceGraph_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = 500
@@ -133,7 +133,7 @@ func TestServiceGraph_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = 72
@@ -149,7 +149,7 @@ func TestServiceGraph_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	graph, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), cfg)
@@ -163,7 +163,7 @@ func TestServiceGraph_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = 2000
@@ -179,7 +179,7 @@ func TestServiceGraph_PasswordResetExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = 60
@@ -195,7 +195,7 @@ func TestServiceGraph_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.FrontendURL = "http://example.com/"
@@ -211,7 +211,7 @@ func TestServiceGraph_FrontendURL_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.FrontendURL = ""
@@ -229,7 +229,7 @@ func TestServiceGraph_PublicAPIURL_Required(t *testing.T) {
 	cfg := testServiceConfig()
 	cfg.PublicAPIURL = ""
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	graph, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, graph)
@@ -239,7 +239,7 @@ func TestServiceGraph_PublicAPIURL_Required(t *testing.T) {
 func TestServiceGraph_PortalURLs_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	for _, tc := range []struct {
 		name, want string
@@ -264,7 +264,7 @@ func TestServiceGraph_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	graph, err := NewServiceGraphForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
@@ -279,7 +279,7 @@ func TestServiceGraph_EmailFrom_WhenConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.EmailFromName = "Test App"
@@ -297,7 +297,7 @@ func TestServiceGraph_NegativeInvitationExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.InvitationTokenExpiryHours = -10
@@ -313,7 +313,7 @@ func TestServiceGraph_NegativePasswordResetExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 
 	cfg := testServiceConfig()
 	cfg.PasswordResetExpiryMinutes = -10

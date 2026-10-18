@@ -110,9 +110,8 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []activ
 func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))

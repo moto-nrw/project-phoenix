@@ -13,7 +13,7 @@ import (
 func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	carePlan, err := NewUnobservedCarePlan(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	carePlan, err := NewUnobservedCarePlan(testpkg.NewDatabase(t, db), MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), MustNewPeopleDirectory(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	owners, err := NewOwnerCapabilitiesForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
