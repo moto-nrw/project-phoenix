@@ -55,6 +55,23 @@ func (s *Store) DeleteAttendance(ctx context.Context, id int64) (ports.Stats, er
 	return stats, err
 }
 
+// DeleteAttendanceBefore deletes the tenant's attendance dated before cutoff
+// (#3957). Nothing references an attendance row, so the rows go alone.
+func (s *Store) DeleteAttendanceBefore(ctx context.Context, cutoff ports.Date) (ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return ports.Stats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewDelete().Table("active.attendance").Where("tenant_id = ?", tenantID).Where("date < ?", cutoff).Exec(ctx)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("delete expired attendance: %w", err)
+	}
+	stats.Rows, err = result.RowsAffected()
+	return stats, err
+}
+
 func (s *Store) EnsureAttendanceBatch(ctx context.Context, rows []*ports.Attendance) ([]int64, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

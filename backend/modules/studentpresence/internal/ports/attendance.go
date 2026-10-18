@@ -70,4 +70,7 @@ type AttendanceStore interface {
 	ListAttendance(context.Context, AttendanceFilter) ([]*Attendance, Stats, error)
 	EnsureAttendance(context.Context, *Attendance) (bool, Stats, error)
 	CloseAttendance(context.Context, AttendanceCheckout) ([]*Attendance, Stats, error)
+	// DeleteAttendanceBefore deletes the tenant's attendance dated before
+	// cutoff (#3957).
+	DeleteAttendanceBefore(context.Context, Date) (Stats, error)
 }

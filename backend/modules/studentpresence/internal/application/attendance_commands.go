@@ -34,6 +34,25 @@ func (s *Service) DeleteAttendance(ctx context.Context, id int64) error {
 		return s.store.DeleteAttendance(txCtx, id)
 	})
 }
+
+// DeleteAttendanceBefore deletes the attendance dated before cutoff for the
+// nightly retention (#3957). It joins the school's cleanup transaction and
+// never opens its own, so the deletion commits with its deletion-log entry.
+func (s *Service) DeleteAttendanceBefore(ctx context.Context, cutoff ports.Date) (deleted int, err error) {
+	err = s.run("delete_attendance_before", func() (ports.Stats, error) {
+		if cutoff == "" {
+			return ports.Stats{}, errors.New("student presence: a cutoff is required to delete attendance")
+		}
+		if err := s.tx.Require(ctx); err != nil {
+			return ports.Stats{}, err
+		}
+		stats, err := s.store.DeleteAttendanceBefore(ctx, cutoff)
+		deleted = int(stats.Rows)
+		return stats, err
+	})
+	return deleted, err
+}
+
 func (s *Service) EnsureAttendanceBatch(ctx context.Context, rows []*ports.Attendance) (result []int64, err error) {
 	err = s.runWrite(ctx, "ensure_attendance_batch", func(txCtx context.Context) (ports.Stats, error) {
 		for _, row := range rows {

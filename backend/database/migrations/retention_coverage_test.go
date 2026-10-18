@@ -46,17 +46,17 @@ func parent(table string) tableRetention { return tableRetention{class: withPare
 func notPersonal(why string) tableRetention {
 	return tableRetention{class: noPersonalData, detail: why}
 }
-func gap(ticket string) tableRetention     { return tableRetention{class: specGap, detail: ticket} }
 func undecided(what string) tableRetention { return tableRetention{class: openGap, detail: what} }
 
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
-// path. When a ticket lands, its tables move to own retention or with
+// path; a gap names its ticket as tableRetention{class: specGap, detail:
+// ticket}. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3957"}
+var openSpecTickets = []string{}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 1
+	specGapTables = 0
 	openGapTables = 9
 )
 
@@ -72,7 +72,7 @@ func staffRetention(owner string) tableRetention {
 var tableRetentions = map[string]tableRetention{
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
-	"active.attendance":                                     gap("#3957"),
+	"active.attendance":                                     own("nightly retention step attendance_retention (api/worker_retention.go), Student Presence DeleteExpiredAttendance (school window gdpr.attendance_retention_days after the care day, #3957)"),
 	"active.combined_groups":                                notPersonal("runtime group-combination configuration"),
 	"active.excused_absence_requests":                       parent("users.student_profiles"),
 	"active.group_mappings":                                 notPersonal("group-to-combination mapping"),

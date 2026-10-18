@@ -71,7 +71,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceVisibleDays,
 		Label:           "Anwesenheit sichtbar für (Tage)",
-		Description:     "So viele Tage zurück sieht das Team, wann ein Kind kam und ging.",
+		Description:     "So viele Tage zurück sieht das Team, wann ein Kind kam und ging. Höchstens so lange, wie moto die Anwesenheit aufbewahrt.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",
@@ -81,6 +81,26 @@ func init() {
 		SortOrder:       11,
 		Validation:      config.Range(1, 365),
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
+	})
+
+	// Daily attendance (#3957), counted from the care day. No statute sets a
+	// period for OGS attendance; a year covers the school year plus its
+	// follow-up questions. The frame of 30 days to 3 years is ADR 0048's.
+	// The settings service keeps gdpr.attendance_visible_days at or below it.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRAttendanceRetentionDays,
+		Label:           "Anwesenheit aufbewahren (Tage)",
+		Description:     "So lange speichert moto, wann ein Kind kam und ging. Danach löscht moto diese Angaben.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       13,
+		Validation:      config.Range(30, 1095),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
 	config.Register(config.Definition{

@@ -47,6 +47,7 @@ type workerRetention struct {
 const (
 	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
 	retentionStatusDays           = "status_day_retention"
+	retentionAttendance           = "attendance_retention"
 	retentionParentMessages       = "parent_message_retention"
 	retentionSettledEnrollments   = "settled_enrollment_retention"
 	retentionStaffSickNotes       = "staff_sick_note_retention"
@@ -89,6 +90,7 @@ var auditProtocols = []string{
 
 var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRStatusDayRetentionDays,
+	settingsModule.KeyGDPRAttendanceRetentionDays,
 	settingsModule.KeyGDPRParentMessageRetentionDays,
 	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 	settingsModule.KeyGDPRStaffSickNoteRetentionDays,
@@ -103,9 +105,7 @@ type retentionOwners struct {
 		LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error
 	}
 	// settings resolves the retention windows of the school in context.
-	settings interface {
-		ResolveInt(ctx context.Context, key string) (int, error)
-	}
+	settings             retentionWindows
 	unregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	statusDays           carePlanModule.StudentStatusDayRetention
 	parentMessages       communicationModule.ParentMessageCleanup
@@ -154,7 +154,10 @@ type staffRetention interface {
 	DeleteExpiredStaff(ctx context.Context) (staffoffboarding.RetentionResult, error)
 }
 
-func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention) (workerRetention, error) {
+// newWorkerRetention composes the nightly retention. attendance deletes the
+// daily attendance after the school's window (#3957); like the workflows it
+// reaches the Worker as an argument, not as a field of the owners (ADR 0059).
+func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention, attendance studentpresence.AttendanceRetention) (workerRetention, error) {
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
@@ -163,7 +166,8 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: append(append(studentRetentionSteps(students), staffRetentionSteps(staff)...), retentionSteps(owners)...),
+		steps: append(append(append(studentRetentionSteps(students), staffRetentionSteps(staff)...), retentionSteps(owners)...),
+			attendanceRetentionSteps(attendance, owners.settings)...),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -179,22 +183,8 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 		steps = append(steps, ownerRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
 	if owners.statusDays != nil {
-		statusDays := owners.statusDays
-		steps = append(steps, schedulerPorts.RetentionStep{
-			Kind: retentionStatusDays,
-			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-				key := settingsModule.KeyGDPRStatusDayRetentionDays
-				days, err := owners.settings.ResolveInt(ctx, key)
-				if err != nil {
-					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
-				}
-				deleted, err := statusDays.DeleteExpiredStudentStatusDays(ctx, days)
-				if errors.Is(err, carePlanModule.ErrStatusDayRetentionWindow) {
-					return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
-				}
-				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
-			},
-		})
+		steps = append(steps, windowRetentionStep(retentionStatusDays, settingsModule.KeyGDPRStatusDayRetentionDays,
+			owners.settings, owners.statusDays.DeleteExpiredStudentStatusDays, carePlanModule.ErrStatusDayRetentionWindow))
 	}
 	if owners.parentMessages != nil {
 		messages := owners.parentMessages
@@ -233,6 +223,16 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	}
 	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
+}
+
+// attendanceRetentionSteps is the deletion of the daily attendance after the
+// school's window (#3957).
+func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, settings retentionWindows) []schedulerPorts.RetentionStep {
+	if attendance == nil {
+		return nil
+	}
+	return []schedulerPorts.RetentionStep{windowRetentionStep(retentionAttendance, settingsModule.KeyGDPRAttendanceRetentionDays,
+		settings, attendance.DeleteExpiredAttendance, studentpresence.ErrAttendanceRetentionWindow)}
 }
 
 // studentRetentionSteps is the automatic deletion of children (#3962). It
@@ -413,6 +413,31 @@ func cleanupJobRetentionSteps(owners retentionOwners) []schedulerPorts.Retention
 		steps = append(steps, ownerRetentionStep(retentionSubmissionRateLimits, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
 	}
 	return steps
+}
+
+// retentionWindows resolves the retention windows of the school in context.
+type retentionWindows interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// windowRetentionStep runs an owner deletion over the school's window of the
+// setting key. An owner refusing the window (windowErr) reports a wrong
+// setting, so the run fails and is caught up once the setting is fixed.
+func windowRetentionStep(kind, key string, settings retentionWindows, deleteExpired func(context.Context, int) (int, error), windowErr error) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
+		Kind: kind,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			days, err := settings.ResolveInt(ctx, key)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
+			}
+			deleted, err := deleteExpired(ctx, days)
+			if errors.Is(err, windowErr) {
+				return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", key, err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}
 }
 
 // ownerRetentionStep runs an owner deletion that reports its deleted rows and

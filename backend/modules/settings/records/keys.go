@@ -65,6 +65,10 @@ const (
 	// child (active.student_status_days, #3958): health data, counted from
 	// the reported day.
 	KeyGDPRStatusDayRetentionDays = "gdpr.status_day_retention_days"
+	// Retention window (days) for a child's daily attendance
+	// (active.attendance, #3957), counted from the care day. The window the
+	// team sees (gdpr.attendance_visible_days) never exceeds it.
+	KeyGDPRAttendanceRetentionDays = "gdpr.attendance_retention_days"
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
