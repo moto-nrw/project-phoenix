@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -15,9 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
-
-type boolSettingsResolver func(context.Context) (bool, error)
-type stringSettingsResolver func(context.Context) (string, error)
 
 type TransactionFunc func(context.Context, func(context.Context) error) error
 
@@ -90,16 +86,15 @@ func (d participantDirectory) FindDailyCandidates(ctx context.Context, date doma
 	return candidates, stats, nil
 }
 
+// Settings are the meal plan's settings resolvers, bound at construction.
 type Settings struct {
-	mu                      sync.RWMutex
-	mealPlanEnabled         boolSettingsResolver
-	mealRegistrationEnabled boolSettingsResolver
-	mealRegistrationCutoff  stringSettingsResolver
+	mealPlanEnabled         func(context.Context) (bool, error)
+	mealRegistrationEnabled func(context.Context) (bool, error)
+	mealRegistrationCutoff  func(context.Context) (string, error)
 }
 
-func NewSettings() *Settings { return &Settings{} }
-
-// NewBoundSettings is NewSettings with the resolvers bound at construction.
+// NewBoundSettings binds the resolvers; a missing one is a construction
+// error.
 func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) (*Settings, error) {
 	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
 		return nil, errors.New("meal plan settings: resolvers are required")
@@ -107,49 +102,14 @@ func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Cont
 	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, mealRegistrationCutoff: mealRegistrationCutoff}, nil
 }
 
-func (s *Settings) Bind(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) {
-	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
-		panic("meal plan settings: resolvers are required")
-	}
-	s.mu.Lock()
-	if s.mealPlanEnabled != nil {
-		s.mu.Unlock()
-		panic("meal plan settings: resolvers are already bound")
-	}
-	s.mealPlanEnabled = boolSettingsResolver(mealPlanEnabled)
-	s.mealRegistrationEnabled = boolSettingsResolver(mealRegistrationEnabled)
-	s.mealRegistrationCutoff = stringSettingsResolver(mealRegistrationCutoff)
-	s.mu.Unlock()
-}
-
-func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) {
-	s.mu.RLock()
-	resolve := s.mealPlanEnabled
-	s.mu.RUnlock()
-	if resolve == nil {
-		return false, errors.New("meal plan settings: resolver is not bound")
-	}
-	return resolve(ctx)
-}
+func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) { return s.mealPlanEnabled(ctx) }
 
 func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
-	s.mu.RLock()
-	resolve := s.mealRegistrationEnabled
-	s.mu.RUnlock()
-	if resolve == nil {
-		return false, errors.New("meal plan settings: resolver is not bound")
-	}
-	return resolve(ctx)
+	return s.mealRegistrationEnabled(ctx)
 }
 
 func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, error) {
-	s.mu.RLock()
-	resolve := s.mealRegistrationCutoff
-	s.mu.RUnlock()
-	if resolve == nil {
-		return "", errors.New("meal plan settings: resolver is not bound")
-	}
-	return resolve(ctx)
+	return s.mealRegistrationCutoff(ctx)
 }
 
 type engine struct{ service *application.Service }

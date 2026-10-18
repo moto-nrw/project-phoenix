@@ -35,5 +35,4 @@ func TestNewBoundSettingsResolvesThroughTheBoundResolvers(t *testing.T) {
 	registrationCutoff, err := settings.MealRegistrationCutoff(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "08:30", registrationCutoff)
-	assert.Panics(t, func() { settings.Bind(enabled, registration, cutoff) }, "bound settings refuse a second binding")
 }
