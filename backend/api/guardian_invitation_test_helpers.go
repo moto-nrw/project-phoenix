@@ -80,7 +80,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 			Audit: audit, Caregivers: caregivers,
 			GuardianMail: &GuardianInvitationWiring{
 				Schools:     organizations,
-				Outbox:      func() MailResultOutbox { return outbox },
+				Outbox:      outbox,
 				Enrollments: claims,
 				ParentsURL:  "http://localhost:3000", FallbackExpiry: expiry, Logger: logger,
 			},

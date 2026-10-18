@@ -40,7 +40,7 @@ type InvitationWiring struct {
 	// carries; nil leaves them out and /help asks.
 	Settings tenantSettingsResolver
 	// Outbox persists the staff welcome in the invitation transaction.
-	Outbox func() MailOutbox
+	Outbox MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
 }
@@ -92,7 +92,7 @@ type invitationDelivery struct {
 	invitations  func() identityaccess.SchoolInvitations
 	logger       *slog.Logger
 	settings     tenantSettingsResolver
-	outbox       func() MailOutbox
+	outbox       MailOutbox
 	welcomeDelay time.Duration
 }
 
@@ -143,7 +143,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 			slog.Int64("invitation_id", invitation.ID))
 		return nil
 	}
-	if d.outbox == nil || d.outbox() == nil {
+	if d.outbox == nil {
 		return fmt.Errorf("staff welcome outbox is not configured")
 	}
 	frontend := d.portalURL(portal)
@@ -165,7 +165,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 	if d.welcomeDelay > 0 {
 		deliverAfter = time.Now().Add(d.welcomeDelay)
 	}
-	if err := d.outbox().EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
+	if err := d.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:              identityaccess.MailKindStaffWelcome,
 		Payload:           payload,
 		RelatedEntityType: identityaccess.MailRelatedSchoolInvitation,

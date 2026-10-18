@@ -127,7 +127,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Dispatcher: m.Dispatcher, DefaultFrom: m.DefaultFrom, StaffURL: m.FrontendURL, SchoolURL: m.SchoolURL,
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
-			Outbox:       func() MailOutbox { return m.Outbox() },
+			Outbox:       lateMailOutbox{m.Outbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the role management of the module
@@ -137,7 +137,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			Caregivers: CaregiverProfiles{Persons: m.Persons, Membership: m.Membership},
 			GuardianMail: &GuardianInvitationWiring{
 				Settings: m.Settings, Schools: m.Organizations,
-				Outbox:      m.Outbox,
+				Outbox:      lateMailOutbox{m.Outbox},
 				Enrollments: m.GuardianEnrollments,
 				// The accept and login links go to the parents portal, never
 				// to the staff frontend.
@@ -278,4 +278,16 @@ func NewAuthCleanupService(db transactionruntime.Database, logger *slog.Logger, 
 		// never issues a link.
 		ResetExpiry: cleanupResetExpiry, Logger: logger,
 	})
+}
+
+// lateMailOutbox reads the outbox of the retained graph at call time, which
+// composes Delivery after Identity & Access. It goes with that graph.
+type lateMailOutbox struct{ current func() MailResultOutbox }
+
+func (o lateMailOutbox) EnqueueOutbox(ctx context.Context, req deliveryCompose.MailEnqueueRequest) error {
+	return o.current().EnqueueOutbox(ctx, req)
+}
+
+func (o lateMailOutbox) EnqueueOutboxWithResult(ctx context.Context, req deliveryCompose.MailEnqueueRequest) (deliveryCompose.MailEnqueued, error) {
+	return o.current().EnqueueOutboxWithResult(ctx, req)
 }

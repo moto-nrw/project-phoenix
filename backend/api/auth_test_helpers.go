@@ -231,9 +231,12 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	// The delivery module is composed after the identity module, so the
-	// guardian mail reads its outbox at call time, as the service graph does.
-	var deliveryModule DeliveryTestModule
+	// Delivery is composed before Identity & Access, whose mails enqueue
+	// into its outbox (ADR 0059).
+	deliveryModule, err := NewDeliveryTestModule(db, unit)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
@@ -281,9 +284,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Caregivers: CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
 			GuardianMail: &GuardianInvitationWiring{
 				Settings: settings.Settings, Schools: organizations,
-				Outbox: func() MailResultOutbox {
-					return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
-				},
+				Outbox:      OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 				Enrollments: parentPortal.ParentEnrollmentRequest, ParentsURL: parentsURL,
 				FallbackExpiry: time.Duration(inviteHours) * time.Hour, Logger: logger,
 			},
@@ -298,9 +299,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
-			Outbox: func() MailOutbox {
-				return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
-			},
+			Outbox:       OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 	})
@@ -311,10 +310,6 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	invitation := InvitationCapability(identityAccess)
-	deliveryModule, err = NewDeliveryTestModule(db, unit)
-	if err != nil {
-		return AuthTestModule{}, err
-	}
 	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: identityAccess, AccountAuthentication: identityAccess,

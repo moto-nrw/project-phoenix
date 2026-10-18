@@ -37,7 +37,7 @@ type GuardianInvitationCapability interface {
 type GuardianInvitationWiring struct {
 	Settings    settingsCompose.SettingsService
 	Schools     organizationtenancy.Query
-	Outbox      func() MailResultOutbox
+	Outbox      MailResultOutbox
 	Enrollments GuardianEnrollmentClaims
 	// ParentsURL is the origin of the accept and login links; a guardian
 	// signs in on the parents portal, never on the staff frontend.
@@ -119,7 +119,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	return NewGuardianInvitationMailer(GuardianInvitationMailerConfig{
-		Outbox: d.wiring.Outbox(), FrontendURL: d.wiring.ParentsURL, Logger: d.logger(),
+		Outbox: d.wiring.Outbox, FrontendURL: d.wiring.ParentsURL, Logger: d.logger(),
 	})
 }
 
