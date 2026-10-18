@@ -118,7 +118,7 @@ func setupCheckinRoute(t *testing.T, db *testpkg.DB) *presence.Resource {
 
 	_, serviceFactory := setupActiveModule(t)
 
-	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), nil, settingsFacts.NewDisplaySettings(serviceFactory.Settings))
+	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), settingsFacts.NewDisplaySettings(serviceFactory.Settings))
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint

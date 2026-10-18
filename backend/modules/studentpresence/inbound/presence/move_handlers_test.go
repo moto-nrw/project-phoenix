@@ -229,7 +229,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		req := withStaffMoveContext(httptest.NewRequest(testutil.MethodPost, "/api/active/visits/move-to-group", nil))
 		w := httptest.NewRecorder()
 
-		auth, ok := rs.bulkStudentMoveAuthorization(w, req)
+		auth, ok := rs.BulkStudentMoveAuthorization(w, req)
 
 		require.True(t, ok)
 		require.NotNil(t, auth)

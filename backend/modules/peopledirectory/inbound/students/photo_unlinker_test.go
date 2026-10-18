@@ -1,12 +1,7 @@
 package students
 
-// Unit tests for photoUnlinker.UnlinkStored. Empty / malformed URLs must
-// never propagate — the unlinker runs after the DB commit so a noisy error
-// path would corrupt the surrounding observability.
-
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -84,7 +79,3 @@ func TestPhotoUnlinker_RemovesExistingFile(t *testing.T) {
 	_, statErr := os.Stat(fullPath)
 	assert.True(t, os.IsNotExist(statErr), "unlinker must delete the resolved file")
 }
-
-// Sanity: PhotoUnlinker concrete type implements the service interface.
-// Compile-time check, not a runtime assertion.
-var _ context.Context = context.Background()

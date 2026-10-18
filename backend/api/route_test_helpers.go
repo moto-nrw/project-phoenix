@@ -7,12 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
@@ -32,9 +32,8 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 	if err != nil {
 		return nil, err
 	}
-	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		ConstraintViolation: transactionFailures.IsConstraintViolation,
-		CareRequestService:  module.CareRequests, UserContextService: module.UserContext,
+	students := NewCareHTTPUnitResource(careStudentsHTTP.ResourceConfig{
+		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
 		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()

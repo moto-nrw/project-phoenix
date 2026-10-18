@@ -3,8 +3,9 @@ package api
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	students "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 )
 
 // studentAbsenceNotifier binds the student routes to Delivery without exposing
@@ -13,7 +14,7 @@ type studentAbsenceNotifier struct {
 	notifier deliveryCompose.AbsenceNotifier
 }
 
-func (n studentAbsenceNotifier) NotifyAbsenceReported(ctx context.Context, report students.AbsenceReport) error {
+func (n studentAbsenceNotifier) NotifyAbsenceReported(ctx context.Context, report studentpresence.AbsenceReport) error {
 	if n.notifier == nil {
 		return nil
 	}

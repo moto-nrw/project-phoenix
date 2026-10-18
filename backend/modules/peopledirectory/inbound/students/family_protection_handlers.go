@@ -1,17 +1,17 @@
 package students
 
 import (
-	"encoding/json"
-	"errors"
-	"net/http"
-	"strconv"
-	"strings"
+	json "encoding/json"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	strings "strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 type setFamilyProtectionBody struct {
