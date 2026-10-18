@@ -62,6 +62,7 @@ func (s *Store) findLoginAccountByEmail(ctx context.Context, email string, forUp
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(loginAccountColumns).
 		Where(`LOWER("account".email) = LOWER(?)`, email).
+		Where(`"account".personal_data_erased_at IS NULL`).
 		Limit(1)
 	if forUpdate {
 		query = query.For("UPDATE")
@@ -86,7 +87,8 @@ func (s *Store) FindLoginAccount(ctx context.Context, id int64, forUpdate bool) 
 	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(loginAccountColumns).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`)
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
