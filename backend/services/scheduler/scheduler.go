@@ -200,7 +200,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		cleanupJobs: append(
 			append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
 				operatorRetentionJobs(deps.OperatorRetention)...),
-			CleanupJob{Description: "Unused account erasure", Run: deps.AccountRetention.EraseUnusedAccounts},
+			accountRetentionJobs(deps.AccountRetention)...,
 		),
 
 		activeService:          deps.Active,

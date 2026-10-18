@@ -132,11 +132,16 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	// that same lock before the upsert, otherwise its mapping lock can cycle
 	// with offboarding and the role insert's account foreign-key lock.
 	started := time.Now()
-	var lockedID int64
-	err = db.NewRaw("SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE", accountID).Scan(ctx, &lockedID)
+	var lockedIDs []int64
+	err = db.NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL
+		FOR UPDATE`, accountID).Scan(ctx, &lockedIDs)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: lock account for guardian grant: %w", err)
+	}
+	if len(lockedIDs) == 0 {
+		return stats, domain.ErrAccountNotFound
 	}
 	now := time.Now()
 	row := accountTenantRow{AccountID: accountID, TenantID: tenantID, Status: "active", ActivatedAt: now, CreatedAt: now, UpdatedAt: now}

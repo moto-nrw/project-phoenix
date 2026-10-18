@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 
@@ -32,9 +34,10 @@ func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.
 	return &AccountRetention{store: store, attach: attach, removeFile: os.Remove, logger: logger}
 }
 
-// EraseUnusedAccounts reports how many accounts it erased. A file that
-// cannot be removed is logged; the tombstone stays, because the account no
-// longer names the file.
+// EraseUnusedAccounts reports how many accounts it erased. A failed avatar
+// removal rolls back the enclosing cleanup transaction, so the account and
+// its file are retried together on the next hourly run. A missing file has
+// already been removed and therefore succeeds idempotently.
 func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error) {
 	erased, _, err := r.store.EraseUnusedAccounts(r.attach(ctx))
 	if err != nil {
@@ -46,10 +49,8 @@ func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error)
 			if path == "" {
 				continue
 			}
-			if err := r.removeFile(path); err != nil {
-				r.logger.WarnContext(ctx, "failed to delete avatar file of an erased account",
-					slog.Int64("account_id", account.ID),
-					slog.String("error", err.Error()))
+			if err := r.removeFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return 0, failed("delete avatar file", err)
 			}
 		}
 	}
