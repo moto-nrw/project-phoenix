@@ -184,15 +184,6 @@ func NewStatisticsTestRepositories(db transactionruntime.Database, command audit
 	return result, nil
 }
 
-// NewGuardianTestRepositories composes the guardian test repositories with
-// their financial-change and access trails.
-func NewGuardianTestRepositories(db transactionruntime.Database, command auditModels.Command) GuardianTestRepositories {
-	result := NewGuardianTestRepositoriesWithoutAudit(db)
-	audits := NewTestAuditPersistence(db, command)
-	result.FinancialAudit, result.AccessLog = audits.GuardianFinancialChange, audits.DataAccessLog
-	return result
-}
-
 // NewStudentConsents composes unobserved owners behind the consent seam.
 func NewStudentConsents(db transactionruntime.Database) *StudentConsents {
 	return NewStudentConsentsFor(
