@@ -18,6 +18,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
@@ -776,9 +777,11 @@ type PlatformWiring struct {
 	SchoolSettings settingsCompose.SchoolSettingsStore
 	// OperatorAuditLog is the operator ledger of the Audit Platform.
 	OperatorAuditLog operatorAuditEntries
-	// ParentPortal are the retained guardian-portal, parent-messaging and
-	// announcement repositories over their owners.
-	ParentPortal ParentPortalRepositories
+	// ParentPortal are the retained guardian-portal repositories and
+	// ParentMessaging the parent-messaging and announcement repositories over
+	// their owners.
+	ParentPortal    careplanCompose.ParentPortalRepositories
+	ParentMessaging parentStore.MessagingRepositories
 	// DeviceFleet is the unobserved Device Fleet the retained session and
 	// device contracts read.
 	DeviceFleet devicefleetModule.Capability
@@ -809,7 +812,7 @@ type GuardianDisplayQuery interface {
 // binds every one of them while it composes.
 func (w PlatformWiring) validate() error {
 	required := []any{
-		w.SchoolSettings, w.OperatorAuditLog, w.ParentPortal.ParentAnnouncement, w.DeviceFleet, w.ListExport,
+		w.SchoolSettings, w.OperatorAuditLog, w.ParentMessaging.ParentAnnouncement, w.DeviceFleet, w.ListExport,
 		w.DataAccessAudit, w.DeletionAudit, w.TimeTrackingRetentionAudit, w.GuardianDisplays,
 		w.AnnouncementDeliveries, w.EnrollmentDeliveries, w.OperatorProvisioning, w.PWAUsageCounts,
 	}

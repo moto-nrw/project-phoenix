@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
@@ -48,7 +49,8 @@ type PeopleRepositorySuiteFactory struct {
 	MembershipTestRepositories
 	CareScheduleRepositories
 	timetableCompose.SchoolCalendarRepositories
-	ParentPortalRepositories
+	carePlanCompose.ParentPortalRepositories
+	parentStore.MessagingRepositories
 	GuardianPhoneNumber   peoplePorts.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
 	FamilyProtection      peoplePorts.FamilyProtectionRecords
@@ -104,7 +106,7 @@ func (f *PeopleRepositorySuiteFactory) SchoolCalendar() schoolcalendar.Calendar 
 // schools, as the service graph's own do.
 func (f *PeopleRepositorySuiteFactory) WithSchoolProjections(schools organizationtenancy.Query) *PeopleRepositorySuiteFactory {
 	bound := *f
-	bound.ParentPortalRepositories = f.WithSchools(schools)
+	bound.ParentPortalRepositories, bound.MessagingRepositories = ParentPortalWithSchools(f.ParentPortalRepositories, f.MessagingRepositories, schools)
 	return &bound
 }
 
@@ -146,35 +148,37 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	sessions := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Devices: devices, Rooms: deps.Rooms, Timetable: deps.Capability, Membership: deps.Membership, Persons: deps.Students,
 	})
+	parentPortal, parentMessaging := NewParentPortalRepositories(
+		db, deps.Students, deps.Groups, deps.Membership,
+		NewPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), enrollment, now,
+	)
 	return &PeopleRepositorySuiteFactory{
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
-		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
-			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
-			Identity: NewPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
-		}),
-		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
-		FamilyProtection:         peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
-		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
-		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db.Pool()),
-		GroupSubstitution:        NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
-		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
-		RFIDCard:                 identity,
-		Profile:                  identity,
-		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
-		StudentDataChangeRequest: NewStudentDataChangeRequestRepository(carePlan),
-		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
-		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
-		ActiveGroup:              sessions,
-		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
-		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
-		StaffAbsence:             NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
-		SessionStartLock:         presence,
-		carePlan:                 carePlan,
-		enrollment:               enrollment,
-		schoolCalendar:           calendar,
+		ParentPortalRepositories:   parentPortal,
+		MessagingRepositories:      parentMessaging,
+		GuardianPhoneNumber:        peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
+		GuardianFinancialData:      peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
+		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
+		ParentRequestShare:         peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
+		ParentRequestEvent:         peopleCompose.NewParentRequestEventRepository(db.Pool()),
+		GroupSubstitution:          NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
+		CaregiverBindingLock:       NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
+		RFIDCard:                   identity,
+		Profile:                    identity,
+		CareWithdrawal:             NewCareWithdrawalCompletionRepository(carePlan),
+		StudentDataChangeRequest:   NewStudentDataChangeRequestRepository(carePlan),
+		StudentStatusDay:           NewStudentStatusDayRepository(carePlan),
+		ExcusedAbsenceRequest:      NewExcusedAbsenceRequestRepository(carePlan),
+		ActiveGroup:                sessions,
+		GroupSupervisor:            NewGroupSupervisionRecords(sessions, deps.Groups),
+		CrossTenant:                NewCrossTenantQuery(presence, deps.Students, deps.Groups),
+		StaffAbsence:               NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
+		SessionStartLock:           presence,
+		carePlan:                   carePlan,
+		enrollment:                 enrollment,
+		schoolCalendar:             calendar,
 	}
 }
 
