@@ -54,9 +54,8 @@ func TestGuardianCallsFailWhileNoProviderIsBound(t *testing.T) {
 func TestGuardianQueriesValidateBeforeDelegating(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := peopledirectory.NewModule(engine)
 	provider := &stubProvider{}
-	module.BindGuardianProvider(provider)
+	module := peopledirectory.NewModule(engine, provider)
 	ctx := context.Background()
 
 	if _, err := module.FindGuardian(ctx, 0); !errors.Is(err, peopledirectory.ErrInvalidGuardian) {
@@ -93,9 +92,8 @@ func TestGuardianQueriesValidateBeforeDelegating(t *testing.T) {
 func TestGuardianCallsAreObservedAndErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := peopledirectory.NewModule(engine)
 	provider := &stubProvider{found: peopledirectory.Guardian{ID: 9, FirstName: "Mia"}}
-	module.BindGuardianProvider(provider)
+	module := peopledirectory.NewModule(engine, provider)
 	ctx := context.Background()
 
 	guardian, err := module.FindGuardian(ctx, 9)

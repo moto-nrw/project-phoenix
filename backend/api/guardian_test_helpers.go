@@ -39,10 +39,6 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return GuardianTestModule{}, err
 	}
 	g := NewGuardianTestRepositories(db, command)
-	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
-	if err != nil {
-		return GuardianTestModule{}, err
-	}
 	identity, _, err := newStaffIdentityForTests(db)
 	if err != nil {
 		return GuardianTestModule{}, err
@@ -54,7 +50,10 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),
 		RolePresets: guardianRolePresets}, db.Pool())
-	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
+	people, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
 	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }
 

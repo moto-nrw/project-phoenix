@@ -178,7 +178,7 @@ func buildStudentOwnersModule(t *testing.T, db *bun.DB, observations ...func(peo
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, _, err := api.NewPeopleDirectoryWithPhotosAndObserver(testpkg.NewDatabase(t, db), observe)
+	module, _, err := api.NewPeopleDirectoryWithPhotosAndObserver(testpkg.NewDatabase(t, db), observe, nil)
 	require.NoError(t, err)
 	return module
 }

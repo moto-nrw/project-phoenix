@@ -37,7 +37,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), Observe: func(peopleCompose.Observation) {},
-		StudentPhotoRuntime: func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+		StudentPhotos: studentPhotoSlot{slot: photoRuntime},
 	})
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err

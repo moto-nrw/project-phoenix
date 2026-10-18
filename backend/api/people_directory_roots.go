@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
@@ -60,7 +62,7 @@ func MustNewPeopleDirectory(db transactionruntime.Database) peopledirectory.Capa
 // lifecycle resolves its runtime from, so a caller that has the feature gate,
 // the caller access and the file cleanup fills it after the directory exists.
 func NewPeopleDirectoryWithPhotos(db transactionruntime.Database) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
-	module, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {})
+	module, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {}, nil)
 	return module, photoRuntime, err
 }
 
@@ -70,7 +72,7 @@ func NewPeopleDirectoryWithPhotos(db transactionruntime.Database) (peopledirecto
 // are built here over unobserved owners.
 func NewPeopleDirectoryWithPhotosAndObserver(
 	db transactionruntime.Database,
-	observe func(peopleCompose.Observation),
+	observe func(peopleCompose.Observation), guardians *peopleCompose.GuardianDirectoryProvider,
 ) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
 	// Care Plan's companion slice is constructible from the database alone, so
 	// the directory's write path gets it here rather than waiting for the full
@@ -92,7 +94,8 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentClassWriteGateQuery: membershipCompose.StudentClassWriteGate(db.Pool()),
 		DB:                         db.Pool(),
 		Observe:                    observe,
-		StudentPhotoRuntime:        func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+		StudentPhotos:              studentPhotoSlot{slot: photoRuntime},
+		GuardianProvider:           guardians,
 	}, membership, careProfiles, companions, peopleDirectoryAudit(db), newGuardianLinkOwners(db),
 		NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships)
 	return module, photoRuntime, err
@@ -207,4 +210,38 @@ func NewStaffMembershipRuntime(users peoplePorts.PersonDirectory, education scho
 		panic(err)
 	}
 	return bindStaffMembershipRuntime(users, education, staffDay, hub, offboarding, identity, logger, hooks)
+}
+
+// studentPhotoSlot serves the photo runtime a test graph fills into the slot
+// NewPeopleDirectoryWithPhotos hands back, and the disabled runtime while the
+// slot is empty. The serving root passes its runtime value instead.
+type studentPhotoSlot struct {
+	slot *peopleCompose.StudentPhotoRuntime
+}
+
+func (s studentPhotoSlot) current() peopleCompose.StudentPhotoRuntime {
+	if *s.slot == nil {
+		return peopleCompose.DisabledStudentPhotos()
+	}
+	return *s.slot
+}
+
+func (s studentPhotoSlot) PhotoFeatureEnabled(ctx context.Context) (bool, error) {
+	return s.current().PhotoFeatureEnabled(ctx)
+}
+
+func (s studentPhotoSlot) ActingAccountID(ctx context.Context) int64 {
+	return s.current().ActingAccountID(ctx)
+}
+
+func (s studentPhotoSlot) UnlinkStoredPhoto(storedURL string) {
+	s.current().UnlinkStoredPhoto(storedURL)
+}
+
+func (s studentPhotoSlot) BroadcastPhotoChange(tenantID, studentID int64, source string) {
+	s.current().BroadcastPhotoChange(tenantID, studentID, source)
+}
+
+func (s studentPhotoSlot) RecordPhotoConsent(ctx context.Context, before, after peopleCompose.StudentPhotoConsentSnapshot, actorAccountID *int64, changedAt time.Time) error {
+	return s.current().RecordPhotoConsent(ctx, before, after, actorAccountID, changedAt)
 }
