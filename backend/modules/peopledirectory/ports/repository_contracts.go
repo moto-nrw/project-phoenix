@@ -335,6 +335,9 @@ type GuestRepository interface {
 
 	// FindByStaffID retrieves a guest by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*users.Guest, error)
+
+	// ActiveGuests retrieves the guests whose start/end window covers today.
+	ActiveGuests(ctx context.Context) ([]*users.Guest, error)
 }
 
 // StudentGuardianRepository is the retained composition seam over the

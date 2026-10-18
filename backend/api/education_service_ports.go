@@ -56,7 +56,7 @@ type EducationExternalCaregivers struct {
 		ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
 	}
 	guests interface {
-		List(ctx context.Context, filters map[string]any) ([]*userModels.Guest, error)
+		ActiveGuests(ctx context.Context) ([]*userModels.Guest, error)
 	}
 }
 
@@ -65,7 +65,7 @@ type EducationExternalCaregivers struct {
 func NewEducationExternalCaregivers(staff interface {
 	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
 }, guests interface {
-	List(ctx context.Context, filters map[string]any) ([]*userModels.Guest, error)
+	ActiveGuests(ctx context.Context) ([]*userModels.Guest, error)
 }) EducationExternalCaregivers {
 	return EducationExternalCaregivers{staff: staff, guests: guests}
 }
@@ -74,7 +74,7 @@ func NewEducationExternalCaregivers(staff interface {
 // (#3823) in the caregiver directory's order. Which staff members count is
 // School Membership's rule; the root maps the retained rows onto it.
 func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context) ([]*educationRepo.Caregiver, error) {
-	guests, err := s.guests.List(ctx, map[string]any{"active": true})
+	guests, err := s.guests.ActiveGuests(ctx)
 	if err != nil {
 		return nil, err
 	}
