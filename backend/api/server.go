@@ -29,6 +29,7 @@ import (
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 )
@@ -238,6 +239,10 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 	if err != nil {
 		return nil, fmt.Errorf("compose worker staff retention: %w", err)
 	}
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: graph.db.Pool(), Observe: presenceCompose.FailureLogger()})
+	if err != nil {
+		return nil, fmt.Errorf("compose worker attendance retention: %w", err)
+	}
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
 		settings:             graph.services.Settings,
@@ -254,7 +259,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 		submissionLimits:     enrollmentCompose.New(),
 		settingAudit:         settingsCompose.NewAuditRetention(),
 		exportTransfers:      exportTransferCompose.NewJournalRetention(),
-	}, students, staff)
+	}, students, staff, presence)
 	if err != nil {
 		return nil, err
 	}

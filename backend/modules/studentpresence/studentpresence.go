@@ -122,6 +122,7 @@ type Capability interface {
 	Query
 	SupervisedLiveGroupQuery
 	Command
+	attendancePurge
 }
 
 // Module exposes presence operations without leaking persistence models.

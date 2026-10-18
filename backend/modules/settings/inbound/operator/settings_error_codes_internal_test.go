@@ -34,6 +34,8 @@ func TestRenderOperatorSettingsErrorAnswersWithCodes(t *testing.T) {
 		{"unknown setting", &settings.SettingsError{Op: "set_value", Err: &settings.DefinitionNotFoundError{Key: "bad.key"}}, http.StatusNotFound, "settings.not_found"},
 		{"invalid value", &settings.SettingsError{Op: "set_value", Err: &settings.InvalidValueError{Key: "a.b", Reason: "below minimum 5"}}, http.StatusBadRequest, "settings.invalid_value"},
 		{"permission", &settings.SettingsError{Op: "set_value", Err: &settings.PermissionDeniedError{Key: "a.b"}}, http.StatusForbidden, "general.permission"},
+		{"attendance retention below the visible window", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyGDPRAttendanceRetentionDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_retention_below_visible"},
+		{"attendance visible window above the retention", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyAttendanceVisibleDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_visible_exceeds_retention"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

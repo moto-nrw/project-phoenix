@@ -71,6 +71,8 @@ const (
 	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
 	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
 	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
+	// Daily attendance after the school's window (#3957).
+	DeletionTypeAttendanceRetention = "attendance_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -111,6 +113,7 @@ func IsDataKindRetention(deletionType string) bool {
 	switch deletionType {
 	case DeletionTypeUnregisteredTagScanRetention,
 		DeletionTypeStatusDayRetention,
+		DeletionTypeAttendanceRetention,
 		DeletionTypeParentMessageRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,

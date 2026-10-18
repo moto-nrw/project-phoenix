@@ -99,7 +99,10 @@ type staffRetention interface {
 	DeleteExpiredStaff(ctx context.Context) (staffoffboarding.RetentionResult, error)
 }
 
-func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention) (workerRetention, error) {
+// newWorkerRetention composes the nightly retention. attendance deletes the
+// daily attendance after the school's window (#3957); like the workflows it
+// reaches the Worker as an argument, not as a field of the owners (ADR 0059).
+func newWorkerRetention(owners retentionOwners, students studentRetention, staff staffRetention, attendance studentpresence.AttendanceRetention) (workerRetention, error) {
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
@@ -108,7 +111,8 @@ func newWorkerRetention(owners retentionOwners, students studentRetention, staff
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff), retentionSteps(owners)),
+		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
+			append(retentionSteps(owners), attendanceRetentionSteps(attendance, owners.settings)...)),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -177,6 +181,29 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	}
 	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
+}
+
+// attendanceRetentionSteps is the deletion of the daily attendance after the
+// school's window (#3957).
+func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, settings settingsModule.StatisticsRetentionSource) []schedulerPorts.RetentionStep {
+	if attendance == nil {
+		return nil
+	}
+	return []schedulerPorts.RetentionStep{{
+		Kind: auditModels.DeletionTypeAttendanceRetention,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			window := settingsModule.NewAttendanceRetention(settings)
+			days, err := window.Days(ctx)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, err
+			}
+			deleted, err := attendance.DeleteExpiredAttendance(ctx, days)
+			if errors.Is(err, studentpresence.ErrAttendanceRetentionWindow) {
+				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}}
 }
 
 // studentRetentionStep is the automatic deletion of children (#3962). It

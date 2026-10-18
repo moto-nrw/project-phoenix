@@ -22,6 +22,7 @@ func TestDeletionRetentionWindowsReadTheirSettings(t *testing.T) {
 	assert.Equal(t, 800, staff)
 	assert.Equal(t, []string{
 		configModel.KeyGDPRStatusDayRetentionDays,
+		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,

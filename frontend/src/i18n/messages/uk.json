@@ -2784,7 +2784,9 @@
         "managed_by_upload": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "invalid_value": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "presence_mode_switch_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "booking_authority_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "booking_authority_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "attendance_visible_exceeds_retention": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "attendance_retention_below_visible": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "devices": {
         "tag_scan_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

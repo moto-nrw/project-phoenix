@@ -373,6 +373,8 @@ const (
 	CodeSchoolSetupCompleted                             = "school.setup_completed"
 	CodeSchoolSetupIncomplete                            = "school.setup_incomplete"
 	CodeSettingsAdminOnly                                = "settings.admin_only"
+	CodeSettingsAttendanceRetentionBelowVisible          = "settings.attendance_retention_below_visible"
+	CodeSettingsAttendanceVisibleExceedsRetention        = "settings.attendance_visible_exceeds_retention"
 	CodeSettingsBookingAuthorityBlocked                  = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                             = "settings.invalid_value"
 	CodeSettingsManagedByUpload                          = "settings.managed_by_upload"
@@ -1040,6 +1042,8 @@ var errorClassByCode = map[string]string{
 	"school.setup_completed":                               "business_rejection",
 	"school.setup_incomplete":                              "business_rejection",
 	"settings.admin_only":                                  "permission",
+	"settings.attendance_retention_below_visible":          "input",
+	"settings.attendance_visible_exceeds_retention":        "input",
 	"settings.booking_authority_blocked":                   "business_rejection",
 	"settings.invalid_value":                               "input",
 	"settings.managed_by_upload":                           "business_rejection",
