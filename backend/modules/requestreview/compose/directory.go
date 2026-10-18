@@ -3,12 +3,11 @@ package compose
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/uptrace/bun"
 )
 
 // Students is the People Directory read needed for group decoration.
@@ -16,17 +15,15 @@ type Students interface {
 	ListStudentsByID(context.Context, []int64) ([]peopledirectory.Student, error)
 }
 
-type DirectoryObservation = structurecompose.Observation
-
-// NewStudentDirectory binds group decoration to native owner reads. A missing
-// optional people source leaves decoration disabled.
-func NewStudentDirectory(db *bun.DB, people Students, observe func(DirectoryObservation)) (requestreview.StudentDirectory, error) {
+// NewStudentDirectory binds group decoration to the People Directory and the
+// School Structure the root builds. A missing optional people source leaves
+// decoration disabled.
+func NewStudentDirectory(people Students, groups schoolstructure.Query) (requestreview.StudentDirectory, error) {
 	if people == nil {
 		return nil, nil
 	}
-	groups, err := structurecompose.New(structurecompose.Dependencies{DB: db, Observe: observe})
-	if err != nil {
-		return nil, err
+	if groups == nil {
+		return nil, errors.New("request review student directory: school structure is required")
 	}
 	return directory{people: people, groups: groups}, nil
 }

@@ -9,21 +9,15 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	"github.com/uptrace/bun"
 )
 
-type AuditObservation = auditlog.Observation
-
-func NewCorrectionLog(db *bun.DB, people ReviewPeople, allowed func(context.Context) bool, observe func(AuditObservation)) (requestreview.CorrectionLog, error) {
-	if people == nil || allowed == nil {
-		return nil, errors.New("correction log: people and access policy are required")
-	}
-	query, err := auditcompose.NewCorrectionQueries(db, observe)
-	if err != nil {
-		return nil, err
+// NewCorrectionLog serves the direct correction history from the Audit
+// Platform's correction query, which the root builds (#4004).
+func NewCorrectionLog(query auditlog.CorrectionQuery, people ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
+	if query == nil || people == nil || allowed == nil {
+		return nil, errors.New("correction log: corrections, people and access policy are required")
 	}
 	return correctionLog{query: query, people: reviewDirectory{people: people}, allowed: allowed}, nil
 }
