@@ -3,6 +3,7 @@ package sessiontoken
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
@@ -333,4 +334,13 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 	}
 
 	return nil
+}
+
+// DisplayName is the caller's name as a page shows it: first and last name,
+// else the username.
+func (c AppClaims) DisplayName() string {
+	if name := strings.TrimSpace(c.FirstName + " " + c.LastName); name != "" {
+		return name
+	}
+	return c.Username
 }

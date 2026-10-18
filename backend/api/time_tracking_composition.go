@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
@@ -26,15 +25,11 @@ import (
 // timeTrackingIdentity derives the caller from the request's session claims.
 func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
 	claims := sessiontoken.ClaimsFromCtx(ctx)
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = claims.Username
-	}
 	return timeTrackingHTTP.Identity{
 		AccountID:   int64(claims.ID),
 		Roles:       claims.Roles,
 		Permissions: sessiontoken.PermissionsFromCtx(ctx),
-		DisplayName: name,
+		DisplayName: claims.DisplayName(),
 	}
 }
 
