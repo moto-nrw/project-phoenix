@@ -16,21 +16,22 @@ import (
 // gate and realtime fan-out. The stores stay injected until the conversation
 // repositories migrate with #2727.
 type ParentEventEmitterConfig struct {
-	Runtime     parentMessages.EventRuntime
-	ThreadRepo  deliveryPorts.ParentMessageThreadRepositorySource
-	MessageRepo deliveryPorts.ParentMessageRepositorySource
-	Settings    parentMessages.EventSettings
-	Broadcaster realtime.Broadcaster
-	Logger      *slog.Logger
+	Runtime          parentMessages.EventRuntime
+	ThreadRepo       deliveryPorts.ParentMessageThreadRepositorySource
+	MessageRepo      deliveryPorts.ParentMessageRepositorySource
+	Settings         parentMessages.EventSettings
+	Broadcaster      realtime.Broadcaster
+	Logger           *slog.Logger
+	DecisionNotifier parentmessaging.DecisionNotifier // decided requests to guardian devices; nil: none
 }
 
 // NewParentEventEmitter composes the parent-event emitter the request domains
 // hold: Communication's thread and pill writes behind the consumer-facing
 // shell.
 func NewParentEventEmitter(cfg ParentEventEmitterConfig) *parentmessaging.Emitter {
-	return parentmessaging.NewEmitter(parentMessages.NewEventEmitter(
+	return parentmessaging.NewEmitterWithDecisions(parentMessages.NewEventEmitter(
 		cfg.Runtime, parentMessages.NewThreadRepository(cfg.ThreadRepo), parentMessages.NewMessageRepository(cfg.MessageRepo), cfg.Settings, cfg.Broadcaster, cfg.Logger,
-	))
+	), cfg.DecisionNotifier)
 }
 
 // ParentConversationCore is Communication's shared conversation rule set bound

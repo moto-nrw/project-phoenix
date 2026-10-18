@@ -105,6 +105,13 @@ func NewEmitter(events Events) *Emitter {
 	return &Emitter{events: events}
 }
 
+// NewEmitterWithDecisions is NewEmitter with the durable guardian delivery of
+// decided requests at construction, in place of WithDecisionNotifications
+// after it (ADR 0059). A nil notifier delivers no decisions, as NewEmitter.
+func NewEmitterWithDecisions(events Events, notifier DecisionNotifier) *Emitter {
+	return &Emitter{events: events, notifier: notifier}
+}
+
 // WithDecisionNotifications adds durable guardian delivery for decided requests.
 func (e *Emitter) WithDecisionNotifications(notifier DecisionNotifier) *Emitter {
 	if e == nil {
