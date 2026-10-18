@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
@@ -59,8 +60,18 @@ func (a studentCompanions) DaysCoveredExcluding(
 	return a.seam.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
 }
 
+// DeleteEdges removes the edges and records that this write touched
+// companion links, the only honest basis for announcing
+// student_companions_changed: the signal rides on the caller's context, and
+// this is the moment the links actually change.
 func (a studentCompanions) DeleteEdges(ctx context.Context, edgeIDs []int64) error {
-	return a.seam.DeleteCompanionEdges(ctx, edgeIDs)
+	if err := a.seam.DeleteCompanionEdges(ctx, edgeIDs); err != nil {
+		return err
+	}
+	if len(edgeIDs) > 0 {
+		users.RecordCompanionChange(ctx)
+	}
+	return nil
 }
 
 type studentOwners struct{ owners ports.StudentOwners }

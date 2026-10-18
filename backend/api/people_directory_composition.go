@@ -16,7 +16,6 @@ import (
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
@@ -250,18 +249,8 @@ func (c careplanCompanions) CompanionDaysCoveredExcluding(
 	return c.carePlan.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
 }
 
-// DeleteCompanionEdges also records that this write touched links, which is the
-// only honest basis for announcing student_companions_changed. It belongs here
-// rather than in the owner: the signal is carried on the caller's context, and
-// this is the moment the links actually change.
 func (c careplanCompanions) DeleteCompanionEdges(ctx context.Context, edgeIDs []int64) error {
-	if err := c.carePlan.DeleteCompanionEdges(ctx, edgeIDs); err != nil {
-		return err
-	}
-	if len(edgeIDs) > 0 {
-		userModels.RecordCompanionChange(ctx)
-	}
-	return nil
+	return c.carePlan.DeleteCompanionEdges(ctx, edgeIDs)
 }
 
 // The student-guardian relationship has three owners since Cutover #2756.
