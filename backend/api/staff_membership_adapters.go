@@ -41,7 +41,12 @@ type staffMembershipDeps struct {
 	employment staffEmploymentWrites
 	// groupTeachers are the teaching assignments the teacher projections
 	// resolve their groups through.
-	groupTeachers GroupTeacherRepository
+	groupTeachers groupTeacherRows
+}
+
+// groupTeacherRows are the teaching assignments of one group.
+type groupTeacherRows interface {
+	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
 }
 
 // staffEmploymentWrites are Workforce's employment-only staff writes the
@@ -57,7 +62,7 @@ type staffPersonRows interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 }
 
-func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers GroupTeacherRepository) *staffMembershipDeps {
+func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers groupTeacherRows) *staffMembershipDeps {
 	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment, groupTeachers: groupTeachers}
 }
 

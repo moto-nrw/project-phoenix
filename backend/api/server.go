@@ -87,13 +87,15 @@ const (
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
 type Runtime struct {
-	server          *http.Server
-	handler         http.Handler
-	db              transactionruntime.Database
-	worker          backgroundWorker
-	listen          func(network, address string) (net.Listener, error)
-	capacityLogger  *capacityLogger
-	tracker         processResource
+	server         *http.Server
+	handler        http.Handler
+	db             transactionruntime.Database
+	worker         backgroundWorker
+	listen         func(network, address string) (net.Listener, error)
+	capacityLogger *capacityLogger
+	tracker        processResource
+	// workerStop stops the Worker once, whichever shutdown path comes first.
+	workerStop      sync.Once
 	logger          *slog.Logger
 	resourcesUnsafe bool
 }
@@ -564,9 +566,7 @@ func (runtime *Runtime) stopWorker() {
 	if runtime.worker == nil {
 		return
 	}
-	worker := runtime.worker
-	runtime.worker = nil
-	worker.Stop()
+	runtime.workerStop.Do(runtime.worker.Stop)
 }
 
 func (runtime *Runtime) closeResources() error {
