@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -66,7 +67,7 @@ func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...api.AuthTest
 	svc := setupAuthModuleOn(t, db, options...)
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, demoOrigins)
 	require.NoError(t, err)
-	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{})
+	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	auth.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())

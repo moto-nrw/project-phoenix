@@ -3,25 +3,44 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 104 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 18.10.2026 · Ratchet 101 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.546 in `compose`
+34.534 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 13 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 69 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 67 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 104 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 101 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4078: Root bindet die Settings-Berechtigungen und meldet Serverfehler an
+Sentry. Common hält nur die unveränderten, anfragegebundenen Fehlerdaten;
+SDK, Datenschutzfilter und ursprüngliche Tests liegen bei Root. Alle
+ursprünglichen Testaussagen bleiben erhalten. Die Middleware-Golden ändert
+nur 1.127 Paketpfade von `api/common.ServerErrorReporting` zu
+`api.ServerErrorReporting`; die Vergleichslogik bleibt unverändert.
+
+`api/common` gehört zu `tenant-runtime/http`, die drei übrigen
+Communication-HTTP-Pakete zu `communication/http`. Testrollen bleiben gleich;
+Nachfolger sind auf die bisherigen Pakete begrenzt. Drei Inbound-Owner und
+zwölf Regeln entfallen, der letzte #4078-Key wechselt zum vorhandenen
+öffentlichen Settings-Key. Keys 110 → 109 (#4078: 1 → 0), Inbound-Owner 5 → 2,
+Regeln 841 → 829; Composition 1.657, Epoche 72 und Budgets unverändert.
+Die historische Epochensicherung bleibt als eigenständige Fixture erhalten.
+`architecture-check` und `dev-tools` sowie der temporäre Inbound-Übergang
+folgen im tatsächlichen #4078-Abschluss; das Ticket bleibt offen.
+Nachweis: [Common und Communication](common-communication-http-owners-4078.json).
 
 #4074: Communication verwendet vollständige native Workflow-Werte und eigene
 Ports für Staff-Announcements und Elternnachrichten. Die Root bindet die

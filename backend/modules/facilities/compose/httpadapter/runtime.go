@@ -39,17 +39,14 @@ func NewResource(
 	logger *slog.Logger,
 	protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware)),
 	prefetch func(context.Context, any, ...string) context.Context,
+	constraintViolation func(error) bool,
 ) *roomsHTTP.Resource {
 	if dependencies.Facilities == nil || dependencies.Settings == nil || dependencies.UserContext == nil ||
 		dependencies.Active == nil || dependencies.Users == nil || dependencies.Education == nil ||
-		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil || prefetch == nil {
+		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil || prefetch == nil || constraintViolation == nil {
 		panic("rooms HTTP composition: all dependencies are required")
 	}
-	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger, protectedTenantRoutes, prefetch))
-}
-
-func runtime(dependencies Dependencies, logger *slog.Logger, protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware)), prefetch func(context.Context, any, ...string) context.Context) roomsHTTP.Runtime {
-	return roomsHTTP.Runtime{
+	return roomsHTTP.NewResource(rooms, roomsHTTP.Runtime{
 		Protected:        protectedTenantRoutes,
 		Permission:       apiCommon.RequiresPermission,
 		ParseID:          apiCommon.ParseID,
@@ -69,9 +66,9 @@ func runtime(dependencies Dependencies, logger *slog.Logger, protectedTenantRout
 		History:          roomHistory(dependencies.Facilities),
 		TodayBounds:      todayBounds,
 		ExportSnapshot:   snapshotExporter(dependencies),
-		ConstraintFailed: apiCommon.IsConstraintViolation,
+		ConstraintFailed: constraintViolation,
 		Log:              logger,
-	}
+	})
 }
 
 func respondPaginated(w http.ResponseWriter, r *http.Request, status int, data any, pagination roomsHTTP.Pagination, message string) {

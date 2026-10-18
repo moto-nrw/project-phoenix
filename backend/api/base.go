@@ -12,8 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -690,12 +693,12 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			if access == mealplanAPI.AccessParticipants {
-				return apiCommon.RequireMealParticipantsRead()
+				return RequireMealParticipantsRead()
 			}
 			if access == mealplanAPI.AccessRead {
-				return apiCommon.RequireConfigRead()
+				return RequireConfigRead()
 			}
-			return apiCommon.RequireConfigUpdate()
+			return RequireConfigUpdate()
 		},
 		Success: apiCommon.Respond,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -1166,7 +1169,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	router.Use(middleware.Recoverer)
 	// Inside the Recoverer: sentryhttp reports a panic and repanics to it, and
 	// every 5xx answer becomes one Sentry event (#3639).
-	router.Use(apiCommon.ServerErrorReporting)
+	router.Use(ServerErrorReporting)
 	router.Use(customMiddleware.SecurityHeaders)
 	// Request-scoped settings memo cache (issue #2065). Router-wide so routes
 	// outside ProtectedTenantGroup (/auth incl. /auth/tenant/resolve,
@@ -1347,9 +1350,13 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 func requestReviewDependencies(modules moduleServices, db transactionruntime.Database) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	pool := db.Pool()
 	svc := modules.services
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(pool, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
+	reviewGroups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: pool, Observe: func(observation schoolStructureCompose.Observation) {
 		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
-	})
+	}})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review groups: %w", err)
+	}
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(modules.persons, reviewGroups)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
@@ -1414,9 +1421,13 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
-	corrections, err := requestreviewcompose.NewCorrectionLog(pool, modules.persons, func(ctx context.Context) bool {
+	correctionQueries, err := auditCompose.NewCorrectionQueries(pool, func(auditlog.Observation) {})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review corrections: %w", err)
+	}
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, modules.persons, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, modules.userContext.HasCurrentStaff)
-	}, func(requestreviewcompose.AuditObservation) {})
+	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
 	}
@@ -1462,6 +1473,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		return nil, fmt.Errorf("request review projection: %w", err)
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		ConstraintViolation:          transactionFailures.IsConstraintViolation,
 		Uploads:                      nativeUploads.UploadFiles{},
 		PeopleDirectory:              svc.PeopleDirectory,
 		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
@@ -1724,8 +1736,8 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: modules.listExport,
-	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings).Router())
-	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router(ProtectedTenantRoutes))
+	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings, transactionFailures.IsConstraintViolation).Router())
+	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router(TenantSessionChain))
@@ -1774,6 +1786,7 @@ func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollm
 		NewEnrollmentGuardianAutofill(modules.guardianProfiles),
 		enrollmentSchoolDirectory{schools: modules.organizations},
 		nativeUploads.UploadFiles{},
+		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		NewEnrollmentBookings(),
 	)
 	resource.ListExportService = modules.listExport
@@ -1893,7 +1906,7 @@ func caregiverCapabilityViews(in routeInputs) peopleCompose.CaregiverCapabilityV
 func newAccountResource(in routeInputs) *authAPI.Resource {
 	svc, identity := in.modules.services, in.modules.identity
 	authSchools := authSchoolDirectory{schools: in.modules.organizations, memberships: identity.ListActiveAccountSchoolIDs}
-	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(in)
 	resource.SettingsService = svc.Settings
 	resource.RoleGrants = RoleGrantPolicy{}

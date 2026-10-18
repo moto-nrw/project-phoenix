@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +94,7 @@ func renderCaregiverCapabilityError(t *testing.T, err error) *httptest.ResponseR
 	t.Helper()
 
 	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			getFn: func(context.Context, int64) (json.RawMessage, error) {
 				return nil, err
@@ -127,7 +129,8 @@ func TestEnableCaregiverCapabilityRequestBind_TrimsFields(t *testing.T) {
 func TestGetCaregiverCapability_ServiceNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation}
 	req := withAccountRouteParam(httptest.NewRequest(http.MethodGet, "/accounts/7/caregiver-capability", nil), "7")
 	rr := httptest.NewRecorder()
 
@@ -140,6 +143,7 @@ func TestGetCaregiverCapability_InvalidAccountID(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation:        transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
 	req := withAccountRouteParam(httptest.NewRequest(http.MethodGet, "/accounts/nope/caregiver-capability", nil), "nope")
@@ -154,6 +158,7 @@ func TestGetCaregiverCapability_Success(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			getFn: func(_ context.Context, accountID int64) (json.RawMessage, error) {
 				assert.Equal(t, int64(7), accountID)
@@ -181,6 +186,7 @@ func TestEnableCaregiverCapability_Success(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			enableFn: func(_ context.Context, accountID int64, firstName, lastName, position string) (json.RawMessage, error) {
 				assert.Equal(t, int64(7), accountID)
@@ -210,6 +216,7 @@ func TestEnableCaregiverCapability_InvalidBody(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation:        transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
 
@@ -226,6 +233,7 @@ func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation:        transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
 
@@ -248,6 +256,7 @@ func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			enableFn: func(context.Context, int64, string, string, string) (json.RawMessage, error) {
 				return nil, fakeCaregiverInvalid{cause: fmt.Errorf("invalid caregiver capability request")}
@@ -269,6 +278,7 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 	t.Parallel()
 
 	resource := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			disableFn: func(context.Context, int64) (json.RawMessage, error) {
 				return nil, fakeCaregiverBlocked{blockers: []string{"active_group_supervisions"}}

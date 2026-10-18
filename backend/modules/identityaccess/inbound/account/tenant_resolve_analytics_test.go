@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func TestResolveTenant_AnalyticsFreigabe_DefaultOff(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)
@@ -69,7 +70,7 @@ func TestResolveTenant_AnalyticsFreigabe_OnWithSample(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyAnalyticsFreigabe, true, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyAnalyticsRecordingSamplePercent, 40, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)
@@ -86,7 +87,7 @@ func TestResolveTenant_AnalyticsFreigabe_UnreadableValueFailsClosed(t *testing.T
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyAnalyticsFreigabe, json.RawMessage(`"vielleicht"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)

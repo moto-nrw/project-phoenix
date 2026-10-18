@@ -258,7 +258,7 @@ func TestCompositionReachEpochGrantsNothingElse(t *testing.T) {
 
 func TestFirstPartyImportsAllowedByTheCompositionReaches(t *testing.T) {
 	t.Parallel()
-	candidate := repositoryPolicy(t)
+	candidate := historicalInboundCompositionReachPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	packages := candidate.packageMap()
@@ -290,4 +290,18 @@ func TestFirstPartyImportsAllowedByTheCompositionReaches(t *testing.T) {
 	if firstPartyAllowedByReviewedCompositionReach(candidate, candidate, ScopeProduction, classified("api"), classified("modules/workforce/compose")) {
 		t.Error("a root import passed without an epoch increase")
 	}
+}
+
+// historicalInboundCompositionReachPolicy keeps the negative inbound scenario
+// independent of the Communication package's production owner adoption.
+func historicalInboundCompositionReachPolicy(t *testing.T) *Policy {
+	t.Helper()
+	policy := repositoryPolicy(t)
+	policy.Owners = append(policy.Owners, Owner{ID: "inbound-messaging", Kind: "inbound"})
+	for i := range policy.Packages {
+		if policy.Packages[i].Path == "modules/communication/http/parentmessages" {
+			policy.Packages[i].Owner = "inbound-messaging"
+		}
+	}
+	return policy
 }

@@ -15,6 +15,7 @@ import (
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -169,7 +170,9 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	// The shared request-review projection over the same retained queues the
 	// production root binds (#2705).
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, svc.PeopleDirectory, func(requestreviewcompose.DirectoryObservation) {})
+	reviewGroups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(svc.PeopleDirectory, reviewGroups)
 	require.NoError(t, err)
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
 	require.NoError(t, err)
@@ -220,9 +223,11 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 	})
 	require.NoError(t, err)
-	corrections, err := requestreviewcompose.NewCorrectionLog(db, svc.PeopleDirectory, func(ctx context.Context) bool {
+	correctionQueries, err := api.NewUnobservedCorrectionQueries(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, svc.PeopleDirectory, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
-	}, func(requestreviewcompose.AuditObservation) {})
+	})
 	require.NoError(t, err)
 	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
 	require.NoError(t, err)
@@ -249,6 +254,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	})
 	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		ConstraintViolation:    transactionFailures.IsConstraintViolation,
 		Uploads:                nativeUploads.UploadFiles{},
 		PeopleDirectory:        svc.PeopleDirectory,
 		Persons:                svc.StudentRoutePersons(),

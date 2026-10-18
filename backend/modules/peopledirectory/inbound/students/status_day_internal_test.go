@@ -19,6 +19,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -45,7 +46,8 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 
 	t.Run("planned status write keeps the whole submission together", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
-		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
+		resource := &Resource{ResourceConfig: ResourceConfig{
+			ConstraintViolation: transactionFailures.IsConstraintViolation, AbsenceNotifier: notifier}}
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
 		ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: actorID})
 		req := httptest.NewRequest(http.MethodPost, "/status-days", nil).WithContext(ctx)
@@ -70,7 +72,8 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 
 	t.Run("manual status change enqueues before commit", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
-		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
+		resource := &Resource{ResourceConfig: ResourceConfig{
+			ConstraintViolation: transactionFailures.IsConstraintViolation, AbsenceNotifier: notifier}}
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
 		baseCtx = context.WithValue(baseCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: actorID})
 		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
@@ -282,7 +285,8 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 			},
 		},
 	}
-	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: presenceservice.NewStatusDays(repo, nil, nil, nil), Logger: slog.Default()}}
+	resource := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, StudentStatusDayService: presenceservice.NewStatusDays(repo, nil, nil, nil), Logger: slog.Default()}}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
 	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
@@ -705,6 +709,7 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 		clock = clocks[0]
 	}
 	return NewResource(ResourceConfig{
+		ConstraintViolation:     transactionFailures.IsConstraintViolation,
 		PeopleDirectory:         rows.PeopleDirectory,
 		CompanionService:        rows.Companions,
 		StudentStatusDayService: presenceservice.NewStatusDays(rows.StudentStatusDay, nil, nil, rows.LockExceptionDay, clock),

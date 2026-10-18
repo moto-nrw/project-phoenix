@@ -1,4 +1,4 @@
-package common_test
+package api
 
 import (
 	"context"
@@ -54,7 +54,7 @@ func serveWithRecordingSentry(t *testing.T, register func(chi.Router), req *http
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
-	router.Use(common.ServerErrorReporting)
+	router.Use(ServerErrorReporting)
 	register(router)
 
 	hub := sentry.NewHub(client, sentry.NewScope())
