@@ -162,7 +162,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		s.dispatchAbsenceEmail(ctx, "absence_request_received", absence, AbsenceEmailMessage{
 			To:       AbsenceEmailAddress{Name: approver.FirstName + " " + approver.LastName, Address: approver.Email},
 			Subject:  subject,
-			Template: "absence-request-received.html",
+			Template: absenceRequestReceivedTemplate,
 			Content: AbsenceEmailContent{
 				FirstName:        approver.FirstName,
 				LastName:         approver.LastName,
