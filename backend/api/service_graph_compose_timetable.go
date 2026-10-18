@@ -156,8 +156,8 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 	// The retained room service comes from the root (#4010); Facilities owns
 	// the room deletion decision behind its room usage port.
 	logger := b.Logger.With("service", "facilities")
-	b.graph.Schulhof = facilitiesCompose.NewSchulhofService(b.Presence.RoomService, facilitiesLegacy.ActivityCatalog(activities), b.Presence.OpenGroups, logger)
-	b.graph.WC = facilitiesCompose.NewWCService(b.Presence.RoomService, facilitiesLegacy.ActivityCatalog(activities), logger)
+	b.graph.Schulhof = facilitiesCompose.NewSchulhofService(b.Presence.RoomService, FacilitiesActivityCatalog(activities), b.Presence.OpenGroups, logger)
+	b.graph.WC = facilitiesCompose.NewWCService(b.Presence.RoomService, FacilitiesActivityCatalog(activities), logger)
 	return b, nil
 }
 
@@ -230,7 +230,7 @@ func composeDeviceFleet(b graphBuild) (graphBuild, error) {
 	fleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
 		DB: b.DB.Pool(), Rooms: b.Rooms, Presence: b.Presence.Presence,
 		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
-			ActiveGroups: b.Presence.SessionRecords, Templates: repos.ActivityGroup, Instances: repos.ActivityInstance,
+			ActiveGroups: b.Presence.SessionRecords, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords()),
 			PickupSchedule: b.graph.PickupSchedule,
 		}),
 		Tenants:      NewDisplayTenantFacts(b.People.DisplaySchools, b.settingsService),

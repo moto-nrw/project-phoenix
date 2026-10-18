@@ -1471,13 +1471,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/activities",
-      "owner": "timetable-activities",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/communication/internal/staffannouncements",
       "owner": "communication",
       "role": "adapter",
@@ -8509,17 +8502,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "timetable-activities.compatibility-application.compose",
-      "description": "The retained activities service name delegates to owner composition.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "application",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.internal-test.tenant-runtime",

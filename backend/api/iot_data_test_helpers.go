@@ -68,5 +68,5 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return IoTDataTestModule{}, err
 	}
 	activities.Users = identity.Users
-	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility, RoomUsage: &RoomUsage{Sessions: NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}), RoomAvailability: devicescanCompose.NewRoomAvailability(facility), Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(identity.Users), activities.Activities, nil), TagAssignments: identity.TagAssignments}, nil
+	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility, RoomUsage: &RoomUsage{Sessions: NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}), RoomAvailability: devicescanCompose.NewRoomAvailability(facility), Directory: devicescanCompose.NewDirectory(NewDeviceScanPeople(identity.Users), DeviceActivityCatalog(activities.Activities), nil), TagAssignments: identity.TagAssignments}, nil
 }

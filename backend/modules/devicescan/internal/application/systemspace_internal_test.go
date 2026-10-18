@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -19,7 +20,7 @@ func TestSchulhofActivity_RejectsLegacyNonCanonicalRoomBeforeExistingActivityRet
 	t.Parallel()
 	h := newHarness(t)
 	h.rooms.byName[facilities.SchulhofRoomName] = facilities.Room{ID: 7, Name: "schulhof", IsSystem: true}
-	h.activities.byName[facilities.SchulhofActivityName] = []ports.Activity{{Name: facilities.SchulhofActivityName}}
+	h.activities.byName[facilities.SchulhofActivityName] = []devicescan.Activity{{Name: facilities.SchulhofActivityName}}
 
 	activity, err := h.service().schulhofActivity(context.Background())
 
@@ -35,7 +36,7 @@ func TestSchulhofActivity_SelectsDedicatedActivityAmongSameNameActivities(t *tes
 	h := newHarness(t)
 	room := canonicalSchulhof(42)
 	h.rooms.byName[facilities.SchulhofRoomName] = room
-	h.activities.byName[facilities.SchulhofActivityName] = []ports.Activity{
+	h.activities.byName[facilities.SchulhofActivityName] = []devicescan.Activity{
 		{ID: 76, Name: facilities.SchulhofActivityName, PlannedRoomID: ptr(room.ID)},
 		{ID: 77, Name: facilities.SchulhofActivityName, PlannedRoomID: ptr(room.ID), IsSystem: true},
 	}
@@ -106,7 +107,7 @@ func TestWCActivity_FindsExistingToiletAlias(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.rooms.toilet = &facilities.Room{ID: 9, Name: facilities.WCRoomAliasName}
-	h.activities.byName[facilities.WCActivityName] = []ports.Activity{{ID: 310, Name: facilities.WCActivityName}}
+	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 310, Name: facilities.WCActivityName}}
 
 	activity, err := h.service().wcActivity(context.Background())
 
