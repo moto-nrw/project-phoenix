@@ -7,8 +7,8 @@ import (
 )
 
 // Operator is one platform.operators row the fixtures write. Organisation &
-// Tenancy keeps its row mapping in models/platform, which the shared fixtures
-// may not import (#2748), so test support maps the table itself.
+// Tenancy's row mapping is internal to the owner (#2748), so test support
+// maps the table itself.
 type Operator struct {
 	bun.BaseModel  `bun:"table:platform.operators,alias:operator"`
 	ID             int64      `bun:"id,pk,autoincrement"`

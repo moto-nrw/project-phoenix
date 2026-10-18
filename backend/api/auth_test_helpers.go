@@ -16,7 +16,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -282,7 +281,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Caregivers: CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
 			GuardianMail: &GuardianInvitationWiring{
 				Settings: settings.Settings, Schools: organizations,
-				Outbox: func() platformModels.OutboxResultEnqueuer {
+				Outbox: func() MailResultOutbox {
 					return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 				},
 				Enrollments: parentPortal.ParentEnrollmentRequest, ParentsURL: parentsURL,
@@ -299,7 +298,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
-			Outbox: func() platformModels.OutboxEnqueuer {
+			Outbox: func() MailOutbox {
 				return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 			},
 			WelcomeDelay: StaffWelcomeDelay,

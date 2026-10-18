@@ -109,7 +109,7 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T) {
 	t.Parallel()
 
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -499,7 +499,7 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *testing.T) {
 	t.Parallel()
 
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -1304,7 +1304,7 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	t.Parallel()
 
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})

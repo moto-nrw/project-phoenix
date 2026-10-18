@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
-	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
 type communicationCapturingOutbox func(context.Context, communication.MailEnqueueInput) error
@@ -22,7 +21,7 @@ func (send communicationCapturingOutbox) EnqueueMail(ctx context.Context, input 
 // BindCommunicationCapturingOutbox keeps the existing actual capture fixture
 // behind the producer's native port; no new delivery or consent fake is added.
 func BindCommunicationCapturingOutbox(source interface {
-	EnqueueOutbox(context.Context, platform.OutboxEnqueueRequest) error
+	EnqueueOutbox(context.Context, deliveryCompose.MailEnqueueRequest) error
 }) interface {
 	EnqueueMail(context.Context, communication.MailEnqueueInput) error
 } {
@@ -40,7 +39,7 @@ func BindCommunicationCapturingOutbox(source interface {
 		if err := decoder.Decode(&payload); err != nil {
 			return err
 		}
-		return source.EnqueueOutbox(ctx, platform.OutboxEnqueueRequest{Kind: input.Kind, Payload: payload, RelatedEntityType: input.RelatedEntityType, RelatedEntityID: input.RelatedEntityID, IdempotencyKey: input.IdempotencyKey, DeliverAfter: input.DeliverAfter})
+		return source.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{Kind: input.Kind, Payload: payload, RelatedEntityType: input.RelatedEntityType, RelatedEntityID: input.RelatedEntityID, IdempotencyKey: input.IdempotencyKey, DeliverAfter: input.DeliverAfter})
 	})
 }
 

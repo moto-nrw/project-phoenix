@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -380,7 +380,7 @@ type provisioningAudit struct {
 }
 
 func (a provisioningAudit) RecordOperatorAction(ctx context.Context, entry organizationCompose.OperatorAuditEntry) error {
-	return a.log.Create(ctx, &platformModels.OperatorAuditLog{
+	return a.log.Create(ctx, &auditModels.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: entry.ClientIP, Changes: json.RawMessage(entry.Changes),
 	})

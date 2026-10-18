@@ -228,9 +228,16 @@ type ScheduleUpdateInput struct {
 	SaveAsTemplateName            string
 }
 
-// WorkSessions is the work session administration of the web app: stamps,
-// history, edits, exports and the staff work schedule.
-type WorkSessions interface {
+// WorkSessionHistory reads and exports session history for both staff and administrators.
+type WorkSessionHistory interface {
+	// HistoryIntersecting reads every block that reaches into [from, to].
+	HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*HistoryResponse, error)
+	ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*ExportFile, error)
+}
+
+// OwnWorkSessions serves the staff member's own clock, breaks, edits and presence view.
+type OwnWorkSessions interface {
+	WorkSessionHistory
 	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*WorkSessionBreak, error)
@@ -240,21 +247,29 @@ type WorkSessions interface {
 	LatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error)
 	SessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
-	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
-	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request AdminCreateSessionRequest) (*WorkSession, error)
-	// HistoryIntersecting reads every block that reaches into [from, to].
-	HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*HistoryResponse, error)
 	SessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
-	SessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// TodayPresenceMap maps staff id to the work status of everyone clocked
 	// in right now.
 	TodayPresenceMap(ctx context.Context) (map[int64]string, error)
-	ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*ExportFile, error)
+}
+
+// AdminWorkSessions serves the manager's session corrections and schedule changes.
+type AdminWorkSessions interface {
+	WorkSessionHistory
+	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
+	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request AdminCreateSessionRequest) (*WorkSession, error)
+	SessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// UpdateStaffSchedule resolves the requested mode (template or custom),
 	// validates and applies the change; validation failures carry
 	// ErrScheduleValidation. The current schedule and the templates are read
 	// through Query.
 	UpdateStaffSchedule(ctx context.Context, staffID int64, input ScheduleUpdateInput) error
+}
+
+// WorkSessions combines the self-service and administration capabilities for composition.
+type WorkSessions interface {
+	OwnWorkSessions
+	AdminWorkSessions
 }
 
 // StaffAbsenceResponse is an absence with its derived duration. AbsenceTypeID

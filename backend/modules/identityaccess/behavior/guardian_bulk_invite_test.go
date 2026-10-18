@@ -19,7 +19,7 @@ import (
 func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	t.Parallel()
 
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
 	defer env.cleanup()
 

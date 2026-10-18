@@ -35,8 +35,8 @@
   "runtime_evidence": {
     "source": "Local run on the branch. The change touches test support only: no production code path, query, route or worker changes, so the evidence is the unchanged behaviour suites and the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/models/platform/platformtest/outbox.go",
-      "backend/test/outbox.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/0e79d15ab6974b30ca1985b477964f50848bd645/backend/models/platform/platformtest/outbox.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/0e79d15ab6974b30ca1985b477964f50848bd645/backend/test/outbox.go",
       "backend/test/platform_rows.go",
       "backend/test/audit_rows.go",
       "backend/test/fixtures_platform.go",

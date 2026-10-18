@@ -334,10 +334,10 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 	}
 
 	if req.SendEmail {
-		if err := s.notifyGuardians(ctx, appointment, ports.EmailKindAppointmentPublished); err != nil {
+		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentPublished); err != nil {
 			return nil, err
 		}
-		s.notifyGuardianDevices(ctx, appointment, ports.EmailKindAppointmentPublished)
+		s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentPublished)
 	}
 
 	return &AppointmentDetail{
@@ -561,10 +561,10 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 	if appointment.NotifyGuardians {
-		if err := s.notifyGuardians(ctx, appointment, ports.EmailKindAppointmentUpdated); err != nil {
+		if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
 		}
-		s.notifyGuardianDevices(ctx, appointment, ports.EmailKindAppointmentUpdated)
+		s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentUpdated)
 	}
 
 	return s.appointmentDetail(ctx, appointment)
@@ -625,10 +625,10 @@ func (s *service) cancelStaffAppointment(ctx context.Context, appointmentID int6
 			return nil, err
 		}
 		if appointment.NotifyGuardians {
-			if err := s.notifyGuardians(ctx, appointment, ports.EmailKindAppointmentCancelled); err != nil {
+			if err := s.notifyGuardians(ctx, appointment, portal.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
 			}
-			s.notifyGuardianDevices(ctx, appointment, ports.EmailKindAppointmentCancelled)
+			s.notifyGuardianDevices(ctx, appointment, portal.EmailKindAppointmentCancelled)
 		}
 	}
 	return s.appointmentDetail(ctx, appointment)

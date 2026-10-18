@@ -388,8 +388,7 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 	t.Parallel()
 	// The welcome breaks with a failing statement on the invitation's
 	// transaction, the way a database error inside the enqueue would.
-	outbox := testpkg.NewCapturingOutbox()
-	outbox.FailKind("guardian_welcome", func(ctx context.Context) error {
+	outbox := api.NewFailingCapturingOutbox("guardian_welcome", func(ctx context.Context) error {
 		raw, ok := testpkg.TransactionFromContext(ctx)
 		if !ok {
 			return errors.New("welcome enqueue ran outside the invitation transaction")
@@ -424,7 +423,7 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 // Elterninfo; it carries no accept link.
 func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	t.Parallel()
-	outbox := testpkg.NewCapturingOutbox()
+	outbox := api.NewCapturingOutbox()
 	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})

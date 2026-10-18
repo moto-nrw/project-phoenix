@@ -7,11 +7,11 @@ import (
 	"net"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
-	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,8 +93,8 @@ func TestCommunicationAnnouncementAuditPreservesOwnerBindingAndEncodingFailure(t
 	defer cancel()
 	failure := errors.New("ledger rejected entry")
 	calls := 0
-	var recorded *platform.OperatorAuditLog
-	audit := NewCommunicationAnnouncementAudit(func(actual context.Context, row *platform.OperatorAuditLog) error {
+	var recorded *auditModels.OperatorAuditEntry
+	audit := NewCommunicationAnnouncementAudit(func(actual context.Context, row *auditModels.OperatorAuditEntry) error {
 		assert.Same(t, ctx, actual)
 		calls++
 		recorded = row
