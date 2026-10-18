@@ -42,15 +42,16 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
+	hosts := map[identityaccess.PasswordResetScope]string{
+		identityaccess.PasswordResetScopeStaff:  wiring.StaffURL,
+		identityaccess.PasswordResetScopeParent: wiring.ParentsURL,
+		identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
+	}
 	return &identityaccessCompose.PasswordResetDependencies{
 		Delivery: passwordResetDelivery{
 			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
 			backoff: backoff,
-			hosts: map[identityaccess.PasswordResetScope]string{
-				identityaccess.PasswordResetScopeStaff:  wiring.StaffURL,
-				identityaccess.PasswordResetScopeParent: wiring.ParentsURL,
-				identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
-			},
+			host:    func(scope identityaccess.PasswordResetScope) string { return hosts[scope] },
 		},
 		Passwords:        passwordPolicy{},
 		Expiry:           wiring.Expiry,
@@ -64,10 +65,11 @@ func passwordResetDependencies(wiring *PasswordResetWiring, records func() ident
 type passwordResetDelivery struct {
 	dispatcher *email.Dispatcher
 	from       email.Email
-	hosts      map[identityaccess.PasswordResetScope]string
-	backoff    []time.Duration
-	records    func() identityaccess.PasswordResets
-	logger     *slog.Logger
+	// host is the portal origin of a reset scope.
+	host    func(identityaccess.PasswordResetScope) string
+	backoff []time.Duration
+	records func() identityaccess.PasswordResets
+	logger  *slog.Logger
 }
 
 func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration) {
@@ -76,7 +78,7 @@ func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link i
 			slog.Int64("account_id", link.AccountID))
 		return
 	}
-	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.hosts[scope], expiry))
+	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.host(scope), expiry))
 	meta := email.DeliveryMetadata{
 		Type:        "password_reset",
 		ReferenceID: link.ID,
