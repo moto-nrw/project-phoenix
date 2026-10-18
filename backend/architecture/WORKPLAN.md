@@ -16,7 +16,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
-| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
+| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 14 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
@@ -785,3 +785,16 @@ Memo-Port. Middleware, Note-Eviction und Verhaltenstests nutzen dieselbe Impleme
 Paketklassifikation, Regeln, Keys und Composition ändern sich nicht. Die bestehende
 Memo-Port-Bindung liegt nun in einer nativen Root-Datei: Der Legacy-File-Budgeteintrag
 sinkt von 73 auf 64 LOC, die Summe von 3.795 auf 3786 LOC.
+
+
+#4079 bounded delivery / #4314 decision: Request Review's native staff response
+mappers move from `compose` into its public capability. Students HTTP stays
+in People Directory and calls that single implementation, retiring its exact
+`requestreview/compose` key. Policy epoch 72 → 73, rules 827 → 830, keys
+101 → 100 (#4079 15 → 14), Root composition 1,652 unchanged. Three narrow
+projection-public → Care Plan public/contract and Security Runtime public
+rules serve actual imports. No rule is deleted. Compose LOC cap falls by 186.
+The full candidate's Root-to-Root/test edges and new composition fields are not
+approved. ADR 0058 records the settled owners and round-16 resolutions;
+`docs/architecture/4079-remaining-http-edges.md` lists all 14 retained keys,
+their blockers and two alternatives each. #4079 is not closed by this slice.

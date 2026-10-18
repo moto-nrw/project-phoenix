@@ -228,7 +228,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.False(t, master[0].Past, "Stammdaten have no effective scope")
 	assert.Equal(t, &changed, master[0].CurrentValueChanged)
 	assert.Equal(t, []string{"md:person:first_name"}, master[0].ConflictKeys)
-	assert.Equal(t, ToMasterDataChangeRequestResponse(f.master.pending[0]), master[0].Data)
+	assert.Equal(t, requestreview.ToMasterDataChangeRequestResponse(f.master.pending[0]), master[0].Data)
 
 	care, _, err := queues.CareSchedule.Open(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.False(t, pickup.UrgentToday)
 	assert.True(t, pickup.Past, "yesterday's pickup change is past")
 	assert.Equal(t, []string{"pickup:" + today.AddDays(-1).String()}, pickup.ConflictKeys)
-	assert.Equal(t, ToCareRequestResponse(f.care.pending[1]), pickup.Data)
+	assert.Equal(t, requestreview.ToCareRequestResponse(f.care.pending[1]), pickup.Data)
 
 	offering, _, err := queues.Offering.Open(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
@@ -265,7 +265,7 @@ func TestOpenRowsCarryTheOwnerRules(t *testing.T) {
 	assert.True(t, excused[0].BulkEligible)
 	assert.Equal(t, map[string]string{today.String(): "present"}, excused[0].CurrentStatusByDate)
 	assert.Equal(t, []string{"absence:" + today.AddDays(-2).String(), "absence:" + today.String()}, excused[0].ConflictKeys)
-	assert.Equal(t, ToStaffExcusedRequestResponse(f.excused.pending[0]), excused[0].Data)
+	assert.Equal(t, requestreview.ToStaffExcusedRequestResponse(f.excused.pending[0]), excused[0].Data)
 }
 
 func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
@@ -299,7 +299,7 @@ func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
 	assert.True(t, master[0].CanCorrect)
 	assert.Equal(t, updated, master[1].DecidedAt, "auto-applied rows fall back to updated_at")
 	assert.False(t, master[1].CanCorrect)
-	assert.Equal(t, ToMasterDataHistoryResponse(f.master.history[0]), master[0].Data)
+	assert.Equal(t, requestreview.ToMasterDataHistoryResponse(f.master.history[0]), master[0].Data)
 
 	care, _, err := queues.CareSchedule.History(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)
