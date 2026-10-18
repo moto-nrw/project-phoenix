@@ -76,6 +76,17 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 		}})
 	}
 
+	activityNote, err := seedActivityNote(rt, today.String())
+	if err != nil {
+		return err
+	}
+	if activityNote != nil {
+		notes = append(notes, struct {
+			studentIndex int
+			note         map[string]any
+		}{0, activityNote})
+	}
+
 	created := 0
 	for _, entry := range notes {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[entry.studentIndex]
@@ -90,4 +101,42 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 
 	fmt.Printf("  %d student notes created\n", created)
 	return nil
+}
+
+// seedActivityNote writes an entry about index 0 in one of its activities
+// (#4268). The activity comes from the note form's own reference read, so the
+// seeder proves the picker and the create route agree on what may be chosen.
+// Index 0 is among the first children the master data enrolls in every
+// activity.
+func seedActivityNote(rt *Runtime, day string) (map[string]any, error) {
+	studentID, ok := rt.FixedSeeder.studentIDByIndex[0]
+	if !ok {
+		return nil, fmt.Errorf("student note demo index 0 not available")
+	}
+	raw, err := rt.Client.Get(fmt.Sprintf("/api/students/%d/note-subjects", studentID))
+	if err != nil {
+		return nil, fmt.Errorf("read note subjects: %w", err)
+	}
+	var response struct {
+		Data struct {
+			Activities []struct {
+				ID string `json:"id"`
+			} `json:"activities"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &response); err != nil {
+		return nil, fmt.Errorf("parse note subjects: %w", err)
+	}
+	if len(response.Data.Activities) == 0 {
+		fmt.Println("  no activity for an activity note, skipped")
+		return nil, nil
+	}
+	return map[string]any{
+		"kind":              "journal",
+		"visibility":        "group_leads",
+		"category":          "behaviour",
+		"body":              "Hat beim Aufräumen nach der AG gut mitgeholfen. Bitte weiter so bestärken.",
+		"subject_date":      day,
+		"activity_group_id": response.Data.Activities[0].ID,
+	}, nil
 }

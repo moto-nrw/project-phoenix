@@ -31,6 +31,7 @@ import {
   NOTE_VISIBILITY_GROUP_LEADS,
   studentNotesService,
   type StudentNote,
+  type StudentNoteActivity,
   type StudentNoteDraft,
 } from "~/lib/student-notes-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
@@ -52,14 +53,55 @@ const KIND_ITEMS = [
 const VISIBILITY_OPTIONS = [
   { value: NOTE_VISIBILITY_ALL_STAFF, label: "Ganzes Team" },
   { value: NOTE_VISIBILITY_CARE_TEAM, label: "Betreuungsteam des Kindes" },
-  { value: NOTE_VISIBILITY_GROUP_LEADS, label: "Gruppenleitung" },
 ];
 
 const VISIBILITY_LABELS: Record<string, string> = {
   [NOTE_VISIBILITY_ALL_STAFF]: "Ganzes Team",
   [NOTE_VISIBILITY_CARE_TEAM]: "Betreuungsteam",
-  [NOTE_VISIBILITY_GROUP_LEADS]: "Gruppenleitung",
 };
+
+// The leadership audience is the leadership of what the note refers to: the
+// supervisors of an activity, or the leads of the OGS group.
+const ACTIVITY_LEADS_LABEL = "Angebotsleitung";
+const GROUP_LEADS_LABEL = "Gruppenleitung";
+
+/** The reference picker encodes "nothing", a group or an activity in one value. */
+const REFERENCE_NONE = "";
+const REFERENCE_GROUP_PREFIX = "group:";
+const REFERENCE_ACTIVITY_PREFIX = "activity:";
+
+function referenceValue(draft: StudentNoteDraft): string {
+  if (draft.activityGroupId) {
+    return `${REFERENCE_ACTIVITY_PREFIX}${draft.activityGroupId}`;
+  }
+  if (draft.educationGroupId) {
+    return `${REFERENCE_GROUP_PREFIX}${draft.educationGroupId}`;
+  }
+  return REFERENCE_NONE;
+}
+
+function withReference(
+  draft: StudentNoteDraft,
+  value: string,
+): StudentNoteDraft {
+  const activityGroupId = value.startsWith(REFERENCE_ACTIVITY_PREFIX)
+    ? value.slice(REFERENCE_ACTIVITY_PREFIX.length)
+    : undefined;
+  const educationGroupId = value.startsWith(REFERENCE_GROUP_PREFIX)
+    ? value.slice(REFERENCE_GROUP_PREFIX.length)
+    : undefined;
+  const next = { ...draft, activityGroupId, educationGroupId };
+  // Without a reference there is no leadership to address. Fall back to the
+  // next narrower audience, never silently to the whole team.
+  if (
+    activityGroupId == null &&
+    educationGroupId == null &&
+    draft.visibility === NOTE_VISIBILITY_GROUP_LEADS
+  ) {
+    next.visibility = NOTE_VISIBILITY_CARE_TEAM;
+  }
+  return next;
+}
 
 const CATEGORY_OPTIONS = [
   { value: "", label: "Ohne Thema" },
@@ -78,27 +120,81 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
   ]),
 );
 
-/**
- * The leadership audience needs a group reference, and this tab does not pick
- * one. A note written here therefore reaches the team or the care team; the
- * narrow audience exists on notes written from a group or an activity.
- */
-// "Gruppenleitung" only means something when the note points at a group. An
-// existing note carries its own reference; a new one borrows the child's OGS
-// group, which the tab receives from the child's file.
-function visibilityOptionsFor(
-  note: StudentNote | null,
-  childGroupId: string,
+// The leadership audience only means something when the note points at a
+// group or an activity, and it names whose leadership that is.
+function visibilityOptionsFor(reference: {
+  activityGroupId?: string;
+  educationGroupId?: string;
+}): readonly { value: string; label: string }[] {
+  if (reference.activityGroupId) {
+    return [
+      ...VISIBILITY_OPTIONS,
+      { value: NOTE_VISIBILITY_GROUP_LEADS, label: ACTIVITY_LEADS_LABEL },
+    ];
+  }
+  if (reference.educationGroupId) {
+    return [
+      ...VISIBILITY_OPTIONS,
+      { value: NOTE_VISIBILITY_GROUP_LEADS, label: GROUP_LEADS_LABEL },
+    ];
+  }
+  return VISIBILITY_OPTIONS;
+}
+
+function visibilityLabel(note: StudentNote): string {
+  if (note.visibility === NOTE_VISIBILITY_GROUP_LEADS) {
+    return note.activityGroupId !== ""
+      ? ACTIVITY_LEADS_LABEL
+      : GROUP_LEADS_LABEL;
+  }
+  return VISIBILITY_LABELS[note.visibility] ?? note.visibility;
+}
+
+/** What the note is about besides the child, named for the chronicle. */
+interface ReferenceNames {
+  readonly activities: readonly StudentNoteActivity[];
+  readonly educationGroupId: string;
+  readonly educationGroupName: string;
+}
+
+function referenceLabel(note: StudentNote, names: ReferenceNames): string {
+  if (note.activityGroupId !== "") {
+    const activity = names.activities.find(
+      (candidate) => candidate.id === note.activityGroupId,
+    );
+    // An activity the child no longer attends keeps its reference, only the
+    // name is not part of today's list.
+    return activity ? `Angebot ${activity.name}` : "Angebot";
+  }
+  if (note.educationGroupId !== "") {
+    return note.educationGroupId === names.educationGroupId &&
+      names.educationGroupName !== ""
+      ? `OGS-Gruppe ${names.educationGroupName}`
+      : "OGS-Gruppe";
+  }
+  return "";
+}
+
+function referenceOptions(
+  names: ReferenceNames,
 ): readonly { value: string; label: string }[] {
-  const hasGroupReference =
-    note != null
-      ? note.activityGroupId !== "" || note.educationGroupId !== ""
-      : childGroupId !== "";
-  return hasGroupReference
-    ? VISIBILITY_OPTIONS
-    : VISIBILITY_OPTIONS.filter(
-        (option) => option.value !== NOTE_VISIBILITY_GROUP_LEADS,
-      );
+  const options = [{ value: REFERENCE_NONE, label: "Nur das Kind" }];
+  if (names.educationGroupId !== "") {
+    options.push({
+      value: `${REFERENCE_GROUP_PREFIX}${names.educationGroupId}`,
+      label:
+        names.educationGroupName !== ""
+          ? `OGS-Gruppe ${names.educationGroupName}`
+          : "OGS-Gruppe",
+    });
+  }
+  for (const activity of names.activities) {
+    options.push({
+      value: `${REFERENCE_ACTIVITY_PREFIX}${activity.id}`,
+      label: `Angebot ${activity.name}`,
+    });
+  }
+  return options;
 }
 
 function emptyDraft(): StudentNoteDraft {
@@ -138,10 +234,20 @@ function noteDay(note: StudentNote): string {
     : berlinTodayISO(new Date(note.createdAt));
 }
 
-function NoteMeta({ note }: { readonly note: StudentNote }) {
+function NoteMeta({
+  note,
+  names,
+}: {
+  readonly note: StudentNote;
+  readonly names: ReferenceNames;
+}) {
   const parts: string[] = [];
   if (note.subjectDate !== "") {
     parts.push(formatDate(note.subjectDate));
+  }
+  const reference = referenceLabel(note, names);
+  if (reference !== "") {
+    parts.push(reference);
   }
   if (note.origin === NOTE_ORIGIN_MASTER_DATA) {
     parts.push("Übernommen aus den Betreuernotizen");
@@ -167,8 +273,8 @@ function NoteMeta({ note }: { readonly note: StudentNote }) {
         <StatusBadge
           compact
           tone="blue"
-          label={VISIBILITY_LABELS[note.visibility] ?? note.visibility}
-          accessibleLabel={`Sichtbar für: ${VISIBILITY_LABELS[note.visibility] ?? note.visibility}`}
+          label={visibilityLabel(note)}
+          accessibleLabel={`Sichtbar für: ${visibilityLabel(note)}`}
         />
       ) : null}
     </div>
@@ -182,10 +288,15 @@ function NoteForm({
   onSave,
   saving,
   visibilityOptions,
+  referenceChoices,
+  referenceHint,
   idPrefix,
   fieldError,
 }: {
   readonly fieldError: (name: string) => string | undefined;
+  /** Omitted while editing: a note keeps the reference it was written with. */
+  readonly referenceChoices?: readonly { value: string; label: string }[];
+  readonly referenceHint?: string;
   readonly draft: StudentNoteDraft;
   readonly onChange: (draft: StudentNoteDraft) => void;
   readonly onCancel: () => void;
@@ -240,6 +351,25 @@ function NoteForm({
             fullWidth
           />
         </div>
+        {referenceChoices ? (
+          <div>
+            <label
+              htmlFor={`${idPrefix}-reference`}
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Bezug
+            </label>
+            <CustomSelect
+              id={`${idPrefix}-reference`}
+              value={referenceValue(draft)}
+              options={referenceChoices}
+              onChange={(value) => onChange(withReference(draft, value))}
+            />
+            {referenceHint ? (
+              <p className="mt-1 text-xs text-gray-500">{referenceHint}</p>
+            ) : null}
+          </div>
+        ) : null}
         <div>
           <label
             htmlFor={`${idPrefix}-visibility`}
@@ -282,14 +412,41 @@ function NoteForm({
 export function StudentNotizenTab({
   studentId,
   educationGroupId = "",
+  educationGroupName = "",
 }: {
   readonly studentId: string;
-  /** The child's OGS group, so a note can address its group leads. */
+  /** The child's OGS group, so a note can refer to it. */
   readonly educationGroupId?: string;
+  readonly educationGroupName?: string;
 }) {
   const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
     `student-notes-${studentId}`,
     () => studentNotesService.list(studentId),
+  );
+  // The activities name the references in the chronicle and fill the picker.
+  // Without them the card still works; only the activity names are missing.
+  const { data: activityData, error: activityError } = useSWRAuth<
+    StudentNoteActivity[]
+  >(`student-note-activities-${studentId}`, () =>
+    studentNotesService.listActivities(studentId),
+  );
+  useEffect(() => {
+    if (activityError) {
+      logger.warn("student_note_activities_load_failed", {
+        error:
+          activityError instanceof Error
+            ? activityError.message
+            : String(activityError),
+      });
+    }
+  }, [activityError]);
+  const referenceNames = useMemo<ReferenceNames>(
+    () => ({
+      activities: activityData ?? [],
+      educationGroupId,
+      educationGroupName,
+    }),
+    [activityData, educationGroupId, educationGroupName],
   );
   const tenantMutate = useTenantMutate();
 
@@ -385,12 +542,6 @@ export function StudentNotizenTab({
       await studentNotesService.create(studentId, {
         ...draft,
         body: draft.body.trim(),
-        // "Gruppenleitung" needs the group it means; a new note takes the
-        // child's own group, the only one the writer chose the child for.
-        educationGroupId:
-          draft.visibility === NOTE_VISIBILITY_GROUP_LEADS
-            ? educationGroupId
-            : draft.educationGroupId,
       });
       setComposing(false);
       setDraft(emptyDraft());
@@ -482,7 +633,7 @@ export function StudentNotizenTab({
           onSave={() => void saveEdit()}
           saving={saving}
           fieldError={formErrors.fieldError}
-          visibilityOptions={visibilityOptionsFor(note, educationGroupId)}
+          visibilityOptions={visibilityOptionsFor(note)}
         />
       ) : (
         <div className="flex items-start gap-3">
@@ -490,7 +641,7 @@ export function StudentNotizenTab({
             <p className="text-sm whitespace-pre-line text-gray-900">
               {note.body}
             </p>
-            <NoteMeta note={note} />
+            <NoteMeta note={note} names={referenceNames} />
           </div>
           {note.canEdit || note.canDelete ? (
             <OverflowMenu
@@ -561,7 +712,13 @@ export function StudentNotizenTab({
               onSave={() => void saveNew()}
               saving={saving}
               fieldError={formErrors.fieldError}
-              visibilityOptions={visibilityOptionsFor(null, educationGroupId)}
+              visibilityOptions={visibilityOptionsFor(draft)}
+              referenceChoices={referenceOptions(referenceNames)}
+              referenceHint={
+                activityError
+                  ? "Die Angebote konnten nicht geladen werden. Sie können die Notiz trotzdem ohne Angebot speichern."
+                  : undefined
+              }
             />
           </div>
         ) : null}
