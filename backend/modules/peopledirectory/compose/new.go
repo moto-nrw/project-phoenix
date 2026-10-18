@@ -60,6 +60,10 @@ type Dependencies struct {
 	// what graphs that never serve a photo (CLI roots, repository tests)
 	// need.
 	StudentPhotoRuntime func() StudentPhotoRuntime
+	// StudentPhotos is the photo runtime as a value, for a root that builds it
+	// before the directory; DisabledStudentPhotos serves a root without
+	// photos. It replaces StudentPhotoRuntime, which must then be unset.
+	StudentPhotos StudentPhotoRuntime
 	// StudentCompanions is the Care Plan seam the student write path needs:
 	// narrowing a departure plan drops the "läuft mit" links it no longer
 	// allows. Optional, on the same terms as the others — a graph that never
@@ -78,6 +82,9 @@ type Dependencies struct {
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
+	// GuardianProvider serves the guardian, phone-number and link capability
+	// from construction on, in place of BindGuardianDirectory afterwards.
+	GuardianProvider *GuardianDirectoryProvider
 }
 
 // New composes People Directory without Identity & Access account projections.
@@ -93,8 +100,8 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 // Dependencies field: only the guardian reachability read needs it, while
 // all other People Directory graphs stay independent of Identity & Access.
 func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
-		return nil, errors.New("people directory compose: all dependencies are required")
+	if err := checkDependencies(dependencies); err != nil {
+		return nil, err
 	}
 	database := func(ctx context.Context) (bun.IDB, int64, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
@@ -134,7 +141,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		consentHistory = dependencies.StudentConsentHistory
 	}
 	studentConsents := application.NewStudentConsents(consentHistory, observe)
-	photoRuntime := internalports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
+	photoRuntime := studentPhotoPort(dependencies)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -145,12 +152,22 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return peopledirectory.NewModule(application.NewEngine(application.EngineServices{
+	return newModule(application.NewEngine(application.EngineServices{
 		Service: service, Students: students, Guardians: guardians,
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
-	})), nil
+	}), dependencies.GuardianProvider)
+}
+
+func checkDependencies(dependencies Dependencies) error {
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
+		return errors.New("people directory compose: all dependencies are required")
+	}
+	if dependencies.StudentPhotos != nil && dependencies.StudentPhotoRuntime != nil {
+		return errors.New("people directory compose: the student photo runtime and its resolver are exclusive")
+	}
+	return nil
 }
 
 type transaction struct{}

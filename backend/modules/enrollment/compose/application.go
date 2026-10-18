@@ -88,32 +88,47 @@ type PhaseDependencies struct {
 	// resyncer on every edit, so the root can bind it after the phase
 	// administration exists.
 	SourcedTemplates func() enrollment.SourcedTemplateResyncer
-	Settings         CollectionSettings
-	Roster           enrollment.PhaseResponseRoster
-	CareExits        enrollment.PhaseResponseCareExits
-	PortalAccounts   enrollment.PhaseResponsePortalAccounts
-	Logger           *slog.Logger
-	Today            func() calendar.Date
+	// Resyncer is the sourced-template resyncer value NewResyncingPhases
+	// requires instead of SourcedTemplates.
+	Resyncer       enrollment.SourcedTemplateResyncer
+	Settings       CollectionSettings
+	Roster         enrollment.PhaseResponseRoster
+	CareExits      enrollment.PhaseResponseCareExits
+	PortalAccounts enrollment.PhaseResponsePortalAccounts
+	Logger         *slog.Logger
+	Today          func() calendar.Date
 }
 
 // NewPhases composes the phase administration in the ambient tenant
 // transaction.
 func NewPhases(deps PhaseDependencies) *Phases {
+	return application.NewPhases(phaseDependencies(deps))
+}
+
+// NewResyncingPhases composes the phase administration over the
+// sourced-template resyncer value; a missing resyncer, record or offering
+// port or recurrence lock is a construction error.
+func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
+	return application.NewResyncingPhases(phaseDependencies(deps))
+}
+
+func phaseDependencies(deps PhaseDependencies) application.PhaseDependencies {
 	var responses *application.PhaseResponseSources
 	if deps.Roster != nil || deps.CareExits != nil || deps.PortalAccounts != nil {
 		responses = &application.PhaseResponseSources{Roster: deps.Roster, CareExits: deps.CareExits, PortalAccounts: deps.PortalAccounts}
 	}
-	return application.NewPhases(application.PhaseDependencies{
+	return application.PhaseDependencies{
 		Records: deps.Records, Offerings: deps.Offerings, Calendar: deps.Calendar,
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		SourcedTemplates:                deps.SourcedTemplates,
+		Resyncer:                        deps.Resyncer,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),
 		Logger:                          deps.Logger,
 		Today:                           deps.Today,
-	})
+	}
 }
 
 // NewFormSchemas composes form-schema publishing. Every write runs in the

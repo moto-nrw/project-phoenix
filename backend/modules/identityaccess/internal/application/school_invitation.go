@@ -661,8 +661,7 @@ func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, a
 
 // RecordInvitationDelivery stores the outcome of mailing an invitation.
 func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	_, err := s.store.RecordSchoolInvitationDelivery(ctx, id, delivery.Bounded())
-	return err
+	return recordSchoolInvitationDelivery(ctx, s.store, id, delivery)
 }
 
 // InvitationDeliverySent reports whether the transport accepted a still

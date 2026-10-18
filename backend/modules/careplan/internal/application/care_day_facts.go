@@ -59,6 +59,16 @@ func NewCareDays(deps CareDayDependencies) careplan.CareDayQuery {
 	return &careDayService{deps: deps}
 }
 
+// NewCareDayQuery builds the care-day derivation with every read boundary it
+// needs, the care participation included; a missing one is a construction
+// error. The arrival baselines stay optional as for NewCareDays.
+func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDayQuery, error) {
+	if deps.Records == nil || deps.PickupBaselines == nil || deps.CareParticipation == nil {
+		return nil, errors.New("care plan care-day queries: records, pickup baselines and care participation are required")
+	}
+	return &careDayService{deps: deps}, nil
+}
+
 // WireCareParticipation attaches the lifecycle after both services exist in
 // the factory. Care-day construction happens earlier because CareLifecycle
 // itself depends on schedule repositories.

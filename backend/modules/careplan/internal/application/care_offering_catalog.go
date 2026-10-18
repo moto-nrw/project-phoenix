@@ -14,8 +14,9 @@ import (
 )
 
 // CareOfferingCatalogDependencies are the ports the catalog reads and the
-// collaborators it keeps in step. SourcedTemplates and Pickup resolve late:
-// the composition binds Enrollment's decision service after the catalog.
+// collaborators it keeps in step. SourcedTemplates and Pickup resolve late
+// for NewCareOfferingCatalog; NewCareOfferingCatalogWithBookings keeps the
+// catalog in step with the booking materialization it builds instead.
 type CareOfferingCatalogDependencies struct {
 	Records      ports.CatalogRecords
 	Phases       ports.CatalogPhases
@@ -42,6 +43,9 @@ type CareOfferingCatalogDependencies struct {
 // CareOfferingCatalog is the Care Plan care-offering catalog (#3559).
 type CareOfferingCatalog struct {
 	deps CareOfferingCatalogDependencies
+	// bookings is the booking materialization composed together with the
+	// catalog; it resyncs the sourced templates and the pickup projection.
+	bookings *BookingMaterialization
 }
 
 var _ careplan.CareOfferingCatalogCapability = (*CareOfferingCatalog)(nil)
@@ -413,6 +417,9 @@ func (c *CareOfferingCatalog) detachSourcedTemplates(ctx context.Context, offeri
 }
 
 func (c *CareOfferingCatalog) sourcedTemplateResyncer() ports.SourcedTemplateResyncer {
+	if c.bookings != nil {
+		return c.bookings
+	}
 	if c.deps.SourcedTemplates == nil {
 		return nil
 	}
@@ -420,6 +427,9 @@ func (c *CareOfferingCatalog) sourcedTemplateResyncer() ports.SourcedTemplateRes
 }
 
 func (c *CareOfferingCatalog) pickupResyncer() ports.PickupResyncer {
+	if c.bookings != nil {
+		return c.bookings
+	}
 	if c.deps.Pickup == nil {
 		return nil
 	}

@@ -28,6 +28,9 @@ type PhaseDependencies struct {
 	// resyncer on every edit, so the composition can bind it after the
 	// phase administration exists.
 	SourcedTemplates func() enrollment.SourcedTemplateResyncer
+	// Resyncer is the sourced-template resyncer as a value; NewResyncingPhases
+	// requires it in place of SourcedTemplates.
+	Resyncer enrollment.SourcedTemplateResyncer
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -71,6 +74,20 @@ func NewPhases(deps PhaseDependencies) *Phases {
 	return &Phases{deps: deps, logger: logger}
 }
 
+// NewResyncingPhases builds the phase administration over the
+// sourced-template resyncer it keeps the rosters in step through. The
+// records, the offerings, the recurrence lock and the resyncer are required;
+// the late resolver must be unset.
+func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
+	if deps.Records == nil || deps.Offerings == nil || deps.LockTemplateRecurrence == nil || deps.Resyncer == nil {
+		return nil, errors.New("enrollment phases: records, offerings, template recurrence lock and sourced-template resyncer are required")
+	}
+	if deps.SourcedTemplates != nil {
+		return nil, errors.New("enrollment phases: the sourced-template resolver must be unset when the resyncer is bound")
+	}
+	return NewPhases(deps), nil
+}
+
 func (s *Phases) todayDate() calendar.Date {
 	if s.deps.Today != nil {
 		return s.deps.Today()
@@ -79,6 +96,9 @@ func (s *Phases) todayDate() calendar.Date {
 }
 
 func (s *Phases) sourcedTemplates() enrollment.SourcedTemplateResyncer {
+	if s.deps.Resyncer != nil {
+		return s.deps.Resyncer
+	}
 	if s.deps.SourcedTemplates == nil {
 		return nil
 	}

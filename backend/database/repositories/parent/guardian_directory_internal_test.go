@@ -17,7 +17,7 @@ func TestParentReadsFailClosedWithoutMembershipQuery(t *testing.T) {
 	ctx := context.Background()
 	accountID := int64(len(t.Name()))
 
-	_, err := NewChildRepository(nil).ListByAccount(ctx, accountID)
+	_, err := NewChildRepository(nil, nil, nil).ListByAccount(ctx, accountID)
 	require.ErrorIs(t, err, errMembershipQueryRequired)
 
 	phases := &EnrollablePhaseRepository{}
@@ -35,7 +35,7 @@ func TestParentReadsFailClosedOnMembershipFailure(t *testing.T) {
 		require.Equal(t, accountID, gotID)
 		return nil, failure
 	}
-	children, err := NewChildRepository(memberships).ListByAccount(ctx, accountID)
+	children, err := NewChildRepository(memberships, nil, nil).ListByAccount(ctx, accountID)
 	require.ErrorIs(t, err, failure)
 	require.Nil(t, children)
 	phases := &EnrollablePhaseRepository{memberships: memberships}

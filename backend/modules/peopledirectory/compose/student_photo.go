@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentPhotoConsentSnapshot is the photo slice of a consent change the
@@ -32,6 +33,32 @@ type StudentPhotoRuntime interface {
 		actorAccountID *int64,
 		changedAt time.Time,
 	) error
+}
+
+// DisabledStudentPhotos is the photo runtime of a root that serves no
+// photos: every photo route reports the feature as disabled and a consent
+// change fails, as without a bound runtime.
+func DisabledStudentPhotos() StudentPhotoRuntime { return disabledStudentPhotos{} }
+
+type disabledStudentPhotos struct{}
+
+func (disabledStudentPhotos) PhotoFeatureEnabled(context.Context) (bool, error) { return false, nil }
+func (disabledStudentPhotos) ActingAccountID(context.Context) int64             { return 0 }
+func (disabledStudentPhotos) UnlinkStoredPhoto(string)                          {}
+func (disabledStudentPhotos) BroadcastPhotoChange(int64, int64, string)         {}
+func (disabledStudentPhotos) RecordPhotoConsent(context.Context, StudentPhotoConsentSnapshot, StudentPhotoConsentSnapshot, *int64, time.Time) error {
+	return errStudentPhotoRuntimeUnbound
+}
+
+var errStudentPhotoRuntimeUnbound = errors.New("people directory: student photo runtime is not bound")
+
+// studentPhotoPort is the photo runtime value or, for the current root, the
+// resolver; New refuses both at once.
+func studentPhotoPort(dependencies Dependencies) internalports.StudentPhotoRuntime {
+	if runtime := dependencies.StudentPhotos; runtime != nil {
+		return studentPhotoRuntime{resolve: func() StudentPhotoRuntime { return runtime }}
+	}
+	return studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime}
 }
 
 // studentPhotoRuntime adapts the composition root's public-typed seam to the
@@ -81,7 +108,7 @@ func (a studentPhotoRuntime) RecordPhotoConsent(
 ) error {
 	runtime := a.bound()
 	if runtime == nil {
-		return errors.New("people directory: student photo runtime is not bound")
+		return errStudentPhotoRuntimeUnbound
 	}
 	return runtime.RecordPhotoConsent(
 		ctx,

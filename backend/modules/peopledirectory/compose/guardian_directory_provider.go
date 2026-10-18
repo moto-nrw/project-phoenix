@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -27,6 +28,21 @@ func BindGuardianDirectory(persons peopledirectory.Capability, provider *Guardia
 		panic(fmt.Sprintf("guardian directory: people directory %T cannot bind the guardian provider", persons))
 	}
 	binder.BindGuardianProvider(application.NewGuardianDirectory(provider.Guardians, provider.Runtime, provider.PermissionGranted))
+}
+
+// newModule wraps the engine and installs the guardian provider
+// Dependencies.GuardianProvider names at construction; every part of a
+// named provider is required.
+func newModule(engine application.Engine, provider *GuardianDirectoryProvider) (*peopledirectory.Module, error) {
+	module := peopledirectory.NewModule(engine)
+	if provider == nil {
+		return module, nil
+	}
+	if provider.Guardians == nil || provider.Runtime == nil || provider.PermissionGranted == nil {
+		return nil, errors.New("people directory compose: the guardian provider needs the guardian service, the tenant transactions and the permission rule")
+	}
+	module.BindGuardianProvider(application.NewGuardianDirectory(provider.Guardians, provider.Runtime, provider.PermissionGranted))
+	return module, nil
 }
 
 // GuardianDirectoryProvider is what the root binds the guardian provider

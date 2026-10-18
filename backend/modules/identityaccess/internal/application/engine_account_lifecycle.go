@@ -237,24 +237,21 @@ func (e engine) ListGuardianInvitations(ctx context.Context, guardianProfileID i
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	invitations, err := e.lifecycle.ListGuardianInvitations(e.attach(ctx), guardianProfileID)
-	return publicGuardianInvitations(invitations), invitationError(err)
+	return NewGuardianInvitationReads(e.lifecycle.invitations).ListGuardianInvitations(e.attach(ctx), guardianProfileID)
 }
 
 func (e engine) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	invitations, err := e.lifecycle.ListOpenGuardianInvitations(e.attach(ctx), guardianProfileIDs)
-	return publicGuardianInvitations(invitations), invitationError(err)
+	return NewGuardianInvitationReads(e.lifecycle.invitations).ListOpenGuardianInvitations(e.attach(ctx), guardianProfileIDs)
 }
 
 func (e engine) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	invitations, err := e.lifecycle.ListRedeemableGuardianInvitations(e.attach(ctx))
-	return publicGuardianInvitations(invitations), invitationError(err)
+	return NewGuardianInvitationReads(e.lifecycle.invitations).ListRedeemableGuardianInvitations(e.attach(ctx))
 }
 
 func publicGuardianInvitations(invitations []domain.GuardianInvitation) []identityaccess.GuardianInvitation {

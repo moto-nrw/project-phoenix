@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -71,7 +72,26 @@ type CareOfferingCatalogDependencies struct {
 
 // NewCareOfferingCatalog composes the Care Plan care-offering catalog.
 func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.CareOfferingCatalogCapability, error) {
-	return application.NewCareOfferingCatalog(application.CareOfferingCatalogDependencies{
+	return application.NewCareOfferingCatalog(catalogDependencies(deps))
+}
+
+// NewCareOfferingCatalogWithBookings composes the catalog and the booking
+// materialization over it together; the catalog resyncs through that
+// materialization. catalog.SourcedTemplates, catalog.Pickup and
+// bookings.Catalog must be unset.
+func NewCareOfferingCatalogWithBookings(catalog CareOfferingCatalogDependencies, bookings BookingMaterializationDependencies) (careplan.CareOfferingCatalogCapability, careplan.BookingMaterializationCapability, error) {
+	if bookings.Catalog != nil {
+		return nil, nil, errors.New("care offering catalog with bookings: the catalog is composed here and must be unset")
+	}
+	composedCatalog, composedBookings, err := application.NewCareOfferingCatalogWithBookings(catalogDependencies(catalog), bookingDependencies(bookings, nil))
+	if err != nil {
+		return nil, nil, err
+	}
+	return composedCatalog, composedBookings, nil
+}
+
+func catalogDependencies(deps CareOfferingCatalogDependencies) application.CareOfferingCatalogDependencies {
+	return application.CareOfferingCatalogDependencies{
 		Records: deps.Records, Phases: deps.Phases, Timetable: deps.Timetable, Calendar: deps.Calendar,
 		Bookings: deps.Bookings, Settings: deps.Settings, Translations: deps.Translations, SourceRules: deps.SourceRules,
 		SourcedTemplates: deps.SourcedTemplates, Pickup: deps.Pickup,
@@ -79,7 +99,7 @@ func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.Care
 		MarkRollback:           tenant.MarkRollback,
 		Today:                  deps.Today,
 		Logger:                 deps.Logger,
-	})
+	}
 }
 
 // NewCareOfferings serves the catalog, the booking materialization it feeds,

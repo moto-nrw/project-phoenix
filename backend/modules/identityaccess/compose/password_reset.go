@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -15,7 +16,10 @@ import (
 // require the session dependencies: the flows reuse the portal-role lookups
 // and the session revocation.
 type PasswordResetDependencies struct {
-	Delivery         identityPorts.PasswordResetDelivery
+	Delivery identityPorts.PasswordResetDelivery
+	// DeliveryFor builds the delivery over the recorder of its outcome; the
+	// composition calls it once. It replaces Delivery, which must be unset.
+	DeliveryFor      func(identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery
 	Passwords        PasswordPolicy
 	Expiry           time.Duration
 	RateLimitEnabled bool
@@ -29,16 +33,22 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	if auth == nil || sessions == nil {
 		return nil, errors.New("identity access compose: the password reset flows require the session dependencies")
 	}
-	if deps.Delivery == nil || deps.Passwords == nil {
-		return nil, errors.New("identity access compose: every password reset dependency is required")
-	}
 	attach := sessions.TenantRuntime
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
+	delivery := deps.Delivery
+	if deps.DeliveryFor != nil && delivery == nil {
+		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach))
+	} else if deps.DeliveryFor != nil {
+		return nil, errors.New("identity access compose: the password reset delivery and its factory are exclusive")
+	}
+	if delivery == nil || deps.Passwords == nil {
+		return nil, errors.New("identity access compose: every password reset dependency is required")
+	}
 	return application.NewPasswordReset(auth, application.PasswordResetDependencies{
 		Store: store, Logins: store, Passwords: deps.Passwords,
-		Delivery:         application.PasswordResetDelivery{Source: deps.Delivery},
+		Delivery:         application.PasswordResetDelivery{Source: delivery},
 		Runtime:          tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Expiry:           deps.Expiry,
 		RateLimitEnabled: deps.RateLimitEnabled,

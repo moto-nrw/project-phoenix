@@ -108,6 +108,13 @@ type OperatorTokenCommand interface {
 	DeleteStaleOperatorEmailChanges(ctx context.Context) (int, error)
 }
 
+// OperatorLinkDeliveryRecorder records how the mail of an operator invitation
+// or e-mail change link fared; the root's mail delivery reports through it.
+type OperatorLinkDeliveryRecorder interface {
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+}
+
 // OperatorTokens is the capability the operator invitation and e-mail
 // change flows consume.
 type OperatorTokens interface {
