@@ -35,11 +35,17 @@ type staffAdminPersonRows interface {
 	FindByIDForUpdate(context.Context, int64) (*userModels.Person, error)
 }
 
+// staffAdminPersonDetails writes the names and the birthday of the person
+// behind a staff member through the People Directory.
+type staffAdminPersonDetails interface {
+	SetPersonDetails(ctx context.Context, personID int64, details peopledirectory.PersonDetails) error
+}
+
 // staffAdminPersons reads the person behind a staff member from the retained
 // rows and writes its details through the People Directory.
 type staffAdminPersons struct {
 	rows    staffAdminPersonRows
-	details peopledirectory.PersonDetailsCommand
+	details staffAdminPersonDetails
 }
 
 // staffDataAccessTrail is the Audit Platform's data access log.
