@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
@@ -16,33 +17,43 @@ import (
 // administrative transaction; it needs no flow dependencies, so every
 // composition serves it. The engine embeds it.
 type AccountRetention struct {
-	store      ports.AccountRetentionStore
-	attach     func(context.Context) context.Context
-	removeFile func(string) error
-	logger     *slog.Logger
+	store       ports.AccountRetentionStore
+	attach      func(context.Context) context.Context
+	afterCommit func(context.Context, func())
+	removeFile  func(string) error
+	logger      *slog.Logger
 }
 
 // NewAccountRetention binds the store; attach adds the composed unit of work
 // to the cleanup's context, like the engine does for every other flow.
-func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.Context) context.Context, logger *slog.Logger) *AccountRetention {
-	if store == nil || attach == nil {
+func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.Context) context.Context, afterCommit func(context.Context, func()), logger *slog.Logger) *AccountRetention {
+	if store == nil || attach == nil || afterCommit == nil {
 		panic("identity access application: account retention requires its store and runtime")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &AccountRetention{store: store, attach: attach, removeFile: os.Remove, logger: logger}
+	return &AccountRetention{store: store, attach: attach, afterCommit: afterCommit, removeFile: os.Remove, logger: logger}
 }
 
-// EraseUnusedAccounts reports how many accounts it erased. A failed avatar
-// removal rolls back the enclosing cleanup transaction, so the account and
-// its file are retried together on the next hourly run. A missing file has
-// already been removed and therefore succeeds idempotently.
+// EraseUnusedAccounts reports how many accounts it erased. Avatar removal runs
+// after the enclosing cleanup transaction commits, so a later transaction
+// failure cannot leave a still-valid account referring to a removed file.
 func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error) {
-	erased, _, err := r.store.EraseUnusedAccounts(r.attach(ctx))
+	txCtx := r.attach(ctx)
+	erased, _, err := r.store.EraseUnusedAccounts(txCtx)
 	if err != nil {
 		return 0, failed("erase unused accounts", err)
 	}
+	r.afterCommit(txCtx, func() { r.removeAvatars(ctx, erased) })
+	if len(erased) > 0 {
+		r.logger.InfoContext(ctx, "unused accounts erased",
+			slog.Int("records_deleted", len(erased)))
+	}
+	return len(erased), nil
+}
+
+func (r *AccountRetention) removeAvatars(ctx context.Context, erased []domain.ErasedAccount) {
 	for _, account := range erased {
 		for _, avatar := range account.AvatarFiles {
 			path := uploadedAvatarPath(avatar)
@@ -50,13 +61,10 @@ func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error)
 				continue
 			}
 			if err := r.removeFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return 0, failed("delete avatar file", err)
+				r.logger.WarnContext(ctx, "failed to delete erased account avatar file",
+					slog.Int64("account_id", account.ID),
+					slog.Any("error", err))
 			}
 		}
 	}
-	if len(erased) > 0 {
-		r.logger.InfoContext(ctx, "unused accounts erased",
-			slog.Int("records_deleted", len(erased)))
-	}
-	return len(erased), nil
 }

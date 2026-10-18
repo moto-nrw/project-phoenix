@@ -140,7 +140,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
-		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)), AccountRetention: application.NewAccountRetention(store, attach, invitationLogger(dependencies.Invitations)),
+		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, invitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
