@@ -96,6 +96,13 @@ var (
 	NewStaffParentMessageNotifier = notifications.NewStaffParentMessageNotifier
 	NewAbsenceNotifier            = notifications.NewAbsenceNotifier
 	NewPWAUsageService            = pwa.NewUsageService
+	// The same services over the root's unit of work at construction.
+	NewTenantSSEChannel              = notifications.NewTenantSSEChannel
+	NewTenantDurableWebPushChannel   = notifications.NewTenantDurableWebPushChannel
+	NewTenantAbsenceNotifier         = notifications.NewTenantAbsenceNotifier
+	NewTenantPreferenceService       = notifications.NewTenantPreferenceService
+	NewTenantPushSubscriptionService = notifications.NewTenantPushSubscriptionService
+	NewTenantPWAUsageService         = pwa.NewTenantUsageService
 	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled
