@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 )
 
@@ -29,7 +30,8 @@ type Resource[E Event, C Client[E]] struct {
 	runtime Runtime[E, C]
 	logger  *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
-	// SetSchoolAccess; the school handler refuses to stream without it.
+	// NewResourceWithSchoolAccess or SetSchoolAccess; the school handler
+	// refuses to stream without it.
 	schoolAccess SchoolAccessChecker
 }
 
@@ -58,4 +60,23 @@ func NewResource[E Event, C Client[E]](
 		runtime: runtime,
 		logger:  logger,
 	}
+}
+
+// NewResourceWithSchoolAccess is NewResource with the school stream's access
+// re-check at construction, in place of SetSchoolAccess after it (ADR 0059).
+// A missing hub, subscription resolver or access checker is a construction
+// error.
+func NewResourceWithSchoolAccess[E Event, C Client[E]](
+	hub Hub[C],
+	userCtx SubscriptionResolver,
+	runtime Runtime[E, C],
+	schoolAccess SchoolAccessChecker,
+	logger *slog.Logger,
+) (*Resource[E, C], error) {
+	if hub == nil || userCtx == nil || schoolAccess == nil {
+		return nil, errors.New("sse resource: hub, subscription resolver and school access are required")
+	}
+	resource := NewResource(hub, userCtx, runtime, logger)
+	resource.schoolAccess = schoolAccess
+	return resource, nil
 }
