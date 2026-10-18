@@ -82,6 +82,9 @@ type Dependencies struct {
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
+	// GuardianProvider serves the guardian, phone-number and link capability
+	// from construction on, in place of BindGuardianDirectory afterwards.
+	GuardianProvider *GuardianDirectoryProvider
 }
 
 // New composes People Directory without Identity & Access account projections.
@@ -152,12 +155,20 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return peopledirectory.NewModule(application.NewEngine(application.EngineServices{
+	module := peopledirectory.NewModule(application.NewEngine(application.EngineServices{
 		Service: service, Students: students, Guardians: guardians,
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
-	})), nil
+	}))
+	if provider := dependencies.GuardianProvider; provider != nil {
+		guardianDirectory, err := newGuardianDirectory(provider)
+		if err != nil {
+			return nil, err
+		}
+		module.BindGuardianProvider(guardianDirectory)
+	}
+	return module, nil
 }
 
 type transaction struct{}
