@@ -60,6 +60,10 @@ type Dependencies struct {
 	// what graphs that never serve a photo (CLI roots, repository tests)
 	// need.
 	StudentPhotoRuntime func() StudentPhotoRuntime
+	// StudentPhotos is the photo runtime as a value, for a root that builds it
+	// before the directory; DisabledStudentPhotos serves a root without
+	// photos. It replaces StudentPhotoRuntime, which must then be unset.
+	StudentPhotos StudentPhotoRuntime
 	// StudentCompanions is the Care Plan seam the student write path needs:
 	// narrowing a departure plan drops the "läuft mit" links it no longer
 	// allows. Optional, on the same terms as the others — a graph that never
@@ -134,7 +138,10 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		consentHistory = dependencies.StudentConsentHistory
 	}
 	studentConsents := application.NewStudentConsents(consentHistory, observe)
-	photoRuntime := internalports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
+	photoRuntime, err := studentPhotoPort(dependencies)
+	if err != nil {
+		return nil, err
+	}
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
