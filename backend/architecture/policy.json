@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 72,
+  "policy_epoch": 73,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -14242,6 +14242,39 @@
       "target_package": "modules/communication/http/staffmessages",
       "target_owner": "communication",
       "target_role": "http"
+    },
+    {
+      "id": "request-review-view.public.care-plan.public",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.public.care-plan.contract",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.public.security-runtime.public",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "security-runtime",
+      "target_role": "public"
     }
   ],
   "relocations": [

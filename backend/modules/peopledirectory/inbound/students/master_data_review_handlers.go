@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
 
 // MasterDataChangeRequestResponse is the staff-facing projection of one parent
@@ -82,6 +81,6 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	response := requestreviewcompose.ToMasterDataChangeRequestResponse(item)
+	response := requestreview.ToMasterDataChangeRequestResponse(item)
 	common.Respond(w, r, http.StatusOK, response, "Decision applied")
 }

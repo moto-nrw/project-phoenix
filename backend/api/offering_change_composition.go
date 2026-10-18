@@ -145,7 +145,7 @@ func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, d
 }
 
 func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
-	effectiveFrom, selections, err := parseStaffOfferingValue(write.Value)
+	effectiveFrom, selections, err := careplan.ParseOfferingStaffValue(write.Value["value"])
 	if err != nil {
 		return err
 	}

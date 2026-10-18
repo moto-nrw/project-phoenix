@@ -1,16 +1,15 @@
-package compose
+package requestreview
 
 import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
-func ToMasterDataChangeRequestResponse(item *masterdatarequests.ReviewItem) requestreview.MasterDataChangeRequestResponse {
+func ToMasterDataChangeRequestResponse(item *masterdatarequests.ReviewItem) MasterDataChangeRequestResponse {
 	r := item.Request
-	return requestreview.MasterDataChangeRequestResponse{
+	return MasterDataChangeRequestResponse{
 		ID:         strconv.FormatInt(r.ID, 10),
 		StudentID:  strconv.FormatInt(r.StudentID, 10),
 		FirstName:  item.FirstName,
@@ -25,8 +24,8 @@ func ToMasterDataChangeRequestResponse(item *masterdatarequests.ReviewItem) requ
 	}
 }
 
-func ToMasterDataHistoryResponse(item *masterdatarequests.HistoryItem) requestreview.MasterDataChangeRequestHistoryResponse {
-	return requestreview.MasterDataChangeRequestHistoryResponse{
+func ToMasterDataHistoryResponse(item *masterdatarequests.HistoryItem) MasterDataChangeRequestHistoryResponse {
+	return MasterDataChangeRequestHistoryResponse{
 		MasterDataChangeRequestResponse: ToMasterDataChangeRequestResponse(&masterdatarequests.ReviewItem{
 			Request:   item.Request,
 			FirstName: item.FirstName,
@@ -38,13 +37,13 @@ func ToMasterDataHistoryResponse(item *masterdatarequests.HistoryItem) requestre
 	}
 }
 
-func ToStaffExcusedRequestResponse(item *excusedrequests.ReviewItem) requestreview.StaffExcusedRequestResponse {
+func ToStaffExcusedRequestResponse(item *excusedrequests.ReviewItem) StaffExcusedRequestResponse {
 	r := item.Request
 	dates := make([]string, 0, len(r.Dates))
 	for _, d := range r.Dates {
 		dates = append(dates, d.String())
 	}
-	return requestreview.StaffExcusedRequestResponse{
+	return StaffExcusedRequestResponse{
 		ID:            strconv.FormatInt(r.ID, 10),
 		StudentID:     strconv.FormatInt(r.StudentID, 10),
 		FirstName:     item.FirstName,
@@ -59,8 +58,8 @@ func ToStaffExcusedRequestResponse(item *excusedrequests.ReviewItem) requestrevi
 	}
 }
 
-func ToStaffExcusedHistoryResponse(item *excusedrequests.HistoryItem) requestreview.StaffExcusedRequestHistoryResponse {
-	return requestreview.StaffExcusedRequestHistoryResponse{
+func ToStaffExcusedHistoryResponse(item *excusedrequests.HistoryItem) StaffExcusedRequestHistoryResponse {
+	return StaffExcusedRequestHistoryResponse{
 		StaffExcusedRequestResponse: ToStaffExcusedRequestResponse(&excusedrequests.ReviewItem{
 			Request:   item.Request,
 			FirstName: item.FirstName,

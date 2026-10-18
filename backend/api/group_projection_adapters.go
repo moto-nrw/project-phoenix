@@ -11,10 +11,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 )
 
-// unknownGroupName is the caregiver-capability blocker label for a
-// supervision whose group is not visible (kept from the former SQL).
-const unknownGroupName = "Unbekannte Gruppe"
-
 // CrossTenantQuery is the cross-tenant student read the active service consumes.
 type CrossTenantQuery interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]presenceCompose.CrossTenantStudent, error)
@@ -84,7 +80,7 @@ func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Con
 	if _, err := schoolStructureCompose.EnrichGroupNames(ctx, r.groups, pointers,
 		func(row *studentpresence.SupervisionBlocker) int64 { return row.GroupID },
 		func(row *studentpresence.SupervisionBlocker, name string) { row.GroupName = name },
-		unknownGroupName, "supervision blockers"); err != nil {
+		schoolstructure.UnknownGroupName, "supervision blockers"); err != nil {
 		return nil, err
 	}
 	return rows, nil

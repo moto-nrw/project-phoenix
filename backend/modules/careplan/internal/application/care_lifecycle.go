@@ -147,7 +147,7 @@ func (s *CareLifecycle) applyCareExitConfirmation(ctx context.Context, state *ca
 		return err
 	}
 	lastCareDay := state.input.LastCareDay
-	if err := s.owners.Students.EndCare(ctx, state.studentIDs, &lastCareDay); err != nil {
+	if err := s.endCare(ctx, state.studentIDs, &lastCareDay); err != nil {
 		return err
 	}
 	if err := s.upsertCareExitRecords(ctx, state); err != nil {
@@ -315,7 +315,7 @@ func (s *CareLifecycle) cancelCareExits(ctx context.Context, ids []int64, actorA
 		return err
 	}
 	for _, id := range ids {
-		if err := s.owners.Students.EndCare(ctx, []int64{id}, calendarDate(exits[id].PreviousEnrolledUntil)); err != nil {
+		if err := s.endCare(ctx, []int64{id}, calendarDate(exits[id].PreviousEnrolledUntil)); err != nil {
 			return err
 		}
 	}
@@ -423,8 +423,12 @@ func (s *CareLifecycle) resumeCare(ctx context.Context, input careplan.CareResum
 	if !input.NewStart.After(today) {
 		status = careplan.StudentStatusActive
 	}
-	if err := s.owners.Students.ResumeCare(ctx, input.StudentID, input.NewStart, status, today); err != nil {
+	resumed, err := s.owners.Students.ResumeCare(ctx, input.StudentID, input.NewStart, status, today)
+	if err != nil {
 		return err
+	}
+	if !resumed {
+		return careplan.ErrCareResumeNotEnded
 	}
 	if err := s.records.DeleteCareExits(ctx, []int64{input.StudentID}); err != nil {
 		return fmt.Errorf("care lifecycle: delete care exits: %w", err)
@@ -524,4 +528,18 @@ func calendarDate(value *careplan.Date) *calendar.Date {
 	}
 	converted := calendar.Date(*value)
 	return &converted
+}
+
+// endCare writes the children's last care day. A child whose row did not
+// change moved since the preview the caller confirmed, so the whole exit is
+// refused.
+func (s *CareLifecycle) endCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) error {
+	changed, err := s.owners.Students.EndCare(ctx, studentIDs, lastCareDay)
+	if err != nil {
+		return err
+	}
+	if changed != int64(len(studentIDs)) {
+		return careplan.ErrCareExitPreviewChanged
+	}
+	return nil
 }

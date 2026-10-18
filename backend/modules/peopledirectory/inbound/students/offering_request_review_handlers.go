@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -138,7 +137,7 @@ func (rs *Resource) previewOfferingChangeRequest(w http.ResponseWriter, r *http.
 	for _, selection := range preview.Selections {
 		selections = append(selections, OfferingRequestPreviewSelectionResponse{
 			OfferingID: strconv.FormatInt(selection.OfferingID, 10),
-			New:        requestreviewcompose.GermanOfferingDiffLabel(selection.State, selection.Days),
+			New:        requestreview.GermanOfferingDiffLabel(selection.State, selection.Days),
 			Removed:    selection.State == "removed",
 		})
 	}

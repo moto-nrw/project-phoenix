@@ -24,7 +24,7 @@ func (s *WeeklyApprovals) ApplyWeekly(ctx context.Context, request *carerequests
 		return false, errors.New("schedule: no weekdays to apply")
 	}
 	ctx, companionsChanged := s.People.TrackCompanionChanges(ctx)
-	staffID, err := s.People.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.People, "")
 	if err != nil {
 		return false, err
 	}

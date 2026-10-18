@@ -19,24 +19,44 @@ type RequestDecisionRecords interface {
 	UpdateCareScheduleRequestSnapshot(context.Context, int64, json.RawMessage) error
 }
 
-type RequestDecisionPeople = ports.RequestDecisionPeople
-type RequestDecisionPlans = ports.RequestDecisionPlans
-type RequestDecisionEffects = ports.RequestDecisionEffects
-
+// RequestDecisionDependencies wires the decisions. Guardians may be nil: a
+// graph without parent messaging skips the guardian check.
 type RequestDecisionDependencies struct {
-	Records RequestDecisionRecords
-	People  RequestDecisionPeople
-	Plans   RequestDecisionPlans
-	Effects RequestDecisionEffects
-	Today   func() calendar.Date
+	Records   RequestDecisionRecords
+	People    ports.RequestDecisionPeople
+	Guardians ports.GuardianAccess
+	Plans     ports.RequestDecisionPlans
+	Effects   ports.RequestDecisionEffects
+	Today     func() calendar.Date
 }
 
 func NewRequestDecisions(deps RequestDecisionDependencies) (carerequests.Decisions, error) {
 	if deps.Records == nil || deps.People == nil || deps.Plans == nil || deps.Effects == nil || deps.Today == nil {
 		return nil, errors.New("care request decisions: records, people, plans, effects, and clock are required")
 	}
-	return &application.RequestDecisions{Records: requestDecisionRecords{deps.Records}, People: deps.People, Plans: deps.Plans,
-		Effects: deps.Effects, Today: deps.Today, Transaction: tenant.NewTransactionRunner()}, nil
+	return &application.RequestDecisions{Records: requestDecisionRecords{deps.Records}, People: deps.People, Guardians: deps.Guardians,
+		Plans: deps.Plans, Effects: deps.Effects, Today: deps.Today, Transaction: tenant.NewTransactionRunner()}, nil
+}
+
+// CareRequestEffects tells the families and the staff tabs about a care
+// request transition; every request command takes it as its effects.
+type CareRequestEffects interface {
+	ports.RequestSubmissionEffects
+	ports.RequestEditEvents
+	ports.RequestDecisionEffects
+	RecordCorrection(context.Context, *carerequests.Request, int64, map[string]any) error
+	NotifyCorrection(context.Context, *carerequests.Request, int64, bool, string) error
+}
+
+// CareRequestEffectPorts binds the owners a care request reports to.
+type CareRequestEffectPorts application.CareRequestEffectPorts
+
+func NewCareRequestEffects(deps CareRequestEffectPorts) (CareRequestEffects, error) {
+	effects, err := application.NewCareRequestEffects(application.CareRequestEffectPorts(deps), TenantHooks{})
+	if err != nil {
+		return nil, err
+	}
+	return effects, nil
 }
 
 type requestDecisionRecords struct{ RequestDecisionRecords }

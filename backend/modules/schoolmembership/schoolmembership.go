@@ -41,6 +41,9 @@ var (
 	ErrTeacherStaffConflict    = errors.New("staff member already has a teacher record")
 	ErrGuestStaffConflict      = errors.New("staff member already has a guest record")
 	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
+	// ErrStaffStillReferenced refuses offboarding a staff member other rows
+	// still point at. It is user-facing copy and keeps its capital letter.
+	ErrStaffStillReferenced = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // InvalidMembershipError carries the validation reason; it unwraps to
@@ -679,4 +682,11 @@ func ErrorCode(err error) string {
 	default:
 		return "internal_error"
 	}
+}
+
+// ExternalCaregiver reports whether a staff member is an external caregiver
+// (#3823): a guest profile alone is not one; a guest whose person holds no
+// account is.
+func ExternalCaregiver(guestProfile, personKnown, hasAccount bool) bool {
+	return guestProfile && personKnown && !hasAccount
 }

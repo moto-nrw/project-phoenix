@@ -42,7 +42,7 @@ const (
 	StudentStatusSourceManual      = excusedrequests.StudentStatusSourceManual
 	StudentStatusSourcePlanned     = "planned"
 	StudentStatusSourceNextCheckin = "next_checkin"
-	StudentStatusSourceEndOfDay    = "end_of_day"
+	StudentStatusSourceEndOfDay    = excusedrequests.StudentStatusSourceEndOfDay
 	// StudentStatusSourceParent marks a status day reported by a
 	// guardian through the parents portal (vs. entered by staff).
 	StudentStatusSourceParent = excusedrequests.StudentStatusSourceParent

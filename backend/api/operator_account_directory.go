@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
@@ -228,9 +229,7 @@ func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entr
 			continue
 		}
 		entry.Info.PedagogicRole = chain.TeacherRole
-		hasTeacher := chain.TeacherID != 0
-		entry.Info.HasCaregiverProfile = hasTeacher
-		entry.Info.IsActiveCaregiver = hasTeacher && entry.Info.HasUserRole
+		entry.Info.HasCaregiverProfile, entry.Info.IsActiveCaregiver = schoolmembership.CaregiverStatus(chain.TeacherID != 0, entry.Info.HasUserRole)
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -31,9 +32,9 @@ var (
 // repository for "the newest snapshot at all" without a second query shape.
 const maxSnapshotYear = 2100
 
-// MonthCloseStaffQuery selects the tenant's staff participating in month close.
+// MonthCloseStaffQuery lists the tenant's staff members.
 type MonthCloseStaffQuery interface {
-	ListStaffIDs(context.Context) ([]int64, error)
+	ListMonthCloseStaff(context.Context) ([]workforce.MonthCloseStaff, error)
 }
 
 // MonthCloseResult reports what a school-wide close did.
@@ -164,9 +165,16 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 		return nil, err
 	}
 
-	staffIDs, err := s.staffLister.ListStaffIDs(ctx)
+	staffMembers, err := s.staffLister.ListMonthCloseStaff(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staff for month close: %w", err)
+	}
+	// External caregivers (#3823) record no working time to close.
+	staffIDs := make([]int64, 0, len(staffMembers))
+	for _, member := range staffMembers {
+		if !member.Guest {
+			staffIDs = append(staffIDs, member.ID)
+		}
 	}
 	// Ascending staff ID: every other holder of the per-staff advisory lock
 	// takes exactly one, so a consistent order here rules out deadlocks

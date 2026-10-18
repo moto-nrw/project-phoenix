@@ -20,13 +20,12 @@ type RequestCorrectionRecords interface {
 }
 
 type RequestCorrectionEvent = ports.RequestCorrectionEvent
-type RequestCorrectionEffects = ports.RequestCorrectionEffects
 
 type RequestCorrectionDependencies struct {
 	Records RequestCorrectionRecords
 	People  ports.RequestCorrectionPeople
 	Plans   ports.RequestCorrectionPlans
-	Effects RequestCorrectionEffects
+	Effects ports.RequestCorrectionEffects
 }
 
 func NewRequestCorrections(deps RequestCorrectionDependencies) (carerequests.Corrections, error) {

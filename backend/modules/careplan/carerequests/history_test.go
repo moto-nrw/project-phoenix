@@ -59,3 +59,12 @@ func historyPayload(t *testing.T, payload map[string]any) json.RawMessage {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestStaffPickupValueReadsTheEnteredTime(t *testing.T) {
+	t.Parallel()
+	pickup, err := StaffPickupValue("15:45")
+	require.NoError(t, err)
+	require.Equal(t, "15:45", pickup)
+	_, err = StaffPickupValue(15)
+	require.ErrorIs(t, err, ErrInvalidPayload)
+}

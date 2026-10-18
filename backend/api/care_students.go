@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -104,18 +103,10 @@ func (s CareStudents) ListStudentIDs(ctx context.Context) ([]int64, error) {
 	return s.people.ListAllStudentIDs(ctx)
 }
 
-func (s CareStudents) EndCare(ctx context.Context, studentIDs []int64, lastCareDay *users.CalendarDate) error {
-	changed, err := s.membership.EndCare(ctx, studentIDs, users.RenderCalendarDate(lastCareDay))
-	if err == nil && changed != int64(len(studentIDs)) {
-		return careplan.ErrCareExitPreviewChanged
-	}
-	return err
+func (s CareStudents) EndCare(ctx context.Context, studentIDs []int64, lastCareDay *users.CalendarDate) (int64, error) {
+	return s.membership.EndCare(ctx, studentIDs, users.RenderCalendarDate(lastCareDay))
 }
 
-func (s CareStudents) ResumeCare(ctx context.Context, studentID int64, start users.CalendarDate, status string, on users.CalendarDate) error {
-	changed, err := s.membership.ResumeCare(ctx, studentID, start.String(), status, on.String())
-	if err == nil && !changed {
-		return careplan.ErrCareResumeNotEnded
-	}
-	return err
+func (s CareStudents) ResumeCare(ctx context.Context, studentID int64, start users.CalendarDate, status string, on users.CalendarDate) (bool, error) {
+	return s.membership.ResumeCare(ctx, studentID, start.String(), status, on.String())
 }

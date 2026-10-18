@@ -70,7 +70,7 @@ func (s *RequestConflicts) WriteStaffValue(ctx context.Context, write carereques
 	if err != nil {
 		return err
 	}
-	staffID, err := s.Plans.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.Plans, pickupRequestStaff)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (s *RequestConflicts) writePickupException(ctx context.Context, request car
 	if err := s.Plans.LockStudentAndExceptionDay(ctx, request.StudentID, date.String()); err != nil {
 		return fmt.Errorf("schedule: lock staff pickup day: %w", err)
 	}
-	staffID, err := s.Plans.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.Plans, pickupRequestStaff)
 	if err != nil {
 		return err
 	}
