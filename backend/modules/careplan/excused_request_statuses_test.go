@@ -5,10 +5,9 @@ import (
 	"testing"
 )
 
-func TestDecidedExcusedRequestStatuses(t *testing.T) {
+func TestPendingExcusedRequestStatuses(t *testing.T) {
 	t.Parallel()
-	want := []string{ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn}
-	if got := DecidedExcusedRequestStatuses(); !slices.Equal(got, want) {
-		t.Errorf("DecidedExcusedRequestStatuses() = %v, want %v", got, want)
+	if got := PendingExcusedRequestStatuses(); !slices.Equal(got, []string{ExcusedRequestStatusPending}) {
+		t.Errorf("PendingExcusedRequestStatuses() = %v", got)
 	}
 }

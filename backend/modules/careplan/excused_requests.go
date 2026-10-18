@@ -66,6 +66,12 @@ const (
 	ParentMessageRequestSick         = excusedrequests.ParentMessageRequestSick
 )
 
+// PendingExcusedRequestStatuses are the statuses of the excused requests
+// still waiting for a decision.
+func PendingExcusedRequestStatuses() []string {
+	return []string{ExcusedRequestStatusPending}
+}
+
 // DecidedExcusedRequestStatuses are the statuses of the decided excused
 // requests a review history lists: approved, rejected and withdrawn.
 func DecidedExcusedRequestStatuses() []string {
