@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -32,8 +32,6 @@ type AuthTestModule struct {
 	DemoAccess            *identityaccess.DemoAccess
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
-	Schools               organizationtenancy.Capability
-	Settings              settingsCompose.SettingsService
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
 	// Access second factor and both portals' WebAuthn ceremonies (#3331),
 	// composed over the same repositories the root uses.
@@ -41,10 +39,22 @@ type AuthTestModule struct {
 	Passkeys         identityaccess.AccountPasskeyFlows
 	OperatorMFA      identityaccess.OperatorMFAFlows
 	OperatorPasskeys identityaccess.OperatorPasskeyFlows
-	// Repos and SessionSigning let a behaviour test read the rows the flows
-	// wrote and mint the tokens they expect.
-	Repos          MembershipTestRepositories
+	// SessionSigning lets a behaviour test mint the tokens the flows expect;
+	// the rows the flows wrote are read through
+	// MustNewMembershipTestRepositories, the schools through
+	// NewOrganizationTestRows and the settings through NewAuthTestSettings
+	// over the same database (#4080).
 	SessionSigning AuthTestSessionSigning
+}
+
+// NewAuthTestSettings are the tenant settings the composed module reads,
+// over db and unit.
+func NewAuthTestSettings(db transactionruntime.Database, unit tenant.UnitOfWork) settingsCompose.SettingsService {
+	settings, err := NewSettingsTestModule(db, unit)
+	if err != nil {
+		panic(fmt.Sprintf("auth test settings: %v", err))
+	}
+	return settings.Settings
 }
 
 // AuthTestSessionSigning is the signing configuration of the composed
@@ -57,8 +67,7 @@ type AuthTestSessionSigning struct {
 }
 
 type InvitationTestModule struct {
-	Persistence *InvitationPersistence
-	Invitation  InvitationCapability
+	Invitation InvitationCapability
 	// Auth is the composed Identity & Access module, for the invitation
 	// HTTP tests that mount the whole auth router and therefore need the
 	// account-lifecycle capability its unrelated routes bind (#3364).
@@ -66,15 +75,11 @@ type InvitationTestModule struct {
 }
 
 func NewInvitationTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (InvitationTestModule, error) {
-	repos, err := NewInvitationPersistence(db)
-	if err != nil {
-		return InvitationTestModule{}, err
-	}
 	auth, err := NewAuthTestModule(db, unit)
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
-	return InvitationTestModule{Persistence: repos, Invitation: auth.Invitation, Auth: auth.Auth}, nil
+	return InvitationTestModule{Invitation: auth.Invitation, Auth: auth.Auth}, nil
 }
 
 // AccountMFARecords is the account MFA record port the composed module
@@ -82,11 +87,16 @@ func NewInvitationTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 // into the module's composition package.
 type AccountMFARecords = identityPorts.AccountMFARecords
 
-// AuthTestOption overrides a default of the composed test module.
-type AuthTestOption func(*authTestSettings)
+// AuthTestOption overrides a default of the composed test module: the
+// Identity & Access settings or the mail transport.
+type AuthTestOption func(*authTestSettings, *authTestMail)
+
+// authTestMail is the mail transport the composed module sends through.
+type authTestMail struct {
+	mailer email.Mailer
+}
 
 type authTestSettings struct {
-	mailer           email.Mailer
 	rateLimitEnabled bool
 	resetBackoff     []time.Duration
 	mfaBackoff       []time.Duration
@@ -105,64 +115,64 @@ type authTestSettings struct {
 // WithDemoOperatorWithoutSecondFactor composes the operator login of the
 // demo environment, which asks for no second factor (#3460).
 func WithDemoOperatorWithoutSecondFactor() AuthTestOption {
-	return func(settings *authTestSettings) { settings.demoOperatorWithoutSecondFactor = true }
+	return func(settings *authTestSettings, _ *authTestMail) { settings.demoOperatorWithoutSecondFactor = true }
 }
 
 // WithDemoMaxActiveSchools composes the demo access with this capacity.
 func WithDemoMaxActiveSchools(capacity int) AuthTestOption {
-	return func(settings *authTestSettings) { settings.demoMaxActiveSchools = capacity }
+	return func(settings *authTestSettings, _ *authTestMail) { settings.demoMaxActiveSchools = capacity }
 }
 
 // WithStandingDemoSchool composes the demo access with the fallback of #3463:
 // every access enters the school with this slug instead of its own.
 func WithStandingDemoSchool(slug string) AuthTestOption {
-	return func(settings *authTestSettings) { settings.standingDemo = slug }
+	return func(settings *authTestSettings, _ *authTestMail) { settings.standingDemo = slug }
 }
 
 // WithAuthTestMailer composes the module on the given mailer, so a test can
 // read the mails the flows send.
 func WithAuthTestMailer(mailer email.Mailer) AuthTestOption {
-	return func(s *authTestSettings) { s.mailer = mailer }
+	return func(_ *authTestSettings, mail *authTestMail) { mail.mailer = mailer }
 }
 
 // WithAuthTestPasswordResetRateLimit enables the per-address reset rate
 // limit, which the test configuration leaves off.
 func WithAuthTestPasswordResetRateLimit(enabled bool) AuthTestOption {
-	return func(s *authTestSettings) { s.rateLimitEnabled = enabled }
+	return func(s *authTestSettings, _ *authTestMail) { s.rateLimitEnabled = enabled }
 }
 
 // WithAuthTestStaffCreateFailure composes the module with a staff directory
 // whose insert fails, so a test can prove that a failure inside the identity
 // chain rolls the whole acceptance back.
 func WithAuthTestStaffCreateFailure(err error) AuthTestOption {
-	return func(s *authTestSettings) { s.staffCreateErr = err }
+	return func(s *authTestSettings, _ *authTestMail) { s.staffCreateErr = err }
 }
 
 // WithAuthTestPasswordResetBackoff shortens the retry spacing of the reset
 // mail, so a test that asserts the recorded failure waits milliseconds
 // instead of the production twenty seconds.
 func WithAuthTestPasswordResetBackoff(backoff ...time.Duration) AuthTestOption {
-	return func(s *authTestSettings) { s.resetBackoff = backoff }
+	return func(s *authTestSettings, _ *authTestMail) { s.resetBackoff = backoff }
 }
 
 // WithAuthTestMFABackoff shortens the retry spacing of the MFA mails, so a
 // test that asserts a failed synchronous send waits milliseconds instead of
 // the production twenty seconds.
 func WithAuthTestMFABackoff(backoff ...time.Duration) AuthTestOption {
-	return func(s *authTestSettings) { s.mfaBackoff = backoff }
+	return func(s *authTestSettings, _ *authTestMail) { s.mfaBackoff = backoff }
 }
 
 // WithAuthTestMFARecords wraps the account MFA record port, so a test can
 // make one statement fail and prove the flow refuses instead of degrading.
 func WithAuthTestMFARecords(decorate func(AccountMFARecords) AccountMFARecords) AuthTestOption {
-	return func(s *authTestSettings) { s.mfaRecords = decorate }
+	return func(s *authTestSettings, _ *authTestMail) { s.mfaRecords = decorate }
 }
 
 // WithAuthTestMFACapability composes the module over the given account
 // second factor instead of the one over the repositories, so a test can
 // drive the login branches the gate decides between.
 func WithAuthTestMFACapability(capability identityaccess.AccountMFA) AuthTestOption {
-	return func(s *authTestSettings) { s.mfaCapability = capability }
+	return func(s *authTestSettings, _ *authTestMail) { s.mfaCapability = capability }
 }
 
 // authTestRelyingParty is the passkey relying party the composed test module
@@ -202,11 +212,12 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	audits = audits.WithRoutedWrites(command)
 	operatorAuditLog := NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
 	cfg := CurrentServiceConfig()
-	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
+	settingsOverrides := authTestSettings{rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
+	mail := authTestMail{mailer: email.NewMockMailer()}
 	for _, option := range options {
-		option(&settingsOverrides)
+		option(&settingsOverrides, &mail)
 	}
-	mailer := settingsOverrides.mailer
+	mailer := mail.mailer
 	dispatcher := email.NewDispatcher(mailer, logger)
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
@@ -320,10 +331,8 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		DemoAccess: identityAccess.DemoAccess(),
 		MFA:        identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
-		Repos:          members,
 		SessionSigning: AuthTestSessionSigning{Secret: cfg.JWTSecret, AccessExpiry: cfg.JWTExpiry, RefreshExpiry: cfg.JWTRefreshExpiry},
 		Invitation:     invitation, GuardianInvitation: guardian,
-		Schools: organizations, Settings: settings.Settings,
 	}, nil
 }
 
@@ -331,7 +340,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 // identity chain rows of db the way the service graph does it, for behaviour tests
 // that exercise sessions, the account lifecycle or the role administration
 // without the whole factory (#3364).
-func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.Database, logger *slog.Logger) (*identityaccess.Module, error) {
+func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork, audit auditModels.Command, db transactionruntime.Database, logger *slog.Logger) (*identityaccess.Module, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -356,45 +365,40 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	mfa, err := newMFADependencies(codec, cfg.Settings, mfaMailer{
-		dispatcher: cfg.Dispatcher, from: cfg.DefaultFrom, frontendURL: cfg.FrontendURL, logger: logger,
+	mfa, err := newMFADependencies(codec, nil, mfaMailer{
+		frontendURL: cfg.FrontendURL, logger: logger,
 	}, NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
 	if err != nil {
 		return nil, err
 	}
 	sessionRepos := SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, cfg.Audit, caregivers, unsentGuardianMail{}, nil, logger)
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, unsentGuardianMail{}, nil, logger)
 	if err != nil {
 		return nil, err
 	}
 	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
-			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, logger),
-	}, sessionRepos, codec, cfg.Settings, cfg.Audit, logger)
+	}, sessionRepos, codec, nil, audit, logger)
 	if err != nil {
 		return nil, err
 	}
-	if err := module.SetTenantRuntime(cfg.TenantRuntime); err != nil {
+	if err := module.SetTenantRuntime(unit); err != nil {
 		return nil, err
 	}
 	return module, nil
 }
 
 // IdentityAccessTestConfig is what a behaviour test supplies to compose the
-// module: the session tokens, the mail transport, the portal hosts and the
-// audit ledger. Every zero value composes the module without that seam; nil
-// session tokens sign with the configured secret.
+// module beside the tenant runtime and the audit ledger: the session tokens
+// and the portal hosts. The module composes without settings and without a
+// mail transport. Every zero value composes the module without that seam;
+// nil session tokens sign with the configured secret.
 type IdentityAccessTestConfig struct {
 	SessionTokens       identityaccessCompose.SignedIdentityTokens
-	TenantRuntime       tenant.UnitOfWork
-	Settings            settingsCompose.SettingsService
-	Audit               auditModels.Command
-	Dispatcher          *email.Dispatcher
-	DefaultFrom         email.Email
 	FrontendURL         string
 	ParentsURL          string
 	SchoolURL           string

@@ -66,10 +66,10 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
-		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, testpkg.NewDatabase(t, db), nil)
+		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
+	}, testpkg.TenantRuntime(t, db),
+		testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
+		testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
