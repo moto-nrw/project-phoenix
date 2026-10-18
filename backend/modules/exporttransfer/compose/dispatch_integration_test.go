@@ -237,7 +237,7 @@ func TestIntentRollbackAlsoRollsBackAccessAudit(t *testing.T) {
 	assert.Empty(t, files)
 }
 
-func TestPreparedUnconfiguredTransferPreservesOriginalResult(t *testing.T) {
+func TestPreparedUnconfiguredTransferSkipsFileAndAudit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -245,7 +245,6 @@ func TestPreparedUnconfiguredTransferPreservesOriginalResult(t *testing.T) {
 	module, err := newModule(Dependencies{DB: db, Settings: settings, Keys: testSettingKeys()})
 	require.NoError(t, err)
 	request := auditedTransferRequest(t, db)
-	expectedFilename := request.Filename
 	// Match the HTTP producer-only request, rather than an already-built file.
 	request.Filename = ""
 	request.Data = nil
@@ -256,12 +255,12 @@ func TestPreparedUnconfiguredTransferPreservesOriginalResult(t *testing.T) {
 	assert.Zero(t, outcome.ByteSize)
 	assert.Empty(t, outcome.TargetHost)
 	assert.Empty(t, outcome.TargetDirectory)
-	assert.Equal(t, expectedFilename, outcome.Filename)
-	assert.Equal(t, 1, accessAuditCount(t, ctx, db))
+	assert.Empty(t, outcome.Filename)
+	assert.Zero(t, accessAuditCount(t, ctx, db))
 	assert.Empty(t, readTransferRows(t, ctx, db))
 }
 
-func TestPreparedTransferPreservesProducerErrorPrecedence(t *testing.T) {
+func TestUnavailableDestinationPreventsFileProduction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -276,8 +275,8 @@ func TestPreparedTransferPreservesProducerErrorPrecedence(t *testing.T) {
 	request.Data = nil
 	request.PrepareFile = func(context.Context) (string, []byte, error) { return "", nil, producerErr }
 	_, err = transferInTenantTx(t, ctx, module, request)
-	require.ErrorIs(t, err, producerErr)
-	assert.NotErrorIs(t, err, settingsErr)
+	require.ErrorIs(t, err, settingsErr)
+	assert.NotErrorIs(t, err, producerErr)
 	assert.Empty(t, readTransferRows(t, ctx, db))
 	assert.Zero(t, accessAuditCount(t, ctx, db))
 }

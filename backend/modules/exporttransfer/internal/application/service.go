@@ -58,8 +58,8 @@ func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.
 	if err != nil {
 		return domain.Result{}, fmt.Errorf("%w: record intent: %w", ErrUnavailable, err)
 	}
-	// File production has the same precedence as before. Even an unconfigured
-	// transfer commits the existing access audit, but never creates an intent.
+	// A missing destination generates neither an export nor its access audit,
+	// because no sensitive data is sent.
 	if id == 0 {
 		return domain.Result{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
 	}
@@ -141,18 +141,18 @@ func (s *Service) beginIntent(ctx context.Context, request *domain.Request) (int
 	var id int64
 	err := s.runtime.WithinTenant(ctx, func(txCtx context.Context) error {
 		var err error
-		if request.PrepareFile != nil {
-			request.Filename, request.Data, err = request.PrepareFile(txCtx)
-			if err != nil {
-				return err
-			}
-		}
 		target, err = s.targets.Resolve(txCtx)
 		if errors.Is(err, domain.ErrNotConfigured) {
 			return nil
 		}
 		if err != nil {
 			return err
+		}
+		if request.PrepareFile != nil {
+			request.Filename, request.Data, err = request.PrepareFile(txCtx)
+			if err != nil {
+				return err
+			}
 		}
 		entry = transferIntent(*request, target)
 		id, err = s.journal.Begin(txCtx, entry)

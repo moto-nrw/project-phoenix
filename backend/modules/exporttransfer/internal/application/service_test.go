@@ -190,6 +190,28 @@ func TestTransfer_UnconfiguredTargetAttemptsAndRecordsNothing(t *testing.T) {
 	assert.Empty(t, journal.entries)
 }
 
+func TestTransfer_UnconfiguredTargetDoesNotPrepareTheFile(t *testing.T) {
+	t.Parallel()
+
+	prepared := false
+	journal := &fakeJournal{}
+	uploader := &fakeUploader{}
+	service := newTestService(fakeResolver{err: domain.ErrNotConfigured}, uploader, journal)
+
+	result, err := service.Transfer(context.Background(), domain.Request{
+		PrepareFile: func(context.Context) (string, []byte, error) {
+			prepared = true
+			return "sensitive.csv", []byte("sensitive export"), nil
+		},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, prepared, "a missing destination must prevent export generation and its access audit")
+	assert.Equal(t, domain.ReasonNotConfigured, result.Reason)
+	assert.Zero(t, uploader.calls)
+	assert.Empty(t, journal.entries)
+}
+
 // Evidence must commit before any remote operation can start.
 func TestTransfer_UnrecordableAttemptIsNotReportedAsSuccess(t *testing.T) {
 	t.Parallel()
