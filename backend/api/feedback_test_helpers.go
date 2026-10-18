@@ -30,12 +30,14 @@ func NewFeedbackTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return FeedbackTestModule{}, err
 	}
-	resolvers := feedbackCompose.NewSettings()
-	resolvers.Bind(func(ctx context.Context) (bool, error) {
+	resolvers, err := feedbackCompose.NewBoundSettings(func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, "feedback.enabled")
 	}, func(ctx context.Context) (int, error) {
 		return settings.Settings.ResolveInt(ctx, "feedback.data_retention_days")
 	})
+	if err != nil {
+		return FeedbackTestModule{}, err
+	}
 	feedback, err := feedbackCompose.New(feedbackCompose.Dependencies{
 		DB: db.Pool(), Settings: resolvers, Today: feedbackModule.Today, Observe: func(feedbackCompose.Observation) {},
 	})
