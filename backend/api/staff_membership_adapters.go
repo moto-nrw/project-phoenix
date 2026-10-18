@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
@@ -656,19 +657,23 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 	return r.staffBirthdays(ctx, nil, false, "list staff birthdays for export")
 }
 
-// The employment-only writes go to their Workforce owner. The opt-out and the
-// notes apply to live staff members only, as before the split; School
-// Membership checks the membership before each write.
+// The employment-only writes go to their Workforce owner through the
+// staff offboarding workflow's live-staff guard: the opt-out and the notes
+// apply to live staff members only, as before the split.
 
 func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return membershipError("set staff birthday display opt-out", r.Membership.WithLiveStaff(ctx, staffID, func(ctx context.Context) error {
-		return MembershipEmploymentError(r.Deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
-	}))
+	const op = "set staff birthday display opt-out"
+	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
+	if err != nil {
+		return membershipError(op, err)
+	}
+	return membershipError(op, MembershipEmploymentError(employment.SetBirthdayDisplayOptOut(ctx, staffID, optOut)))
 }
 
 func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	return membershipError("add notes", r.Membership.WithLiveStaff(ctx, id, func(ctx context.Context) error {
-		_, err := r.Deps.employment.AppendStaffNotes(ctx, id, notes)
-		return MembershipEmploymentError(err)
-	}))
+	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
+	if err != nil {
+		return membershipError("add notes", err)
+	}
+	return membershipError("add notes", MembershipEmploymentError(employment.AppendNotes(ctx, id, notes)))
 }
