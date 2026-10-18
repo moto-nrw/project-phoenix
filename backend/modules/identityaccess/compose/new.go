@@ -57,6 +57,10 @@ type Dependencies struct {
 	OperatorProvisioning *OperatorProvisioningDependencies
 	// Demo composes public demo access only in the demo environment.
 	Demo *DemoDependencies
+	// TenantRuntime is the unit of work the module opens its session,
+	// lifecycle and operator transactions under, bound at construction in
+	// place of Module.SetTenantRuntime. A zero value binds nothing.
+	TenantRuntime tenant.UnitOfWork
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -79,6 +83,9 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
 		sessions.TenantRuntime = runtime.Attach
 		dependencies.Sessions = &sessions
+	}
+	if !dependencies.TenantRuntime.IsZero() {
+		runtime.Bind(dependencies.TenantRuntime)
 	}
 	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
