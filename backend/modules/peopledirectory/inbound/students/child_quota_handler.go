@@ -1,10 +1,10 @@
 package students
 
 import (
-	"errors"
-	"net/http"
+	errors "errors"
+	http "net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 )
 
 // childQuotaResponse carries the Kinderkontingent line of the Datenverwaltung

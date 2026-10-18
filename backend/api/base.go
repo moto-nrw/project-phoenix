@@ -25,6 +25,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
@@ -56,6 +57,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -74,7 +76,9 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -95,7 +99,9 @@ import (
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -108,9 +114,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
+	openRoomMoveHTTP "github.com/moto-nrw/project-phoenix/workflows/openroommove/http"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 )
@@ -1366,7 +1374,7 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
-	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
+	reviewAccess, err := requestreviewcompose.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
 		return modules.reviewPolicy.AccessLevel(ctx, sessiontoken.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
@@ -1424,7 +1432,7 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review corrections: %w", err)
 	}
 	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, modules.persons, func(ctx context.Context) bool {
-		return studentsAPI.RequestReviewCorrectionAccess(ctx, modules.userContext.HasCurrentStaff)
+		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, modules.userContext.HasCurrentStaff)
 	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
@@ -1470,65 +1478,111 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 	if err != nil {
 		return nil, fmt.Errorf("request review projection: %w", err)
 	}
-	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		ConstraintViolation:          transactionFailures.IsConstraintViolation,
-		Uploads:                      nativeUploads.UploadFiles{},
-		PeopleDirectory:              svc.PeopleDirectory,
-		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
-		CompanionService:             modules.companions,
-		ClassListEntries:             classListEntryStudentsReader{entries: modules.membership},
-		ChildQuota:                   childQuotaStudentsReader{usages: modules.membership},
-		StudentDeletion:              svc.StudentDeletion,
-		CareLifecycleService:         svc.CareLifecycle,
-		StudentAuditService:          svc.PeopleDirectory,
-		SchoolGroups:                 studentSchoolGroups{GroupManagement: svc.Education},
-		UserContextService:           in.modules.userContext,
-		ActiveService:                svc.Active,
-		DeviceAuthenticator:          deviceAuth.Device(),
-		AuthenticatedDevice:          deviceauth.DeviceID,
-		PickupScheduleService:        svc.PickupSchedule,
-		WeekdayPickupNotes:           modules.carePlan,
-		PartialAbsenceService:        svc.PartialAbsence,
-		ArrivalScheduleService:       svc.ArrivalSchedule,
-		InstanceService:              svc.Instance,
-		CareDayService:               svc.CareDay,
-		SchoolService:                studentSchoolDirectory{schools: modules.organizations},
-		SettingsService:              svc.Settings,
-		MasterDataReviewService:      svc.MasterDataReview,
-		CareRequestService:           svc.CareRequests,
-		CareRequestReviews:           careReviews,
-		OfferingChangeService:        svc.EnrollmentCareOffering,
-		PickupAdjustmentService:      svc.EnrollmentCareOffering,
-		ExcusedRequestService:        svc.ExcusedRequests,
-		ParentRequestBulkService:     svc.ParentRequests,
-		ParentRequestConflictService: svc.ParentRequests,
-		FamilyProtection:             svc.PeopleDirectory,
-		StudentNotes:                 svc.PeopleDirectory,
-		RequestReviewAccess:          modules.reviewPolicy,
-		RequestReview:                requestReview,
-		StudentStatusDayService:      modules.presence.StatusDays,
-		AbsenceOverview:              svc.AbsenceOverview,
-		StudentHistoryService:        svc.StudentHistory,
-		OGSGroupLiveService:          svc.OGSGroupLive,
-		ActiveEnrollments:            studentActiveEnrollments{enrollments: svc.Activities},
-		EnrollmentDecision:           svc.EnrollmentDecision,
-		OfferingPickupTimes:          svc.EnrollmentCareOffering,
-		EnrollmentFormSchema:         newEnrollmentFormSchemas(svc.Settings, in.logger),
-		OfferingSourceResyncer:       studentClassResyncer,
-		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
-		Broadcaster:                  svc.RealtimeHub,
-		ParentEventEmitter:           svc.ParentEventEmitter,
-		AbsenceNotifier:              studentAbsenceNotifier{notifier: svc.AbsenceNotifier},
-		StudentPhotos:                svc.PeopleDirectory,
-		StudentConsents:              svc.StudentConsents,
-		PrivacyConsents:              presence,
-		StudentDocumentService:       svc.StudentDocuments,
-		DocumentStorage:              NewStudentDocumentStorage(),
-		ListExportService:            lists.NewRenderer(),
-		Logger:                       in.logger.With("handler", "students"),
-	})
-	tenant.Mount("/students", students.Router(ProtectedTenantRoutes))
-	return students, nil
+	students, careStudents, projectionStudents, presenceStudents, deletionStudents, requestStudents := NewStudentHTTPResources(
+		studentsAPI.ResourceConfig{
+			ActiveEnrollments:      studentActiveEnrollments{enrollments: svc.Activities},
+			AuthenticatedDevice:    deviceauth.DeviceID,
+			ChildQuota:             childQuotaStudentsReader{usages: modules.membership},
+			ClassListEntries:       classListEntryStudentsReader{entries: modules.membership},
+			DeviceAuthenticator:    deviceAuth.Device(),
+			FamilyProtection:       svc.PeopleDirectory,
+			Logger:                 in.logger.With("handler", "students"),
+			PeopleDirectory:        svc.PeopleDirectory,
+			Persons:                peopleCompose.NewStudentRoutePersons(svc.Users),
+			StudentAuditService:    svc.PeopleDirectory,
+			StudentDocumentService: svc.StudentDocuments,
+			StudentNotes:           svc.PeopleDirectory,
+			StudentPhotos:          svc.PeopleDirectory,
+			Uploads:                nativeUploads.UploadFiles{},
+			UserContextService:     in.modules.userContext,
+		},
+		careStudentsHTTP.ResourceConfig{
+			ArrivalScheduleService:       svc.ArrivalSchedule,
+			Broadcaster:                  svc.RealtimeHub,
+			CareLifecycleService:         svc.CareLifecycle,
+			CareRequestReviews:           careReviews,
+			CareRequestService:           svc.CareRequests,
+			CompanionService:             modules.companions,
+			DocumentStorage:              NewStudentDocumentStorage(),
+			ExcusedRequestService:        svc.ExcusedRequests,
+			LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
+			Logger:                       in.logger.With("handler", "students"),
+			MasterDataReviewService:      svc.MasterDataReview,
+			OfferingChangeService:        svc.EnrollmentCareOffering,
+			OfferingPickupTimes:          svc.EnrollmentCareOffering,
+			OfferingSourceResyncer:       studentClassResyncer,
+			ParentEventEmitter:           svc.ParentEventEmitter,
+			ParentRequestBulkService:     svc.ParentRequests,
+			ParentRequestConflictService: svc.ParentRequests,
+			PartialAbsenceService:        svc.PartialAbsence,
+			PeopleDirectory:              svc.PeopleDirectory,
+			Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
+			PickupAdjustmentService:      svc.EnrollmentCareOffering,
+			PickupScheduleService:        svc.PickupSchedule,
+			SettingsService:              svc.Settings,
+			StudentAuditService:          svc.PeopleDirectory,
+			StudentConsents:              svc.StudentConsents,
+			StudentDocumentService:       svc.StudentDocuments,
+			StudentPhotos:                svc.PeopleDirectory,
+			UserContextService:           in.modules.userContext,
+			WeekdayPickupNotes:           modules.carePlan,
+		},
+		projectionStudentsHTTP.ResourceConfig{
+			AbsenceOverview:         svc.AbsenceOverview,
+			ActiveEnrollments:       studentActiveEnrollments{enrollments: svc.Activities},
+			ActiveService:           svc.Active,
+			ArrivalScheduleService:  svc.ArrivalSchedule,
+			CareDayService:          svc.CareDay,
+			CareLifecycleService:    svc.CareLifecycle,
+			ClassListEntries:        classListEntryStudentsReader{entries: modules.membership},
+			CompanionService:        modules.companions,
+			ExcusedRequestService:   svc.ExcusedRequests,
+			InstanceService:         svc.Instance,
+			ListExportService:       lists.NewRenderer(),
+			Logger:                  in.logger.With("handler", "students"),
+			PeopleDirectory:         svc.PeopleDirectory,
+			Persons:                 peopleCompose.NewStudentRoutePersons(svc.Users),
+			PickupScheduleService:   svc.PickupSchedule,
+			SchoolGroups:            studentSchoolGroups{GroupManagement: svc.Education},
+			SchoolService:           studentSchoolDirectory{schools: modules.organizations},
+			SettingsService:         svc.Settings,
+			StudentConsents:         svc.StudentConsents,
+			StudentHistoryService:   svc.StudentHistory,
+			StudentStatusDayService: modules.presence.StatusDays,
+			UserContextService:      in.modules.userContext,
+		},
+		presenceStudentsHTTP.ResourceConfig{
+			AbsenceNotifier:         studentAbsenceNotifier{notifier: svc.AbsenceNotifier},
+			ActiveService:           svc.Active,
+			Broadcaster:             svc.RealtimeHub,
+			Logger:                  in.logger.With("handler", "students"),
+			ParentEventEmitter:      svc.ParentEventEmitter,
+			PeopleDirectory:         svc.PeopleDirectory,
+			Persons:                 peopleCompose.NewStudentRoutePersons(svc.Users),
+			PrivacyConsents:         presence,
+			SettingsService:         svc.Settings,
+			StudentStatusDayService: modules.presence.StatusDays,
+			UserContextService:      in.modules.userContext,
+		},
+		deleteStudentsHTTP.ResourceConfig{
+			CareLifecycleService: svc.CareLifecycle,
+			ConstraintViolation:  transactionFailures.IsConstraintViolation,
+			PeopleDirectory:      svc.PeopleDirectory,
+			StudentDeletion:      svc.StudentDeletion,
+			UserContextService:   in.modules.userContext,
+		},
+		reviewStudentsHTTP.ResourceConfig{
+			PeopleDirectory:     svc.PeopleDirectory,
+			RequestReview:       requestReview,
+			RequestReviewAccess: modules.reviewPolicy,
+		},
+	)
+	tenant.Mount("/students", students.Router(ProtectedTenantRoutesWith(
+		groupLiveHTTP.NewResource(svc.OGSGroupLive).Register,
+		careStudents.Register, projectionStudents.Register, presenceStudents.Register, deletionStudents.Register, requestStudents.Register,
+		(&enrollmentAPI.StudentResource{EnrollmentDecision: svc.EnrollmentDecision, EnrollmentFormSchema: newEnrollmentFormSchemas(svc.Settings, in.logger), StudentReadAccess: students.StudentReadAccess, Logger: in.logger.With("handler", "students")}).Register,
+	)))
+	return careStudents, nil
 }
 
 // mountPresenceRoutes serves the attendance routes and the kiosk API. Both
@@ -1543,13 +1597,24 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove, settingsFacts.NewDisplaySettings(svc.Settings))
-	active.SupervisionDashboardService = svc.SupervisionDashboard
+	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, ProtectedTenantRoutesWith(supervisionDashboardHTTP.NewResource(svc.SupervisionDashboard).Register), logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), settingsFacts.NewDisplaySettings(svc.Settings))
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
 		return err
 	}
-	tenant.Mount("/active", active.Router())
+	move := &openRoomMoveHTTP.Resource{
+		OpenRoomMove: openRoomMove, Authorize: active.BulkStudentMoveAuthorization,
+		MarkRollback: activeRequestRuntime().MarkRollback, RenderPresenceError: presenceAPI.ErrorRenderer,
+		WebAttendance: settingsFacts.NewDisplaySettings(svc.Settings).WebAttendanceEnabledReader(),
+	}
+	yard := supervisionDashboardHTTP.NewSchulhofResource(newSupervisionYard(svc.Schulhof), func(ctx context.Context) (int64, bool, error) {
+		staff, err := active.UserContextService.GetCurrentStaff(ctx)
+		if staff == nil {
+			return 0, false, err
+		}
+		return staff.ID, true, err
+	})
+	tenant.Mount("/active", active.RouterWithOwnerRoutes(move.Register, yard.Register))
 	tenant.Mount("/iot", iot.Router())
 	return nil
 }
@@ -1684,7 +1749,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	school := NewSchoolPortalHTTP(SchoolPortalAuth(in.modules.identity), SchoolPortalMFA(in.modules.identity), schoolPasswordResets(in.modules.identity), classDay, timetable, staffMessaging, staffNotices, notifications)
 	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
 	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
-	tenant.Mount("/timetable", timetable.Router(ProtectedTenantRoutes))
+	tenant.Mount("/timetable", timetable.Router(ProtectedTenantRoutesWith(classdayHTTP.NewSlotListResource(svc.SlotLists).Register)))
 	tenant.Mount("/notifications", notifications.Router())
 	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware(), SchoolSessionChain, ProtectedSchoolRoutes))
 	return nil
@@ -1714,7 +1779,6 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 		CareDayService:          svc.CareDay,
 		UserContextService:      modules.userContext,
 		SettingsService:         svc.Settings,
-		SlotListsService:        svc.SlotLists,
 		OfferingSourceOptions:   NewTimetableOfferingSources(svc.EnrollmentCareOffering),
 		SupervisionSheets:       NewTimetableSupervisionSheets(svc.ClassDayArrivalExceptions),
 		PlanExportService:       svc.PlanExport,

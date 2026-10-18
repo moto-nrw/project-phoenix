@@ -37,7 +37,7 @@
       "backend/modules/requestreview/offering_labels.go",
       "backend/modules/requestreview/compose/impact_fingerprint.go",
       "backend/modules/securityruntime/fingerprint.go",
-      "backend/modules/peopledirectory/inbound/students/care_request_detail_handlers.go",
+      "backend/modules/careplan/http/care_request_detail_handlers.go",
       "backend/modules/requestreview/compose/queues_test.go",
       "backend/api/route_table_golden_test.go",
       "backend/api/testdata/route_table.golden",

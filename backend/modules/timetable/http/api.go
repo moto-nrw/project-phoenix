@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -112,7 +111,6 @@ type Dependencies struct {
 	CareDayService     careplan.CareDayQuery
 	UserContextService securityruntime.StudentAccessUserContext
 	SettingsService    settings.Resolver
-	SlotListsService   classday.SlotLists
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).

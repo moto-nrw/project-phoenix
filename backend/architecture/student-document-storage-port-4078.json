@@ -30,9 +30,9 @@
   "runtime_evidence": {
     "source": "Focused People Directory11.592s and Root12.008s suites;immutable-base native-body,HTTP inverse-body,filename duplicate,lazy Root construction and whole golden/policy audits. Final gates before publication.",
     "sources": [
-      "backend/modules/peopledirectory/inbound/students/documents_handlers.go",
-      "backend/modules/peopledirectory/inbound/students/document_cleanup.go",
-      "backend/modules/peopledirectory/inbound/students/document_storage.go",
+      "backend/modules/careplan/http/documents_handlers.go",
+      "backend/modules/careplan/http/document_cleanup.go",
+      "backend/modules/careplan/http/document_storage.go",
       "backend/modules/filestorage/documents/coordinator.go",
       "backend/modules/filestorage/compose/new.go",
       "backend/api/student_document_storage_composition.go",

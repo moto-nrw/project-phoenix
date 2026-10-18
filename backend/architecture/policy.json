@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 74,
+  "policy_epoch": 75,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1285,13 +1285,6 @@
       "path": "models/calendar",
       "owner": "school-calendar",
       "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/settings/records",
-      "owner": "settings-platform",
-      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3399,6 +3392,62 @@
       "path": "observability/compose",
       "owner": "observability",
       "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/http",
+      "owner": "group-live-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/http",
+      "owner": "calendar-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/openroommove/http",
+      "owner": "open-room-move",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/presenceprojection/http",
+      "owner": "presence-legacy-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/studentpresence/http",
+      "owner": "student-presence",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/requestreview/http",
+      "owner": "request-review-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/studentdeletion/http",
+      "owner": "student-deletion",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/settings/records",
+      "owner": "settings-platform",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -5751,18 +5800,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.adapter-test.student-presence-compose",
-      "description": "Student route fixtures construct the production presence provider (#2731).",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -6431,18 +6468,6 @@
       ],
       "source_role": "adapter-test",
       "target_owner_kind": "platform",
-      "target_role": "public"
-    },
-    {
-      "id": "domain.adapter-test.projection.public",
-      "description": "Adapter tests may use public projections (domain sources; a platform reaches no projection owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "adapter-test",
-      "target_owner_kind": "projection",
       "target_role": "public"
     },
     {
@@ -7302,17 +7327,6 @@
       "source_role": "module-internal-test",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "settings-platform.test-support.records-port",
-      "description": "The settings test support scripts tenant values against the registry keys of the owner's records port (#4085).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "test-support",
-      "target_owner": "settings-platform",
-      "target_role": "port"
     },
     {
       "id": "student-presence.http.public",
@@ -10962,50 +10976,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.http.identity-access-contract",
-      "description": "Bind the native request-review identity and tenant-setting contracts (#3179, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "contract"
-    },
-    {
-      "id": "settings-platform.postgres.records-port",
-      "description": "The Settings Platform stores persist the owner's own records, which the owner publishes as its port for the root (#4085).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "postgres",
-      "target_owner": "settings-platform",
-      "target_role": "port"
-    },
-    {
-      "id": "root-composition.reach.internal-test.settings-platform.port",
-      "description": "The internal tests of the typed roots assert the Settings records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "settings-platform",
-      "target_role": "port"
-    },
-    {
-      "id": "settings-platform.records-port.review-contract",
-      "description": "The Settings Platform records bind the native request-review identity and tenant-setting contracts (#3179); the records moved from models/config into the owner's port (#4085).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "port",
-      "target_owner": "settings-platform",
-      "target_role": "contract"
-    },
-    {
       "id": "request-review-view.compose.people-directory.public",
       "description": "Request review binds native owner capabilities through typed composition (#3179).",
       "scopes": [
@@ -11246,17 +11216,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "people-directory.adapter-test.student-deletion-compose",
-      "description": "Student route fixtures construct the production deletion workflow (#2710, #2731).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "adapter-test",
-      "target_owner": "student-deletion",
-      "target_role": "compose"
     },
     {
       "id": "people-directory.contracttest.student-deletion.public",
@@ -11744,17 +11703,6 @@
       "source_role": "e2e-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
-    },
-    {
-      "id": "settings-platform.public.records-port",
-      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736), from the owner's records port (#4085).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "public",
-      "target_owner": "settings-platform",
-      "target_role": "port"
     },
     {
       "id": "settings-platform.compose.tenant-runtime",
@@ -12593,18 +12541,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.adapter-test.request-review-compose",
-      "description": "Student route tests bind the native request-review access through typed composition (#3179, #2731).",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "adapter-test",
-      "target_owner": "request-review-view",
-      "target_role": "compose"
-    },
-    {
       "id": "people-directory.http.tenant-runtime.common",
       "description": "The student routes reuse the shared HTTP runtime of api/common: the tenant route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2731).",
       "scopes": [
@@ -12661,17 +12597,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.http.delivery-public",
-      "description": "The student routes announce student, schedule and companion changes through the Delivery Platform broadcaster (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.adapter-test.tenant-runtime.common",
       "description": "Student route tests drive the routes through the shared HTTP runtime of api/common (ADR 0031, #2731).",
       "scopes": [
@@ -12695,28 +12620,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "people-directory.http.contract",
-      "description": "The student routes speak the People Directory departure contract: the plan types, the companion links and their refusals (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "contract"
-    },
-    {
-      "id": "people-directory.http.settings-public",
-      "description": "The student routes read the parent-request reason policy values of the Settings Platform contract (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "public"
     },
     {
       "id": "school-setup.integration-test.projection",
@@ -14275,6 +14178,1019 @@
       "source_role": "public",
       "target_owner": "security-runtime",
       "target_role": "public"
+    },
+    {
+      "id": "group-live-view.http.group-live-view.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "group-live-view",
+      "target_role": "public",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "group-live-view.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "group-live-view.http.security-runtime.contract",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "calendar-view.http.calendar-view.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "calendar-view",
+      "target_role": "public",
+      "source_package": "modules/supervisiondashboard/http"
+    },
+    {
+      "id": "calendar-view.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/supervisiondashboard/http"
+    },
+    {
+      "id": "open-room-move.http.open-room-move.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "open-room-move",
+      "target_role": "public",
+      "source_package": "workflows/openroommove/http"
+    },
+    {
+      "id": "open-room-move.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "workflows/openroommove/http"
+    },
+    {
+      "id": "open-room-move.http.student-presence.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "source_package": "workflows/openroommove/http"
+    },
+    {
+      "id": "care-plan.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.delivery-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.people-directory.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.settings-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.identity-access.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "presence-legacy-view.http.document-rendering.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.people-directory.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.student-presence.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.care-plan.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "presence-legacy-view.http.settings-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public",
+      "source_package": "modules/presenceprojection/http"
+    },
+    {
+      "id": "student-presence.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.delivery-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.settings-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "request-review-view.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.identity-access.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.care-plan.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.request-review-view.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "student-deletion.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.care-plan.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.student-deletion.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "student-deletion",
+      "target_role": "public",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "student-deletion.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "workflows/studentdeletion/http"
+    },
+    {
+      "id": "care-plan.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "adapter-test",
+      "source_package": "modules/careplan/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "care-plan.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "adapter-test",
+      "source_package": "modules/careplan/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "group-live-view.adapter-test.people-directory.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/grouplive/http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.care-plan.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.care-plan.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.enrollment.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.people-directory.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.people-directory.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.student-presence.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "request-review-view.adapter-test.care-plan.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.care-plan.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.adapter-test.enrollment.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "student-presence.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "source_package": "modules/studentpresence/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "student-deletion.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "adapter-test",
+      "source_package": "workflows/studentdeletion/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "student-deletion.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-deletion",
+      "source_role": "adapter-test",
+      "source_package": "workflows/studentdeletion/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "presence-legacy-view.adapter-test.timetable-activities.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/presenceprojection/http",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.identity-access.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    },
+    {
+      "id": "settings-platform.test-support.records-port",
+      "description": "The settings test support scripts tenant values against the registry keys of the owner's records port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "test-support",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "settings-platform.postgres.records-port",
+      "description": "The Settings Platform stores persist the owner's own records, which the owner publishes as its port for the root (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "postgres",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.internal-test.settings-platform.port",
+      "description": "The internal tests of the typed roots assert the Settings records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "settings-platform.records-port.review-contract",
+      "description": "The Settings Platform records bind the native request-review identity and tenant-setting contracts (#3179); the records moved from models/config into the owner's port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "port",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "settings-platform.public.records-port",
+      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736), from the owner's records port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "public",
+      "target_owner": "settings-platform",
+      "target_role": "port"
     }
   ],
   "relocations": [

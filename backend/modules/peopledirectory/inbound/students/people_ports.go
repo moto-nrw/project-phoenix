@@ -1,17 +1,11 @@
 package students
 
 import (
-	"context"
-	"time"
+	context "context"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// The routes read and write a child's own row through People Directory's
-// public capability (ResourceConfig.PeopleDirectory, #3349). The ports below
-// name the rest of the People Directory surface they need, each in the owner's
-// public types, so the composition root decides what serves it (#2731).
 
 // PersonRecords is the person half the routes cannot yet reach through the
 // owner's capability, because the retained person service still decides it:
@@ -57,12 +51,4 @@ type StudentPhotoLifecycle interface {
 	CommitStudentPhoto(ctx context.Context, studentID int64, storedURL string, consentAck bool) error
 	ClearStudentPhoto(ctx context.Context, studentID int64) (string, error)
 	ApplyStudentPhotoConsent(ctx context.Context, current peopleModule.StudentPhotoState, requestedConsent *bool) peopleModule.StudentPhotoState
-}
-
-// StudentConsentCapability is the consent surface of the student rows these
-// routes hold: the shared portal projection People Directory folds together,
-// and the Audit Platform trail every effective change appends to (#3349).
-type StudentConsentCapability interface {
-	CurrentStudentConsents(ctx context.Context, snapshot peopleModule.StudentConsentSnapshot, canManagePhoto bool) ([]peopleModule.StudentConsentState, error)
-	RecordStudentConsentTransitions(ctx context.Context, before, after peopleModule.StudentConsentSnapshot, source string, actorAccountID *int64, changedAt time.Time) error
 }

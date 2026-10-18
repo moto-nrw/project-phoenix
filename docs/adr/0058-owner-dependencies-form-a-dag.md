@@ -267,3 +267,43 @@ falls 34,483 → 34,297. Routes, responses, IoT and goldens remain unchanged.
 
 [Remaining exact keys and alternatives](../architecture/4079-remaining-http-edges.md)
 record the delivery boundary without another probe round.
+
+
+### Final owner HTTP cutover (#4079 and #4314)
+
+The implementation decision selects Option 1 for every remaining key. This
+supersedes the bounded delivery's restriction that all student routes stay
+in People Directory HTTP. Each transport belongs to the owner of the data
+and operations it serves, including projection and workflow HTTP roles.
+Root mounts these handlers from existing values, without new Root fields.
+The exact destinations are recorded in the remaining-edge map.
+
+An owner's HTTP transport uses its own public/contracts and its owner's
+existing target directions. Projection/workflow HTTP may consume domain and
+platform public/contracts. The moved handlers retain same-or-narrower native
+successors of People Directory's existing HTTP rules: Care Plan reaches
+People Directory public/departure and Identity's request-review contract;
+Student Presence reaches People Directory public; both retain their existing
+Delivery, Security and Settings platform targets. The shared tenant HTTP
+runtime and session-token runtime remain exact package targets. Tests retain
+native public/contracts and exact HTTP runtime targets in their original
+scopes, with source-package selectors.
+
+`reviewedOwnerHTTPRule` admits only these reviewed shapes in an increased
+epoch. Every source is pinned to its classified HTTP package and owner. The
+finite native-successor set preserves an existing target rule; arbitrary new
+domain directions, reverse/projection/workflow targets, private roles,
+external classes and widened scopes remain rejected. Table tests pin both
+accepted and refused shapes. Acyclic target-graph checks remain unchanged.
+
+The original data/response definitions move once. Root binds native response
+operations between Care Plan, Presence projection and Request Review; it
+binds comparison functions without moving the retained collation import to
+Root. There are no aliases, cloned DTOs, private-target grants or budget
+increases. All 14 #4079 keys retire together in one PR; #4314's ownership
+decision is implemented, not only recorded.
+
+Policy epoch 73 → 74; baseline keys 76 → 62; rules 833 → 902.
+Root composition remains 1,644 after integrating development. The integrated compose cap remains 33,216 (downstream development lowered the original 34,060).
+
+[Verification and every added/deleted rule](../architecture/4079-owner-http-evidence.md).
