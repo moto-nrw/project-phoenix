@@ -44,6 +44,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.data_cleanup_timeout_minutes",
 		"gdpr.attendance_log_enabled",
 		"gdpr.attendance_visible_days",
+		"gdpr.attendance_retention_days",
 		"gdpr.room_detail_visible_days",
 		// Per-child change-history retention (issue #1455).
 		"gdpr.student_change_log_retention_days",
@@ -1575,6 +1576,7 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.data_cleanup_timeout_minutes", config.FieldNumber},
 		{"gdpr.attendance_log_enabled", config.FieldBoolean},
 		{"gdpr.attendance_visible_days", config.FieldNumber},
+		{"gdpr.attendance_retention_days", config.FieldNumber},
 		{"gdpr.room_detail_visible_days", config.FieldNumber},
 		{"feedback.enabled", config.FieldBoolean},
 		{"feedback.data_retention_days", config.FieldNumber},
@@ -1585,6 +1587,32 @@ func TestGDPRSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// TestGDPRAttendanceRetentionSetting locks the retention contract for daily
+// attendance: operators set the 30-day to three-year window, while schools
+// can read it but cannot change it.
+func TestGDPRAttendanceRetentionSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyGDPRAttendanceRetentionDays)
+	require.NotNil(t, def, "gdpr.attendance_retention_days should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 365, def.Default)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorManaged, def.AccessPolicy)
+	assert.Equal(t, "gdpr", def.Tab)
+	assert.Equal(t, "bewegungsdaten", def.Category)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(30), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1095), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyDataCleanupEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 func TestSecuritySettings(t *testing.T) {
