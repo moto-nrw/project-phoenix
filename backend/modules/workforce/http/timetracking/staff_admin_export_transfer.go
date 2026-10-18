@@ -122,7 +122,7 @@ func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *ht
 	})
 	if err != nil {
 		rs.logger.Error("failed to transfer time tracking export", "error", err.Error())
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.RenderWithRules(err, timeExportErrorRules, common.ErrorInternalServer))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, outcome, "SFTP transfer")

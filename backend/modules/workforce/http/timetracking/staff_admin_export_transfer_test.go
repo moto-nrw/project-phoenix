@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,6 +63,40 @@ func TestTransferExport_DefersFileProductionToTheTransferCommand(t *testing.T) {
 	require.NotNil(t, request.PrepareFile)
 	assert.Empty(t, request.Filename)
 	assert.Empty(t, request.Data)
+}
+
+func TestTransferExport_PreservesExportErrorStatus(t *testing.T) {
+	t.Parallel()
+	for name, test := range map[string]struct {
+		expectedStatus int
+		expectedCode   string
+		exportErr      error
+	}{
+		"invalid request": {
+			expectedStatus: http.StatusBadRequest,
+			exportErr:      workforce.ErrTimeExportInvalid,
+		},
+		"incomplete payroll configuration": {
+			expectedStatus: http.StatusConflict,
+			expectedCode:   common.CodeWorkforcePayrollConfigIncomplete,
+			exportErr:      workforce.ErrPayrollConfigIncomplete,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			tc := setupStaffRoute(t)
+			tc.resource.ExportTransfer = callbackExportTransfer{}
+			tc.resource.TimeExportService = failingTimeExport{err: test.exportErr}
+			token := authToken(t, permissions.TimeTrackingManage)
+
+			rec := postTransfer(t, tc, token, `{"year":2026,"month":8,"format":"csv"}`)
+
+			assert.Equal(t, test.expectedStatus, rec.Code, "body: %s", rec.Body.String())
+			if test.expectedCode != "" {
+				assert.Contains(t, rec.Body.String(), test.expectedCode)
+			}
+		})
+	}
 }
 
 func TestTransferExport_RejectsARequestWithoutASelection(t *testing.T) {
