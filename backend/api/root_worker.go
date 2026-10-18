@@ -241,6 +241,9 @@ func (r rolloverDeadlines) RunDeadlineWorker(ctx context.Context, asOf time.Time
 }
 
 func staffMessageCleanup(service communication.StaffMessagingRuntime) schedulerPorts.StaffMessageCleanup {
+	if service == nil {
+		return nil
+	}
 	return func(ctx context.Context) (schedulerPorts.StaffMessageCleanupResult, error) {
 		result, err := service.CleanupExpiredStaffMessages(ctx)
 		return schedulerPorts.StaffMessageCleanupResult{
