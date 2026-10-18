@@ -59,7 +59,7 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			t.Parallel()
 			f := newCareFixture(t)
 			ctx := f.staffCtx(f.staffAccount)
-			student, err := f.sf.PeopleDirectory.FindStudentRecord(ctx, f.chain.StudentID)
+			student, err := f.persons.FindStudentRecord(ctx, f.chain.StudentID)
 			require.NoError(t, err)
 			note := "Together"
 			student.AllowedDepartureModes, student.DepartureDays = nil, nil
@@ -70,12 +70,12 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			if canonical {
 				student.AllowedDepartureModes = usersModels.AllowedDepartureModes{"mon": {usersModels.DepartureBus, usersModels.DeparturePickup}}
 			}
-			directory := &requestPlanDirectory{RequestPeople: f.sf.PeopleDirectory, student: student}
+			directory := &requestPlanDirectory{RequestPeople: f.persons, student: student}
 			audit := &requestPlanAudit{}
 			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-				f.repos.CarePlan(), directory, f.sf.ArrivalSchedule, f.sf.PickupSchedule,
-				nil, nil, nil, f.sf.UserContext, nil, nil,
-				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
+				f.repos.CarePlan(), directory, f.schedules.Arrivals, f.schedules.Pickups,
+				nil, nil, nil, f.caller, nil, nil,
+				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.caller}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
 				// The child is enrolled until 2026-12-31; on a live clock the
 				// approval finds no request from 2027 on (#4027).
 				api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),

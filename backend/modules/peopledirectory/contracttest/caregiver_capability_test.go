@@ -19,7 +19,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestServiceGraph) {
+func setupCaregiverFactory(t *testing.T) (*bun.DB, api.PeopleServices) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
@@ -28,12 +28,12 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestServiceGraph) {
 	return db, factory
 }
 
-func setupServiceFactory(t *testing.T, db *bun.DB) *api.TestServiceGraph {
+func setupServiceFactory(t *testing.T, db *bun.DB) api.PeopleServices {
 	t.Helper()
 
-	factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)), testpkg.NewDatabase(t, db), slog.Default())
+	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	return factory
+	return services
 }
 
 func createTestTeacherWithAccountForTenant(

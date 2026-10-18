@@ -93,12 +93,12 @@ func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith [
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
 	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		f.repos.CarePlan(), f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
+		f.repos.CarePlan(), f.persons,
+		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.repos.CarePlan(),
-		f.sf.UserContext, emitter, nil,
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
-		nil, slog.Default(), f.sf.StudentAudit,
+		f.caller, emitter, nil,
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.caller}, testpkg.PermissionsFromContext,
+		nil, slog.Default(), f.services.StudentAudit,
 		api.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)
 }

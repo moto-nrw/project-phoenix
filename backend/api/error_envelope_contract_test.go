@@ -23,7 +23,7 @@ import (
 // tenant, parent, school and operator portals, IoT, CalDAV and the public
 // routes alike. Handler-level bodies are pinned by each package's wire tests;
 // this walk proves no route leaves the router past ProblemResponseMiddleware.
-func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *serveGraph) {
+func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 	const requestID = "2507e0e0-0000-4000-8000-000000002507"
 

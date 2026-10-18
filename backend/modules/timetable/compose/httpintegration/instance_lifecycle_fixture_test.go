@@ -41,10 +41,17 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 // lifecycleSetup bundles the wired lifecycle + common fixtures. Rows belong
 // to the test's own tenant clone; nothing is cleaned up explicitly.
 type lifecycleSetup struct {
-	presence timetablePorts.LifecyclePresence
-	svc      timetablePorts.InstanceLifecycle
-	factory  *api.TestServiceGraph
-	repos    *api.RepositoryTestFactory
+	presence        timetablePorts.LifecyclePresence
+	svc             timetablePorts.InstanceLifecycle
+	instance        timetable.InstanceLifecycleCapability
+	timetableData   compose.Planning
+	active          studentpresence.Presence
+	materialization timetable.MaterializationCapability
+	careDay         careplan.CareDayQuery
+	autoStart       timetable.InstanceAutoStart
+	careOffering    careplan.CareOfferingCapability
+	statusDays      studentpresence.StatusDays
+	repos           *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable api.TimetableRepositories
 	db        *bun.DB
@@ -64,9 +71,8 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	// Own tenant per caller, subtests included: every subtest builds its own
 	// lifecycle and then asserts tenant-wide (loadLifecycleExceptions counts
@@ -89,18 +95,25 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
 	setup := &lifecycleSetup{
-		presence:  newInstancePresence(t, db),
-		factory:   serviceFactory,
-		repos:     repoFactory,
-		timetable: api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
-		db:        db,
-		ctx:       ctx,
-		roomID:    room.ID,
-		staffID:   staff.ID,
-		student1:  student1.ID,
-		student2:  student2.ID,
-		tmplID:    templateRow.ID,
-		period:    period,
+		presence:        newInstancePresence(t, db),
+		instance:        ttLifecycle.Instances,
+		timetableData:   ttPlanning.Planning,
+		active:          ttActive,
+		materialization: ttMaterialization,
+		careDay:         ttSchedules.CareDay,
+		autoStart:       ttLifecycle.AutoStart,
+		careOffering:    ttCareOfferings,
+		statusDays:      ttStatusDays,
+		repos:           repoFactory,
+		timetable:       api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
+		db:              db,
+		ctx:             ctx,
+		roomID:          room.ID,
+		staffID:         staff.ID,
+		student1:        student1.ID,
+		student2:        student2.ID,
+		tmplID:          templateRow.ID,
+		period:          period,
 	}
 	// These state-machine fixtures use fixed wall-clock windows. Time-policy
 	// boundaries have dedicated clock-injected tests; keep this suite focused on
@@ -149,7 +162,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	}
 	deps := timetablePorts.InstanceLifecycleDependencies{
 		StartConflicts:      lifecycleStartConflicts(s),
-		SubstituteConflicts: s.factory.TimetableData.Deviations,
+		SubstituteConflicts: s.timetableData.Deviations,
 		Presence:            s.presence,
 		InstanceRepo:        s.timetable.ActivityInstance,
 		IdempotencyRepo:     s.timetable.InstanceIdempotency,
@@ -163,10 +176,10 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		StaffRepo:           api.NewTimetableStaff(s.repos.Staff),
 		StudentRepo:         api.NewTimetableLifecycleStudents(s.repos.Student),
 		CalendarPeriodRepo:  s.repos.CalendarPeriod,
-		ActiveService:       s.factory.Active,
-		Materialization:     s.factory.Materialization,
-		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
-		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
+		ActiveService:       s.active,
+		Materialization:     s.materialization,
+		RecurrenceLock:      s.timetableData.RecurrenceLock,
+		CareDays:            lifecycleCareDays{query: s.careDay},
 		CareDayLocks:        s.repos.CarePlan(),
 		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,

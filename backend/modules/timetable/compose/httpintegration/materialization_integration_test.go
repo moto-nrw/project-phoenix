@@ -12,6 +12,8 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -31,23 +33,30 @@ import (
 // -----------------------------------------------------------------------------
 
 type scenarioSetup struct {
-	svc           timetable.MaterializationCapability
-	factory       *api.TestServiceGraph
-	db            *bun.DB
-	ctx           context.Context
-	tenantID      int64
-	cleanup       func()
-	period        *scheduleModels.CalendarPeriod
-	template      *activitiesModels.Group
-	schedule      *activitiesModels.Schedule
-	timeframe     *testpkg.Timeframe
-	students      []int64
-	staffID       int64
-	categoryID    int64
-	roomID        int64
-	enrollmentIDs []int64
-	supervisorIDs []int64
-	extraCleanups []func()
+	svc             timetable.MaterializationCapability
+	instance        timetable.InstanceLifecycleCapability
+	timetableData   compose.Planning
+	active          studentpresence.Presence
+	materialization timetable.MaterializationCapability
+	careDay         careplan.CareDayQuery
+	autoStart       timetable.InstanceAutoStart
+	careOffering    careplan.CareOfferingCapability
+	statusDays      studentpresence.StatusDays
+	db              *bun.DB
+	ctx             context.Context
+	tenantID        int64
+	cleanup         func()
+	period          *scheduleModels.CalendarPeriod
+	template        *activitiesModels.Group
+	schedule        *activitiesModels.Schedule
+	timeframe       *testpkg.Timeframe
+	students        []int64
+	staffID         int64
+	categoryID      int64
+	roomID          int64
+	enrollmentIDs   []int64
+	supervisorIDs   []int64
+	extraCleanups   []func()
 }
 
 func (s *scenarioSetup) runCleanup(tb testing.TB) {
@@ -68,7 +77,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -152,21 +161,28 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	require.NoError(t, err)
 
 	s := &scenarioSetup{
-		svc:           svc,
-		factory:       serviceFactory,
-		db:            db,
-		ctx:           ctx,
-		tenantID:      tenantID,
-		period:        period,
-		template:      template,
-		schedule:      sched,
-		timeframe:     timeframe,
-		students:      []int64{student1.ID, student2.ID, student3.ID},
-		staffID:       staff.ID,
-		categoryID:    category.ID,
-		roomID:        room.ID,
-		enrollmentIDs: []int64{enroll1.ID, enroll2.ID, enroll3.ID},
-		supervisorIDs: []int64{sup.ID},
+		svc:             svc,
+		instance:        ttLifecycle.Instances,
+		timetableData:   ttPlanning.Planning,
+		active:          ttActive,
+		materialization: ttMaterialization,
+		careDay:         ttSchedules.CareDay,
+		autoStart:       ttLifecycle.AutoStart,
+		careOffering:    ttCareOfferings,
+		statusDays:      ttStatusDays,
+		db:              db,
+		ctx:             ctx,
+		tenantID:        tenantID,
+		period:          period,
+		template:        template,
+		schedule:        sched,
+		timeframe:       timeframe,
+		students:        []int64{student1.ID, student2.ID, student3.ID},
+		staffID:         staff.ID,
+		categoryID:      category.ID,
+		roomID:          room.ID,
+		enrollmentIDs:   []int64{enroll1.ID, enroll2.ID, enroll3.ID},
+		supervisorIDs:   []int64{sup.ID},
 	}
 
 	// Cleanup plan (children first).

@@ -34,7 +34,7 @@ func TestOperatorDeactivationLocksTheAccountAndCanBeUndone(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	operators := buildServiceFactory(t, db).OperatorInvitation
+	operators := buildServiceFactory(t, db)
 	ctx := context.Background()
 	actor := testpkg.CreateTestOperator(t, db)
 	target := testpkg.CreateTestOperator(t, db)
@@ -72,7 +72,7 @@ func TestOperatorCannotDeactivateTheirOwnAccount(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	operators := buildServiceFactory(t, db).OperatorInvitation
+	operators := buildServiceFactory(t, db)
 	ctx := context.Background()
 	actor := testpkg.CreateTestOperator(t, db)
 
@@ -98,7 +98,7 @@ func TestDeactivatedOperatorsAreDeletedAfterTheLedgerWindow(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	operators := buildServiceFactory(t, db).OperatorInvitation
+	operators := buildServiceFactory(t, db)
 	ctx := context.Background()
 	// Three years back is always before 1 January of last year; half a year
 	// back never is. The exact cutoff is pinned in the application tests.

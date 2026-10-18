@@ -124,7 +124,7 @@ func registerRuntimeStatsProviders(db transactionruntime.Database, hub *realtime
 // serveHandler is the server root's router behind the CalDAV method
 // normalization and the weekend plan of the tenant settings.
 type serveHandler struct {
-	router   http.Handler
+	router   chi.Router
 	settings settingsCompose.SettingsService
 }
 

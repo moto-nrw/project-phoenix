@@ -76,29 +76,29 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	db := testpkg.SetupTestDB(t)
 	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
+	_, schedules, sfServices, caller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	careRequests := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
-		sf.PeopleDirectory,
-		sf.ArrivalSchedule,
-		sf.PickupSchedule,
+		persons,
+		schedules.Arrivals,
+		schedules.Pickups,
 		presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
 			timetableOwner, false,
 		),
 		repos.CarePlan(),
-		sf.UserContext,
+		caller,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.NewRequestReviewPolicy(sf.UserContext, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
+		testpkg.NewRequestReviewPolicy(caller, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
-		sf.StudentAudit,
+		sfServices.StudentAudit,
 		requestOptions...,
 	)
 

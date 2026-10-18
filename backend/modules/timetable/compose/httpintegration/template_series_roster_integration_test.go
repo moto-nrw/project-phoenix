@@ -179,7 +179,7 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 	in := c.livingUpdateInput(t, append(append([]int64{}, kept...), added), []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	predecessorRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, predecessorRows, 1, "one bounded row per scheduled weekday")
@@ -215,7 +215,7 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{removed}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.Len(t, rows, 1, "the carried row is closed, not duplicated")
@@ -245,7 +245,7 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{removed}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	kept := c.reloadEnrollment(t, predecessorOnly.ID)
 	assert.Equal(t, predecessorOnly.ValidFrom, kept.ValidFrom,
@@ -278,7 +278,7 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &staleAnchor
 	in.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
@@ -309,7 +309,7 @@ func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
 		in.SeriesRosterFrom = &c.anchor
 		in.SeriesRosterScopeStudentIDs = []int64{added}
 		in.SeriesRosterScopeStaffIDs = []int64{extraStaff}
-		require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+		require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 	}
 
 	save()
@@ -344,13 +344,13 @@ func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
 	added := c.livingUpdateInput(t, students, []int64{c.staffID, extraStaff}, &c.staffID)
 	added.SeriesRosterFrom = &c.anchor
 	added.SeriesRosterScopeStaffIDs = []int64{extraStaff}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, added))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, added))
 	require.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff)
 
 	removed := c.livingUpdateInput(t, students, []int64{c.staffID}, &c.staffID)
 	removed.SeriesRosterFrom = &c.anchor
 	removed.SeriesRosterScopeStaffIDs = []int64{extraStaff}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, removed))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, removed))
 
 	assert.NotContains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff,
 		"a plan-only assignment is removed from the occurrence as well")
@@ -370,7 +370,7 @@ func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
 	in := c.livingUpdateInput(t,
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
 	// SeriesRosterFrom deliberately unset.
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	assert.Equal(t, before, loadSplitEnrollments(t, c.scenarioSetup, c.middleID),
 		"without the anchor the predecessor segment is not touched at all")
@@ -399,7 +399,7 @@ func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[0]}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	for _, want := range []*activitiesModels.StudentEnrollment{protectedByRequest, protectedByWeekdays} {
 		got := c.reloadEnrollment(t, want.ID)
@@ -466,7 +466,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 	first := c.livingUpdateInput(t, roster, []int64{c.staffID}, &c.staffID)
 	first.SeriesRosterFrom = &c.anchor
 	first.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, first))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, first))
 	require.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added)
 
 	// Staff strikes the child from that single occurrence.
@@ -477,7 +477,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 	second := c.livingUpdateInput(t, roster, []int64{c.staffID}, &c.staffID)
 	second.SeriesRosterFrom = &c.firstBoundary
 	second.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, second))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, second))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
@@ -511,7 +511,7 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 	}}
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1, "only the deviating weekday gets a predecessor row")
@@ -558,7 +558,7 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 	// the shared list no longer names students[1].
 	in.SeriesRosterScopeStudentIDs = []int64{added, c.students[1]}
 	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	kept := c.reloadEnrollment(t, wednesdayOnly.ID)
 	assert.Equal(t, wednesdayOnly.ValidFrom, kept.ValidFrom,
@@ -619,7 +619,7 @@ func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testin
 	in.Weekdays = []int{activitiesModels.WeekdayMonday}
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{added}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	weekdays := make([]int, 0, 2)
 	for _, row := range enrollmentsFor(t, c.scenarioSetup, c.middleID, added) {
@@ -654,7 +654,7 @@ func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStudentIDs = []int64{removed}
 	in.SeriesRosterScopeWeekdays = []int{activitiesModels.WeekdayMonday}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	assert.Equal(t, sharedRows, enrollmentsFor(t, c.scenarioSetup, c.middleID, removed),
 		"a shared row covering the untouched Wednesday is not half-retired")
@@ -678,7 +678,7 @@ func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T)
 	in.SeriesRosterFrom = &c.anchor
 	in.SeriesRosterScopeStaffIDs = []int64{newLead}
 	// The Hauptbetreuung itself was NOT part of this edit.
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, in))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
 
 	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, newLead)
 	require.Len(t, rows, 1)
@@ -705,14 +705,14 @@ func TestSeriesRoster_PrimaryChangeReachesMaterializedOccurrences(t *testing.T) 
 	joined := c.livingUpdateInput(t, students, []int64{c.staffID, newLead}, &c.staffID)
 	joined.SeriesRosterFrom = &c.anchor
 	joined.SeriesRosterScopeStaffIDs = []int64{newLead}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, joined))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, joined))
 	require.Equal(t, c.staffID, instanceStaffPrimaryOn(t, c.scenarioSetup, c.middleID, c.anchor))
 
 	moved := c.livingUpdateInput(t, students, []int64{c.staffID, newLead}, &newLead)
 	moved.SeriesRosterFrom = &c.anchor
 	moved.SeriesRosterScopeStaffIDs = []int64{c.staffID, newLead}
 	moved.SeriesRosterPrimaryChanged = true
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, moved))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, moved))
 
 	assert.Equal(t, newLead, instanceStaffPrimaryOn(t, c.scenarioSetup, c.middleID, c.anchor),
 		"the already-planned occurrence follows the moved Hauptbetreuung")
@@ -757,7 +757,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 	added := c.livingUpdateInput(t, students, []int64{c.staffID, extraStaff}, &c.staffID)
 	added.SeriesRosterFrom = &c.anchor
 	added.SeriesRosterScopeStaffIDs = []int64{extraStaff}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, added))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, added))
 
 	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)
@@ -780,7 +780,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 	removed := c.livingUpdateInput(t, students, []int64{c.staffID}, &c.staffID)
 	removed.SeriesRosterFrom = &c.anchor
 	removed.SeriesRosterScopeStaffIDs = []int64{extraStaff}
-	require.NoError(t, c.factory.TimetableData.Templates.UpdateTemplate(c.ctx, removed))
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, removed))
 
 	rows = supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)

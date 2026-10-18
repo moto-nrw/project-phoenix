@@ -78,7 +78,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 
 	// Move the occurrence to Tuesday, keeping times and template binding.
 	newDate := origDate.AddDays(1)
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, newDate, 0), nil)
+	_, err = s.instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, newDate, 0), nil)
 	require.NoError(t, err)
 
 	excs := loadExceptions(t, s, s.template.ID)
@@ -110,7 +110,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	require.Len(t, rows, 1)
 	inst := rows[0]
 
-	require.NoError(t, s.factory.Instance.DeleteCancelled(s.ctx, inst.ID))
+	require.NoError(t, s.instance.DeleteCancelled(s.ctx, inst.ID))
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "delete must consume the original slot")
@@ -139,7 +139,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	inst := rows[0]
 
 	// Same date, start shifted by one hour.
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, origDate, 1), nil)
+	_, err = s.instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, origDate, 1), nil)
 	require.NoError(t, err)
 
 	excs := loadExceptions(t, s, s.template.ID)
@@ -176,7 +176,7 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	in := moveInput(s, inst, origDate, 0)
 	in.Title = fmt.Sprintf("Umbenannt-%d", time.Now().UnixNano())
 	in.EndTime = clockInput(inst.EndTime, 1)
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, in, nil)
+	_, err = s.instance.UpdatePlanned(s.ctx, inst.ID, in, nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, loadExceptions(t, s, s.template.ID),
@@ -194,7 +194,7 @@ func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
 	spontaneousID := splitInsertInstance(t, s, nil, origDate, scheduleModels.InstanceStatusPlanned, true, 9)
 	inst := testpkg.ActivityInstanceByID(t, s.ctx, s.db, spontaneousID)
 
-	_, err := s.factory.Instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)
+	_, err := s.instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)
 	require.NoError(t, err)
 
 	var count int

@@ -51,7 +51,7 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
-func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
+func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 
 	var routes, middlewareRoutes []string
@@ -209,7 +209,7 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *serveGraph) {
+func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 	const requestID = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 
@@ -323,8 +323,9 @@ func TestFullProductionRouterGolden(t *testing.T) {
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
-		api, ok := runtime.Handler().(*serveGraph)
+		handler, ok := runtime.Handler().(*serveHandler)
 		require.True(t, ok)
+		api := &goldenRuntime{handler: handler, router: handler.router, db: runtime.db}
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)
 		}

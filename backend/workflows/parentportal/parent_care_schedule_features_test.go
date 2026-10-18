@@ -30,7 +30,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	sfRequests, schedules, _, _, _, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -66,9 +66,9 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		ArrivalSchedules:       api.NewParentArrivalSchedules(sf.ArrivalSchedule),
-		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
-		CareRequests:           sf.CareRequests,
+		ArrivalSchedules:       api.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:        api.NewParentPickupSchedules(schedules.Pickups),
+		CareRequests:           sfRequests.CareRequests,
 		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
 		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
 		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),

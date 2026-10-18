@@ -248,11 +248,19 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	// and both portals' passkey ceremonies (#3331) mint their sessions
 	// through them, so a test module without them would compose a module
 	// production never builds.
-	owners, err := NewOwnerCapabilitiesForTests(db)
+	operatorOrganizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(r, operatorAuditLog), owners.Organizations, owners.Persons, owners.Membership, logger)
+	operatorPersons, err := NewPeopleDirectory(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	operatorMembership, err := NewSchoolMembership(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(r, operatorAuditLog), operatorOrganizations, operatorPersons, operatorMembership, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -268,7 +276,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, command, CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
+	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, command, CaregiverProfiles{Persons: operatorPersons, Membership: operatorMembership},
 		guardianMail, enrollmentClaims, logger)
 	if err != nil {
 		return AuthTestModule{}, err

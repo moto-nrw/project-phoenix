@@ -553,10 +553,9 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	factory, factoryErr := api.NewServiceGraphForTests(sc.repos, testpkg.NewDatabase(t, sc.db), slog.Default())
+	identityModule, factoryErr := api.NewTestIdentityAccess(testpkg.NewDatabase(t, sc.db), slog.Default())
 	require.NoError(t, factoryErr)
-	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
-	invSvc := factory.Invitation
+	invSvc := identityModule
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")

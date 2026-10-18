@@ -140,7 +140,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "2b")
 
 	name := fmt.Sprintf("Angebots-Termin-Kids-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -169,7 +169,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	require.Len(t, enrollments, 1, "only the grade-1 child may be seeded")
 	assert.Equal(t, s.students[0], enrollments[0].StudentID)
 
-	mat, err := s.factory.Materialization.MaterializeForTenant(
+	mat, err := s.materialization.MaterializeForTenant(
 		s.ctx, monday, monday, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	name := fmt.Sprintf("Angebots-Pull-Forward-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -233,7 +233,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
@@ -274,7 +274,7 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -315,7 +315,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -352,7 +352,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 		RosterValidFrom:  monday.AddDays(-30),
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 
 	narrowed := loadTemplateGroup(t, s, result.TemplateID)
 	require.NotEmpty(t, narrowed.SourceCareOfferingIDs)
@@ -363,7 +363,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	// roster; the filter must not survive its source (DB CHECK).
 	updateInput.Fields.SourceCareOfferingIDs = nil
 	updateInput.Fields.SourceGradeLevels = nil
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 
 	cleared := loadTemplateGroup(t, s, result.TemplateID)
 	assert.Empty(t, cleared.SourceCareOfferingIDs)
@@ -383,7 +383,7 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -405,7 +405,7 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	// "Dieser und alle folgenden" does not expose the source rule, so the
 	// successor must inherit it — otherwise the segment would silently lose
 	// its Betreuungsangebot feed.
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
@@ -438,7 +438,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -459,7 +459,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 
 	// The DB CHECK ties the source to the 'angebot' Zielgruppe: changing the
 	// Zielgruppe in the split must drop the rule instead of failing the write.
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
@@ -496,7 +496,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -539,7 +539,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	manual.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, manual))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
@@ -591,7 +591,7 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -629,7 +629,7 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	sourced.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, sourced))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:                result.TemplateID,
 		EffectiveDate:             monday,
 		Name:                      name,
@@ -672,7 +672,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -713,7 +713,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	manual.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, manual))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:                    result.TemplateID,
 		EffectiveDate:                 monday,
 		Name:                          name,
@@ -771,7 +771,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
 	}
 
-	_, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, createInput)
+	_, err := s.timetableData.Templates.CreateTemplate(s.ctx, createInput)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
@@ -781,11 +781,11 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	// Same rule on the edit path: an existing sourced template cannot be
 	// re-pointed at an offering that does not fit its period.
 	createInput.SourceCareOfferingIDs = []int64{fitting.ID}
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, createInput)
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, createInput)
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
@@ -824,7 +824,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	_, err := s.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = FALSE WHERE id = ?`, offering.ID).Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	_, err = s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -859,7 +859,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -893,7 +893,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
-	_, err = s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	_, err = s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
@@ -930,7 +930,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activitiesModels.GroupTypeCare,
 		Weekdays:              []int{activitiesModels.WeekdayMonday},
@@ -966,7 +966,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	}}, s.extraCleanups...)
 
 	manualStudentID := s.students[0]
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:             name,
@@ -1006,7 +1006,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 	manualStudentID := s.students[0]
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:             name,
 		Type:             activitiesModels.GroupTypeCare,
 		Weekdays:         []int{activitiesModels.WeekdayMonday},
@@ -1050,7 +1050,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 
 	// The offering has no enrolled children, so the new source covers nobody:
 	// the retired manual child must disappear from the existing occurrence.
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,

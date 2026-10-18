@@ -20,7 +20,7 @@ import (
 // through the assembled production router: real device authentication, the
 // device-scan workflow, the open-room move and Student Presence over the
 // test's own tenant.
-func checkOpenRoomKioskBooking(t *testing.T, api *serveGraph) {
+func checkOpenRoomKioskBooking(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)

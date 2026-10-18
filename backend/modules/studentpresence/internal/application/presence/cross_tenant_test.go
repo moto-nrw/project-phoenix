@@ -15,10 +15,9 @@ import (
 
 func createActiveServiceWithCrossTenant(t *testing.T, db *testpkg.DB) active.Service {
 	t.Helper()
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 func TestCrossTenantStudents(t *testing.T) {
