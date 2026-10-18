@@ -33,7 +33,7 @@ func TestCleanupVisitsCLI_BackfillsChildWithoutConsent(t *testing.T) {
 	// The CLI sweeps every school, so parallel cleanup tests must not share
 	// this test's visits. Bind the private clone before building the service.
 	db := testpkg.SetupIsolatedTestDB(t)
-	cc := setupTestCleanupContext(t)
+	cleanupDB, schools, retention := setupTestRetentionCleanup(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
@@ -60,15 +60,13 @@ func TestCleanupVisitsCLI_BackfillsChildWithoutConsent(t *testing.T) {
 	recent := insertVisit(3)
 
 	var preview bytes.Buffer
-	cc.Output = &preview
-	require.NoError(t, runVisitsDryRun(log.New(io.Discard, "", 0), cc, false))
+	require.NoError(t, runVisitsDryRun(log.New(io.Discard, "", 0), cleanupDB, schools, retention, &preview, false))
 	section := schoolSection(preview.String(), tenantID)
 	assert.Contains(t, section, "Total visits to delete: 2", "dry run output: %s", preview.String())
 	assert.Contains(t, section, fmt.Sprintf(fmtStudentsAffected, 1))
 
 	var summary bytes.Buffer
-	cc.Output = &summary
-	require.NoError(t, runVisitsCleanup(log.New(io.Discard, "", 0), cc, false))
+	require.NoError(t, runVisitsCleanup(log.New(io.Discard, "", 0), cleanupDB, schools, retention, &summary, false))
 	assert.Contains(t, schoolSection(summary.String(), tenantID), "Records deleted: 2")
 
 	for _, id := range expired {

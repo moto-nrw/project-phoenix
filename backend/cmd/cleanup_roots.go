@@ -27,14 +27,14 @@ import (
 // Audit trail it records its deletions in.
 
 func newSessionCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
-	repos := api.NewSessionCleanupRepositories(db, timetableCapability)
-	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
+	sessions, devices, completion := api.NewSessionCleanupRepositories(db, timetableCapability)
+	groups, supervisors := presenceCompose.SessionRepositories(sessions)
 	settings := newCleanupSettingsService(db, schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: devicescanCompose.AttendancePrincipal,
 		SchoolPresence:  api.NewLoggedStudentPresence(db, logger),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
-		DeviceRepo: api.NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db.Pool(), Logger: logger,
+		DeviceRepo: api.NewSessionDeviceDirectory(devices, settings, logger), TimetableBridgeCompleter: completion, DB: db.Pool(), Logger: logger,
 	}, presenceservice.WithPresenceTenantRuntime(db.UnitOfWork()), presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings)))
 }
 

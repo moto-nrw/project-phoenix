@@ -23,11 +23,7 @@ func TestPresenceCleanupRollsBackFailedSchoolAndContinues(t *testing.T) {
 	second, _ := testpkg.CreateTestTenant(t, db)
 	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	cc := &cleanupContext{
-		DB:      testpkg.NewDatabase(t, db),
-		Schools: schools,
-		Output:  io.Discard,
-	}
+	cleanupDB := testpkg.NewDatabase(t, db)
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	inputs := make(map[int64]studentpresence.Attendance)
@@ -54,7 +50,7 @@ func TestPresenceCleanupRollsBackFailedSchoolAndContinues(t *testing.T) {
 		}
 		return func() { published = append(published, id) }, nil
 	}
-	err = forEachPresenceTenant(cc, "test cleanup", action)
+	err = forEachPresenceTenant(cleanupDB, schools, io.Discard, "test cleanup", action)
 	require.ErrorIs(t, err, injected, "CLI must report a failed school")
 	assert.Equal(t, []int64{second}, published, "only committed results may be printed")
 	count := func(id int64, want int) {
@@ -69,7 +65,7 @@ func TestPresenceCleanupRollsBackFailedSchoolAndContinues(t *testing.T) {
 
 	failFirst = false
 	published = nil
-	require.NoError(t, forEachPresenceTenant(cc, "retry cleanup", action))
+	require.NoError(t, forEachPresenceTenant(cleanupDB, schools, io.Discard, "retry cleanup", action))
 	assert.Equal(t, []int64{first, second}, published)
 	count(first, 1)
 	count(second, 1)

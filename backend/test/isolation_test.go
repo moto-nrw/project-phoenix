@@ -347,7 +347,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := api.NewSessionCleanupRepositories(NewDatabase(t, db), api.NewUnobservedTimetableDependencies(NewDatabase(t, db)).Capability).Sessions
+	repo, _, _ := api.NewSessionCleanupRepositories(NewDatabase(t, db), api.NewUnobservedTimetableDependencies(NewDatabase(t, db)).Capability)
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---

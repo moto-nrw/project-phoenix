@@ -15,16 +15,16 @@ const (
 	checkoutWCEnabledKey       = "checkout.wc_enabled"
 )
 
-type recordedSettingsRegistry struct {
-	handlers map[string]SettingHandler
+// recordedSettingsRegistry is the registry double: the handlers registered
+// under their keys.
+type recordedSettingsRegistry map[string]SettingHandler
+
+func (r recordedSettingsRegistry) Register(key string, handler SettingHandler) {
+	r[key] = handler
 }
 
-func (r *recordedSettingsRegistry) Register(key string, handler SettingHandler) {
-	r.handlers[key] = handler
-}
-
-func (r *recordedSettingsRegistry) dispatch(ctx context.Context, key string, value any) (func(), error) {
-	return r.handlers[key](ctx, 1, value)
+func (r recordedSettingsRegistry) dispatch(ctx context.Context, key string, value any) (func(), error) {
+	return r[key](ctx, 1, value)
 }
 
 type recordedSchulhofProvisioner struct {
@@ -73,7 +73,7 @@ func TestRegisterSettingsSideEffectsPreservesProvisioningContracts(t *testing.T)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			registry := &recordedSettingsRegistry{handlers: make(map[string]SettingHandler)}
+			registry := recordedSettingsRegistry{}
 			schulhof := &recordedSchulhofProvisioner{err: test.schulhofErr}
 			wc := &recordedWCProvisioner{err: test.wcErr}
 			RegisterSettingsSideEffects(registry, checkoutSchulhofEnabledKey, checkoutWCEnabledKey, schulhof, wc)

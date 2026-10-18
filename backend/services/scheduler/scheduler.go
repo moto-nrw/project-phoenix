@@ -102,9 +102,7 @@ type Scheduler struct {
 	timetableBridge      ports.TimetableBridgeCompleter
 	studentStatusDayRepo ports.StudentStatusFlagArchiver
 	overdueBroadcaster   ports.InstanceOverdueBroadcaster
-	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
-	overdueEmittedDay    calendar.Date
-	overdueEmittedDayMu  sync.Mutex
+	overdueEmitted       overdueGuard
 
 	// Student lifecycle (parent-enrollment PR 2).
 	// Nil → activate-students task does not register.
@@ -136,6 +134,27 @@ type Scheduler struct {
 	announcementReminders         ports.ParentAnnouncementReminderCommand
 	announcementReminderScannedAt map[int64]time.Time
 	announcementReminderScanMu    sync.Mutex
+}
+
+// overdueGuard is the re-fire guard of the overdue broadcast: the instances
+// that fired on day, forgotten when the civil date rolls over.
+type overdueGuard struct {
+	emitted sync.Map // overdueKey{tenantID, instanceID} → time.Time
+	day     calendar.Date
+	dayMu   sync.Mutex
+}
+
+// rotate clears the guard when today is not the day it holds.
+func (g *overdueGuard) rotate(today calendar.Date) {
+	g.dayMu.Lock()
+	defer g.dayMu.Unlock()
+	if g.day != today {
+		g.emitted.Range(func(k, _ any) bool {
+			g.emitted.Delete(k)
+			return true
+		})
+		g.day = today
+	}
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -2167,11 +2186,11 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 
 	for _, inst := range candidates {
 		key := overdueKey{tenantID: tenantID, instanceID: inst.ID}
-		if _, seen := s.overdueEmitted.Load(key); seen {
+		if _, seen := s.overdueEmitted.emitted.Load(key); seen {
 			continue
 		}
 		s.emitInstanceOverdue(ctx, tenantID, inst)
-		s.overdueEmitted.Store(key, now)
+		s.overdueEmitted.emitted.Store(key, now)
 	}
 }
 
@@ -2208,16 +2227,7 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 // over. Called at the top of every tick so a restart mid-day does not
 // miss the rollover.
 func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
-	today := calendar.DateFromTime(now)
-	s.overdueEmittedDayMu.Lock()
-	defer s.overdueEmittedDayMu.Unlock()
-	if s.overdueEmittedDay != today {
-		s.overdueEmitted.Range(func(k, _ any) bool {
-			s.overdueEmitted.Delete(k)
-			return true
-		})
-		s.overdueEmittedDay = today
-	}
+	s.overdueEmitted.rotate(calendar.DateFromTime(now))
 }
 
 // combineDayAndTime returns "day at time-of-day", reading the wall-clock

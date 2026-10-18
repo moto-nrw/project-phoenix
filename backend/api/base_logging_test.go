@@ -11,19 +11,19 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// captureHandler is a minimal slog.Handler that records every emitted record
+// captureHandler is a minimal slog.Handler that counts every emitted record
 // so tests can assert which requests the logging middleware logged.
 type captureHandler struct {
-	mu      sync.Mutex
-	records []slog.Record
+	mu     sync.Mutex
+	logged int
 }
 
 func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 
-func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *captureHandler) Handle(context.Context, slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.records = append(h.records, r)
+	h.logged++
 	return nil
 }
 
@@ -33,7 +33,7 @@ func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
 func (h *captureHandler) count() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return len(h.records)
+	return h.logged
 }
 
 // TestLoggingMiddlewareIgnoresScannerMethods guards the issue #850 fix: probe
