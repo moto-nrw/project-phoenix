@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -35,8 +34,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -913,7 +910,7 @@ type TimetableWiring struct {
 	AttendanceCorrections func(
 		arrivalTimetable.OwnerRows, attendanceCorrectionLedger, timetablePorts.CorrectionPeople, *slog.Logger,
 	) (timetable.AttendanceCorrections, error)
-	Calendar            func(CalendarDependencies) calendarCompose.Application
+	Calendar            func(calendarCompose.Config) calendarCompose.Application
 	AppointmentRenderer func(defaultFrom email.Email) deliveryCompose.MailRenderer
 	ReminderQuery       func(CareRequestStaff, settingsCompose.SettingsService, EffectivePickupTimes, studentpresence.Presence, studentpresence.SupervisionRecords, *slog.Logger) reminder.Query
 	ReminderCommand     func(calendarCompose.Application) reminder.Command
@@ -970,49 +967,6 @@ type TimetableOperationPresence interface {
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
 }
 
-// CalendarDependencies are the values the staff and parent calendars bind
-// their narrow fact ports over.
-type CalendarDependencies struct {
-	CalendarFacts
-	Appointments appointments.Capability
-	UserContext  identityaccess.CallerIdentities
-	// Runtime is the tenant runtime over the root database
-	// (calendarCompose.NewTenantRuntime); nil runs without a database.
-	Runtime          *calendarCompose.TenantRuntime
-	CalendarRenderer calendarService.CalendarRenderer
-
-	// Notification dependencies (all optional — nil disables e-mail; the in-app
-	// calendar is unaffected).
-	Outbox     CalendarOutbox
-	PushOutbox CalendarPushOutbox
-	Settings   CalendarLogoResolver
-	// CalDAVPolicy decides whether CalDAV is enabled; without it the
-	// policy resolves calendar.caldav_enabled through CalDAVSettings, and
-	// without both CalDAV has no policy.
-	CalDAVPolicy           calendarService.CalDAVPolicy
-	CalDAVSettings         CalendarCalDAVSettings
-	StaffFeedTombstoneRepo schoolcalendar.FeedHistory
-	ParentsURL             string
-	FrontendURL            string
-	CalDAVURL              string
-	// Today pins the feeds' calendar day; nil uses the real day.
-	Today func() appointments.Date
-
-	// Notifier and Preferences drive the guardian push/in-app notification that
-	// accompanies the appointment e-mails (#1671). Both optional and both
-	// required together: without consent there is nobody to address, so a nil
-	// Preferences disables the push rather than broadcasting past consent.
-	Notifier CalendarNotifier
-	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
-	// a transient failure without permanently claiming the reminder delivery.
-	ReminderNotifier CalendarReminderNotifier
-	Preferences      CalendarPreferences
-
-	// Logger is nil-safe (see service.logger()); notification dispatch is
-	// fire-and-forget and reports its failures here instead of to the caller.
-	Logger *slog.Logger
-}
-
 type CalendarOutbox interface {
 	Enqueue(context.Context, calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error)
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
@@ -1026,26 +980,6 @@ type CalendarLogoResolver interface {
 type CalendarCalDAVSettings interface {
 	ResolveBool(context.Context, string) (bool, error)
 	ResolveBoolForTenant(context.Context, int64, string) (bool, error)
-}
-
-// CalendarFacts are the retained rows and owner reads the calendar's fact
-// ports read. A nil source leaves its port unset.
-type CalendarFacts struct {
-	StaffRepo            calendarStaffRows
-	StudentRepo          calendarStudentRows
-	GuardianProfileRepo  calendarCompose.GuardianDirectory
-	StudentGuardianRepo  calendarRelationshipRows
-	ChildRepo            ParentChildLinkSource
-	GroupRepo            EducationGroupRepository
-	InstanceStaffRepo    timetablePorts.CalendarAssignmentRows
-	ActivityInstanceRepo timetablePorts.CalendarInstanceRows
-	RoomRepo             facilitiesCompose.RoomRows
-	StaffShiftRepo       timetablePorts.CalendarShiftRows
-	ShiftTypeRepo        timetablePorts.CalendarShiftTypeRows
-	SchoolRepo           organizationtenancy.Query
-	AccountRepo          identityaccess.ParentCalendarFeeds
-	StaffFeedRepo        identityaccess.StaffCalendarFeeds
-	PersonRepo           calendarPersonRows
 }
 
 // ParentChildLinkSource lists the children a guardian account reaches

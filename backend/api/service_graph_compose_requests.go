@@ -481,33 +481,30 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	calendar := b.TimetableWiring.Calendar(b.calendarDependencies())
+	calendar := b.TimetableWiring.Calendar(b.calendarConfig())
 	b.graph.Calendar, b.graph.CalendarFeedCleanup = calendar, calendar
 	return b, nil
 }
 
-// calendarDependencies are the facts, the outbox and the notification
-// router the staff and parent calendars bind over.
-func (b *graphBuild) calendarDependencies() CalendarDependencies {
+// calendarConfig binds the facts, the outbox and the notification router
+// the staff and parent calendars run over.
+func (b *graphBuild) calendarConfig() calendarCompose.Config {
 	people, repos := b.People, b.TimetableWiring.Repositories
-	return CalendarDependencies{
-		CalendarFacts: CalendarFacts{
-			StaffRepo: people.Staff, StudentRepo: people.Students, GuardianProfileRepo: b.TimetableWiring.CalendarGuardians,
-			StudentGuardianRepo: people.StudentGuardians,
-			ChildRepo:           careplanCompose.NewParentChildLinks(b.Platform.ParentPortal.ParentChild),
-			GroupRepo:           people.Groups, InstanceStaffRepo: repos.InstanceStaff, ActivityInstanceRepo: repos.ActivityInstance,
-			RoomRepo: facilitiesCompose.NewRoomRepository(b.Rooms), StaffShiftRepo: b.Workforce.ShiftRows, ShiftTypeRepo: b.Workforce.ShiftTypeRows,
-			SchoolRepo: b.Organizations, AccountRepo: b.identityAccess, StaffFeedRepo: b.identityAccess, PersonRepo: people.Persons,
-		},
-		Appointments: b.Appointments, UserContext: b.userContext.Caller(),
-		Runtime: calendarCompose.NewTenantRuntime(b.DB.Pool()), CalendarRenderer: calendarCompose.NewCalendarRenderer(b.Calendar),
-		Outbox: newCalendarOutbox(b.late.emailOutbox), PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery),
-		Settings: b.settingsService, CalDAVSettings: b.settingsService,
-		StaffFeedTombstoneRepo: schoolCalendarCompose.NewFeedHistory(b.DB.Pool()),
-		ParentsURL:             b.parentsURL, FrontendURL: b.frontendURL, CalDAVURL: b.publicAPIURL,
-		Notifier: newCalendarNotifier(b.graph.Notifications), ReminderNotifier: newCalendarReminderNotifier(b.graph.Notifications),
-		Preferences: b.graph.NotificationPreferences, Logger: b.Logger.With("service", "calendar"),
-	}
+	cfg := NewCalendarFacts(people.Staff, people.Students, b.TimetableWiring.CalendarGuardians, people.StudentGuardians,
+		careplanCompose.NewParentChildLinks(b.Platform.ParentPortal.ParentChild), people.Groups)
+	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance, facilitiesCompose.NewRoomRepository(b.Rooms),
+		b.Workforce.ShiftRows, b.Workforce.ShiftTypeRows)
+	cfg = BindCalendarFeedFacts(cfg, b.Organizations, b.identityAccess, b.identityAccess, people.Persons)
+	cfg = BindCalendarCaller(cfg, b.userContext.Caller())
+	cfg.Appointments = b.Appointments
+	cfg.Runtime, cfg.CalendarRenderer = calendarCompose.NewTenantRuntime(b.DB.Pool()), calendarCompose.NewCalendarRenderer(b.Calendar)
+	cfg.Outbox, cfg.PushOutbox = newCalendarOutbox(b.late.emailOutbox), deliveryCompose.NewDurablePushOutbox(b.graph.Delivery)
+	cfg.Settings, cfg.CalDAVPolicy = b.settingsService, NewCalendarCalDAVPolicy(b.settingsService)
+	cfg.StaffFeedTombstoneRepo = schoolCalendarCompose.NewFeedHistory(b.DB.Pool())
+	cfg.ParentsURL, cfg.FrontendURL, cfg.CalDAVURL = b.parentsURL, b.frontendURL, b.publicAPIURL
+	cfg.Notifier, cfg.ReminderNotifier = newCalendarNotifier(b.graph.Notifications), newCalendarReminderNotifier(b.graph.Notifications)
+	cfg.Preferences, cfg.Logger = b.graph.NotificationPreferences, b.Logger.With("service", "calendar")
+	return cfg
 }
 
 // composeParentPortal binds the parents portal workflow and the parent

@@ -14,32 +14,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewCalendarPortal adapts the existing composition's dependencies to the
-// calendar's narrow fact ports. It does not build a legacy factory.
-func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
-	cfg := NewCalendarFacts(d.CalendarFacts)
+// NewCalendarPortal composes the staff and parent calendars over cfg, whose
+// fact ports NewCalendarFacts and the Bind functions fill and whose other
+// values the caller sets (all notification dependencies are optional: nil
+// disables e-mail, the in-app calendar is unaffected). It binds the
+// root's missing-record, notification-copy, logo and push rules; without a
+// Runtime it runs without a database. It does not build a legacy factory.
+func NewCalendarPortal(cfg calendarCompose.Config) calendarCompose.Application {
 	cfg.MissingRecord = func(err error) bool { return errors.Is(err, transactionruntime.ErrNoRows) }
 	cfg.MissingRecordCause = transactionruntime.ErrNoRows
-	cfg.Appointments = d.Appointments
-	cfg.CalendarRenderer = d.CalendarRenderer
-	cfg.PushOutbox = d.PushOutbox
-	cfg.Settings = d.Settings
-	cfg.CalDAVPolicy = d.CalDAVPolicy
-	if cfg.CalDAVPolicy == nil && d.CalDAVSettings != nil {
-		cfg.CalDAVPolicy = calendarCalDAVPolicy{settings: d.CalDAVSettings}
+	if cfg.Runtime == nil {
+		cfg.Runtime = calendarCompose.NewTenantRuntime(nil)
 	}
-	cfg.StaffFeedTombstoneRepo = d.StaffFeedTombstoneRepo
-	cfg.ParentsURL = d.ParentsURL
-	cfg.FrontendURL = d.FrontendURL
-	cfg.CalDAVURL = d.CalDAVURL
-	cfg.Today = d.Today
-	cfg.Logger = d.Logger
-	cfg.Preferences = d.Preferences
-	runtime := d.Runtime
-	if runtime == nil {
-		runtime = calendarCompose.NewTenantRuntime(nil)
-	}
-	cfg.Runtime = runtime
 	cfg.NotificationCopy = calendarNotificationCopy
 	cfg.MotoLogoURL = deliveryCompose.MotoLogoURL
 	cfg.SchoolLogoURL = deliveryCompose.SchoolLogoURL
@@ -47,19 +33,22 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg.NoDelivery = func(err error) bool {
 		return errors.Is(err, deliveryCompose.ErrNoWebPushSubscribers) || calendarPushSuppressed(err)
 	}
-	if d.UserContext != nil {
-		cfg.UserContext = calendarIdentityPort{d.UserContext}
-	}
-	if d.Outbox != nil {
-		cfg.Outbox = d.Outbox
-	}
-	if d.Notifier != nil {
-		cfg.Notifier = d.Notifier
-	}
-	if d.ReminderNotifier != nil {
-		cfg.ReminderNotifier = d.ReminderNotifier
-	}
 	return calendarCompose.New(cfg)
+}
+
+// BindCalendarCaller binds the calendar's identity port to Identity &
+// Access's caller identities; nil leaves it as it is.
+func BindCalendarCaller(cfg calendarCompose.Config, caller identityaccess.CallerIdentities) calendarCompose.Config {
+	if caller != nil {
+		cfg.UserContext = calendarIdentityPort{caller}
+	}
+	return cfg
+}
+
+// NewCalendarCalDAVPolicy decides whether CalDAV is enabled by resolving
+// calendar.caldav_enabled through settings.
+func NewCalendarCalDAVPolicy(settings CalendarCalDAVSettings) calendarService.CalDAVPolicy {
+	return calendarCalDAVPolicy{settings: settings}
 }
 
 // CalendarNotifier, CalendarReminderNotifier and CalendarPreferences are the
