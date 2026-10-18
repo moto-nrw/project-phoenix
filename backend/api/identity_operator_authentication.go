@@ -86,42 +86,12 @@ func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry ide
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
-	if changes := operatorAuditChanges(entry); len(changes) > 0 {
+	if changes := entry.AuditChanges(); len(changes) > 0 {
 		if err := setOperatorAuditChanges(row, changes); err != nil {
 			return fmt.Errorf("encode operator audit log changes: %w", err)
 		}
 	}
 	return a.ledger.Create(ctx, row)
-}
-
-// operatorAuditChanges renders the typed change summary into the JSON keys
-// the operator audit log has always stored for each action.
-func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]any {
-	if evidence := entry.RevokedSessions; evidence != nil {
-		return map[string]any{
-			"portal_scope":        evidence.PortalScope,
-			"family_fingerprint":  evidence.FamilyFingerprint,
-			"reason":              evidence.Reason,
-			"revoked_token_count": evidence.Count,
-		}
-	}
-	change := entry.AccessChange
-	if change == nil {
-		return nil
-	}
-	changes := map[string]any{"schoolID": change.SchoolID, "email": change.Email}
-	switch entry.Action {
-	case identityaccess.OperatorAuditActionCreate:
-		changes["roleID"] = change.RoleID
-		changes["roleName"] = change.RoleName
-	case identityaccess.OperatorAuditActionUpdate:
-		changes["roleID"] = change.RoleID
-		changes["roleName"] = change.RoleName
-		changes["removedRoles"] = change.RemovedRoles
-	case identityaccess.OperatorAuditActionDelete:
-		changes["accountDeactivated"] = change.AccountDeactivated
-	}
-	return changes
 }
 
 // passwordHasher binds the credential policy Security Runtime owns to the

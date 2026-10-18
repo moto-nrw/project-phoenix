@@ -250,7 +250,7 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
-	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
+	if changes := entry.MFAAuditChanges(); len(changes) > 0 {
 		// A marshal failure falls through with empty changes: losing the
 		// metadata beats losing the whole audit row.
 		if err := setOperatorAuditChanges(row, changes); err != nil {
@@ -280,26 +280,4 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 				slog.String("error", err.Error()))
 		}
 	}()
-}
-
-func operatorMFAChanges(evidence *identityaccess.OperatorMFAEvidence) map[string]any {
-	if evidence == nil {
-		return nil
-	}
-	if override := evidence.Override; override != nil {
-		return map[string]any{
-			"action":            override.Action,
-			"scope":             override.Scope,
-			"override":          override.Override,
-			"previous_override": override.PreviousOverride,
-			"reason":            override.Reason,
-		}
-	}
-	switch {
-	case evidence.Reason != "":
-		return map[string]any{"reason": evidence.Reason}
-	case evidence.LockedUntil != nil:
-		return map[string]any{"locked_until": evidence.LockedUntil}
-	}
-	return nil
 }

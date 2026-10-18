@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -14,33 +13,17 @@ import (
 )
 
 // The welcome mail (#3534) follows an invitation: a greeting and a link to
-// the help article that walks the invitee through accepting it. Both
-// audiences share this file: the help link mirrors buildHelpHref in
-// frontend/src/lib/help-topics.ts and the role mapping mirrors the sidebar's
+// the help article that walks the invitee through accepting it. Identity &
+// Access owns the article per role; the role mapping mirrors the sidebar's
 // help entry (useHelpHref), so the mail and the app open the same article.
 
 // Help roles as /help reads them from ?role=.
 const (
-	welcomeHelpRoleLead      = "lead"
-	welcomeHelpRoleCaregiver = "caregiver"
-	welcomeHelpRoleTeacher   = "teacher"
-	welcomeHelpRoleParent    = "parent"
+	welcomeHelpRoleLead      = identityaccess.HelpRoleLead
+	welcomeHelpRoleCaregiver = identityaccess.HelpRoleCaregiver
+	welcomeHelpRoleTeacher   = identityaccess.HelpRoleTeacher
+	welcomeHelpRoleParent    = identityaccess.HelpRoleParent
 )
-
-// welcomeHelpTopics is the accept-invitation article of each role. The
-// staff article is written for caregivers and leads; teachers and parents
-// accept on their own portals and have their own article.
-var welcomeHelpTopics = map[string]string{
-	welcomeHelpRoleLead:      "einladung-annehmen-und-konto-einrichten",
-	welcomeHelpRoleCaregiver: "einladung-annehmen-und-konto-einrichten",
-	welcomeHelpRoleTeacher:   "zugang-zu-moto-schule-einrichten",
-	welcomeHelpRoleParent:    "eltern-konto-einrichten",
-}
-
-// parentInfoPath is the Elterninfo PDF the frontend serves without a login
-// (frontend/public/downloads). Its source is the elterninfo page in the
-// collaterals repository.
-const parentInfoPath = "/downloads/moto-elterninfo.pdf"
 
 // staffHelpRole maps an invited staff role onto the help role the sidebar
 // would pick for the same account once it signs in.
@@ -88,8 +71,7 @@ func (s schoolSettings) ResolveString(ctx context.Context, key string) (string, 
 
 // welcomeHelpURL builds the help link for role at origin. A setting that
 // cannot be resolved stays out of the link, and /help then asks for it
-// instead of guessing. return_to is left out: the reader comes from a mail,
-// not from the app. The error joins the settings that failed to resolve; the
+// instead of guessing. The error joins the settings that failed to resolve; the
 // link is complete without them.
 func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, settings welcomeHelpSettings, logger *slog.Logger) (string, error) {
 	query := []string{"role=" + url.QueryEscape(role)}
@@ -109,7 +91,7 @@ func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, se
 			query = append(query, value)
 		}
 	}
-	return identityaccess.MailOrigin(origin) + "/help/" + welcomeHelpTopics[role] + "?" + strings.Join(query, "&"), errors.Join(failures...)
+	return identityaccess.WelcomeHelpURL(origin, role, query), errors.Join(failures...)
 }
 
 // welcomeNFCParameter is the help link's nfc_enabled parameter; key names the
@@ -130,11 +112,7 @@ func welcomePresenceParameter(ctx context.Context, settings welcomeHelpSettings)
 	if err != nil {
 		return "", key, err
 	}
-	presence := configModels.PresenceModeDetailed
-	if mode == configModels.PresenceModeBinary {
-		presence = configModels.PresenceModeBinary
-	}
-	return "presence_mode=" + presence, key, nil
+	return "presence_mode=" + configModels.PresenceModeOf(mode), key, nil
 }
 
 // welcomeGroupParameter is the help link's group_mode parameter.
@@ -144,11 +122,7 @@ func welcomeGroupParameter(ctx context.Context, settings welcomeHelpSettings) (v
 	if err != nil {
 		return "", key, err
 	}
-	group := configModels.GroupModeFixedGroups
-	if mode == configModels.GroupModeOpenCare {
-		group = configModels.GroupModeOpenCare
-	}
-	return "group_mode=" + group, key, nil
+	return "group_mode=" + configModels.GroupModeOf(mode), key, nil
 }
 
 func logWelcomeSettingFailure(logger *slog.Logger, tenantID int64, key string, err error) {

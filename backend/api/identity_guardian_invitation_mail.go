@@ -103,7 +103,7 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 // a guardian who was already welcomed is not a failure.
 func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianProfileID int64, recipient GuardianMailRecipient, schoolName, helpURL string, precedingOutboxID int64) error {
 	mail, addressed, err := identityaccess.GuardianWelcomeMailOf(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName, helpURL,
-		identityaccess.MailOrigin(m.frontendURL)+parentInfoPath, precedingOutboxID)
+		identityaccess.ParentInfoURL(m.frontendURL), precedingOutboxID)
 	if err != nil || !addressed {
 		return err
 	}
