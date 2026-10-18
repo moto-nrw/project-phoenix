@@ -59,11 +59,6 @@ func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 	require.Equal(t, viaModule.Error(), viaRecorder.Error())
 	require.NoError(t, built[0].records.RecordPasswordResetDelivery(testpkg.Ctx(t), resetID, delivery))
 
-	_, err = compose(&PasswordResetDependencies{
-		Passwords: resetPasswords{}, Expiry: time.Hour, Delivery: recordingResetDelivery{},
-		DeliveryFor: func(identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {
-			return recordingResetDelivery{}
-		},
-	})
-	require.ErrorContains(t, err, "exclusive")
+	_, err = compose(&PasswordResetDependencies{Passwords: resetPasswords{}, Expiry: time.Hour})
+	require.ErrorContains(t, err, "every password reset dependency is required")
 }

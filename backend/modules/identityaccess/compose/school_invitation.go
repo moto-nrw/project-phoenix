@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -28,11 +27,10 @@ type InvitationOwnerTokens interface {
 // the session and lifecycle dependencies: the flows reuse the school
 // directory, the role storage and the identity chain.
 type SchoolInvitationDependencies struct {
-	Grants   identityPorts.InvitationGrantPolicy
-	Owners   InvitationOwnerTokens
-	Delivery identityPorts.SchoolInvitationDelivery
+	Grants identityPorts.InvitationGrantPolicy
+	Owners InvitationOwnerTokens
 	// DeliveryFor builds the delivery over the recorder of its outcome; the
-	// composition calls it once. It replaces Delivery, which must be unset.
+	// composition calls it once.
 	DeliveryFor func(identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery
 	Passwords   PasswordPolicy
 	Expiry      time.Duration
@@ -54,14 +52,9 @@ func newSchoolInvitation(
 		return nil, errors.New("identity access compose: the invitation flows require the session and lifecycle dependencies")
 	}
 	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
-	delivery := deps.Delivery
-	if deps.DeliveryFor != nil && delivery == nil {
+	var delivery identityPorts.SchoolInvitationDelivery
+	if deps.DeliveryFor != nil {
 		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach))
-	} else if deps.DeliveryFor != nil {
-		return nil, errors.New("identity access compose: the invitation delivery and its factory are exclusive")
 	}
 	if deps.Grants == nil || deps.Owners == nil || delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every invitation dependency is required")

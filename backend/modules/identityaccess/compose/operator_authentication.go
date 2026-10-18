@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 
@@ -46,11 +45,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
-	runtime := tenantRuntime{attach: attach, runner: tenant.NewTransactionRunner()}
+	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()}
 	operatorAuth, err := application.NewOperatorAuthentication(service, application.OperatorAuthenticationDependencies{
 		Passwords:   sessions.Passwords,
 		Hasher:      deps.Passwords,

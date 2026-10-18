@@ -58,8 +58,8 @@ type Dependencies struct {
 	// Demo composes public demo access only in the demo environment.
 	Demo *DemoDependencies
 	// TenantRuntime is the unit of work the module opens its session,
-	// lifecycle and operator transactions under, bound at construction in
-	// place of Module.SetTenantRuntime. A zero value binds nothing.
+	// lifecycle and operator transactions under. A zero value binds nothing:
+	// the sessions keep their own runtime.
 	TenantRuntime tenant.UnitOfWork
 }
 
@@ -77,7 +77,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	dependencies, runtime := bindTenantRuntime(dependencies)
+	dependencies, attach := bindTenantRuntime(dependencies)
 	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
@@ -142,9 +142,9 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
-		Runtime:               runtime.Attach, WithRecoveryProof: rotation.WithRecoveryProof,
+		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
-	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
+	return identityaccess.NewDemoModule(e, demoAccess), nil
 }
 
 // NewGuardianInvitationReads composes the guardian invitation lists over the
@@ -157,21 +157,23 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 	return application.NewGuardianInvitationReads(newStore(db)), nil
 }
 
-// bindTenantRuntime is the reference the module opens its transactions
-// under: the sessions attach through it, falling back to their own runtime,
-// and Dependencies.TenantRuntime is bound into it at construction.
-func bindTenantRuntime(dependencies Dependencies) (Dependencies, *tenant.RuntimeRef) {
-	runtime := tenant.NewRuntimeRef(nil)
+// bindTenantRuntime is the runtime the module opens its transactions under:
+// Dependencies.TenantRuntime when set, otherwise the sessions' own runtime,
+// otherwise the context's. The sessions attach through it.
+func bindTenantRuntime(dependencies Dependencies) (Dependencies, func(context.Context) context.Context) {
+	attach := func(ctx context.Context) context.Context { return ctx }
+	if dependencies.Sessions != nil && dependencies.Sessions.TenantRuntime != nil {
+		attach = dependencies.Sessions.TenantRuntime
+	}
+	if unit := dependencies.TenantRuntime; !unit.IsZero() {
+		attach = func(ctx context.Context) context.Context { return tenant.WithUnitOfWork(ctx, unit) }
+	}
 	if dependencies.Sessions != nil {
 		sessions := *dependencies.Sessions
-		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
-		sessions.TenantRuntime = runtime.Attach
+		sessions.TenantRuntime = attach
 		dependencies.Sessions = &sessions
 	}
-	if !dependencies.TenantRuntime.IsZero() {
-		runtime.Bind(dependencies.TenantRuntime)
-	}
-	return dependencies, runtime
+	return dependencies, attach
 }
 
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {

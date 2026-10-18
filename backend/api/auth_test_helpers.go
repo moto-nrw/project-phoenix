@@ -292,7 +292,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	}
 	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
-		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
+		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo, TenantRuntime: unit,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
@@ -308,9 +308,6 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		}, codec, logger),
 	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
-		return AuthTestModule{}, err
-	}
-	if err := identityAccess.SetTenantRuntime(unit); err != nil {
 		return AuthTestModule{}, err
 	}
 	invitation := InvitationCapability(identityAccess)
@@ -368,7 +365,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		return nil, err
 	}
 	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
-		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle,
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle, TenantRuntime: cfg.TenantRuntime,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
@@ -376,9 +373,6 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		}, logger),
 	}, sessionRepos, codec, cfg.Settings, cfg.Audit, logger)
 	if err != nil {
-		return nil, err
-	}
-	if err := module.SetTenantRuntime(cfg.TenantRuntime); err != nil {
 		return nil, err
 	}
 	return module, nil
