@@ -57,9 +57,9 @@ type DemoSchools interface {
 // asynchronous; a failed mail never fails the request.
 type DemoAccessMail interface {
 	// SendDemoAccessLink mails the prospect the way back into the demo.
-	SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string)
+	SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) error
 	// SendDemoLead tells the team about a new demo access.
-	SendDemoLead(ctx context.Context, access domain.DemoAccess)
+	SendDemoLead(ctx context.Context, access domain.DemoAccess) error
 }
 
 // DemoAccessTokens mints an opaque token and derives its fingerprint.

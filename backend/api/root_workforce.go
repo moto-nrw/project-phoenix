@@ -33,7 +33,7 @@ func buildWorkSessionSide(
 	workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability,
 	organizations organizationtenancy.Query, people PeopleRows, users peoplePorts.PersonDirectory, audit AuditOwner,
 	supervisions studentpresence.SupervisionRecords, sessions *presenceCompose.SessionRecords, calendar schoolcalendar.Days,
-	settings settingsCompose.BatchSettingsService, payroll settingsCompose.PayrollStatusGetter,
+	settings settingsCompose.BatchSettingsService, payroll settingsCompose.PayrollStatusGetter, durable DurableMailOutbox,
 ) (*workforceCompose.WorkSessionSide, error) {
 	logger := env.Logger.With("service", "active")
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
@@ -43,7 +43,7 @@ func buildWorkSessionSide(
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
 		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NonWorkingDays{Calendar: calendar},
 		Events:       timeTrackingEvents(transport.Hub),
-		AbsenceEmail: absenceEmailDependencies(settings, transport, mailIdentity, env.Links.FrontendURL, logger, people, organizations),
+		AbsenceEmail: absenceEmailDependencies(settings, transport, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
 		Logger:       logger,
 	}, timeTrackingAudits{
 		WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
@@ -61,12 +61,12 @@ func buildWorkSessionSide(
 // subdomain.
 func absenceEmailDependencies(
 	settings settingsCompose.SettingsService, transport MailTransport, mailIdentity email.ReplyToResolver, frontendURL string,
-	logger *slog.Logger, people PeopleRows, organizations organizationtenancy.Query,
+	logger *slog.Logger, people PeopleRows, organizations organizationtenancy.Query, durable DurableMailOutbox,
 ) *workforceCompose.AbsenceEmailDeps {
 	return &workforceCompose.AbsenceEmailDeps{
 		Settings: settingsCompose.PresenceSettings(settings),
 		Dispatcher: absenceEmailDispatcher{
-			dispatcher: transport.Dispatcher, from: transport.DefaultFrom, identity: mailIdentity, logger: logger,
+			durable: durable, from: transport.DefaultFrom, identity: mailIdentity, logger: logger,
 		},
 		StaffRepo:   absenceEmailStaffDirectory{source: people.Staff},
 		SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},

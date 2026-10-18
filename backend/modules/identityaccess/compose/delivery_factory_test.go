@@ -16,7 +16,9 @@ type recordingResetDelivery struct {
 	records identityaccess.PasswordResetDeliveryRecorder
 }
 
-func (recordingResetDelivery) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) {
+func (recordingResetDelivery) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) error {
+
+	return nil
 }
 
 type resetPasswords struct{ PasswordPolicy }

@@ -95,10 +95,9 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	}, nil
 }
 
-// CreateInvitation stores the invitation and queues its mail. The mail is
-// queued for after the caller's transaction commits: the staff import
-// creates invitations mid-transaction, and a rolled-back link must never
-// reach an inbox.
+// CreateInvitation stores the invitation and its mail in the same transaction.
+// The worker sends only committed entries: staff import may create invitations
+// mid-transaction, and a rolled-back link must never reach an inbox.
 func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.SchoolInvitationRequest) (result domain.SchoolInvitation, err error) {
 	email, role, err := s.validateRequest(ctx, request)
 	if err != nil {
@@ -141,30 +140,13 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		if queueErr := s.delivery.QueueSchoolWelcome(txCtx, result, request.SchoolName, portal, rolePermissions); queueErr != nil {
 			return failed("queue welcome email", queueErr)
 		}
-		return nil
+		return s.delivery.DispatchSchoolInvitation(txCtx, result, request.SchoolName, portal, s.expiry)
 	})
 	if err != nil {
 		return domain.SchoolInvitation{}, err
 	}
 	s.logCreated(result, request.CreatedBy)
-	s.mailAfterCommit(ctx, result, request.SchoolName, portal)
 	return result, nil
-}
-
-// mailAfterCommit queues the invitation mail after its transaction commits.
-// The welcome was persisted in that transaction and waits for the delivery
-// record, so a resend still mails the link alone.
-func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal) {
-	s.runtime.RegisterAfterCommit(ctx, func() {
-		// Detach drops the request transaction and its commit hooks so the
-		// mail cannot join them. It also clears the tenant; put the
-		// invitation's school back so Reply-To still resolves (#1936).
-		dispatchCtx := s.runtime.Detach(ctx)
-		if invitation.TenantID > 0 {
-			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, invitation.TenantID)
-		}
-		s.delivery.DispatchSchoolInvitation(dispatchCtx, invitation, schoolName, portal, s.expiry)
-	})
 }
 
 // rolePermissionNames lists the permissions of the invited role for the
@@ -581,47 +563,31 @@ func (s *SchoolInvitation) assignCaregiverRole(ctx context.Context, accountID in
 // ResendInvitation extends a still redeemable invitation and queues its mail
 // again; an expired or spent invitation is never revived.
 func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, invitationID)
-	if err != nil {
-		return failed(opResendInvitation, err)
-	}
-	if !found {
-		return failed(opResendInvitation, domain.ErrInvitationNotFound)
-	}
-	if invitation.UsedAt != nil {
-		return failed(opResendInvitation, domain.ErrInvitationUsed)
-	}
-	now := s.now()
-	if !invitation.ExpiresAt.After(now) {
-		return failed(opResendInvitation, domain.ErrInvitationExpired)
-	}
-	role, roleFound, err := s.roles.FindRoleIgnoringTenant(ctx, invitation.RoleID)
-	if err != nil {
-		return failed("lookup role", err)
-	}
-	if !roleFound {
-		return failed("lookup role", domain.ErrRoleNotFound)
-	}
-	extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now)
-	if err != nil {
-		return failed(opResendInvitation, err)
-	}
-	if !extended {
-		return failed(opResendInvitation, domain.ErrInvitationNotFound)
-	}
-	invitation.ExpiresAt = now.Add(s.expiry)
-	// The delivery bookkeeping starts over; the retry count of the previous
-	// attempts is not carried into the new send.
-	if _, err := s.store.RecordSchoolInvitationDelivery(ctx, invitationID, domain.TokenDelivery{RetryCount: invitation.Delivery.RetryCount}); err != nil {
-		return failed(opResendInvitation, err)
-	}
-	invitation.Delivery = domain.TokenDelivery{RetryCount: invitation.Delivery.RetryCount}
-	invitation.RoleName = role.Name
-	s.logger.Info("invitation resent",
-		slog.Int64("invitation_id", invitation.ID),
-		slog.Int64("actor_account_id", actorAccountID))
-	s.delivery.DispatchSchoolInvitation(ctx, invitation, s.schoolName(ctx, invitation.TenantID), s.portalOf(role), s.expiry)
-	return nil
+	return s.runtime.RunInTx(ctx, func(ctx context.Context) error {
+		now := s.now()
+		invitation, portal, err := s.resendableSchoolInvitation(ctx, invitationID, now)
+		if err != nil {
+			return err
+		}
+		extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now)
+		if err != nil {
+			return failed(opResendInvitation, err)
+		}
+		if !extended {
+			return failed(opResendInvitation, domain.ErrInvitationNotFound)
+		}
+		invitation.ExpiresAt = now.Add(s.expiry)
+		// The delivery bookkeeping starts over; the retry count of the previous
+		// attempts is not carried into the new send.
+		if _, err := s.store.RecordSchoolInvitationDelivery(ctx, invitationID, domain.TokenDelivery{RetryCount: invitation.Delivery.RetryCount}); err != nil {
+			return failed(opResendInvitation, err)
+		}
+		invitation.Delivery = domain.TokenDelivery{RetryCount: invitation.Delivery.RetryCount}
+		s.logger.Info("invitation resent",
+			slog.Int64("invitation_id", invitation.ID),
+			slog.Int64("actor_account_id", actorAccountID))
+		return s.delivery.DispatchSchoolInvitation(ctx, invitation, s.schoolName(ctx, invitation.TenantID), portal, s.expiry)
+	})
 }
 
 // ListPendingInvitations returns the redeemable invitations of the school in
@@ -786,10 +752,35 @@ type SchoolInvitationDelivery struct {
 	Source identityPorts.SchoolInvitationDelivery
 }
 
-func (d SchoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) {
-	d.Source.DispatchSchoolInvitation(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
+func (d SchoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) error {
+	return d.Source.DispatchSchoolInvitation(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
 }
 
 func (d SchoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {
 	return d.Source.QueueSchoolWelcome(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
+}
+
+func (s *SchoolInvitation) resendableSchoolInvitation(ctx context.Context, invitationID int64, now time.Time) (domain.SchoolInvitation, domain.InvitationPortal, error) {
+	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, invitationID)
+	if err != nil {
+		return domain.SchoolInvitation{}, "", failed(opResendInvitation, err)
+	}
+	if !found {
+		return domain.SchoolInvitation{}, "", failed(opResendInvitation, domain.ErrInvitationNotFound)
+	}
+	if invitation.UsedAt != nil {
+		return domain.SchoolInvitation{}, "", failed(opResendInvitation, domain.ErrInvitationUsed)
+	}
+	if !invitation.ExpiresAt.After(now) {
+		return domain.SchoolInvitation{}, "", failed(opResendInvitation, domain.ErrInvitationExpired)
+	}
+	role, roleFound, err := s.roles.FindRoleIgnoringTenant(ctx, invitation.RoleID)
+	if err != nil {
+		return domain.SchoolInvitation{}, "", failed("lookup role", err)
+	}
+	if !roleFound {
+		return domain.SchoolInvitation{}, "", failed("lookup role", domain.ErrRoleNotFound)
+	}
+	invitation.RoleName = role.Name
+	return invitation, s.portalOf(role), nil
 }

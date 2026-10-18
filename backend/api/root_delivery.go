@@ -83,7 +83,7 @@ func buildDeliveryNotifications(
 // appointments share one renderer for all four kinds.
 func buildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, transport MailTransport, mailIdentity email.ReplyToResolver,
-	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer,
+	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
 ) (*deliveryModule.Worker, error) {
 	defaultFrom := transport.DefaultFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
@@ -112,6 +112,7 @@ func buildDeliveryWorker(
 		}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, pushSubscriptions)),
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,
 		PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
+		DeferredPush:   reminderRecovery(db, reminders),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)

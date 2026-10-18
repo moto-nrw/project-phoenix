@@ -169,7 +169,7 @@ func buildReminders(
 	db transactionruntime.Database, env RootEnvironment, caller CareRequestStaff, settings settingsCompose.SettingsService,
 	schedules CarePlanSchedules, active studentpresence.Presence, supervisions studentpresence.SupervisionRecords,
 	timetableOwner timetable.Capability, rooms facilitiesModule.Catalog, people PeopleRows, calendarApp calendarCompose.Application,
-	announcements communication.ParentAnnouncementCapability,
+	announcements communication.ParentAnnouncementCapability, delivery DeliveryRuntime,
 ) reminder.Module {
 	presence := NewLoggedStudentPresence(db, env.Logger)
 	return reminder.Module{
@@ -193,7 +193,7 @@ func buildReminders(
 			BulkSupervision:   ReminderBulkSupervisionReader{Source: supervisions},
 			BulkInstanceStaff: ReminderTimetableReader{Source: timetableOwner},
 		}),
-		Command:                   reminderCompose.NewCommand(db.Pool(), CalendarReminderDelivery(calendarApp)),
+		Command:                   reminderCompose.NewCommand(reminderCommandRuntime(db), reminderDeliveryDependencies(db, delivery.Runtime, calendarApp)),
 		ParentAnnouncementCommand: announcements,
 	}
 }

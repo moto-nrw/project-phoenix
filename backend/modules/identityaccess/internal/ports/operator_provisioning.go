@@ -14,7 +14,7 @@ import (
 type OperatorInvitationDelivery interface {
 	// DispatchOperatorInvitation mails the link. inviterName is the display
 	// name shown in the mail, empty when the inviter could not be read.
-	DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string)
+	DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) error
 }
 
 // OperatorEmailChangeDelivery mails the three messages an operator e-mail
@@ -23,13 +23,13 @@ type OperatorInvitationDelivery interface {
 // replaced. The last two are what lets the legitimate owner of a
 // compromised account notice.
 type OperatorEmailChangeDelivery interface {
-	DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange)
+	DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) error
 	// DispatchOperatorEmailChangeRequested tells the current address that a
 	// change to maskedNewEmail was requested.
-	DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string)
+	DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) error
 	// DispatchOperatorEmailChangeConfirmed tells the replaced address that
 	// the change went through.
-	DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string)
+	DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) error
 }
 
 // EmailFormat is the People Directory contact rule for a routable address.

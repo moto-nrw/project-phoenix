@@ -6319,17 +6319,6 @@
       "target_role": "public"
     },
     {
-      "id": "reminder-delivery.compose.tenant-runtime",
-      "description": "Reminder composition binds the independent tenant transaction and after-commit runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "reminder-delivery.application.ports",
       "description": "Reminder evaluation consumes its own input projections.",
       "scopes": [
@@ -6339,16 +6328,6 @@
       "source_role": "application",
       "target_owner": "reminder-delivery",
       "target_role": "port"
-    },
-    {
-      "id": "reminder-delivery.compose.orm",
-      "description": "Reminder composition supplies the transaction runtime database.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "orm-sql"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",

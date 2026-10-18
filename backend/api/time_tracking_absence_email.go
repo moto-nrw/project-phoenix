@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -19,16 +20,17 @@ import (
 // the school's subdomain from Organization & Tenancy.
 
 type absenceEmailDispatcher struct {
-	dispatcher interface {
-		Dispatch(context.Context, email.DeliveryRequest)
-	}
+	durable  DurableMailOutbox
 	from     email.Email
 	identity email.ReplyToResolver
 	logger   *slog.Logger
 }
 
-func (d absenceEmailDispatcher) Dispatch(ctx context.Context, value workforceCompose.AbsenceEmailMessage) {
-	d.dispatcher.Dispatch(ctx, d.request(ctx, value))
+func (d absenceEmailDispatcher) Enqueue(ctx context.Context, value workforceCompose.AbsenceEmailMessage) error {
+	return enqueueDurableMail(ctx, d.durable, DurableMail{
+		TenantID: value.TenantID, Message: d.request(ctx, value).Message, Type: value.Type, ReferenceID: value.ReferenceID,
+		Backoff: []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute},
+	})
 }
 
 func (d absenceEmailDispatcher) request(ctx context.Context, value workforceCompose.AbsenceEmailMessage) email.DeliveryRequest {

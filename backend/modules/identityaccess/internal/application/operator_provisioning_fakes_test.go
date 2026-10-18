@@ -352,8 +352,10 @@ type fakeOperatorInvitationDelivery struct {
 	dispatched []dispatchedInvitation
 }
 
-func (d *fakeOperatorInvitationDelivery) DispatchOperatorInvitation(_ context.Context, invitation domain.OperatorInvitation, inviterName string) {
+func (d *fakeOperatorInvitationDelivery) DispatchOperatorInvitation(_ context.Context, invitation domain.OperatorInvitation, inviterName string) error {
 	d.dispatched = append(d.dispatched, dispatchedInvitation{invitation: invitation, inviterName: inviterName})
+
+	return nil
 }
 
 type fakeOperatorEmailChangeDelivery struct {
@@ -362,16 +364,22 @@ type fakeOperatorEmailChangeDelivery struct {
 	confirmed     []string
 }
 
-func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(_ context.Context, change domain.OperatorEmailChange) {
+func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(_ context.Context, change domain.OperatorEmailChange) error {
 	d.verifications = append(d.verifications, change)
+
+	return nil
 }
 
-func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(_ context.Context, operator domain.Operator, maskedNewEmail string) {
+func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(_ context.Context, operator domain.Operator, maskedNewEmail string) error {
 	d.requested = append(d.requested, operator.Email+" -> "+maskedNewEmail)
+
+	return nil
 }
 
-func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(_ context.Context, oldEmail, displayName string) {
+func (d *fakeOperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(_ context.Context, oldEmail, displayName string) error {
 	d.confirmed = append(d.confirmed, oldEmail+" ("+displayName+")")
+
+	return nil
 }
 
 // rotatingOperatorStore commits a concurrent change just before the

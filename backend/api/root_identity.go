@@ -40,6 +40,10 @@ func buildIdentityAccess(
 	groups EducationGroupRepository, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
 	sessions *presenceCompose.SessionRecords, presence *studentpresence.Module,
 ) (*identityaccess.Module, *CallerRows, error) {
+	durable, ok := outbox.(DurableMailOutbox)
+	if !ok {
+		return nil, nil, fmt.Errorf("identity access: transactional outbox is required")
+	}
 	cfg, links := env.Config, env.Links
 	authLogger := env.Logger.With("service", "auth")
 	platformLogger := env.Logger.With("service", "platform")
@@ -85,7 +89,7 @@ func buildIdentityAccess(
 		return nil, nil, err
 	}
 	demo, err := demoDependencies(
-		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
+		demoAccessWiringFor(strings.ToLower(cfg.AppEnv), transport.Dispatcher, transport.DefaultFrom, links.FrontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger, durable),
 		organizationtenancy.StandingDemoSchool(viper.GetBool("demo_standing_school")), organizations)
 	if err != nil {
 		return nil, nil, err
@@ -96,19 +100,19 @@ func buildIdentityAccess(
 		DB: db.Pool(), Observe: requiredIdentityAccessObservation(env.Observe.IdentityAccess), TenantRuntime: unit,
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
 		Resets: passwordResetDependencies(&PasswordResetWiring{
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom,
+			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, Durable: durable,
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
 		Invitations: invitationDependencies(&InvitationWiring{
-			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
+			Dispatcher: transport.Dispatcher, DefaultFrom: transport.DefaultFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
 			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
 			Settings:     settings,
 			Outbox:       outbox,
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		}, tokens.SessionTokens, authLogger),
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
-			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom,
+			dispatcher: transport.Dispatcher, defaultFrom: transport.DefaultFrom, durable: durable,
 			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
 			invitationExpiry: links.InvitationTokenExpiry, emailChangeExpiry: emailChangeExpiry(links.PasswordResetTokenExpiry, env.Logger),
 			logger: platformLogger,
@@ -145,6 +149,7 @@ type guardianEnrollmentClaims interface {
 func identityDeliveryRenderers(module *identityaccess.Module, defaultFrom email.Email, mailIdentity email.ReplyToResolver, mailState IdentityMailState, env RootEnvironment) map[string]deliveryCompose.MailRenderer {
 	logger := env.Logger.With("service", "auth")
 	return map[string]deliveryCompose.MailRenderer{
+		transactionalMailKind: transactionalMailRenderer{identity: module, logger: logger},
 		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),

@@ -17,6 +17,10 @@ func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, er
 	return Enqueued{}, nil
 }
 
+func (*recordingEngine) EnqueueDeferredPush(context.Context, DeferredPushIntent) (Enqueued, error) {
+	return Enqueued{}, nil
+}
+
 type recordingWorkerEngine struct {
 	batchSize, maxAttempts int
 	deadLettered           int

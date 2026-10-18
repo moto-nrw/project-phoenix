@@ -287,7 +287,7 @@ func (d *Decisions) attachGuardianAccountIfPresent(
 	return nil
 }
 
-// pendingGuardianInvite reports the post-commit invitation an approval owes the
+// pendingGuardianInvite reports the transactional invitation an approval owes the
 // submitted primary guardian: none when they already hold a portal account (per
 // the design Q answer: "when they already have an account we do not need to
 // create a new one") or when there is no address to invite.

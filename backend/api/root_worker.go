@@ -401,7 +401,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		},
 		func() (err error) {
 			side, err = buildWorkSessionSide(db, env, transport, mailIdentity, workTime, membership, persons, organizations, people,
-				services.Users, audit, supervisions, presence.SessionRecords, calendar, settings.Service, payroll)
+				services.Users, audit, supervisions, presence.SessionRecords, calendar, settings.Service, payroll, delivery.Enqueuer())
 			return
 		},
 		func() (err error) {
@@ -503,7 +503,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		},
 		func() error {
 			reminders = buildReminders(db, env, caller, settings.Service, schedules, active, supervisions, timetableOwner, rooms, people,
-				calendarApp, announcements)
+				calendarApp, announcements, delivery)
 			return nil
 		},
 		func() (err error) {
@@ -517,7 +517,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		},
 		func() (err error) {
 			outbox, err = buildDeliveryWorker(db, env, transport, mailIdentity, delivery, buildCalendarAppointmentRenderer(db, transport, people),
-				identityDeliveryRenderers(identity, transport.DefaultFrom, mailIdentity, delivery.Runtime.EmailStatus, env))
+				identityDeliveryRenderers(identity, transport.DefaultFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp)
 			return
 		},
 	)

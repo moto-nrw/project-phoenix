@@ -27,7 +27,11 @@ type timeTrackingTestGraph struct {
 	Today         func() timezone.Date
 }
 
-func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph) (*workforceCompose.TimeTracking, error) {
+func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph, mail ...*workforceCompose.AbsenceEmailDeps) (*workforceCompose.TimeTracking, error) {
+	var absenceEmail *workforceCompose.AbsenceEmailDeps
+	if len(mail) > 0 {
+		absenceEmail = mail[0]
+	}
 	payroll := settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
 		staff, err := staffRows.List(ctx, nil)
 		if err != nil {
@@ -50,7 +54,7 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
 		Staff:        WorkSessionStaff(staffRows, employment, membership),
 		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
-		Events: graph.Events, Logger: graph.Logger, Today: graph.Today,
+		Events: graph.Events, Logger: graph.Logger, Today: graph.Today, AbsenceEmail: absenceEmail,
 	}, graph.Audits, staffRows, graph.People, employment, NewStaffWorkScheduleRepository(repos.Workforce), NewWorkTimeModelRepository(repos.Workforce),
 		settings, payroll, db,
 	)
