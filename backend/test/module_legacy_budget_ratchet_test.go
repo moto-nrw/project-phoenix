@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 32697
+const moduleComposeBudgetTotal = 32697 - 99
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -177,7 +177,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicefleet/compose/repositoryadapter": 298,
 	"modules/devicescan/compose":                    1272,
 	"modules/emergencysnapshot/compose":             13,
-	"modules/enrollment/compose":                    716,
+	"modules/enrollment/compose":                    715,
 	"modules/exporttransfer/compose":                323,
 	"modules/facilities/compose":                    273,
 	"modules/facilities/compose/httpadapter":        473,
@@ -197,7 +197,7 @@ var moduleComposeBudgets = map[string]int{
 	// Timetable's advisory locks moved into the root and gave up more than
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2654,
+	"modules/peopledirectory/compose":                 2615,
 	"modules/peopledirectory/compose/vocabulary":      106,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1069,
@@ -224,7 +224,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/parentportal/compose":                  463,
 	"workflows/reminderdelivery/compose":              42,
 	"workflows/sessionend/compose":                    221,
-	"workflows/shiftplansync/compose":                 225,
+	"workflows/shiftplansync/compose":                 166,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              165,
 	"workflows/studentdeletion/compose":               219,

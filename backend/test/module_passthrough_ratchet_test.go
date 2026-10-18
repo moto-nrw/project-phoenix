@@ -200,7 +200,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3047
+const modulePassthroughOwnerBudgetTotal = 3047 - 2
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -334,8 +334,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
 	//
-	// ADR 0061: application 28 + modules/schoolmembership/compose 56.
-	"modules/schoolmembership": 84,
+	// ADR 0061: application 26 + modules/schoolmembership/compose 56.
+	"modules/schoolmembership": 82,
 	// Hiding the wizard is personal state with no rule of its own, so the
 	// service hands it to the store (#2832).
 	//
