@@ -240,7 +240,7 @@ func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitatio
 		return false, err
 	}
 	for _, invitation := range invitations {
-		if invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalNotRequired || invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalApproved {
+		if invitation.ApprovalAllowsRedemption() {
 			return true, nil
 		}
 	}

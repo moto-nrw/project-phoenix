@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -86,18 +85,7 @@ func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link i
 			slog.Int64("account_id", link.AccountID))
 		return
 	}
-	frontendURL := strings.TrimRight(d.hosts[scope], "/")
-	message := email.Message{
-		From:     d.from,
-		To:       email.NewEmail("", recipient),
-		Subject:  "Passwort zurücksetzen",
-		Template: "password-reset.html",
-		Content: map[string]any{
-			"ResetURL":      fmt.Sprintf("%s/reset-password?token=%s", frontendURL, link.Token),
-			"ExpiryMinutes": int(expiry.Minutes()),
-			"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL),
-		},
-	}
+	message := *identityMessage(d.from, email.NewEmail("", recipient), identityaccess.PasswordResetMail(link, d.hosts[scope], expiry))
 	meta := email.DeliveryMetadata{
 		Type:        "password_reset",
 		ReferenceID: link.ID,

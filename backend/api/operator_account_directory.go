@@ -68,18 +68,25 @@ func NewOperatorAccountDirectory(accounts identityaccess.SchoolAccountListings, 
 	return operatorAccountDirectory{accounts: accounts, persons: persons, chains: caregiverChainsFromMembership(membership), schools: schools}
 }
 
-func (r operatorAccountDirectory) identityRows(ctx context.Context, schoolIDs []int64) ([]OrgAccountInfo, error) {
+// listedAccount is one identity row of the listing; invitation marks the
+// owner's pending invitation rows.
+type listedAccount struct {
+	OrgAccountInfo
+	invitation bool
+}
+
+func (r operatorAccountDirectory) identityRows(ctx context.Context, schoolIDs []int64) ([]listedAccount, error) {
 	rows, err := r.accounts.ListSchoolAccountListings(ctx, schoolIDs)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]OrgAccountInfo, 0, len(rows))
+	result := make([]listedAccount, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, OrgAccountInfo{SchoolID: row.SchoolID, TenantAccountInfo: TenantAccountInfo{
+		result = append(result, listedAccount{invitation: row.PendingInvitation(), OrgAccountInfo: OrgAccountInfo{SchoolID: row.SchoolID, TenantAccountInfo: TenantAccountInfo{
 			AccountID: row.AccountID, Email: row.Email, Active: row.Active,
 			FirstName: row.FirstName, LastName: row.LastName, RoleName: row.RoleName,
 			Status: row.Status, HasAdminRole: row.HasAdminRole, HasUserRole: row.HasUserRole,
-		}})
+		}}})
 	}
 	return result, nil
 }
@@ -90,30 +97,14 @@ type caregiverChainQuery interface {
 	CaregiverChainByPersonIDs(context.Context, []int64) (map[int64]CaregiverChain, error)
 }
 
-type tenantAccountKey struct {
-	AccountID int64
-	TenantID  int64
-}
-
-// personsByAccountAndTenant resolves persons for account ids keyed by
-// (account, tenant), keeping the most recently updated person per pair.
-func personsByAccountAndTenant(ctx context.Context, query peopledirectory.Query, accountIDs []int64) (map[tenantAccountKey]peopledirectory.Person, error) {
+// personsByAccountAndTenant resolves the People Directory's person of each
+// account at each school.
+func personsByAccountAndTenant(ctx context.Context, query peopledirectory.Query, accountIDs []int64) (map[peopledirectory.AccountSchool]peopledirectory.Person, error) {
 	values, err := query.ListPersonsByAccount(ctx, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load persons by account: %w", err)
 	}
-	result := make(map[tenantAccountKey]peopledirectory.Person, len(values))
-	for _, value := range values {
-		if value.AccountID == nil {
-			continue
-		}
-		key := tenantAccountKey{AccountID: *value.AccountID, TenantID: value.TenantID}
-		current, found := result[key]
-		if !found || value.UpdatedAt.After(current.UpdatedAt) {
-			result[key] = value
-		}
-	}
-	return result, nil
+	return peopledirectory.LatestPersonsByAccountSchool(values), nil
 }
 
 // accountEntry is one account row under enrichment together with the
@@ -138,12 +129,12 @@ func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, te
 	// name order.
 	entries := make([]accountEntry, 0, len(rows))
 	invitations := make([]TenantAccountInfo, 0)
-	for _, row := range rows {
-		if isInvitationRow(row) {
-			invitations = append(invitations, row)
+	for _, row := range schoolRows {
+		if row.invitation {
+			invitations = append(invitations, row.TenantAccountInfo)
 			continue
 		}
-		entries = append(entries, accountEntry{TenantID: tenantID, Info: row})
+		entries = append(entries, accountEntry{TenantID: tenantID, Info: row.TenantAccountInfo})
 	}
 	if err := r.attachAccountPersons(ctx, entries); err != nil {
 		return nil, err
@@ -159,14 +150,17 @@ func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, te
 // accountsBySchoolIDs enriches the bounded identity rows with person facts.
 func (r operatorAccountDirectory) accountsBySchoolIDs(ctx context.Context, schoolIDs []int64) ([]OrgAccountInfo, error) {
 	rows, err := r.identityRows(ctx, schoolIDs)
-	if err != nil || len(rows) == 0 {
-		return rows, err
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []OrgAccountInfo{}, nil
 	}
 	entries := make([]accountEntry, 0, len(rows))
 	invitations := make([]OrgAccountInfo, 0)
 	for _, row := range rows {
-		if isInvitationRow(row.TenantAccountInfo) {
-			invitations = append(invitations, row)
+		if row.invitation {
+			invitations = append(invitations, row.OrgAccountInfo)
 			continue
 		}
 		entries = append(entries, accountEntry{TenantID: row.SchoolID, Info: row.TenantAccountInfo})
@@ -190,12 +184,6 @@ func (r operatorAccountDirectory) accountsBySchoolIDs(ctx context.Context, schoo
 	return append(result, invitations...), nil
 }
 
-// isInvitationRow recognises the synthetic rows the repository builds for
-// pending invitations: no account id yet and the fixed "invited" status.
-func isInvitationRow(row TenantAccountInfo) bool {
-	return row.AccountID == 0 && row.Status == "invited"
-}
-
 // attachAccountPersons fills names, pedagogic role and the caregiver facts
 // of the entries from the People Directory and the staff/teacher chain.
 func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entries []accountEntry) error {
@@ -216,7 +204,7 @@ func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entr
 	}
 	for index := range entries {
 		entry := &entries[index]
-		person, found := persons[tenantAccountKey{AccountID: entry.Info.AccountID, TenantID: entry.TenantID}]
+		person, found := persons[peopledirectory.AccountSchool{AccountID: entry.Info.AccountID, TenantID: entry.TenantID}]
 		if !found {
 			continue
 		}
@@ -250,7 +238,7 @@ func compareAccountEntries(left, right accountEntry) int {
 	return compareStrings(left.Info.FirstName, right.Info.FirstName)
 }
 
-func (r operatorAccountDirectory) caregiverChains(ctx context.Context, persons map[tenantAccountKey]peopledirectory.Person) (map[int64]CaregiverChain, error) {
+func (r operatorAccountDirectory) caregiverChains(ctx context.Context, persons map[peopledirectory.AccountSchool]peopledirectory.Person) (map[int64]CaregiverChain, error) {
 	if len(persons) == 0 {
 		return map[int64]CaregiverChain{}, nil
 	}

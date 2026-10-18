@@ -6,27 +6,7 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
-)
-
-// Payload keys used by the guardian-invitation outbox row. The service
-// fills these on Enqueue; the renderer reads them on dispatch.
-const (
-	guardianPayloadRecipientEmail = "recipient_email"
-	guardianPayloadFirstName      = "first_name"
-	guardianPayloadLastName       = "last_name"
-	guardianPayloadInvitationURL  = "invitation_url"
-	guardianPayloadLogoURL        = "logo_url"
-	guardianPayloadSchoolName     = "school_name"
-	guardianPayloadExpiryHours    = "expiry_hours"
-	// guardianPayloadExistingAccount marks the variant for an address that
-	// already owns an account: invitation_url is then the parents portal
-	// login, and the mail asks for the existing credentials (#3320).
-	guardianPayloadExistingAccount = "existing_account"
-	// The welcome mail (#3534) carries the help article and the Elterninfo
-	// instead of an accept link.
-	guardianPayloadHelpURL           = "help_url"
-	guardianPayloadParentInfoURL     = "parent_info_url"
-	guardianPayloadPrecedingOutboxID = "preceding_outbox_id"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // GuardianInvitationRendererConfig is the closure-state for the
@@ -42,50 +22,11 @@ type GuardianInvitationRendererConfig struct {
 // registers it with the Delivery renderer registry at startup.
 func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(context.Context, map[string]any) (*email.Message, error) {
 	return func(_ context.Context, payload map[string]any) (*email.Message, error) {
-		recipient, _ := payload[guardianPayloadRecipientEmail].(string)
-		if recipient == "" {
-			return nil, fmt.Errorf("guardian invitation payload missing recipient_email")
+		mail, recipient, err := identityaccess.GuardianInvitationMail(payload)
+		if err != nil {
+			return nil, err
 		}
-		invitationURL, _ := payload[guardianPayloadInvitationURL].(string)
-		if invitationURL == "" {
-			return nil, fmt.Errorf("guardian invitation payload missing invitation_url")
-		}
-
-		firstName, _ := payload[guardianPayloadFirstName].(string)
-		lastName, _ := payload[guardianPayloadLastName].(string)
-		logoURL, _ := payload[guardianPayloadLogoURL].(string)
-		schoolName, _ := payload[guardianPayloadSchoolName].(string)
-		expiryHours, _ := payloadIntField(payload, guardianPayloadExpiryHours)
-		if expiryHours <= 0 {
-			expiryHours = 48
-		}
-
-		existingAccount, _ := payload[guardianPayloadExistingAccount].(bool)
-
-		subject := "Einladung zum Eltern-Portal"
-		if existingAccount {
-			subject = "Ihr Zugang zum Eltern-Portal"
-		}
-		if schoolName != "" {
-			subject = fmt.Sprintf("%s – %s", subject, schoolName)
-		}
-
-		msg := &email.Message{
-			From:     cfg.DefaultFrom,
-			To:       email.NewEmail("", recipient),
-			Subject:  subject,
-			Template: "guardian-invitation.html",
-			Content: map[string]any{
-				"InvitationURL":   invitationURL,
-				"FirstName":       firstName,
-				"LastName":        lastName,
-				"ExpiryHours":     expiryHours,
-				"LogoURL":         logoURL,
-				"SchoolName":      schoolName,
-				"ExistingAccount": existingAccount,
-			},
-		}
-		return msg, nil
+		return identityMessage(cfg.DefaultFrom, email.NewEmail("", recipient), mail), nil
 	}
 }
 
@@ -96,48 +37,20 @@ func NewGuardianWelcomeRenderer(cfg GuardianInvitationRendererConfig) func(conte
 		if err := guardianWelcomeReleased(ctx, cfg, payload); err != nil {
 			return nil, err
 		}
-		recipient, _ := payload[guardianPayloadRecipientEmail].(string)
-		if recipient == "" {
-			return nil, fmt.Errorf("guardian welcome payload missing recipient_email")
+		mail, recipient, err := identityaccess.GuardianWelcomeMail(payload)
+		if err != nil {
+			return nil, err
 		}
-		helpURL, _ := payload[guardianPayloadHelpURL].(string)
-		if helpURL == "" {
-			return nil, fmt.Errorf("guardian welcome payload missing help_url")
-		}
-		parentInfoURL, _ := payload[guardianPayloadParentInfoURL].(string)
-		firstName, _ := payload[guardianPayloadFirstName].(string)
-		lastName, _ := payload[guardianPayloadLastName].(string)
-		logoURL, _ := payload[guardianPayloadLogoURL].(string)
-		schoolName, _ := payload[guardianPayloadSchoolName].(string)
-
-		subject := "Willkommen bei moto"
-		if schoolName != "" {
-			subject = fmt.Sprintf("%s – %s", subject, schoolName)
-		}
-		return &email.Message{
-			From:     cfg.DefaultFrom,
-			To:       email.NewEmail("", recipient),
-			Subject:  subject,
-			Template: "guardian-welcome.html",
-			Content: map[string]any{
-				"HelpURL":       helpURL,
-				"ParentInfoURL": parentInfoURL,
-				"FirstName":     firstName,
-				"LastName":      lastName,
-				"LogoURL":       logoURL,
-				"SchoolName":    schoolName,
-			},
-		}, nil
+		return identityMessage(cfg.DefaultFrom, email.NewEmail("", recipient), mail), nil
 	}
 }
 
-// guardianWelcomeReleased answers whether the welcome may render now: only
-// after the mail that granted the access was accepted, and never once that
-// mail can no longer arrive.
+// guardianWelcomeReleased asks the owner whether the welcome may render now,
+// given the delivery state of the mail that granted the access.
 func guardianWelcomeReleased(ctx context.Context, cfg GuardianInvitationRendererConfig, payload map[string]any) error {
-	precedingOutboxID, ok := payloadInt64Field(payload, guardianPayloadPrecedingOutboxID)
-	if !ok || precedingOutboxID <= 0 {
-		return fmt.Errorf("guardian welcome payload missing %s", guardianPayloadPrecedingOutboxID)
+	precedingOutboxID, err := identityaccess.GuardianWelcomePrecedingOutboxID(payload)
+	if err != nil {
+		return err
 	}
 	if cfg.PrecedingEmailStatus == nil {
 		return fmt.Errorf("guardian welcome preceding email status is not configured")
@@ -146,48 +59,17 @@ func guardianWelcomeReleased(ctx context.Context, cfg GuardianInvitationRenderer
 	if err != nil {
 		return fmt.Errorf("look up guardian access email delivery: %w", err)
 	}
-	if terminal {
+	switch identityaccess.GuardianWelcomeRelease(sent, terminal) {
+	case identityaccess.MailCancelled:
 		return fmt.Errorf("%w: guardian access email cannot be delivered", deliveryCompose.ErrRenderCancelled)
-	}
-	if !sent {
+	case identityaccess.MailDeferred:
 		return fmt.Errorf("%w: guardian access email has not been accepted", deliveryCompose.ErrRenderDeferred)
-	}
-	return nil
-}
-
-func payloadInt64Field(payload map[string]any, key string) (int64, bool) {
-	v, ok := payload[key]
-	if !ok {
-		return 0, false
-	}
-	switch x := v.(type) {
-	case int:
-		return int64(x), true
-	case int64:
-		return x, true
-	case float64:
-		return int64(x), x == float64(int64(x))
 	default:
-		return 0, false
+		return nil
 	}
 }
 
-// payloadIntField extracts an integer from a JSON payload that may
-// arrive as float64 (Postgres jsonb roundtrip) or int. Returns ok=false
-// when the field is missing or not numeric.
-func payloadIntField(payload map[string]any, key string) (int, bool) {
-	v, ok := payload[key]
-	if !ok {
-		return 0, false
-	}
-	switch x := v.(type) {
-	case int:
-		return x, true
-	case int64:
-		return int(x), true
-	case float64:
-		return int(x), true
-	default:
-		return 0, false
-	}
+// identityMessage addresses an Identity & Access mail.
+func identityMessage(from, to email.Email, mail identityaccess.Mail) *email.Message {
+	return &email.Message{From: from, To: to, Subject: mail.Subject, Template: mail.Template, Content: mail.Content}
 }

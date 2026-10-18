@@ -127,7 +127,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 			MailIdentity: m.MailIdentity, Expiry: m.InvitationExpiry,
 			Settings:     m.Settings,
 			Outbox:       func() platformModels.OutboxEnqueuer { return m.Outbox() },
-			WelcomeDelay: StaffWelcomeDelay,
+			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the role management of the module
 		// they are composed into.
