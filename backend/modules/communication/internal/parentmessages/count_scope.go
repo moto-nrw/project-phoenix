@@ -58,7 +58,7 @@ func (s *Service) CountScope(ctx context.Context) (string, error) {
 	if s.CountPreferences == nil {
 		return CountScopeAll, nil
 	}
-	scope, err := s.CountPreferences.CountScope(ctx, accountIDFromCtx(ctx))
+	scope, err := s.CountPreferences.CountScope(ctx, s.accountID(ctx))
 	if err != nil {
 		return "", fmt.Errorf("messaging: load count scope: %w", err)
 	}
@@ -76,7 +76,7 @@ func (s *Service) SetCountScope(ctx context.Context, scope string) error {
 	if s.CountPreferences == nil {
 		return errors.New("messaging: count preference store is not configured")
 	}
-	if err := s.CountPreferences.SetCountScope(ctx, accountIDFromCtx(ctx), scope); err != nil {
+	if err := s.CountPreferences.SetCountScope(ctx, s.accountID(ctx), scope); err != nil {
 		return fmt.Errorf("messaging: save count scope: %w", err)
 	}
 	return nil

@@ -1,4 +1,4 @@
-package students
+package api
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ import (
 func TestPhotoUnlinker_EmptyURLNoOp(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
+	u := peopleModule.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{})
 	require.NotPanics(t, func() { u.UnlinkStored("") })
 }
 
@@ -28,7 +29,7 @@ func TestPhotoUnlinker_InvalidPrefixLogged(t *testing.T) {
 	// student-photo prefix.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
+	u := peopleModule.NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
 
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/whatever.jpg")
@@ -41,7 +42,7 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
+	u := peopleModule.NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
 
 	// ResolveStoredPath must reject anything escaping the prefix dir.
 	require.NotPanics(t, func() {
@@ -53,7 +54,7 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 func TestPhotoUnlinker_NilLoggerSafe(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(nil, "public", nativeUploads.UploadFiles{})
+	u := peopleModule.NewPhotoUnlinker(nil, "public", nativeUploads.UploadFiles{})
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/abc.jpg")
 	})
@@ -73,7 +74,7 @@ func TestPhotoUnlinker_RemovesExistingFile(t *testing.T) {
 	fullPath := filepath.Join(photoDir, filename)
 	require.NoError(t, os.WriteFile(fullPath, []byte("not-really-a-jpg"), 0o644))
 
-	u := NewPhotoUnlinker(slog.Default(), tmpDir, nativeUploads.UploadFiles{})
+	u := peopleModule.NewPhotoUnlinker(slog.Default(), tmpDir, nativeUploads.UploadFiles{})
 	u.UnlinkStored(common.StudentPhotoStoredURLPrefix + filename)
 
 	_, statErr := os.Stat(fullPath)

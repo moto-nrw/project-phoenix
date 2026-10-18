@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	communicationPostgres "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
@@ -26,6 +27,7 @@ type ParentMessagingConfig struct {
 	// UserContext is the caller: the student read rules gate the read scope,
 	// and its groups serve the "own groups" count scope (#3673).
 	UserContext      parentMessages.Caller
+	Session          deliveryPorts.RequestSession
 	Settings         parentMessages.Settings
 	Broadcaster      realtime.Broadcaster
 	DB               *bun.DB
@@ -44,7 +46,7 @@ func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtim
 	return &parentMessaging{
 		service: parentMessages.NewService(parentMessages.Config{
 			ThreadRepo: parentMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: parentMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: parentMessages.NewReadRepository(cfg.ReadRepo),
-			Persons: cfg.Persons, UserContext: cfg.UserContext, Settings: cfg.Settings,
+			Persons: cfg.Persons, UserContext: cfg.UserContext, Session: cfg.Session, Settings: cfg.Settings,
 			Broadcaster: cfg.Broadcaster, Logger: cfg.Logger,
 			Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences, Outbox: cfg.Outbox,
 			GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools,
@@ -191,6 +193,7 @@ type StaffMessagingConfig struct {
 	MessageRepo deliveryPorts.StaffMessageSource
 	ReadRepo    deliveryPorts.StaffReadSource
 	Persons     staffMessages.PersonLookup
+	Session     deliveryPorts.RequestAccount
 	Settings    staffMessages.Settings
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
@@ -203,7 +206,7 @@ func NewStaffMessaging(cfg StaffMessagingConfig, runtime staffMessages.Runtime, 
 	return &staffMessaging{
 		service: staffMessages.NewService(staffMessages.Config{
 			ThreadRepo: staffMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: staffMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: staffMessages.NewReadRepository(cfg.ReadRepo),
-			Persons: cfg.Persons, Settings: cfg.Settings, Broadcaster: cfg.Broadcaster,
+			Persons: cfg.Persons, Session: cfg.Session, Settings: cfg.Settings, Broadcaster: cfg.Broadcaster,
 			Logger: cfg.Logger, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences,
 		}, runtime, policy),
 		observe: cfg.Observe,
@@ -293,10 +296,10 @@ func (m *staffMessaging) CleanupExpiredStaffMessages(ctx context.Context) (commu
 
 func observeResult[T any](ctx context.Context, observe func(Observation), operation string, run func(context.Context) (T, error)) (result T, err error) {
 	started := time.Now()
-	runCtx, queryStats := withMessageQueryStats(ctx)
+	runCtx, queryStats := communicationPostgres.WithMessageQueryStats(ctx)
 	defer func() {
 		if observe != nil {
-			stats := queryStats()
+			stats := queryStats.Snapshot()
 			if err != nil {
 				stats.Rows = 0
 			}

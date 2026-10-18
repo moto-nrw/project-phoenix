@@ -24,6 +24,7 @@ type StaffAdminResource struct {
 	PersonService        workforce.StaffDirectory
 	StaffDocumentService workforce.StaffDocuments
 	OffboardingCleanup   workforce.DocumentCleanupQueue
+	documentFiles        workforce.StaffDocumentFileRecovery
 	WorkSessionService   workforce.AdminWorkSessions
 	StaffAbsenceService  workforce.StaffAbsences
 	WorkTimeMonthService workforce.WorkTimeMonths
@@ -53,6 +54,8 @@ type StaffAdminDependencies struct {
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
 	OffboardingCleanup workforce.DocumentCleanupQueue
+	// DocumentFiles removes the stored staff document files; required.
+	DocumentFiles      workforce.StaffDocumentFileRecovery
 	WorkSessions       workforce.AdminWorkSessions
 	StaffAbsences      workforce.StaffAbsences
 	WorkTimeMonth      workforce.WorkTimeMonths
@@ -80,6 +83,9 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	if deps.Uploads == nil {
 		panic("staff admin resource: upload storage is required")
 	}
+	if deps.DocumentFiles == nil {
+		panic("staff admin resource: document files are required")
+	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
 	logger := deps.Logger
@@ -95,6 +101,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		PersonService:        deps.Staff,
 		StaffDocumentService: deps.Documents,
 		OffboardingCleanup:   deps.OffboardingCleanup,
+		documentFiles:        deps.DocumentFiles,
 		WorkSessionService:   deps.WorkSessions,
 		StaffAbsenceService:  deps.StaffAbsences,
 		WorkTimeMonthService: deps.WorkTimeMonth,

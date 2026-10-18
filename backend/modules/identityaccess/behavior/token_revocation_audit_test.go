@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,7 +74,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	sessionTokens, err := identityCompose.NewConfiguredSessionTokens(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
+	sessionTokens, err := api.NewConfiguredSessionTokens(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		SessionTokens: sessionTokens, TenantRuntime: testpkg.TenantRuntime(t, db),

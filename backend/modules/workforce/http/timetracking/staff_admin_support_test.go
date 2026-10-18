@@ -79,11 +79,14 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	db, capabilities := workforcetest.ComposeAdmin(t, clocks...)
 	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
 	require.NoError(t, err)
+	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, slog.Default())
+	require.NoError(t, err)
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
+		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,

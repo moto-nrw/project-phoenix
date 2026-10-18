@@ -115,7 +115,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	openRoomMoveHTTP "github.com/moto-nrw/project-phoenix/workflows/openroommove/http"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
 	slogchi "github.com/samber/slog-chi"
@@ -409,7 +408,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		ObserveDelivery: observability.ObserveSynchronousDelivery, ObserveDurableDelivery: observability.ObserveDurableDelivery,
 		ObserveDeviceFleet: observability.ObserveDeviceFleetOperation, ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 		StudentPhotoSlot: studentPhotoRuntime,
-		PhotoUnlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{}),
+		PhotoUnlinker:    peopleModule.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{}),
 		Workforce:        newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
 		People:           people, Platform: platform, Presence: presence, TimetableWiring: timetableWiring,
 		Enrollment: newEnrollmentWiring(enrollmentWiringOwners{
@@ -1845,7 +1844,7 @@ func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
-	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, reminderCompose.HTTPRuntime(ProtectedTenantRoutes)).Router())
+	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, ReminderHTTPRuntime()).Router())
 	// PWA standalone-usage reporting (#2189).
 	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
 	// User-facing platform announcements.
@@ -2231,7 +2230,7 @@ func newMealPlanExportRenderer() SimpleListRenderer {
 // newSessionTokenAuth hands the signing configuration to Identity's
 // composition, which builds the HTTP session runtime (ADR 0053 point 6).
 func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
-	return identityaccessCompose.NewConfiguredSessionAuth(
+	return NewConfiguredSessionAuth(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),

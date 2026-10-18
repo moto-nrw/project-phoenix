@@ -1,15 +1,13 @@
 package compose
 
 import (
-	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -22,26 +20,12 @@ func NewDocumentCleanup(db *bun.DB, now func() time.Time) (*workforce.DocumentCl
 	}
 	store := postgres.New(databaseRuntime(db))
 	service := application.NewDocumentCleanup(store, transaction{lock: store.AcquireXactLock}, now)
-	return workforce.NewDocumentCleanup(service.Enqueue,
-		func(ctx context.Context, limit int) ([]workforce.DocumentCleanupClaim, error) {
-			if _, active := tenant.TransactionFromContext(ctx); active {
-				return nil, errors.New("document cleanup: claim must commit independently")
-			}
-			values, err := service.Claim(ctx, limit)
-			if err != nil {
-				return nil, err
-			}
-			result := make([]workforce.DocumentCleanupClaim, 0, len(values))
-			for _, value := range values {
-				result = append(result, workforce.DocumentCleanupClaim(value))
-			}
-			return result, nil
-		},
-		func(ctx context.Context, claim workforce.DocumentCleanupClaim, success bool) (bool, error) {
-			return service.Finish(ctx, domain.DocumentCleanupClaim(claim), success)
-		},
-		func(ctx context.Context) (workforce.DocumentCleanupBacklog, error) {
-			result, err := service.Backlog(ctx)
-			return workforce.DocumentCleanupBacklog(result), err
-		}), nil
+	return workforce.NewDocumentCleanup(service.Enqueue, service.ClaimPublic, service.FinishPublic, service.BacklogPublic), nil
+}
+
+// NewStaffDocumentFileRecovery builds the removal of stored staff document
+// files over the document service, the offboarding cleanup queue and the
+// upload directory the root binds. Every dependency is required.
+func NewStaffDocumentFileRecovery(documents workforce.StaffDocuments, queue workforce.DocumentCleanupQueue, uploads workforce.StaffDocumentUploads, logger *slog.Logger) (workforce.StaffDocumentFileRecovery, error) {
+	return application.NewStaffDocumentFileRecovery(documents, queue, uploads, logger)
 }

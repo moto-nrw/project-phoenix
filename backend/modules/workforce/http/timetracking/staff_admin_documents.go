@@ -6,8 +6,6 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,21 +27,14 @@ import (
 const (
 	// maxStaffDocumentFile is the advertised upload cap (10 MB per #1424);
 	// the multipart body cap adds headroom for boundaries and headers.
-	maxStaffDocumentFile  = 10 * 1024 * 1024
-	maxStaffDocumentBody  = maxStaffDocumentFile + 4096
-	staffDocumentsBaseDir = "public/uploads/staff-documents"
+	maxStaffDocumentFile = 10 * 1024 * 1024
+	maxStaffDocumentBody = maxStaffDocumentFile + 4096
 )
 
-// staffDocumentsDir is the per-tenant document directory. Save, serve and
-// remove all derive it from the same ResolvePublicDir resolution so the
-// three operations can never disagree about where the bytes live (the
-// relative fallback only applies when no public dir exists at all).
+// staffDocumentsDir is the per-tenant document directory
+// (workforce.StaffDocumentsDir).
 func staffDocumentsDir(tenantID int64, uploads common.UploadStorage) string {
-	base := staffDocumentsBaseDir
-	if pubDir, err := uploads.PublicDir(); err == nil {
-		base = filepath.Join(pubDir, "uploads", "staff-documents")
-	}
-	return filepath.Join(base, strconv.FormatInt(tenantID, 10))
+	return workforce.StaffDocumentsDir(tenantID, uploads)
 }
 
 // documentActor builds the service actor from the JWT: account id for audit
@@ -221,7 +212,7 @@ func (rs *StaffAdminResource) retryOffboardedStaffDocumentCleanups(ctx context.C
 			)
 		}
 	}
-	rs.wakeOffboardingDocumentCleanup(ctx)
+	rs.documentFiles.WakeOffboardingDocumentCleanup(ctx)
 }
 
 // uploadStaffDocument serves POST /{id}/documents (multipart: file +
@@ -438,20 +429,9 @@ func fileSizeOnDisk(path string) int64 {
 	return info.Size()
 }
 
-func (rs *StaffAdminResource) removeStoredDocumentForTenant(tenantID int64, storedName string) error {
-	if common.ValidateFilename(storedName) != nil {
-		return errors.New("stored document filename failed validation on delete")
-	}
-	dir := staffDocumentsDir(tenantID, rs.uploads)
-	if err := os.Remove(filepath.Join(dir, storedName)); err != nil && !os.IsNotExist(err) {
-		return errors.New("failed to remove stored document")
-	}
-	return nil
-}
-
 func (rs *StaffAdminResource) cleanupStaffDocumentFile(ctx context.Context, staffID, documentID int64, storedName, source string) {
 	tenantID := tenant.FromContext(ctx)
-	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
+	if err := rs.documentFiles.RemoveStoredDocument(tenantID, storedName); err != nil {
 		rs.logger.Warn("staff document cleanup failed",
 			"staff_id", staffID,
 			"document_id", documentID,
@@ -472,7 +452,7 @@ func (rs *StaffAdminResource) cleanupStaffDocumentFile(ctx context.Context, staf
 
 func (rs *StaffAdminResource) cleanupQueuedStaffDocumentFile(ctx context.Context, staffID, cleanupID int64, storedName, source string) {
 	tenantID := tenant.FromContext(ctx)
-	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
+	if err := rs.documentFiles.RemoveStoredDocument(tenantID, storedName); err != nil {
 		rs.logger.Warn("staff document orphan cleanup failed",
 			"staff_id", staffID,
 			"cleanup_id", cleanupID,
@@ -515,6 +495,6 @@ func (rs *StaffAdminResource) QueueOffboardedStaffDocumentCleanup(ctx context.Co
 	if err := rs.OffboardingCleanup.Enqueue(ctx, staffID); err != nil {
 		return err
 	}
-	rs.wakeOffboardingDocumentCleanup(ctx)
+	rs.documentFiles.WakeOffboardingDocumentCleanup(ctx)
 	return nil
 }

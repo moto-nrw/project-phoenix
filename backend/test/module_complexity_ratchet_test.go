@@ -246,7 +246,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
-	"modules/workforce/http/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":               19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        19,
 	"modules/workforce/internal/application/absence.go:(*Service).UpdateAbsenceType":                                                            23,

@@ -41,6 +41,7 @@ func NewTimetableOperations(
 	deps.Settings = timetableOperationSettings{settings: settings}
 	deps.CareDays = newTimetableCareDays(careDays)
 	deps.Arrivals, deps.Pickups = timetableEffectiveArrivals{times: arrivals}, timetableEffectivePickups{times: pickups}
+	deps.Session = TimetableRequestSession{}
 	deps.Locks = rows.AttendanceLocks()
 	deps.Announcer = newTimetableAttendanceAnnouncer(broadcaster)
 	deps.NormalizeSchoolClass = schoolStructure.NormalizeClass
@@ -57,6 +58,25 @@ type (
 		GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 	}
 )
+
+// TimetableRequestSession binds the operational day's session port to
+// Identity's session token adapter.
+type TimetableRequestSession struct{}
+
+// Claims are the verified claims of the request, the zero claims without
+// any.
+func (TimetableRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := requestTokenReads.claims(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: claims.AccountID, TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.SchoolScope, Admin: claims.Admin,
+	}
+}
+
+// Permissions are the permissions of the request.
+func (TimetableRequestSession) Permissions(ctx context.Context) []string {
+	return requestTokenReads.Permissions(ctx)
+}
 
 // newTimetableAttendanceAnnouncer wakes the tenant's clients after an
 // attendance patch; nil without a broadcaster.

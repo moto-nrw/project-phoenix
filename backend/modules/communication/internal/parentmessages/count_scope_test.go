@@ -64,6 +64,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),

@@ -33,6 +33,21 @@ func (r StaffStudentReads) MyGroupIDs(ctx context.Context) ([]int64, error) {
 	return r.Caller.MyGroupIDs(ctx)
 }
 
+// CommunicationSession binds Communication's request session port to
+// Identity's session token adapter: the authenticated account and its
+// permissions.
+type CommunicationSession struct{}
+
+// AccountID is the authenticated account of the request, 0 without one.
+func (CommunicationSession) AccountID(ctx context.Context) int64 {
+	return requestTokenReads.claims(ctx).AccountID
+}
+
+// Permissions are the permissions of the authenticated request.
+func (CommunicationSession) Permissions(ctx context.Context) []string {
+	return requestTokenReads.Permissions(ctx)
+}
+
 // SecurityFingerprints binds Communication's declaration fingerprints to the
 // Security Runtime's SHA-256 content identity.
 type SecurityFingerprints struct{}

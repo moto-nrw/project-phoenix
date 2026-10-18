@@ -22,7 +22,7 @@ func (s *Service) MarkUnread(ctx context.Context, threadID int64) error {
 	if err != nil {
 		return err
 	}
-	if err := s.ReadRepo.MarkStaffUnread(ctx, thread.TenantID, thread.ID, accountIDFromCtx(ctx)); err != nil {
+	if err := s.ReadRepo.MarkStaffUnread(ctx, thread.TenantID, thread.ID, s.accountID(ctx)); err != nil {
 		return fmt.Errorf("messaging: mark unread: %w", err)
 	}
 	s.broadcastStaffUnreadAfterCommit(ctx, thread)

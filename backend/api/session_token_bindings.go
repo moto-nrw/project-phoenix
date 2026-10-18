@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/viper"
@@ -32,13 +33,37 @@ func newLegacyTokenAdapter() (TokenAdapter, error) {
 // tokenAdapterFor binds the request reads to the session tokens of the given
 // signing secret and token lifetimes.
 func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (TokenAdapter, error) {
-	codec, err := identityaccessCompose.NewConfiguredSessionTokens(secret, accessExpiry, refreshExpiry)
+	codec, err := NewConfiguredSessionTokens(secret, accessExpiry, refreshExpiry)
 	if err != nil {
 		return TokenAdapter{}, err
 	}
 	tokens := requestTokenReads
 	tokens.SessionTokens = codec
 	return tokens, nil
+}
+
+// NewConfiguredSessionAuth builds the HTTP session runtime the server root
+// mounts (verifier, authenticator, rate-limit key) from configuration values:
+// the signing secret and the lifetimes of the access and refresh tokens. The
+// signing primitive stays in Identity's session token adapter, so the root
+// hands over values instead of building the signer (ADR 0053 point 6,
+// ADR 0056).
+func NewConfiguredSessionAuth(secret string, accessExpiry, refreshExpiry time.Duration) (*sessiontoken.TokenAuth, error) {
+	signer, err := sessiontoken.NewTokenAuthWithDurations(secret, accessExpiry, refreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	return signer, nil
+}
+
+// NewConfiguredSessionTokens builds the session token codec Identity's flows
+// sign with from the same configuration values, over the same signer.
+func NewConfiguredSessionTokens(secret string, accessExpiry, refreshExpiry time.Duration) (identityaccessCompose.SignedIdentityTokens, error) {
+	signer, err := NewConfiguredSessionAuth(secret, accessExpiry, refreshExpiry)
+	if err != nil {
+		return nil, err
+	}
+	return identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
 }
 
 // CallerFromClaims resolves the principal the authenticator verified.
