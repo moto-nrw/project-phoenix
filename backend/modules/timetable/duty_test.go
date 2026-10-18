@@ -79,3 +79,11 @@ func TestIsUnderstaffedWithMinimum(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyDutiesCarryNoChildren(t *testing.T) {
+	t.Parallel()
+	assert.False(t, timetable.GroupTypeHasChildren(timetable.GroupTypeDuty))
+	for _, kind := range []string{timetable.GroupTypeActivity, timetable.GroupTypeCare, timetable.GroupTypeExternal} {
+		assert.True(t, timetable.GroupTypeHasChildren(kind), kind)
+	}
+}

@@ -193,6 +193,11 @@ func IsValidGroupType(value string) bool {
 	return false
 }
 
+// GroupTypeHasChildren reports whether blocks of the type carry children,
+// and so appear on children lists such as the Tageslisten. A duty (#3822)
+// is a staff task without children.
+func GroupTypeHasChildren(value string) bool { return value != GroupTypeDuty }
+
 // TemplateShape is what the duty rule (#3822) looks at on a template write.
 // RoomID 0 means no room; the bool fields summarize the roster parts a
 // caller sent, whatever their wire shape.
