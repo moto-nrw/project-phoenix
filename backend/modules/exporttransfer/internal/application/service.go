@@ -49,21 +49,19 @@ func (s *Service) State(ctx context.Context) (domain.TargetState, error) {
 }
 
 func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.Result, error) {
-	target, err := s.targets.Resolve(ctx)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotConfigured) {
-			return domain.Result{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
-		}
-		return domain.Result{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
-	}
 	if !s.runtime.Active(ctx) {
-		return domain.Result{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
+		return s.unscopedTransferResult(ctx, request)
 	}
 	// The command, not the response middleware, owns the commit boundary.
 	detached := s.runtime.Detached(ctx)
-	id, entry, err := s.beginIntent(detached, &request, target)
+	id, entry, target, err := s.beginIntent(detached, &request)
 	if err != nil {
 		return domain.Result{}, fmt.Errorf("%w: record intent: %w", ErrUnavailable, err)
+	}
+	// File production has the same precedence as before. Even an unconfigured
+	// transfer commits the existing access audit, but never creates an intent.
+	if id == 0 {
+		return domain.Result{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
 	}
 	// Bound the whole dispatch from before its claim commit. A paused caller
 	// cannot resume past the two-minute fence and start a fresh upload.
@@ -137,7 +135,8 @@ func transferIntent(request domain.Request, target domain.Target) domain.Journal
 	}
 }
 
-func (s *Service) beginIntent(ctx context.Context, request *domain.Request, target domain.Target) (int64, domain.JournalEntry, error) {
+func (s *Service) beginIntent(ctx context.Context, request *domain.Request) (int64, domain.JournalEntry, domain.Target, error) {
+	var target domain.Target
 	var entry domain.JournalEntry
 	var id int64
 	err := s.runtime.WithinTenant(ctx, func(txCtx context.Context) error {
@@ -148,9 +147,31 @@ func (s *Service) beginIntent(ctx context.Context, request *domain.Request, targ
 				return err
 			}
 		}
+		target, err = s.targets.Resolve(txCtx)
+		if errors.Is(err, domain.ErrNotConfigured) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		entry = transferIntent(*request, target)
 		id, err = s.journal.Begin(txCtx, entry)
 		return err
 	})
-	return id, entry, err
+	return id, entry, target, err
+}
+
+// A prebuilt file may report a missing configuration outside a transaction,
+// as before. Producers and actual transfers always require a command scope.
+func (s *Service) unscopedTransferResult(ctx context.Context, request domain.Request) (domain.Result, error) {
+	if request.PrepareFile == nil {
+		_, err := s.targets.Resolve(ctx)
+		if errors.Is(err, domain.ErrNotConfigured) {
+			return domain.Result{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
+		}
+		if err != nil {
+			return domain.Result{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+		}
+	}
+	return domain.Result{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
 }

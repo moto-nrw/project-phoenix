@@ -236,3 +236,48 @@ func TestIntentRollbackAlsoRollsBackAccessAudit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, files)
 }
+
+func TestPreparedUnconfiguredTransferPreservesOriginalResult(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	settings := staticSettings(sftptest.Server{Host: "counterpart.example", Port: 22}, "/exports")
+	module, err := newModule(Dependencies{DB: db, Settings: settings, Keys: testSettingKeys()})
+	require.NoError(t, err)
+	request := auditedTransferRequest(t, db)
+	expectedFilename := request.Filename
+	// Match the HTTP producer-only request, rather than an already-built file.
+	request.Filename = ""
+	request.Data = nil
+	outcome, err := transferInTenantTx(t, ctx, module, request)
+	require.NoError(t, err)
+	assert.Equal(t, "not_configured", outcome.Reason)
+	assert.False(t, outcome.Transferred)
+	assert.Zero(t, outcome.ByteSize)
+	assert.Empty(t, outcome.TargetHost)
+	assert.Empty(t, outcome.TargetDirectory)
+	assert.Equal(t, expectedFilename, outcome.Filename)
+	assert.Equal(t, 1, accessAuditCount(t, ctx, db))
+	assert.Empty(t, readTransferRows(t, ctx, db))
+}
+
+func TestPreparedTransferPreservesProducerErrorPrecedence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	settings := staticSettings(sftptest.Server{Host: "counterpart.example", Port: 22}, "/exports")
+	settingsErr := errors.New("settings unavailable")
+	settings.Enabled = func(context.Context) (bool, error) { return false, settingsErr }
+	module, err := newModule(Dependencies{DB: db, Settings: settings, Keys: testSettingKeys()})
+	require.NoError(t, err)
+	producerErr := errors.New("export selection rejected")
+	request := transferRequest()
+	request.Filename = ""
+	request.Data = nil
+	request.PrepareFile = func(context.Context) (string, []byte, error) { return "", nil, producerErr }
+	_, err = transferInTenantTx(t, ctx, module, request)
+	require.ErrorIs(t, err, producerErr)
+	assert.NotErrorIs(t, err, settingsErr)
+	assert.Empty(t, readTransferRows(t, ctx, db))
+	assert.Zero(t, accessAuditCount(t, ctx, db))
+}

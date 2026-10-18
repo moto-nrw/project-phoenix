@@ -1,10 +1,10 @@
 // Package exporttransfer is the public Export Transfer capability: sending an
 // already-produced export file to the school's configured counterpart (#3050).
 //
-// The capability deliberately does NOT produce files. It receives the finished
-// bytes and a filename from whoever built them — today the Zeitwirtschafts-/
-// DATEV export — so the transferred file cannot drift from the downloaded one:
-// there is one file, used twice.
+// The capability does not choose export content. Callers supply finished bytes
+// or their existing file producer, so transfer and download use the same
+// Zeitwirtschafts-/DATEV export implementation. A producer runs with its access
+// audit in the command transaction before the transfer intent commits.
 //
 // It is a client only; moto runs no SFTP server. There is exactly one
 // counterpart per school, and no listing, download, delete or rename of
@@ -51,8 +51,9 @@ type Request struct {
 	// download serves it.
 	Filename string
 	Data     []byte
-	// PrepareFile builds the file and records its access audit in the intent
-	// transaction. When set, it supplies Filename and Data before commit.
+	// PrepareFile builds the file and records its access audit in the command
+	// transaction, before destination resolution. When set, it supplies Filename
+	// and Data; transfer acceptance still requires the synchronous transport.
 	PrepareFile func(context.Context) (filename string, data []byte, err error)
 	// ActorAccountID is 0 for a system caller; ActorName is snapshotted into
 	// the journal so the entry still reads after a rename or deletion.
