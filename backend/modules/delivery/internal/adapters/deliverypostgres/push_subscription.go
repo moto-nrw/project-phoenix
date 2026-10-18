@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -48,7 +47,7 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *deliveryMo
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert push subscription", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "upsert push subscription", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -78,7 +77,7 @@ func (r *PushSubscriptionRepository) deleteByEndpointPortal(ctx context.Context,
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -98,7 +97,7 @@ func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context,
 func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error {
 	db := base.GetDB(ctx, r.DB)
 	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
-		return &modelBase.DatabaseError{Op: "lock school push subscription endpoint", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "lock school push subscription endpoint", Err: base.TranslateNotFound(err)}
 	}
 	_, err := db.NewDelete().
 		Model((*deliveryModels.PushSubscription)(nil)).
@@ -107,7 +106,7 @@ func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx con
 		Where(pushPortalFilter, deliveryModels.PushPortalSchool).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete school push subscriptions by endpoint", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "delete school push subscriptions by endpoint", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -131,11 +130,11 @@ func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Contex
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "delete unchanged expired push subscription", Err: base.TranslateNotFound(err)}
+		return false, &databaseError{Op: "delete unchanged expired push subscription", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "count deleted expired push subscriptions", Err: base.TranslateNotFound(err)}
+		return false, &databaseError{Op: "count deleted expired push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return rows > 0, nil
 }
@@ -146,7 +145,7 @@ func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Contex
 func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context, endpoint string) error {
 	db := base.GetDB(ctx, r.DB)
 	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
-		return &modelBase.DatabaseError{Op: "lock parent push subscription endpoint", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "lock parent push subscription endpoint", Err: base.TranslateNotFound(err)}
 	}
 	_, err := db.NewDelete().
 		Model((*deliveryModels.PushSubscription)(nil)).
@@ -155,7 +154,7 @@ func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context,
 		Where(pushPortalFilter, deliveryModels.PushPortalParent).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete parent push subscriptions by endpoint", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "delete parent push subscriptions by endpoint", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -188,7 +187,7 @@ func (r *PushSubscriptionRepository) deleteByAccountPortal(ctx context.Context, 
 		Where(pushPortalFilter, portal).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -206,7 +205,7 @@ func (r *PushSubscriptionRepository) DeleteByTokenFamilyID(ctx context.Context, 
 		Where("token_family_id = ?", familyID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete push subscriptions by token family", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "delete push subscriptions by token family", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -255,7 +254,7 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 		)`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete orphaned push subscriptions", Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: "delete orphaned push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -270,7 +269,7 @@ func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context,
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
+		return &databaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -302,7 +301,7 @@ func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context,
 func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*deliveryModels.PushSubscription, error) {
 	var subs []*deliveryModels.PushSubscription
 	if err := r.staffSubscriptionQuery(ctx, &subs).Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff push subscriptions", Err: base.TranslateNotFound(err)}
+		return nil, &databaseError{Op: "find staff push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return subs, nil
 }
@@ -322,7 +321,7 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 	query := r.staffSubscriptionQuery(ctx, &subs, deliveryModels.PushPortalStaff).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff account push subscriptions", Err: base.TranslateNotFound(err)}
+		return nil, &databaseError{Op: "find staff account push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return subs, nil
 }
@@ -343,7 +342,7 @@ func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, 
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs)).
 		Where(`"push_subscription".has_school_role`)
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find school push subscriptions", Err: base.TranslateNotFound(err)}
+		return nil, &databaseError{Op: "find school push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return subs, nil
 }
@@ -363,7 +362,7 @@ func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([
 		Where(`"push_subscription".effective_admin`)
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find admin push subscriptions", Err: base.TranslateNotFound(err)}
+		return nil, &databaseError{Op: "find admin push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return subs, nil
 }
@@ -396,7 +395,7 @@ func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guard
 	}
 	query = base.WithTenantFilter(ctx, query, "push_subscription")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find guardian push subscriptions", Err: base.TranslateNotFound(err)}
+		return nil, &databaseError{Op: "find guardian push subscriptions", Err: base.TranslateNotFound(err)}
 	}
 	return subs, nil
 }

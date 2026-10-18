@@ -28,7 +28,7 @@ func init() {
 		corrections, err := requestreviewcompose.NewCorrectionLog(queries, people, allowed)
 		return requestreviewcompose.ReviewDecorations{Students: students, Corrections: corrections}, err
 	}
-	requestreviewcompose.ComposeReviewSources = func(t *testing.T) (*bun.DB, requestreviewcompose.ReviewComposition) {
+	requestreviewcompose.ComposeReviewSources = func(t *testing.T, proof requestreviewcompose.ReviewProof) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
 		feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -36,9 +36,39 @@ func init() {
 		module, _, people, _, _, _, err := api.NewStudentTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), feedback.Feedback)
 		require.NoError(t, err)
 		liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-		return db, requestreviewcompose.ReviewComposition{
+		svc := requestreviewcompose.ReviewComposition{
 			PeopleDirectory: people.PeopleDirectory, FamilyProtection: requestreviewcompose.NewFamilyProtection(people.PeopleDirectory),
 			Settings: liveSettings.Settings, ExcusedRequests: module.ExcusedRequests,
 		}
+		masterData, err := api.NewRequestReviewMasterData(testpkg.NewDatabase(t, db),
+			testpkg.StudentDirectory{},
+			svc.PeopleDirectory,
+			proof.Scope,
+			proof.Today,
+			ignoreReviewObservation)
+		require.NoError(t, err)
+		careReviews, err := api.NewRequestReviewSchedules(testpkg.NewDatabase(t, db),
+			testpkg.StudentDirectory{},
+			svc.PeopleDirectory,
+			proof.Scope,
+			func(ctx context.Context) (bool, error) {
+				return svc.Settings.ResolveBool(ctx, "enrollment.bookings_authoritative")
+			},
+			proof.Today,
+			ignoreReviewObservation,
+			ignoreReviewObservation,
+			proof)
+		require.NoError(t, err)
+		offeringReviews, err := api.NewRequestReviewOfferings(testpkg.NewDatabase(t, db),
+			svc.PeopleDirectory,
+			proof.Scope,
+			proof.Today,
+			ignoreReviewObservation,
+			ignoreReviewObservation)
+		require.NoError(t, err)
+
+		proof.Run(db, svc, masterData, careReviews, offeringReviews)
 	}
 }
+
+func ignoreReviewObservation[T any](T) {}

@@ -38,14 +38,12 @@ import (
 var moduleComposeAliasBudgets = map[string]int{
 	"modules/communication/composition":     4,
 	"modules/delivery/compose/email":        23,
-	"modules/requestreview/compose":         6,
 	"modules/schoolstructure/compose":       2,
 	"modules/timetable/compose/httpadapter": 1,
-	"observability/compose":                 1,
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 37
+const moduleComposeAliasBudgetTotal = 30
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

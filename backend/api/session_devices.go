@@ -5,19 +5,21 @@ import (
 	"log/slog"
 	"time"
 
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type sessionDevices struct {
-	*devicefleetLegacy.SessionDeviceIDs
+	devicefleet.SessionDeviceDirectory
 	window func(context.Context) time.Duration
 }
 
 // NewSessionDeviceDirectory binds session device operations and the owner's
 // online-window resolver without exposing the settings service to attendance.
-func NewSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings DeviceOnlineWindowSettings, logger *slog.Logger) presenceservice.SessionDeviceDirectory {
-	return sessionDevices{SessionDeviceIDs: &devicefleetLegacy.SessionDeviceIDs{SessionDeviceRecords: records}, window: NewOnlineWindowResolver(settings, logger)}
+func NewSessionDeviceDirectory(records devicefleet.SessionDeviceRecords, settings DeviceOnlineWindowSettings, logger *slog.Logger) presenceservice.SessionDeviceDirectory {
+	return sessionDevices{SessionDeviceDirectory: devicefleetCompose.NewSessionDeviceIDs(records), window: NewOnlineWindowResolver(settings, logger)}
 }
 
 func (d sessionDevices) OnlineWindow(ctx context.Context) time.Duration {

@@ -15,10 +15,10 @@ import (
 // composition root can implement them without reaching into the module.
 type (
 	ExcusedRequestStudents = ports.ExcusedRequestStudents
-	ReviewStudent          = ports.ReviewStudent
-	PersonName             = ports.PersonName
-	ReviewScope            = ports.ReviewScope
-	ReviewScopeResolver    = ports.ReviewScopeResolver
+	ReviewStudent          = careplan.ReviewStudent
+	PersonName             = careplan.PersonName
+	ReviewScope            = careplan.ReviewScope
+	ReviewScopeResolver    = careplan.ReviewScopeResolver
 	RequestEvent           = ports.RequestEvent
 	DecisionAudience       = ports.DecisionAudience
 	RequestMessenger       = ports.RequestMessenger

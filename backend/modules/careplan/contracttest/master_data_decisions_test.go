@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -79,8 +78,12 @@ func (f masterDataFixture) decisionInputs() (api.MasterDataDecisionTestOptions, 
 // queue is the native open queue and history the decisions are listed from.
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
-	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, testpkg.StudentDirectory{}, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
-		careplan.Today, func(requestreviewcompose.CareObservation) {})
+	queue, err := api.NewRequestReviewMasterData(testpkg.NewDatabase(t, f.db),
+		testpkg.StudentDirectory{},
+		api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
+		scope,
+		careplan.Today,
+		ignoreReviewObservation)
 	require.NoError(t, err)
 	return queue
 }

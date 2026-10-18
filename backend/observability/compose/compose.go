@@ -4,7 +4,7 @@
 // the roots install.
 package compose
 
-import "github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
+import "github.com/moto-nrw/project-phoenix/observability/internal/adapters/pwausage"
 
 // NewPWAStandaloneUsageRepository builds the PWA standalone usage store over
 // the root database.

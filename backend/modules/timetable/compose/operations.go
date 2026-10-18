@@ -14,8 +14,8 @@ import (
 
 // NewOperations builds the operational day with the caller bound to the
 // request's session.
-func NewOperations(deps ports.OperationDependencies) (timetable.OperationCapability, error) {
-	return application.NewOperations(deps, operationCaller{RequestSession: deps.Session})
+func NewOperations(deps ports.OperationDependencies, caller ports.OperationCaller) (timetable.OperationCapability, error) {
+	return application.NewOperations(deps, caller)
 }
 
 func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.TimetableDataCapability, error) {

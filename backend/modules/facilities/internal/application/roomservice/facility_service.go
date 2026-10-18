@@ -11,7 +11,7 @@ import (
 )
 
 type OccupancyProjection func(context.Context, []facilitiesModule.Room) ([]RoomWithOccupancy, error)
-type RoomHistoryProjection func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error)
+type RoomHistoryProjection func(context.Context, int64, time.Time, time.Time, *int64) ([]facilitiesModule.RoomSessionEntry, error)
 
 type ServiceConfig struct {
 	// Rooms is the Facilities Catalog; the service deletes no room, so the
@@ -21,21 +21,16 @@ type ServiceConfig struct {
 	History   RoomHistoryProjection
 }
 
-type service struct{ config ServiceConfig }
+type service struct {
+	OccupancyProjection
+	config ServiceConfig
+}
 
 func NewServiceWithConfig(config ServiceConfig) Service {
 	if config.Rooms == nil || config.Occupancy == nil || config.History == nil {
 		panic("facilities compatibility service: all dependencies are required")
 	}
-	return &service{config: config}
-}
-
-func (s *service) GetRoom(ctx context.Context, id int64) (*facilitiesModule.Room, error) {
-	room, err := s.config.Rooms.FindRoom(ctx, id)
-	if err != nil {
-		return nil, wrap("get room", err)
-	}
-	return roomPointer(room), nil
+	return &service{OccupancyProjection: config.Occupancy, config: config}
 }
 
 func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error) {
@@ -98,10 +93,6 @@ func (s *service) ListRooms(ctx context.Context) ([]RoomWithOccupancy, error) {
 	return rows, wrap("list rooms", err)
 }
 
-func (s *service) ProjectRoomOccupancy(ctx context.Context, rooms []facilitiesModule.Room) ([]RoomWithOccupancy, error) {
-	return s.config.Occupancy(ctx, rooms)
-}
-
 func (s *service) FindRoomByName(ctx context.Context, name string) (*facilitiesModule.Room, error) {
 	room, err := s.config.Rooms.FindRoomByName(ctx, name)
 	if err != nil {
@@ -116,22 +107,6 @@ func (s *service) FindToiletRoom(ctx context.Context, exclude int64) (*facilitie
 		return nil, wrap("find toilet room", err)
 	}
 	return roomPointer(room), nil
-}
-
-func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilitiesModule.Room, error) {
-	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{Category: &category})
-	if err != nil {
-		return nil, wrap("find rooms by category", err)
-	}
-	return roomPointers(rooms), nil
-}
-
-func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facilitiesModule.Room, error) {
-	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{MinimumCapacity: &capacity})
-	if err != nil {
-		return nil, wrap("get available rooms", err)
-	}
-	return roomPointers(rooms), nil
 }
 
 func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error) {
@@ -171,7 +146,7 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	return slices.Sorted(maps.Keys(values)), nil
 }
 
-func (s *service) GetRoomHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]RoomSessionEntry, error) {
+func (s *service) GetRoomHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]facilitiesModule.RoomSessionEntry, error) {
 	if _, err := s.config.Rooms.FindRoom(ctx, roomID); err != nil {
 		return nil, wrap("get room history", err)
 	}
@@ -181,17 +156,15 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, start, end t
 
 func roomPointer(room facilitiesModule.Room) *facilitiesModule.Room { return &room }
 
-func roomPointers(rooms []facilitiesModule.Room) []*facilitiesModule.Room {
-	result := make([]*facilitiesModule.Room, len(rooms))
-	for index := range rooms {
-		result[index] = &rooms[index]
-	}
-	return result
-}
-
 func wrap(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
 	return &FacilitiesError{Op: operation, Err: err}
+}
+
+// ProjectRoomOccupancy lets the immutable projection implement its read port
+// directly; the service need not forward the same invocation.
+func (project OccupancyProjection) ProjectRoomOccupancy(ctx context.Context, rooms []facilitiesModule.Room) ([]RoomWithOccupancy, error) {
+	return project(ctx, rooms)
 }

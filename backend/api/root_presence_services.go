@@ -7,12 +7,9 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -77,12 +74,12 @@ func buildActivePresence(
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(presence.SessionRecords)
 	logger := env.Logger.With("service", "active")
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal, SchoolPresence: presence.Presence,
+		PrincipalReader: AttendancePrincipal, SchoolPresence: presence.Presence,
 		StudentDisplay: presencePeople.StudentDisplay, GroupRepo: sessionGroups, SessionStartLock: presence.Presence,
 		SupervisorRepo: sessionSupervisors, StudentStatusRepo: carePlanRows.StatusDays,
 		CrossTenantRepo: presencePeople.CrossTenantStudents, Schools: presencePeople.PresenceSchools,
 		StudentRepo: presencePeople.PresenceStudents, StaffRepo: presence.AttendanceStaff,
-		RoomRepo:      facilitiesLegacy.NewAttendanceRooms(facilitiesCompose.NewRoomRecords(rooms)),
+		RoomRepo:      facilitiesCompose.NewAttendanceRooms(facilitiesCompose.NewRoomRecords(rooms)),
 		YardRoomColor: facilitiesModule.YardRoomColor(rooms), ActivityGroupRepo: presence.AttendanceActivities,
 		ActivityCatRepo:    arrivalTimetable.NewCategoryCount(repos.ActivityCategory),
 		EducationGroupRepo: presence.AttendanceEducationGroups,
@@ -117,7 +114,7 @@ func buildDeviceFleet(
 	observe := env.Observe.DeviceFleet
 	return devicefleetCompose.New(devicefleetCompose.Dependencies{
 		DB: db.Pool(), Rooms: rooms, Presence: presence.Presence,
-		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
+		Dashboard: devicefleetCompose.NewDashboardSources(devicefleetCompose.DashboardDependencies{
 			ActiveGroups: presence.SessionRecords, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords()),
 			PickupSchedule: pickups,
 		}),

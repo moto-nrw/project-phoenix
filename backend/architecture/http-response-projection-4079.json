@@ -35,7 +35,7 @@
       "backend/modules/requestreview/care_responses.go",
       "backend/modules/requestreview/request_responses.go",
       "backend/modules/requestreview/offering_labels.go",
-      "backend/modules/requestreview/compose/impact_fingerprint.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/d8708d82c7c8e18774acc3ee800014649560d666/backend/modules/requestreview/compose/impact_fingerprint.go",
       "backend/modules/securityruntime/fingerprint.go",
       "backend/modules/careplan/http/care_request_detail_handlers.go",
       "backend/modules/requestreview/compose/queues_test.go",

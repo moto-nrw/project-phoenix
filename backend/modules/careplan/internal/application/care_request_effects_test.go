@@ -56,11 +56,11 @@ func (r careRequestRows) FindCareScheduleRequest(context.Context, int64, bool) (
 }
 
 type careRequestNames struct {
-	name ports.PersonName
+	name careplan.PersonName
 	err  error
 }
 
-func (n careRequestNames) StudentName(context.Context, int64) (ports.PersonName, error) {
+func (n careRequestNames) StudentName(context.Context, int64) (careplan.PersonName, error) {
 	return n.name, n.err
 }
 
@@ -278,7 +278,7 @@ func TestCareRequestReloadKeepsTheItemWhenTheNameIsMissing(t *testing.T) {
 	assert.Equal(t, "Arzttermin", *item.Reason)
 	assert.Empty(t, item.FirstName)
 
-	named := newCareRequestHarness(t, careRequestRows{row: *weeklyCareRequest()}, careRequestNames{name: ports.PersonName{FirstName: "Mia", LastName: "Muster"}})
+	named := newCareRequestHarness(t, careRequestRows{row: *weeklyCareRequest()}, careRequestNames{name: careplan.PersonName{FirstName: "Mia", LastName: "Muster"}})
 	item, err = named.effects.ReloadDecision(context.Background(), fakeCareRequestID)
 	require.NoError(t, err)
 	assert.Nil(t, item.Reason)

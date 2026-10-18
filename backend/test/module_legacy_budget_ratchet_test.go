@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 547
+const moduleLegacyBudgetTotal = 0
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -153,7 +153,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 31870
+const moduleComposeBudgetTotal = 31146
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -164,7 +164,7 @@ const moduleComposeBudgetTotal = 31870
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                    528,
 	"modules/auditlog/compose":                        251,
-	"modules/careplan/compose":                        2539,
+	"modules/careplan/compose":                        2536,
 	"modules/careplan/requestfeed/compose":            68,
 	"modules/classday/compose":                        461,
 	"modules/communication/composition":               1453,
@@ -172,15 +172,14 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose/imports":              29,
 	"modules/delivery/compose":                        774,
 	"modules/delivery/compose/email":                  36,
-	"modules/devicefleet/compose":                     369,
-	"modules/devicefleet/compose/repositoryadapter":   298,
-	"modules/devicescan/compose":                      1272,
+	"modules/devicefleet/compose":                     362,
+	"modules/devicefleet/compose/repositoryadapter":   292,
+	"modules/devicescan/compose":                      1228,
 	"modules/emergencysnapshot/compose":               13,
 	"modules/enrollment/compose":                      715,
 	"modules/exporttransfer/compose":                  323,
-	"modules/facilities/compose":                      272,
-	"modules/facilities/compose/httpadapter":          473,
-	"modules/facilities/compose/repositoryadapter":    237,
+	"modules/facilities/compose":                      222,
+	"modules/facilities/compose/repositoryadapter":    222,
 	"modules/feedback/compose":                        196,
 	"modules/filestorage/compose":                     361,
 	"modules/grouplive/compose":                       14,
@@ -191,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/parentrequestfeedprojection/compose":     11,
 	"modules/peopledirectory/compose":                 2576,
 	"modules/presenceprojection/compose":              7,
-	"modules/requestreview/compose":                   1069,
+	"modules/requestreview/compose":                   988,
 	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  562,
 	"modules/schoolcalendar/portal/compose":           155,
@@ -203,7 +202,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       4165,
+	"modules/timetable/compose":                       4120,
 	"modules/timetable/compose/httpadapter":           3562,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
@@ -225,10 +224,7 @@ var moduleComposeBudgets = map[string]int{
 // The comment on each entry names the ticket that is supposed to dissolve the
 // tree; "no ticket today" is the measurement, not an omission — those trees
 // have no owner and no plan, which is precisely what this ratchet exposes.
-var moduleLegacyBudgets = map[string]int{
-	"modules/devicefleet/compose/legacy": 109,
-	"modules/facilities/compose/legacy":  438,
-}
+var moduleLegacyBudgets = map[string]int{}
 
 func TestModuleLegacyBudgetRatchet(t *testing.T) {
 	t.Parallel()

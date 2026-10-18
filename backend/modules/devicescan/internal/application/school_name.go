@@ -4,15 +4,14 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 )
 
 type schoolNameQuery struct {
 	lookup     func(context.Context, int64) (string, error)
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 }
 
-func NewSchoolName(lookup func(context.Context, int64) (string, error), principals ports.Principals) devicescan.SchoolNameQuery {
+func NewSchoolName(lookup func(context.Context, int64) (string, error), principals devicescan.PrincipalReader) devicescan.SchoolNameQuery {
 	return schoolNameQuery{lookup: lookup, principals: principals}
 }
 

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +37,7 @@ func TestRepositoryDelegatesCreateToOwner(t *testing.T) {
 	roomID := time.Now().UnixNano()
 	owner := &roomCapabilityStub{room: facilities.Room{ID: roomID, Name: "Igelraum"}}
 	repository := New(owner)
-	room := &facilitiesModels.Room{Name: "Igelraum"}
+	room := &facilities.Room{Name: "Igelraum"}
 
 	require.NoError(t, repository.Create(context.Background(), room))
 	require.Equal(t, "Igelraum", owner.created.Name)

@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	iotModels "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	iot "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application/deviceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -45,7 +46,7 @@ func NewTimetableOperations(
 	deps.Locks = rows.Locks
 	deps.Announcer = newTimetableAttendanceAnnouncer(broadcaster)
 	deps.NormalizeSchoolClass = schoolStructure.NormalizeClass
-	return timetableCompose.NewOperations(deps)
+	return timetableCompose.NewOperations(deps, TimetableOperationCaller{RequestSession: deps.Session})
 }
 
 // EffectiveArrivalTimes and EffectivePickupTimes are Care Plan's effective
@@ -95,11 +96,11 @@ type timetableOperationAttendance struct {
 }
 
 func (a timetableOperationAttendance) CreateVisitAs(ctx context.Context, staffID int64, visit *studentpresence.Visit) error {
-	return a.presence.CreateVisit(devicescanCompose.WithAttendanceStaff(ctx, staffID, visit.TenantID), visit)
+	return a.presence.CreateVisit(deviceauth.WithAttendanceStaff(ctx, staffID, visit.TenantID), visit)
 }
 
 func (a timetableOperationAttendance) EndVisitAs(ctx context.Context, staffID, tenantID, visitID int64) error {
-	return a.presence.EndVisit(devicescanCompose.WithAttendanceStaff(ctx, staffID, tenantID), visitID)
+	return a.presence.EndVisit(deviceauth.WithAttendanceStaff(ctx, staffID, tenantID), visitID)
 }
 
 func (a timetableOperationAttendance) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {

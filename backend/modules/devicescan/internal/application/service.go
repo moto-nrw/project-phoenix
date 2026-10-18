@@ -49,7 +49,7 @@ type Dependencies struct {
 	Fleet      Fleet
 	Presence   Presence
 	Rooms      Rooms
-	Principals ports.Principals
+	Principals devicescan.PrincipalReader
 	People     ports.People
 	Visits     ports.Visits
 	Sessions   SessionOperations
@@ -72,7 +72,7 @@ type Service struct {
 	fleet      Fleet
 	presence   Presence
 	rooms      Rooms
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	people     ports.People
 	visits     ports.Visits
 	sessions   SessionOperations
@@ -112,7 +112,7 @@ func NewService(deps Dependencies) *Service {
 func (s *Service) now() time.Time { return s.clock.Now() }
 
 // device resolves the authenticated device of the request.
-func (s *Service) device(ctx context.Context) (*ports.Device, error) {
+func (s *Service) device(ctx context.Context) (*devicescan.PrincipalDevice, error) {
 	device, ok := s.principals.Device(ctx)
 	if !ok || device == nil {
 		return nil, devicescan.ErrDeviceUnauthorized
@@ -120,7 +120,7 @@ func (s *Service) device(ctx context.Context) (*ports.Device, error) {
 	return device, nil
 }
 
-func publicDevice(device *ports.Device) devicescan.Device {
+func publicDevice(device *devicescan.PrincipalDevice) devicescan.Device {
 	return devicescan.Device{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
 		Name: device.Name, Status: device.Status, LastSeen: device.LastSeen, Active: device.Active,
@@ -205,7 +205,7 @@ func (s *Service) Status(ctx context.Context) (*devicescan.DeviceStatus, error) 
 // recordUnregisteredScan best-effort persists a scan of a card that
 // resolves to no person, stamped with the scanning device. A persistence
 // error only logs: the scan response must not fail because bookkeeping did.
-func (s *Service) recordUnregisteredScan(ctx context.Context, device *ports.Device, tag string) {
+func (s *Service) recordUnregisteredScan(ctx context.Context, device *devicescan.PrincipalDevice, tag string) {
 	var deviceID *int64
 	if device != nil && device.ID > 0 {
 		id := device.ID

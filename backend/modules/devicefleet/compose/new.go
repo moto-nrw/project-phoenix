@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -53,18 +52,11 @@ type DashboardSources = ports.DashboardSources
 // devicefleet.ErrDisplayNotFound so a dead link never leaks tenant state.
 type TenantFacts = ports.TenantFacts
 
-// PresenceQuery is the subset of the Student Presence capability the
-// dashboard reads.
-type PresenceQuery interface {
-	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
-	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
-}
-
 // Dependencies are the collaborators the Device Fleet owner needs.
 type Dependencies struct {
 	DB        *bun.DB
 	Rooms     facilitiesModule.Query
-	Presence  PresenceQuery
+	Presence  application.PresenceQuery
 	Dashboard DashboardSources
 	Tenants   TenantFacts
 	// Now is the owner's clock. The info-point aggregate derives the rendered
@@ -100,7 +92,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	// Device-only graphs (the repository factory, CLI roots) never serve the
 	// public dashboard. They leave its collaborators unset and every
 	// dashboard read then fails loudly instead of returning a partial screen.
-	presence := ports.PresenceReader(presenceReader{presence: dependencies.Presence})
+	presence := ports.PresenceReader(application.PresenceReader{Presence: dependencies.Presence})
 	if dependencies.Presence == nil {
 		presence = uncomposedDashboard{}
 	}
@@ -211,36 +203,4 @@ func toDomainRooms(rooms []facilitiesModule.Room) []domain.Room {
 		})
 	}
 	return result
-}
-
-type presenceReader struct{ presence PresenceQuery }
-
-func (r presenceReader) ListOpenVisits(ctx context.Context) ([]domain.PresentVisit, error) {
-	visits, err := r.presence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]domain.PresentVisit, 0, len(visits))
-	for _, visit := range visits {
-		if visit.ExitTime != nil {
-			continue
-		}
-		result = append(result, domain.PresentVisit{ActiveGroupID: visit.ActiveGroupID, StudentID: visit.StudentID})
-	}
-	return result, nil
-}
-
-func (r presenceReader) ListPresentStudents(ctx context.Context, today time.Time) ([]int64, error) {
-	day := today.Format(time.DateOnly)
-	attendance, err := r.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: day, UntilDate: day})
-	if err != nil {
-		return nil, err
-	}
-	present := make([]int64, 0, len(attendance))
-	for _, entry := range attendance {
-		if entry.CheckOutTime == nil {
-			present = append(present, entry.StudentID)
-		}
-	}
-	return present, nil
 }

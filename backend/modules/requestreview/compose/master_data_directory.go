@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carecompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -28,7 +28,7 @@ type masterDataDirectory struct {
 	fields peopledirectory.StudentFieldReviewQuery
 }
 
-func (d masterDataDirectory) ReviewFields(ctx context.Context, changes []carecompose.MasterDataFieldChange) (map[int64]carecompose.MasterDataFieldFacts, error) {
+func (d masterDataDirectory) ReviewFields(ctx context.Context, changes []careplan.MasterDataFieldChange) (map[int64]careplan.MasterDataFieldFacts, error) {
 	fields := make([]peopledirectory.StudentFieldChange, 0, len(changes))
 	for _, change := range changes {
 		fields = append(fields, peopledirectory.StudentFieldChange{
@@ -40,9 +40,9 @@ func (d masterDataDirectory) ReviewFields(ctx context.Context, changes []carecom
 	if err != nil {
 		return nil, err
 	}
-	facts := make(map[int64]carecompose.MasterDataFieldFacts, len(reviews))
+	facts := make(map[int64]careplan.MasterDataFieldFacts, len(reviews))
 	for id, review := range reviews {
-		fact := carecompose.MasterDataFieldFacts{
+		fact := careplan.MasterDataFieldFacts{
 			FirstName: review.FirstName, LastName: review.LastName,
 			BulkEligible: review.BulkEligible, BulkIneligibleReason: review.BulkIneligibleReason,
 			BulkIneligibleText: review.BulkIneligibleText, CurrentValueChanged: review.CurrentValueChanged,
@@ -56,46 +56,46 @@ func (d masterDataDirectory) ReviewFields(ctx context.Context, changes []carecom
 	return facts, nil
 }
 
-func reviewStudent(student peopledirectory.Student) carecompose.ReviewStudent {
-	return carecompose.ReviewStudent{
+func reviewStudent(student peopledirectory.Student) careplan.ReviewStudent {
+	return careplan.ReviewStudent{
 		ID: student.ID, PersonID: student.PersonID, GroupID: student.GroupID,
 		Alumnus: student.IsAlumnus(), EnrolledUntil: careplan.Date(student.EnrolledUntil), SchoolClass: student.SchoolClass,
 	}
 }
 
-func (d reviewDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]carecompose.ReviewStudent, error) {
+func (d reviewDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]careplan.ReviewStudent, error) {
 	students, err := d.people.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]carecompose.ReviewStudent, len(students))
+	result := make(map[int64]careplan.ReviewStudent, len(students))
 	for _, student := range students {
 		result[student.ID] = reviewStudent(student)
 	}
 	return result, nil
 }
 
-func (d reviewDirectory) PersonNames(ctx context.Context, ids []int64) (map[int64]carecompose.PersonName, error) {
+func (d reviewDirectory) PersonNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {
 	persons, err := d.people.ListPersonsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[int64]carecompose.PersonName, len(persons))
+	names := make(map[int64]careplan.PersonName, len(persons))
 	for _, person := range persons {
-		names[person.ID] = carecompose.PersonName{FirstName: person.FirstName, LastName: person.LastName}
+		names[person.ID] = careplan.PersonName{FirstName: person.FirstName, LastName: person.LastName}
 	}
 	return names, nil
 }
 
-func (d reviewDirectory) ReviewerNames(ctx context.Context, ids []int64) (map[int64]carecompose.PersonName, error) {
+func (d reviewDirectory) ReviewerNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {
 	persons, err := d.people.ListPersonsByAccount(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[int64]carecompose.PersonName, len(persons))
+	names := make(map[int64]careplan.PersonName, len(persons))
 	for _, person := range persons {
 		if person.AccountID != nil {
-			names[*person.AccountID] = carecompose.PersonName{FirstName: person.FirstName, LastName: person.LastName}
+			names[*person.AccountID] = careplan.PersonName{FirstName: person.FirstName, LastName: person.LastName}
 		}
 	}
 	return names, nil

@@ -3,7 +3,7 @@
 // #4086 decides; delete this package once the order has an owner.
 package legacy
 
-import "github.com/moto-nrw/project-phoenix/internal/collation"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 
 // CompareNames orders two names in German dictionary order (DIN 5007-1).
 func CompareNames(a, b string) int {
