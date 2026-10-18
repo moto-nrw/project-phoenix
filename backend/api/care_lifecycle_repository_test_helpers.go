@@ -28,9 +28,9 @@ type CareLifecycleTestRepositories struct {
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 	db               transactionruntime.Database
-	// lifecycleOwners are bound without the change trail, which each suite
-	// supplies through its audit (NewCareLifecycle).
-	lifecycleOwners carePlanCompose.CareLifecycleOwners
+	// sources are the lifecycle's owners, bound without the change trail,
+	// which each suite supplies through its audit (NewCareLifecycle).
+	sources carePlanCompose.CareLifecycleOwners
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
@@ -52,7 +52,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		TimetableTestRepositories: tt,
 		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 		db:                        db,
-		lifecycleOwners: NewCareLifecycleOwners(
+		sources: NewCareLifecycleOwners(
 			tt.Student, tt.Person, membership, people, tt.Timetable, calendar,
 			NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
 		),
@@ -77,7 +77,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	if lock == nil {
 		lock = func(context.Context) error { return nil }
 	}
-	owners := r.lifecycleOwners
+	owners := r.sources
 	owners.ChangeTrail = NewCareEndRecorder(config.Audit)
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
 		StudentDirectory: studentDirectoryView.NewReader(),
