@@ -5,8 +5,6 @@ package api
 import (
 	"log/slog"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -24,9 +22,10 @@ import (
 type OperatorSettingsTestModule struct {
 	Settings            settingsCompose.BatchSettingsService
 	SettingsSideEffects *settingsCompose.SideEffectRegistry
-	openAttendance      settingsCompose.OpenAttendanceChecker
 	schoolSlugs         settingsOperatorAPI.SchoolLookup
-	pool                *bun.DB
+	// operator are the root's required dependencies of the operator's school
+	// settings; OperatorSchoolSettingsWith adds the optional ones.
+	operator settingsCompose.OperatorDependencies
 }
 
 // NewOperatorSettingsTestModule composes the operator settings routes over
@@ -52,9 +51,10 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	return OperatorSettingsTestModule{
 		Settings:            settings.Settings,
 		SettingsSideEffects: registry,
-		openAttendance:      OpenAttendanceChecker{Service: presence.Active},
 		schoolSlugs:         operatorSettingsSchools{schools: schools},
-		pool:                db.Pool(),
+		operator: settingsCompose.OperatorDependencies{
+			Settings: settings.Settings, DB: db.Pool(), OpenAttendance: OpenAttendanceChecker{Service: presence.Active},
+		},
 	}, care.CareLifecycle, nil
 }
 
@@ -83,12 +83,8 @@ type OperatorSchoolSettingsTestOptions struct {
 // OperatorSchoolSettingsWith composes the operator's school settings over
 // this module's services with the given optional dependencies.
 func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorSchoolSettingsTestOptions) settings.OperatorSchoolSettings {
-	deps := settingsCompose.OperatorDependencies{
-		Settings:       m.Settings,
-		DB:             m.pool,
-		Notify:         opts.Notify,
-		OpenAttendance: m.openAttendance,
-		OnValueSet:     opts.OnValueSet,
-	}
+	deps := m.operator
+	deps.Notify = opts.Notify
+	deps.OnValueSet = opts.OnValueSet
 	return settingsCompose.NewOperatorSchoolSettings(deps)
 }

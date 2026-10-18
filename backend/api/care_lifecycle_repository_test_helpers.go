@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/uptrace/bun"
-
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -25,10 +23,10 @@ import (
 // graph binds them.
 type CareLifecycleTestRepositories struct {
 	carePlan careplan.Capability
-	pool     *bun.DB
-	// sources are the lifecycle's owners, bound without the change trail,
-	// which each suite supplies through its audit (NewCareLifecycle).
-	sources carePlanCompose.CareLifecycleOwners
+	// lifecycle are the lifecycle's dependencies over the Care Plan rows and
+	// its owners, bound without the change trail, which each suite supplies
+	// through its audit (NewCareLifecycle).
+	lifecycle carePlanCompose.CareLifecycleDependencies
 }
 
 // CareWithdrawal is the People Directory's withdrawal completion port over
@@ -57,11 +55,16 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	}
 	return CareLifecycleTestRepositories{
 		carePlan: carePlan.CarePlan,
-		pool:     db.Pool(),
-		sources: NewCareLifecycleOwners(
-			members.Student, members.Person, membership, people, tt.Timetable, calendar,
-			NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
-		),
+		lifecycle: carePlanCompose.CareLifecycleDependencies{
+			StudentDirectory: studentDirectoryView.NewReader(),
+			DB:               db.Pool(), Records: carePlan.CarePlan,
+			Owners: NewCareLifecycleOwners(
+				members.Student, members.Person, membership, people, tt.Timetable, calendar,
+				NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
+			),
+			Fingerprint: securityruntime.Fingerprint,
+			Logger:      slog.Default(),
+		},
 	}, nil
 }
 
@@ -83,18 +86,12 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	if lock == nil {
 		lock = func(context.Context) error { return nil }
 	}
-	owners := r.sources
-	owners.ChangeTrail = NewCareEndRecorder(config.Audit)
-	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
-		DB:               r.pool, Records: r.carePlan,
-		Owners:                owners,
-		LockCareBookingWrites: lock,
-		BookingsAuthoritative: config.BookingsAuthoritative,
-		Fingerprint:           securityruntime.Fingerprint,
-		Logger:                slog.Default(),
-		Today:                 config.Today,
-	})
+	deps := r.lifecycle
+	deps.Owners.ChangeTrail = NewCareEndRecorder(config.Audit)
+	deps.LockCareBookingWrites = lock
+	deps.BookingsAuthoritative = config.BookingsAuthoritative
+	deps.Today = config.Today
+	return carePlanCompose.NewCareLifecycle(deps)
 }
 
 // MustNewStudentCompanions composes the companion capability over a test
