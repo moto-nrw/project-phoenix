@@ -1,0 +1,74 @@
+package presenceprojectionhttp
+
+import (
+	slog "log/slog"
+	time "time"
+
+	chi "github.com/go-chi/chi/v5"
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+)
+
+type ResourceConfig struct {
+	AbsenceOverview         studentpresence.StatusDayOverviews
+	ActiveEnrollments       ActiveEnrollments
+	ActiveService           StudentPresence
+	ArrivalScheduleService  careplan.ArrivalScheduleService
+	CareDayService          careplan.CareDayQuery
+	CareLifecycleService    careplan.CareLifecycle
+	ClassListEntries        ClassListEntryReader
+	CompanionService        careplan.StudentCompanions
+	ExcusedRequestService   excusedrequests.Service
+	InstanceService         PlannedStudents
+	ListExportService       lists.Renderer
+	Logger                  *slog.Logger
+	Now                     func() time.Time
+	PeopleDirectory         peopleModule.Capability
+	Persons                 PersonRecords
+	PickupScheduleService   careplan.PickupScheduleService
+	SchoolGroups            SchoolGroups
+	SchoolService           SchoolDirectory
+	SettingsService         TenantSettings
+	StudentConsents         StudentConsentCapability
+	StudentHistoryService   studentpresence.StudentHistory
+	StudentStatusDayService studentpresence.StatusDays
+	UserContextService      CallerContext
+	CompareSchoolClasses    func(string, string) int
+	CompareGermanNames      func(string, string, string, string) int
+}
+
+type Resource struct{ ResourceConfig }
+
+func NewResource(cfg ResourceConfig) *Resource {
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	return &Resource{ResourceConfig: cfg}
+}
+func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	protected(r, rs.Register)
+	return r
+}
+func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log", rs.getStudentsDayLog)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/status-days", rs.getStudentStatusDaysOverview)
+}

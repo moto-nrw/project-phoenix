@@ -1,0 +1,304 @@
+//go:build testhooks
+
+package api
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
+	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
+)
+
+// NewStudentHTTPTestResources uses the same owner bindings and tenant mounts as production.
+// The caller supplies its existing fixture reader and actor, not a second row model.
+func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule,
+	broadcaster realtime.Broadcaster, caller peopleStudentsHTTP.CallerContext, studentRows carePlanCompose.StudentDirectory,
+	feedback studentdeletioncompose.Feedback, auditActor peoplePorts.RequestAuditActor,
+	authenticateDevice common.Middleware, deviceID peopleStudentsHTTP.DeviceIdentity, authoritative *bool, clock func() time.Time,
+) (*peopleStudentsHTTP.Resource, *careStudentsHTTP.Resource, *projectionStudentsHTTP.Resource, *presenceStudentsHTTP.Resource, *deleteStudentsHTTP.Resource, *reviewStudentsHTTP.Resource, func() chi.Router, error) {
+
+	if clock == nil {
+		clock = time.Now
+	}
+	repoFactory, err := NewStudentHTTPTestRows(store, svc.Audit)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	parentEventEmitter := NewParentEventEmitter(store, unit, repoFactory.ParentMessageThread, repoFactory.ParentMessage, svc.Settings, broadcaster, slog.Default())
+	studentPhotos := svc.NewStudentPhotos(broadcaster, peopleStudentsHTTP.NewPhotoUnlinker(slog.Default(), "public", nativeUploads.UploadFiles{}))
+	schoolGroups := studentSchoolGroups{GroupManagement: svc.Education}
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: store.Pool(), Observe: func(presenceCompose.Observation) {}})
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	requestReview, careReviews, err := newStudentHTTPTestReviews(store, svc, studentRows, clock)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	deletionOwners, err := NewStudentDeletionOwners(store)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	recurrence, err := NewTimetableHTTPTestRecurrenceLock(store)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: store.Pool(), Owners: deletionOwners, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
+		Feedback: feedback, IsVerifiedStaff: svc.UserContext.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
+		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit, Now: clock,
+	})
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	lifecycle := svc.CareLifecycle
+	if authoritative != nil {
+		bookings := *authoritative
+		lifecycle, err = NewStudentHTTPTestCareLifecycle(store, StudentHTTPTestCareLifecycle{
+			AuditActor: auditActor, BookingsAuthoritative: func(context.Context) (bool, error) { return bookings, nil }, Today: func() calendar.Date { return calendar.DateFromTime(clock()) },
+		})
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
+	membership, err := NewStudentHTTPTestMembership(store)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	usages, ok := membership.(schoolmembership.ChildQuotaUsages)
+	if !ok {
+		err = errors.New("school membership does not expose child quota usage")
+		return nil, nil, nil, nil, nil, nil, nil, err
+	}
+	people, care, projection, status, deletion, review := NewStudentHTTPResources(
+		peopleStudentsHTTP.ResourceConfig{
+			AuthenticatedDevice: deviceID,
+			ChildQuota:          childQuotaStudentsReader{usages: usages},
+			DeviceAuthenticator: authenticateDevice,
+			FamilyProtection:    svc.PeopleDirectory,
+			Logger:              slog.Default(),
+			PeopleDirectory:     svc.PeopleDirectory,
+			Persons:             svc.StudentRoutePersons(),
+			StudentAuditService: svc.PeopleDirectory,
+			StudentPhotos:       svc.PeopleDirectory,
+			Uploads:             nativeUploads.UploadFiles{},
+			UserContextService:  caller,
+		},
+		careStudentsHTTP.ResourceConfig{
+			ArrivalScheduleService:   svc.ArrivalSchedule,
+			Broadcaster:              broadcaster,
+			CareLifecycleService:     lifecycle,
+			CareRequestReviews:       careReviews,
+			CareRequestService:       svc.CareRequests,
+			CompanionService:         NewStudentHTTPTestCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
+			ExcusedRequestService:    svc.ExcusedRequests,
+			Logger:                   slog.Default(),
+			MasterDataReviewService:  svc.MasterDataReview,
+			Now:                      clock,
+			OfferingChangeService:    svc.OfferingChanges,
+			ParentEventEmitter:       parentEventEmitter,
+			ParentRequestBulkService: svc.ParentRequests,
+			PartialAbsenceService:    svc.PartialAbsence,
+			PeopleDirectory:          svc.PeopleDirectory,
+			Persons:                  svc.StudentRoutePersons(),
+			PickupAdjustmentService:  svc.PickupAdjustments,
+			PickupScheduleService:    svc.PickupSchedule,
+			SettingsService:          svc.Settings,
+			StudentAuditService:      svc.PeopleDirectory,
+			StudentConsents:          NewStudentHTTPTestConsents(store),
+			StudentPhotos:            svc.PeopleDirectory,
+			UserContextService:       caller,
+			WeekdayPickupNotes:       repoFactory.CarePlan,
+		},
+		projectionStudentsHTTP.ResourceConfig{
+			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
+			ActiveService:          svc.Active,
+			ArrivalScheduleService: svc.ArrivalSchedule,
+			CareDayService:         svc.CareDay,
+			CareLifecycleService:   lifecycle,
+			CompanionService:       NewStudentHTTPTestCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
+			ExcusedRequestService:  svc.ExcusedRequests,
+			InstanceService:        svc.Instance,
+			ListExportService:      lists.NewRenderer(),
+			Logger:                 slog.Default(),
+			Now:                    clock,
+			PeopleDirectory:        svc.PeopleDirectory,
+			Persons:                svc.StudentRoutePersons(),
+			PickupScheduleService:  svc.PickupSchedule,
+			SchoolGroups:           schoolGroups,
+			SchoolService:          studentSchoolDirectory{schools: svc.Schools},
+			SettingsService:        svc.Settings,
+			StudentConsents:        NewStudentHTTPTestConsents(store),
+			StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+				rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
+				if err != nil {
+					return nil, err
+				}
+				names := make(map[int64]string, len(rooms))
+				for _, room := range rooms {
+					names[room.ID] = room.Name
+				}
+				return names, nil
+			}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), store.Pool(), repoFactory.CarePlan.LockExceptionDay),
+			UserContextService:      caller,
+		},
+		presenceStudentsHTTP.ResourceConfig{
+			ActiveService:           svc.Active,
+			Broadcaster:             broadcaster,
+			Logger:                  slog.Default(),
+			Now:                     clock,
+			ParentEventEmitter:      parentEventEmitter,
+			PeopleDirectory:         svc.PeopleDirectory,
+			Persons:                 svc.StudentRoutePersons(),
+			PrivacyConsents:         presence,
+			SettingsService:         svc.Settings,
+			StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), store.Pool(), repoFactory.CarePlan.LockExceptionDay),
+			UserContextService:      caller,
+		},
+		deleteStudentsHTTP.ResourceConfig{
+			CareLifecycleService: lifecycle,
+			ConstraintViolation:  transactionFailures.IsConstraintViolation,
+			PeopleDirectory:      svc.PeopleDirectory,
+			StudentDeletion:      studentDeletion,
+			UserContextService:   caller,
+		},
+		reviewStudentsHTTP.ResourceConfig{
+			PeopleDirectory:     svc.PeopleDirectory,
+			RequestReview:       requestReview,
+			RequestReviewAccess: NewParentRequestReviewPolicy(svc.UserContext.Caller().ParentRequestReviews),
+		},
+	)
+
+	router := func() chi.Router {
+		return people.Router(ProtectedTenantRoutesWith(care.Register, projection.Register, status.Register, deletion.Register, review.Register, groupLiveHTTP.NewResource(svc.OGSGroupLive).Register))
+	}
+	return people, care, projection, status, deletion, review, router, nil
+
+}
+func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
+	reviewGroups, err := NewSchoolStructure(store)
+	if err != nil {
+		return nil, nil, err
+	}
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(svc.PeopleDirectory, reviewGroups)
+	if err != nil {
+		return nil, nil, err
+	}
+	reviewAccess, err := requestreviewcompose.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The production root binds the same Identity & Access policy for the
+	// projection as for the decisions (#3804).
+	reviews := svc.UserContext.Caller().ParentRequestReviews
+	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, sessiontoken.PermissionsFromCtx(ctx))
+		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
+	}
+
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(store.Pool(), studentRows, svc.PeopleDirectory,
+		reviewScope, func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+		},
+		func(requestreviewcompose.CareObservation) {})
+	if err != nil {
+		return nil, nil, err
+	}
+	careReviews, err := requestreviewcompose.NewScheduleReviews(store.Pool(), studentRows, requestreviewcompose.ScheduleReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope:  reviewScope,
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+		},
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		Blocks: NewStudentHTTPTestPickupReviewBlocks(store),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	offeringReviews, err := requestreviewcompose.NewOfferingReviews(store.Pool(), requestreviewcompose.OfferingReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope:  reviewScope,
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	correctionQueries, err := NewUnobservedCorrectionQueries(store)
+	if err != nil {
+		return nil, nil, err
+	}
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, svc.PeopleDirectory, func(ctx context.Context) bool {
+		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	if err != nil {
+		return nil, nil, err
+	}
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
+		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
+		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory),
+		Today: func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return requestReview, careReviews, nil
+}

@@ -27,7 +27,7 @@
   "runtime_evidence": {
     "source": "Local verification on 2026-10-16 of this #4076 slice. No production or staging requests and no benchmark run.",
     "sources": [
-      "backend/modules/peopledirectory/inbound/students/text.go",
+      "backend/modules/careplan/http/text.go",
       "backend/modules/organizationtenancy/internal/domain/provisioning.go",
       "backend/modules/organizationtenancy/internal/application/provisioning_dashboard.go"
     ],

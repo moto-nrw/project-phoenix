@@ -16,7 +16,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 0 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 0 |
-| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 14 |
+| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule | 0 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
@@ -798,3 +798,9 @@ The full candidate's Root-to-Root/test edges and new composition fields are not
 approved. ADR 0058 records the settled owners and round-16 resolutions;
 `docs/architecture/4079-remaining-http-edges.md` lists all 14 retained keys,
 their blockers and two alternatives each. #4079 is not closed by this slice.
+
+
+#4079 / #4314: Option 1 für alle 14 verbleibenden HTTP-Keys umgesetzt.
+Owner-HTTP wird aus vorhandenen Root-Werten montiert; keine neuen Root-Felder.
+Keys 89 → 75, Composition 1.650 unverändert, Compose-Cap 34.060 unverändert.
+[Owner-HTTP-Nachweis](../../docs/architecture/4079-owner-http-evidence.md).

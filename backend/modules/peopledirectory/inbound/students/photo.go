@@ -1,17 +1,17 @@
 package students
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"net/http"
-	"path/filepath"
+	context "context"
+	errors "errors"
+	fmt "fmt"
+	http "net/http"
+	filepath "path/filepath"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	chi "github.com/go-chi/chi/v5"
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // publicPhotoBaseDir + StudentPhotoStoredURLPrefix must stay aligned —

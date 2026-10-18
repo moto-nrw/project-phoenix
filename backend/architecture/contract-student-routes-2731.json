@@ -104,7 +104,7 @@
   "runtime_evidence": {
     "source": "Local runs on the #2731 branch (work/2731-contract-legacy-architecture-edges-from-api-stud) on 2026-09-25 against the local postgres-test server.",
     "sources": [
-      "backend/modules/peopledirectory/inbound/students/routes.go",
+      "backend/modules/peopledirectory/inbound/students/student_resource.go",
       "backend/modules/peopledirectory/inbound/students/student_record.go",
       "backend/modules/peopledirectory/compose/student_route_persons.go",
       "backend/api/student_http_test_helpers.go",

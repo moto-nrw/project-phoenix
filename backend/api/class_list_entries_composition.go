@@ -7,10 +7,13 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	"github.com/moto-nrw/project-phoenix/observability"
 )
@@ -87,14 +90,14 @@ type classListEntryStudentsReader struct {
 	entries schoolMembershipModule.ClassListEntries
 }
 
-func (r classListEntryStudentsReader) ListClassListEntriesInDisplayOrder(ctx context.Context) ([]students.ClassListEntry, error) {
+func (r classListEntryStudentsReader) ListClassListEntriesInDisplayOrder(ctx context.Context) ([]peopleRouteValues.StudentClassListEntry, error) {
 	values, err := r.entries.ListClassListEntriesInDisplayOrder(ctx, schoolMembershipModule.ClassListEntryFilter{})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]students.ClassListEntry, 0, len(values))
+	result := make([]peopleRouteValues.StudentClassListEntry, 0, len(values))
 	for _, value := range values {
-		result = append(result, students.ClassListEntry{
+		result = append(result, peopleRouteValues.StudentClassListEntry{
 			ID: value.ID, FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass,
 		})
 	}

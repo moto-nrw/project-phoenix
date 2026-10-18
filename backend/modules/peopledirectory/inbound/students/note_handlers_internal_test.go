@@ -6,22 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// The note routes turn a request into an owner command. What is checked here
-// is that translation: the defaults a missing field falls back to and the
-// payloads the route refuses before the owner ever sees them.
-//
-// Who may read or remove a note is decided in auth/authorize (covered by
-// auth/authorize/student_notes_test.go) and enforced by the owner against the
-// real table (modules/peopledirectory/compose); this adapter test may not
-// reach into either.
 
 func noteBody(t *testing.T, payload string) (studentNoteRequestBody, int) {
 	t.Helper()
@@ -167,7 +157,7 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 	groupID := int64(19)
 	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{
 		LedEducationGroupIDs: []int64{groupID},
-	}, &Student{GroupID: &groupID}, author)
+	}, &peopleModule.StudentState{GroupID: &groupID}, author)
 	assert.False(t, response.CanEdit,
 		"the response must not offer an edit that the owner rejects without a group reference")
 	assert.False(t, response.CanDelete,

@@ -273,3 +273,19 @@ func TestHandleAuthorizationError_OtherError(t *testing.T) {
 
 	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }
+
+// mockUserContextService supplies the same staff lookup used before the courtyard transport moved.
+type mockUserContextService struct {
+	getCurrentStaffFunc func(context.Context) (*StaffIdentity, error)
+}
+
+func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*StaffIdentity, error) {
+	if m.getCurrentStaffFunc != nil {
+		return m.getCurrentStaffFunc(ctx)
+	}
+	return nil, errors.New("not implemented")
+}
+func (m *mockUserContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := m.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
+}
