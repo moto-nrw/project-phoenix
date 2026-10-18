@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -79,7 +80,7 @@ func (d absenceEmailStaffDirectory) GetStaffContactInfo(ctx context.Context, id 
 }
 
 func (d absenceEmailStaffDirectory) ListAbsenceApprovers(ctx context.Context) ([]*workforceCompose.AbsenceEmailContact, error) {
-	rows, err := d.source.ListStaffWithPermission(ctx, "vacation:approve")
+	rows, err := d.source.ListStaffWithPermission(ctx, permissions.VacationApprove)
 	if rows == nil {
 		return nil, err
 	}

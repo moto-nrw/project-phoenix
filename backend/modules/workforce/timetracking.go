@@ -677,3 +677,10 @@ type VacationQuotaChange struct {
 	Reason        string
 	ChangedBy     int64
 }
+
+// MonthCloseStaff is one staff member a school-wide month close may cover.
+// Guest marks an external caregiver (#3823), who records no working time.
+type MonthCloseStaff struct {
+	ID    int64
+	Guest bool
+}
