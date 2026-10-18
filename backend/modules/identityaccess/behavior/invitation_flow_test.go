@@ -177,6 +177,13 @@ func TestCreateInvitationWaitsForUnusedAccountLock(t *testing.T) {
 	role := testpkg.CreateTestRole(t, db, "invite-lock-role")
 	unused := testpkg.CreateTestAccount(t, db, "invite-lock-unused")
 	testpkg.UnclaimTestAccount(t, db, unused.ID)
+	// The account is deliberately tenant-less for this test, so the leftover
+	// gate cannot assign it to the test tenant. Remove that global fixture
+	// directly once the lock scenario is done.
+	t.Cleanup(func() {
+		_, cleanupErr := db.Exec("DELETE FROM auth.accounts WHERE id = ?", unused.ID)
+		require.NoError(t, cleanupErr)
+	})
 
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)

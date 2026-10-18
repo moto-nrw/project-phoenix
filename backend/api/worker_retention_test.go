@@ -130,6 +130,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 		settingsModule.KeyGDPRStudentRetentionDays,
+		settingsModule.KeyGDPRGuardianRetentionDays,
 		settingsModule.KeyGDPRTimeTrackingRetentionDays,
 	}, settingsModule.RetentionWindowKeys())
 }

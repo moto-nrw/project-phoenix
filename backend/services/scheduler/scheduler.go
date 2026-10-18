@@ -197,8 +197,11 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		pwaUsageCleanup:            deps.PWAUsageCleanup,
 		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
-		cleanupJobs: append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
-			operatorRetentionJobs(deps.OperatorRetention)...),
+		cleanupJobs: append(
+			append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+				operatorRetentionJobs(deps.OperatorRetention)...),
+			CleanupJob{Description: "Unused account erasure", Run: deps.AccountRetention.EraseUnusedAccounts},
+		),
 
 		activeService:          deps.Active,
 		breakAutoEnder:         deps.BreakAutoEnder,
