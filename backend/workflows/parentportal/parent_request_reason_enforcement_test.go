@@ -50,8 +50,8 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:    api.ParentGuardianChanges(),

@@ -9,7 +9,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -41,7 +40,6 @@ type BookingMaterializationTestOptions struct {
 	Withdrawals                 careplanCompose.BookingWithdrawals
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	Broadcaster                 realtime.Broadcaster
 	GuardianNotifier            interface {
 		BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 	}
@@ -107,7 +105,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	deps.PickupGuardians = options.GuardianNotifier
 	deps.Today = options.Today
 	deps.Logger = slog.Default()
-	bookings, err := newBookingMaterialization(deps, options.Broadcaster)
+	bookings, err := newBookingMaterialization(deps, nil)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

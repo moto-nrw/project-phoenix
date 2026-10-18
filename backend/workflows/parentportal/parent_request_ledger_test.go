@@ -28,8 +28,8 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),
-	})
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: events}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: api.ParentGuardianChanges(),

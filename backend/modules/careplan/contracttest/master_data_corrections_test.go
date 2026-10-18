@@ -30,7 +30,9 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = bc })
+	options, people := f.decisionInputs()
+	svc, err := api.NewTestMasterDataDecisions(options, people, nil, bc)
+	require.NoError(t, err)
 
 	approve := func(t *testing.T, row *userModels.StudentDataChangeRequest) {
 		t.Helper()
