@@ -39,6 +39,7 @@ import (
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -129,7 +130,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 		return b, err
 	}
 	b.graph.Substitution = education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: people.Groups, Substitutions: NewEducationHandovers(b.groupSubstitutions),
+		Groups: people.Groups, Substitutions: NewEducationHandovers(b.groupSubstitutions, shiftplansync.NewGroupHandovers(b.WorkTime)),
 		Persons: people.SubstitutionPersons, Teachers: people.Caregivers,
 		Staff: people.StaffChecks, ExternalCaregivers: people.ExternalCaregivers,
 		Actors:       SubstitutionActorResolver{Identity: b.callerContext},
