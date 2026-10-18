@@ -166,6 +166,9 @@ type ParentMessageCleanupResult struct {
 	RetentionDays   int
 }
 
+// Deleted is the number of rows the sweep deleted: messages and threads.
+func (r ParentMessageCleanupResult) Deleted() int { return r.MessagesDeleted + r.ThreadsDeleted }
+
 // ParentMessageCleanup deletes the parent/OGS messages of the school in
 // context after the retention window the moto team recorded for it.
 type ParentMessageCleanup interface {
