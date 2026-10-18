@@ -17,6 +17,8 @@ import (
 	"slices"
 	"time"
 
+	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -155,7 +157,7 @@ func (a groupLiveAccess) Caller(ctx context.Context) (grouplive.Caller, error) {
 	}
 	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return grouplive.Caller{
-		CanReadGroups:            securityruntime.HasPermission(permissions.GroupsRead, userPermissions),
+		CanReadGroups:            securityruntime.HasPermission(groupLiveHTTP.GroupReadPermission, userPermissions),
 		CanReviewExcusedRequests: securityruntime.CanReviewExcusedAbsenceRequests(userPermissions),
 		OperationalOverview:      overview,
 	}, nil
