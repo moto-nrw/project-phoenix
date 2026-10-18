@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -95,7 +97,7 @@ func TestNightlyRetentionDeletesChildrenAfterTheirWindow(t *testing.T) {
 			DeletionType: "student_retention", DeletedBy: "system", Reason: "retention_expired", Automatic: true, Tombstones: 1,
 		}}, suite.studentDeletionLog(t, school, id), "the deletion is logged like a manual one, attributed to the system")
 	}
-	assert.Empty(t, suite.loggedDeletions(t, school, retentionStudents), "each child is logged on its own, not as a data kind")
+	assert.Empty(t, suite.loggedDeletions(t, school, auditModels.DeletionTypeStudentRetention), "each child is logged on its own, not as a data kind")
 	assert.Empty(t, suite.studentDeletionLog(t, otherSchool, otherExpired))
 
 	suite.run(t, school)

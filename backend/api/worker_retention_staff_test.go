@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -182,7 +184,7 @@ func TestNightlyRetentionDeletesStaffAfterTheTimeTrackingWindow(t *testing.T) {
 		DeletionType: "staff_retention", RecordsDeleted: 12, DeletedBy: "system", Reason: "retention_expired",
 		MasterData: 1, Documents: 1, GroupTeachers: 1, PlannedSupervisors: 1, InstanceAssignments: 1, PersonAnonymized: true,
 	}}, suite.staffDeletionLog(t, school, expired.staffID), "the deletion is logged per staff member, attributed to the system")
-	assert.Empty(t, suite.loggedDeletions(t, school, retentionStaff), "each staff member is logged on its own, not as a data kind")
+	assert.Empty(t, suite.loggedDeletions(t, school, auditModels.DeletionTypeStaffRetention), "each staff member is logged on its own, not as a data kind")
 
 	for name, member := range map[string]retiredStaff{"the last day of the window": kept, "a staff member without an exit": active} {
 		assert.Equal(t, stagedStaffRecords, suite.staffRecords(t, member.staffID), "%s keeps every record", name)
