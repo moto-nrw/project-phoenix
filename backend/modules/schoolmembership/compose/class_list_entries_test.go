@@ -10,22 +10,27 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// The class-list entries composed with their student directory and audit
-// trail serve the audited writes without a later binding; a missing port is
-// a construction error.
-func TestNewClassListEntriesTakesItsPortsAtConstruction(t *testing.T) {
+// The module composed with the class-list student directory and audit trail
+// serves the audited writes without a later binding; only one of the two
+// ports is a construction error.
+func TestNewTakesTheClassListPortsAtConstruction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	deps := Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas()}
 	students := &recordingStudents{byName: map[string][]int64{}, enrolled: map[int64]bool{}}
 	trail := &recordingTrail{}
 
-	_, err := NewClassListEntries(deps, nil, trail)
+	onlyTrail := deps
+	onlyTrail.ClassListTrail = trail
+	_, err := New(onlyTrail)
 	require.ErrorContains(t, err, "need a student directory and an audit trail")
-	_, err = NewClassListEntries(deps, students, nil)
+	onlyStudents := deps
+	onlyStudents.ClassListStudents = students
+	_, err = New(onlyStudents)
 	require.ErrorContains(t, err, "need a student directory and an audit trail")
 
-	entries, err := NewClassListEntries(deps, students, trail)
+	deps.ClassListStudents, deps.ClassListTrail = students, trail
+	entries, err := New(deps)
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "cle-construction-actor@test.local")
 	created, err := entries.AddClassListEntry(testpkg.Ctx(t), schoolmembership.AddClassListEntry{

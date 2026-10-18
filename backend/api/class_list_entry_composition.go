@@ -29,7 +29,8 @@ func composeClassListEntries(db transactionruntime.Database, persons peopledirec
 	if err != nil {
 		return nil, err
 	}
-	return schoolMembershipCompose.NewClassListEntries(dependencies, classListEntryStudents{persons: persons}, classListEntryAuditTrail{audit: audit})
+	dependencies.ClassListStudents, dependencies.ClassListTrail = classListEntryStudents{persons: persons}, classListEntryAuditTrail{audit: audit}
+	return schoolMembershipCompose.New(dependencies)
 }
 
 // classListEntryStudents answers "is this name already a child of that class"

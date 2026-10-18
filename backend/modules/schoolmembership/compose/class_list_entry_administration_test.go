@@ -57,7 +57,10 @@ func buildAdministeredModule(t *testing.T, db *bun.DB) (*schoolmembership.Module
 	t.Helper()
 	students := &recordingStudents{byName: map[string][]int64{}, enrolled: map[int64]bool{}}
 	trail := &recordingTrail{}
-	module, err := NewClassListEntries(Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas()}, students, trail)
+	module, err := New(Dependencies{
+		DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas(),
+		ClassListStudents: students, ClassListTrail: trail,
+	})
 	require.NoError(t, err)
 	return module, students, trail
 }

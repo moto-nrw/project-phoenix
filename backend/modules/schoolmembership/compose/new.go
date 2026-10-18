@@ -26,6 +26,11 @@ type Dependencies struct {
 	// never enrolls children may leave it unbound; its counting writes then
 	// fail instead of skipping the check.
 	ChildQuota ChildQuota
+	// ClassListStudents and ClassListTrail serve the audited class-list
+	// administration (#2382): the People Directory lookup and the Audit
+	// trail. Optional together; without them the audited flows refuse.
+	ClassListStudents schoolmembership.ClassListEntryStudents
+	ClassListTrail    schoolmembership.ClassListEntryTrail
 }
 
 // ChildQuota is the consumer-owned port over Organisation & Tenancy's
@@ -42,21 +47,7 @@ type ChildQuota interface {
 // one for the tenant in context, so row-level security decides visibility
 // exactly as it did for the legacy repositories.
 func New(dependencies Dependencies) (*schoolmembership.Module, error) {
-	return newModule(dependencies, nil)
-}
-
-// NewClassListEntries composes the module with its audited class-list
-// administration (#2382) over the People Directory students and the Audit
-// trail; the root builds it after both owners.
-func NewClassListEntries(dependencies Dependencies, students schoolmembership.ClassListEntryStudents, trail schoolmembership.ClassListEntryTrail) (*schoolmembership.Module, error) {
-	if students == nil || trail == nil {
-		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
-	}
-	return newModule(dependencies, application.NewClassListAdministration(students, trail))
-}
-
-func newModule(dependencies Dependencies, classList *application.ClassListAdministration) (*schoolmembership.Module, error) {
-	service, err := newApplication(dependencies, classList)
+	service, err := newApplication(dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +55,19 @@ func newModule(dependencies Dependencies, classList *application.ClassListAdmini
 	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
 }
 
-func newApplication(dependencies Dependencies, classList *application.ClassListAdministration) (*application.Service, error) {
+func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school membership compose: all dependencies are required")
 	}
 	if dependencies.Employment == nil {
 		return nil, errStaffEmploymentUnbound
+	}
+	var classList *application.ClassListAdministration
+	switch {
+	case dependencies.ClassListStudents != nil && dependencies.ClassListTrail != nil:
+		classList = application.NewClassListAdministration(dependencies.ClassListStudents, dependencies.ClassListTrail)
+	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
+		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
@@ -90,32 +88,9 @@ func newApplication(dependencies Dependencies, classList *application.ClassListA
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota
 	}
-	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, transaction{}, func(observation Observation) {
+	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, application.TenantTransaction{}, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}, classList)
 	return service, nil
-}
-
-type transaction struct{}
-
-func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
-}
-
-func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.WithSavepoint(ctx, callback)
-}
-
-func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
 }
