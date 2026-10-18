@@ -3,6 +3,8 @@ package schoolstructure
 import (
 	"context"
 	"errors"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -40,4 +42,11 @@ type StaffGroupQuery interface {
 	// staff member via education.class_teachers (#1772) as display strings
 	// in class order.
 	ListSchoolClassesByStaff(ctx context.Context, staffID int64) ([]string, error)
+}
+
+// ListSubstitutedGroupsToday answers the staff member's substitutions on the
+// school's current calendar day (Europe/Berlin), the day a caller's
+// navigation groups cover.
+func ListSubstitutedGroupsToday(ctx context.Context, query StaffGroupQuery, staffID int64) ([]SubstitutedGroup, error) {
+	return query.ListSubstitutedGroups(ctx, staffID, calendar.TodayDate().String())
 }
