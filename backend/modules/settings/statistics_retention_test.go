@@ -39,3 +39,16 @@ func TestRetentionWindowsReadTheirSettings(t *testing.T) {
 	refused := errors.New("window")
 	require.ErrorIs(t, NewStatusDayRetention(source).SettingError(refused), refused)
 }
+
+func TestAttendanceRetentionReadsItsSetting(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	days, err := NewAttendanceRetention(retentionSource{configModel.KeyGDPRAttendanceRetentionDays: 120}).Days(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 120, days)
+
+	_, err = NewAttendanceRetention(retentionSource{}).Days(ctx)
+	require.ErrorContains(t, err, "resolve "+configModel.KeyGDPRAttendanceRetentionDays+": ")
+	refused := errors.New("window")
+	require.ErrorIs(t, NewAttendanceRetention(retentionSource{}).SettingError(refused), refused)
+}

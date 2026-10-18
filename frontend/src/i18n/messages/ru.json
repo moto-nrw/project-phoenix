@@ -2784,7 +2784,9 @@
         "managed_by_upload": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "invalid_value": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "presence_mode_switch_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-        "booking_authority_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "booking_authority_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "attendance_visible_exceeds_retention": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "attendance_retention_below_visible": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "devices": {
         "tag_scan_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",

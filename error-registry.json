@@ -4119,6 +4119,22 @@
       "legacy": "settings.booking_authority_blocked"
     },
     {
+      "code": "settings.attendance_visible_exceeds_retention",
+      "class": "input",
+      "parameters": [
+        "retention_days"
+      ],
+      "legacy": "settings.attendance_visible_exceeds_retention"
+    },
+    {
+      "code": "settings.attendance_retention_below_visible",
+      "class": "input",
+      "parameters": [
+        "visible_days"
+      ],
+      "legacy": "settings.attendance_retention_below_visible"
+    },
+    {
       "code": "communication.announcement_not_found",
       "class": "business_rejection",
       "parameters": [],

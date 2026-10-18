@@ -1150,6 +1150,10 @@ export const ERROR_CATALOG = {
         "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
       "settings.booking_authority_blocked":
         "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
+      "settings.attendance_visible_exceeds_retention":
+        "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
+      "settings.attendance_retention_below_visible":
+        "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
       "communication.announcement_not_found":
         "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":

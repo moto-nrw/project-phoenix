@@ -2,13 +2,16 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
@@ -34,7 +37,7 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
 			switch status {
 			case http.StatusBadRequest:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+				apiCommon.RenderError(w, r, settingsInputError(err))
 			case http.StatusForbidden:
 				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
 			case http.StatusNotFound:
@@ -71,4 +74,20 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 		},
 	})
 	return settingsHTTP.NewSettingsResource(operations, homeLayouts, settingsRuntime)
+}
+
+// settingsInputError renders a rejected setting value. A visible attendance
+// window longer than its retention names the window that blocks it (#3957),
+// so the person reads which value is allowed.
+func settingsInputError(err error) render.Renderer {
+	window, ok := errors.AsType[*settingsModule.AttendanceWindowError](err)
+	if !ok {
+		return apiCommon.ErrorInvalidRequest(err)
+	}
+	if window.VisibleWritten() {
+		return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceVisibleExceedsRetention,
+			map[string]any{"retention_days": window.RetentionDays})
+	}
+	return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceRetentionBelowVisible,
+		map[string]any{"visible_days": window.VisibleDays})
 }
