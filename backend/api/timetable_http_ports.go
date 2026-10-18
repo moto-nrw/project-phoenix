@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -122,7 +123,7 @@ func (p TimetablePeople) AttendingStudentPersons(ctx context.Context, studentIDs
 	}
 	persons := make(map[int64]int64, len(students))
 	for id, student := range students {
-		if student == nil || student.IsAlumnus() || student.CareEndedOn(day) {
+		if student == nil || !peopledirectory.AttendsOn(student, day) {
 			continue
 		}
 		persons[id] = student.PersonID
@@ -137,7 +138,7 @@ func (p TimetablePeople) StudentAttends(ctx context.Context, studentID int64, da
 	if err != nil {
 		return false, err
 	}
-	if student == nil || student.ID == 0 || student.IsAlumnus() || student.CareEndedOn(day) {
+	if student == nil || student.ID == 0 || !peopledirectory.AttendsOn(student, day) {
 		return false, nil
 	}
 	return true, nil
