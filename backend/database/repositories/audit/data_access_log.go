@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 )
 
 // dataAccessLogRepository is an insert-only repository for audit.data_access_log.
-// It satisfies audit.DataAccessLogRepository (interface declared in models/audit).
+// It satisfies audit.DataAccessLogRepository (interface declared in modules/auditlog/records).
 type dataAccessLogRepository struct {
 	runtime Runtime
 }

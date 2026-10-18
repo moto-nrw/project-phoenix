@@ -6,14 +6,14 @@ import (
 	"slices"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // LogRetention records in audit.data_deletions that a nightly retention step
 // deleted deleted rows of one data kind for the school of ctx (#3950). The
 // entry names no person and holds no deleted content; kind is one of the
-// data-kind deletion types of models/audit.
+// data-kind deletion types of the Audit records.
 func (c *Command) LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error {
 	if !auditModels.IsDataKindRetention(kind) {
 		return fmt.Errorf("audit retention: unknown data kind %q", kind)

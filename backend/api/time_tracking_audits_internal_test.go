@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"

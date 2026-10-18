@@ -428,13 +428,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/auditlog/compose/vocabulary",
-      "owner": "audit-platform",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/auditlog/internal/adapters/postgres",
       "owner": "audit-platform",
       "role": "postgres",
@@ -1275,9 +1268,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/audit",
+      "path": "modules/auditlog/records",
       "owner": "audit-platform",
-      "role": "legacy-model",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -5565,6 +5558,17 @@
       "target_role": "contract"
     },
     {
+      "id": "audit-platform.postgres.records-port",
+      "description": "The Audit ledgers persist the owner's own records, which the owner publishes as its port for the root (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "port"
+    },
+    {
       "id": "audit-platform.postgres.audit-consent-contract",
       "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
       "scopes": [
@@ -5661,17 +5665,6 @@
       "source_role": "adapter-test",
       "target_owner": "audit-platform",
       "target_role": "postgres"
-    },
-    {
-      "id": "audit-platform.checkpoint-adapter-test.domain",
-      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "adapter-test",
-      "target_owner": "audit-platform",
-      "target_role": "legacy-model"
     },
     {
       "id": "request-review-view.integration.care-plan-public",
@@ -13057,6 +13050,17 @@
       "source_owner": "root-composition",
       "target_owner_kind": "platform",
       "target_role": "http"
+    },
+    {
+      "id": "root-composition.reach.internal-test.audit-platform.port",
+      "description": "The internal tests of the typed roots assert the Audit records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "audit-platform",
+      "target_role": "port"
     },
     {
       "id": "root-composition.reach.internal-test.platform.contract",

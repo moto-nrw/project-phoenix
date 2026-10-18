@@ -223,7 +223,7 @@ func TestDateColumnTypes(t *testing.T) {
 					// Domain owners may keep the same ISO calendar-date value shape
 					// without importing the legacy shared timezone package.
 					if !strings.HasPrefix(f.file, "models/activities/") &&
-						!strings.HasPrefix(f.file, "models/audit/") &&
+						!strings.HasPrefix(f.file, "modules/auditlog/records/") &&
 						!strings.HasPrefix(f.file, "models/calendar/") &&
 						!strings.HasPrefix(f.file, "models/schedule/") {
 						violations = append(violations, formatViolation(f.file, f.line,

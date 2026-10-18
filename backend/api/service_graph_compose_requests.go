@@ -244,7 +244,8 @@ func composeEnrollmentDecisions(b graphBuild) (graphBuild, error) {
 		DB: b.DB.Pool(), Structure: structure, Presence: presence, Directory: b.Persons, Membership: b.Membership, Rosters: b.rosterReconciler,
 		LockRecurrenceWrites:  b.TimetableWiring.RecurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: b.late.careBookings.ResyncOfferingSourcedTemplates,
-		Logger:                b.Logger.With("workflow", "grade_transition"), Audit: b.graph.Audit, Clock: b.now,
+		Logger:                b.Logger.With("workflow", "grade_transition"), Audit: b.graph.Audit, ClassListEntryRecord: GradeTransitionClassListRecord,
+		Clock: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose grade transition workflow: %w", err)
