@@ -2,13 +2,13 @@ package api
 
 import (
 	"context"
-	"strings"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
@@ -102,7 +102,7 @@ func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs [
 	names := make(map[int64]string, len(persons))
 	for accountID, person := range persons {
 		if person != nil {
-			names[accountID] = strings.TrimSpace(person.FirstName + " " + person.LastName)
+			names[accountID] = peopledirectory.PersonDisplayName(person.FirstName, person.LastName)
 		}
 	}
 	return names, nil

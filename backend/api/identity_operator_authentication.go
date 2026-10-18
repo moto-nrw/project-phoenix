@@ -157,7 +157,7 @@ func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, ac
 	if err != nil {
 		return false, err
 	}
-	return person != nil && person.DeletedAt == nil, nil
+	return person != nil && peopledirectory.PersonIsLive(person.DeletedAt), nil
 }
 
 func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]identityPorts.AccountPersonIdentity, error) {
@@ -171,7 +171,7 @@ func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accou
 			continue
 		}
 		identity := identityPorts.AccountPersonIdentity{
-			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName, Deleted: person.DeletedAt != nil,
+			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName, Deleted: !peopledirectory.PersonIsLive(person.DeletedAt),
 		}
 		if !identity.Deleted {
 			isStudent, err := p.personIsStudent(ctx, person.ID)

@@ -50,6 +50,16 @@ type Person struct {
 
 func (p Person) FullName() string { return p.FirstName + " " + p.LastName }
 
+// PersonDisplayName is the trimmed "first last" display name of a person, so
+// a missing part leaves no stray space.
+func PersonDisplayName(firstName, lastName string) string {
+	return strings.TrimSpace(firstName + " " + lastName)
+}
+
+// PersonIsLive reports a person the directory has not soft-deleted: a deleted
+// person carries its deletion time.
+func PersonIsLive(deletedAt *time.Time) bool { return deletedAt == nil }
+
 type CreatePerson struct {
 	FirstName string
 	LastName  string

@@ -5,6 +5,7 @@ import (
 
 	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The value translation of the retained student write path (#3349): the
@@ -121,4 +122,17 @@ func RetainedStudentWriteError(err error) error {
 	default:
 		return err
 	}
+}
+
+// RetainedStudentReadError is the retained not-found shape of a child read
+// under op: a missing or invalid child becomes the repository's missing-row
+// error; every other error passes through.
+func RetainedStudentReadError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, peopledirectory.ErrStudentNotFound) || errors.Is(err, peopledirectory.ErrInvalidStudent) {
+		return peoplePorts.MissingStudentError(op)
+	}
+	return err
 }

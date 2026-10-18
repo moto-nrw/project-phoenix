@@ -94,6 +94,26 @@ func (r StudentRecord) PickupEligibleOn(day calendar.Date) bool {
 	return !r.IsAlumnus() && !r.CareEndedOn(day)
 }
 
+// StudentClassRecords is the class read HasActiveClass runs over.
+type StudentClassRecords interface {
+	ListStudentRecordsByClass(context.Context, []string, StudentScope) ([]StudentRecord, error)
+}
+
+// HasActiveClass reports whether class still has an enrolled child whose care
+// has not ended by today.
+func HasActiveClass(ctx context.Context, students StudentClassRecords, class string, today calendar.Date) (bool, error) {
+	rows, err := students.ListStudentRecordsByClass(ctx, []string{class}, StudentScopeEnrolled)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if !row.CareEndedOn(today) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // StudentRosterEntry is a child together with the identity it renders under.
 // Every roster surface needs both, and both are this owner's rows.
 type StudentRosterEntry struct {

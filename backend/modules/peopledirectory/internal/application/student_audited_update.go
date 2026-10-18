@@ -4,14 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	users "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentRowUpdate is the retained child row write an audited update runs.
 type StudentRowUpdate interface {
 	Update(ctx context.Context, student *users.Student) error
+}
+
+// StudentRowLockUpdate is the retained child row a by-ID write re-reads under
+// its lock and then writes.
+type StudentRowLockUpdate interface {
+	StudentRowUpdate
+	FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error)
 }
 
 // StudentChangeActorRecorder appends the tracked-field history of one child
@@ -26,12 +35,19 @@ type StudentChangeActorRecorder interface {
 // the history is skipped, as graphs without one always did.
 type AuditedStudentUpdates struct {
 	students StudentRowUpdate
+	locks    StudentRowLockUpdate
 	audit    StudentChangeActorRecorder
 }
 
 // NewAuditedStudentUpdates binds the command. audit may be nil.
 func NewAuditedStudentUpdates(students StudentRowUpdate, audit StudentChangeActorRecorder) AuditedStudentUpdates {
 	return AuditedStudentUpdates{students: students, audit: audit}
+}
+
+// NewLockedStudentUpdates binds the command together with the row lock its
+// by-ID writes take. audit may be nil.
+func NewLockedStudentUpdates(students StudentRowLockUpdate, audit StudentChangeActorRecorder) AuditedStudentUpdates {
+	return AuditedStudentUpdates{students: students, locks: students, audit: audit}
 }
 
 // UpdateStudentAudited stores after and records before against it for
@@ -70,6 +86,47 @@ func (u AuditedStudentUpdates) WidenAccompaniedDays(ctx context.Context, compani
 		return fmt.Errorf("users: audit companion departure plan: %w", auditErr.Err)
 	}
 	return err
+}
+
+// WidenAccompaniedDaysByID re-reads the companion under its lock and widens
+// it (WidenAccompaniedDays). The row is re-read rather than reused from an
+// unlocked snapshot: widening writes the WHOLE student row, so a change another
+// request committed in between would otherwise be rolled back by a stale
+// write. found is false when the child is not there; nothing is written then.
+func (u AuditedStudentUpdates) WidenAccompaniedDaysByID(ctx context.Context, studentID int64, days []string, actorAccountID int64) (found bool, err error) {
+	companion, err := u.locks.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		if peoplePorts.IsRepositoryNoRows(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if companion == nil {
+		return false, nil
+	}
+	return true, u.WidenAccompaniedDays(ctx, companion, days, actorAccountID)
+}
+
+// SetLiveAbsenceFlags writes the live flags of an approved absence onto the
+// child row. The row is re-read under its lock so a concurrent flag change is
+// not lost. The live sick flag always takes flags.Sick; a raised one is stamped
+// with at, a cleared one loses its time. flags.ClearExcused clears the live
+// excused flag and its time; otherwise they stay as stored. No history is
+// recorded.
+func (u AuditedStudentUpdates) SetLiveAbsenceFlags(ctx context.Context, studentID int64, flags peopledirectory.LiveAbsenceFlags, at time.Time) error {
+	fresh, err := u.locks.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	fresh.Sick, fresh.SickSince = &flags.Sick, nil
+	if flags.Sick {
+		fresh.SickSince = &at
+	}
+	if flags.ClearExcused {
+		excused := false
+		fresh.Excused, fresh.ExcusedSince = &excused, nil
+	}
+	return u.students.Update(ctx, fresh)
 }
 
 func (u AuditedStudentUpdates) write(ctx context.Context, before, after *users.Student, actorAccountID int64) error {

@@ -102,23 +102,14 @@ func (s CompanionStudents) LockCompanionStudent(ctx context.Context, studentID i
 }
 
 // ExtendAccompaniedDays widens one child's allowed departure modes so the
-// days permit leaving with another child (People Directory's
-// WidenAccompaniedDays). Purely additive: the bus and pickup permissions of
-// those days stay untouched.
-//
-// The row is re-read under its lock rather than reused from an unlocked
-// snapshot: widening writes the WHOLE student row, so a change another request
-// committed in between would otherwise be rolled back by a stale write.
+// days permit leaving with another child (People Directory's locked
+// WidenAccompaniedDaysByID). Purely additive: the bus and pickup permissions
+// of those days stay untouched. A missing child is Care Plan's
+// ErrCompanionNotFound.
 func (s CompanionStudents) ExtendAccompaniedDays(ctx context.Context, studentID int64, days []string, actorAccountID int64) error {
-	companion, err := s.students.FindByIDForUpdate(ctx, studentID)
-	if err != nil {
-		if peoplePorts.IsRepositoryNoRows(err) {
-			return careplan.ErrCompanionNotFound
-		}
-		return err
-	}
-	if companion == nil {
+	found, err := s.writes.WidenAccompaniedDaysByID(ctx, studentID, days, actorAccountID)
+	if err == nil && !found {
 		return careplan.ErrCompanionNotFound
 	}
-	return s.writes.WidenAccompaniedDays(ctx, companion, days, actorAccountID)
+	return err
 }
