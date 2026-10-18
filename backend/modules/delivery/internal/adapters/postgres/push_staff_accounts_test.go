@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryRepo "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -2,7 +2,7 @@
 // root, which binds the dashboard's ports (ADR 0053, ADR 0058).
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
+import legacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/internal/adapters/nameorder"
 
 // CompareRoomNames orders two room names in German dictionary order
 // (DIN 5007-1), the order the session port delivers its rows in.

@@ -47,7 +47,7 @@ func (c activityCatalog) Activities(ctx context.Context) ([]devicescan.Directory
 type directoryPeople struct{ PersonDirectory }
 
 func (d directoryPeople) Teachers(ctx context.Context) ([]application.DirectoryTeacher, error) {
-	teachers, err := d.PersonDirectory.ListTeachersWithStaffAndPerson(ctx)
+	teachers, err := d.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
 		return nil, err
 	}

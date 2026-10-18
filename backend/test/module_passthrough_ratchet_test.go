@@ -196,7 +196,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3059
+const modulePassthroughOwnerBudgetTotal = 3052
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -266,7 +266,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// facade's device read.
 	//
 	// ADR 0061: application 8 + modules/devicescan/compose 48.
-	"modules/devicescan": 55,
+	"modules/devicescan": 48,
 	// First measured with #3562, when phases, form schemas, captcha and the
 	// parent mails moved out of services/enrollment. form_schemas.go carries
 	// 11: the transactional wrapper runs each schema write in one tenant

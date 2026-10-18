@@ -63,7 +63,7 @@ type (
 type people struct{ PersonDirectory }
 
 func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person, error) {
-	person, err := p.PersonDirectory.FindByTagID(ctx, tag)
+	person, err := p.FindByTagID(ctx, tag)
 	if err != nil {
 		if errors.Is(err, userscontract.ErrPersonNotFound) {
 			return nil, mapError(err, ports.ErrPersonNotFound)
@@ -77,7 +77,7 @@ func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person,
 }
 
 func (p people) FindStudentByPerson(ctx context.Context, personID int64) (*ports.Student, error) {
-	student, err := p.PersonDirectory.GetStudentByPersonID(ctx, personID)
+	student, err := p.GetStudentByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -95,7 +95,7 @@ func (p people) FindStudentByPerson(ctx context.Context, personID int64) (*ports
 }
 
 func (p people) FindStaffByPerson(ctx context.Context, personID int64) (*ports.StaffMember, error) {
-	staff, err := p.PersonDirectory.GetStaffByPersonID(ctx, personID)
+	staff, err := p.GetStaffByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
