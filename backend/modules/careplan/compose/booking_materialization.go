@@ -46,7 +46,8 @@ func (e *bookingRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrB
 
 // BookingMaterializationDependencies bind the booking materialization (#3560)
 // to its owners. Catalog is the care-offering catalog composed by
-// NewCareOfferingCatalog; the hooks are nil-safe.
+// NewCareOfferingCatalog, unset for NewCareOfferingCatalogWithBookings; the
+// hooks are nil-safe.
 type BookingMaterializationDependencies struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Rosters     BookingRosters
@@ -79,7 +80,11 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (carepla
 	if !ok {
 		return nil, errors.New("booking materialization: the care-offering catalog must be composed by NewCareOfferingCatalog")
 	}
-	return application.NewBookingMaterialization(application.BookingMaterializationDependencies{
+	return application.NewBookingMaterialization(bookingDependencies(deps, catalog))
+}
+
+func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {
+	return application.BookingMaterializationDependencies{
 		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
 		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
 		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup,
@@ -90,5 +95,5 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (carepla
 		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
 		Today:                       deps.Today,
 		Logger:                      deps.Logger,
-	})
+	}
 }
