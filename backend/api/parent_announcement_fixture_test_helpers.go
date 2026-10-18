@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -28,7 +28,7 @@ type ParentAnnouncementFixtures interface {
 
 // NewParentAnnouncementFixtures binds the test construction seam without a
 // second persistence implementation or a foreign row import in the root.
-func NewParentAnnouncementFixtures(repo peopleVocabulary.ParentAnnouncementRepository) ParentAnnouncementFixtures {
+func NewParentAnnouncementFixtures(repo parentstore.ParentAnnouncementRepository) ParentAnnouncementFixtures {
 	return parentAnnouncementFixtures{parentstore.NewParentAnnouncementFixtures(repo)}
 }
 

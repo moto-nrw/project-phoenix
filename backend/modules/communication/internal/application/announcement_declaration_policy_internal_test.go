@@ -1,22 +1,24 @@
-package users
+package application
 
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDeclarationCanonicalContentIgnoresAttachmentOrder(t *testing.T) {
 	t.Parallel()
-	a := DeclarationAttachmentDigest{AttachmentID: 3, Filename: "a.pdf", SHA256: "aa"}
-	b := DeclarationAttachmentDigest{AttachmentID: 7, Filename: "b.pdf", SHA256: "bb"}
-	first := &DeclarationVersion{Title: "Ausflug", Body: "Text", Kind: DeclarationKindConsent, Attachments: []DeclarationAttachmentDigest{a, b}}
-	second := &DeclarationVersion{Title: "Ausflug", Body: "Text", Kind: DeclarationKindConsent, Attachments: []DeclarationAttachmentDigest{b, a}}
-	assert.Equal(t, string(first.CanonicalContent()), string(second.CanonicalContent()))
+	a := communication.PortalDeclarationAttachmentDigest{AttachmentID: 3, Filename: "a.pdf", SHA256: "aa"}
+	b := communication.PortalDeclarationAttachmentDigest{AttachmentID: 7, Filename: "b.pdf", SHA256: "bb"}
+	first := &DeclarationVersion{Title: "Ausflug", Body: "Text", Kind: DeclarationKindConsent, Attachments: []communication.PortalDeclarationAttachmentDigest{a, b}}
+	second := &DeclarationVersion{Title: "Ausflug", Body: "Text", Kind: DeclarationKindConsent, Attachments: []communication.PortalDeclarationAttachmentDigest{b, a}}
+	assert.Equal(t, string(CanonicalDeclarationContent(first)), string(CanonicalDeclarationContent(second)))
 
-	changed := &DeclarationVersion{Title: "Ausflug", Body: "Text.", Kind: DeclarationKindConsent, Attachments: []DeclarationAttachmentDigest{a, b}}
-	assert.NotEqual(t, string(first.CanonicalContent()), string(changed.CanonicalContent()))
+	changed := &DeclarationVersion{Title: "Ausflug", Body: "Text.", Kind: DeclarationKindConsent, Attachments: []communication.PortalDeclarationAttachmentDigest{a, b}}
+	assert.NotEqual(t, string(CanonicalDeclarationContent(first)), string(CanonicalDeclarationContent(changed)))
 }
 
 func TestDeclarationCanonicalRecordCoversEveryImmutableField(t *testing.T) {
@@ -28,7 +30,7 @@ func TestDeclarationCanonicalRecordCoversEveryImmutableField(t *testing.T) {
 		Method: DeclarationMethodSimpleElectronic, ContentHash: "abc",
 		SubmittedAt: time.Date(2026, 9, 27, 8, 30, 0, 123456000, time.UTC),
 	}
-	reference := string(base.CanonicalRecord())
+	reference := string(CanonicalDeclarationRecord(&base))
 	mutations := map[string]func(s *DeclarationSubmission){
 		"action":   func(s *DeclarationSubmission) { s.Action = DeclarationActionDeclined },
 		"student":  func(s *DeclarationSubmission) { s.StudentID = 12 },
@@ -41,16 +43,16 @@ func TestDeclarationCanonicalRecordCoversEveryImmutableField(t *testing.T) {
 	for name, mutate := range mutations {
 		changed := base
 		mutate(&changed)
-		assert.NotEqual(t, reference, string(changed.CanonicalRecord()), name)
+		assert.NotEqual(t, reference, string(CanonicalDeclarationRecord(&changed)), name)
 	}
 	// account_id is a nullable foreign key. PostgreSQL clears it when an
 	// account is deleted, while the frozen signer data remains as the proof.
 	deletedAccount := base
 	deletedAccount.AccountID = nil
-	assert.Equal(t, reference, string(deletedAccount.CanonicalRecord()))
+	assert.Equal(t, reference, string(CanonicalDeclarationRecord(&deletedAccount)))
 	// The instant is encoded in UTC, so the zone the row is read back in
 	// cannot change the record.
 	berlin := base
 	berlin.SubmittedAt = base.SubmittedAt.In(time.FixedZone("CEST", 2*60*60))
-	assert.Equal(t, reference, string(berlin.CanonicalRecord()))
+	assert.Equal(t, reference, string(CanonicalDeclarationRecord(&berlin)))
 }

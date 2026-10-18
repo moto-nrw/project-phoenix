@@ -31,10 +31,6 @@ type (
 	GuardianProfile                    = upstream.GuardianProfile
 	Guest                              = upstream.Guest
 	MonthDay                           = upstream.MonthDay
-	ParentAnnouncementRepository       = upstream.ParentAnnouncementRepository
-	ParentMessageReadRepository        = upstream.ParentMessageReadRepository
-	ParentMessageRepository            = upstream.ParentMessageRepository
-	ParentMessageThreadRepository      = upstream.ParentMessageThreadRepository
 	ParentRequestEvent                 = upstream.ParentRequestEvent
 	ParentRequestEventRepository       = upstream.ParentRequestEventRepository
 	ParentRequestShareEventRepository  = upstream.ParentRequestShareEventRepository

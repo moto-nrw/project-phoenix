@@ -24,17 +24,19 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*userModels.ParentAnnouncementTarget{
+	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
+		"Elternbrief", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
-		})
+		}))
 
 	// Before anyone confirms, the child is reached but open.
 	children, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	found := childByID(children, chain.StudentID)
+	found := api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found, "the linked child must appear in the letter audience")
-	assert.False(t, found.Fulfilled(), "no acknowledgement yet, so the child is open")
+	assert.False(t, found.AcknowledgedAt != nil, "no acknowledgement yet, so the child is open")
 
 	// A plain READ must not fulfil the letter — only an explicit confirmation does.
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
@@ -43,9 +45,9 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 
 	children, err = repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	found = childByID(children, chain.StudentID)
+	found = api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found)
-	assert.False(t, found.Fulfilled(), "reading is not confirming")
+	assert.False(t, found.AcknowledgedAt != nil, "reading is not confirming")
 
 	// The acknowledgement fulfils it, and the query names the person.
 	ackApplied, err := repo.MarkAcknowledged(ctx, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
@@ -54,9 +56,9 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 
 	children, err = repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	found = childByID(children, chain.StudentID)
+	found = api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found)
-	assert.True(t, found.Fulfilled(), "an acknowledgement fulfils the letter for the child")
+	assert.True(t, found.AcknowledgedAt != nil, "an acknowledgement fulfils the letter for the child")
 	require.NotNil(t, found.AcknowledgedAt)
 	assert.WithinDuration(t, time.Now(), *found.AcknowledgedAt, time.Minute)
 	assert.NotEmpty(t, found.AckLastName, "the fulfilling guardian must be named")
@@ -73,10 +75,12 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*userModels.ParentAnnouncementTarget{
+	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
+		"Elternbrief", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
-		})
+		}))
 
 	own, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
@@ -103,15 +107,17 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*userModels.ParentAnnouncementTarget{
+	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
+		"Elternbrief", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
-		})
+		}))
 
 	before, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, before, "precondition: the linked guardian resolves")
-	linked := recipientByProfile(before, chain.GuardianProfileID)
+	linked := api.ParentStoreRecipientByProfile(before, chain.GuardianProfileID)
 	require.NotNil(t, linked)
 	assert.True(t, linked.HasPortalAccess, "the fixture guardian has portal access")
 
@@ -125,7 +131,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 
 	after, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	stillThere := recipientByProfile(after, chain.GuardianProfileID)
+	stillThere := api.ParentStoreRecipientByProfile(after, chain.GuardianProfileID)
 	require.NotNil(t, stillThere, "a guardian without portal access must stay visible in the matrix")
 	assert.False(t, stillThere.HasPortalAccess, "and must be flagged as unreachable in moto")
 
@@ -137,24 +143,6 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 		assert.NotEqual(t, chain.Email, e.Email,
 			"a guardian without portal access must not be in the classic e-mail audience")
 	}
-}
-
-func childByID(children []*userModels.AnnouncementLetterChildStatus, studentID int64) *userModels.AnnouncementLetterChildStatus {
-	for _, c := range children {
-		if c.StudentID == studentID {
-			return c
-		}
-	}
-	return nil
-}
-
-func recipientByProfile(recipients []*userModels.AnnouncementDeliveryRecipient, profileID int64) *userModels.AnnouncementDeliveryRecipient {
-	for _, r := range recipients {
-		if r.GuardianProfileID == profileID {
-			return r
-		}
-	}
-	return nil
 }
 
 // TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor is the regression the
@@ -170,17 +158,19 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*userModels.ParentAnnouncementTarget{
+	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
+		"Elternbrief", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
-		})
+		}))
 
 	before, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	linked := childByID(before, chain.StudentID)
+	linked := api.ParentStoreChildByID(before, chain.StudentID)
 	require.NotNil(t, linked, "precondition: the linked child is reached")
 	assert.True(t, linked.CanConfirm, "a guardian with portal access can confirm")
-	assert.True(t, linked.Outstanding(), "and the child counts as outstanding")
+	assert.True(t, linked.CanConfirm && linked.AcknowledgedAt == nil, "and the child counts as outstanding")
 
 	// Strip portal access. The child is STILL reached by a school-wide letter and
 	// must stay in the list — only now nobody can confirm for it.
@@ -191,11 +181,11 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 
 	after, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
 	require.NoError(t, err)
-	still := childByID(after, chain.StudentID)
+	still := api.ParentStoreChildByID(after, chain.StudentID)
 	require.NotNil(t, still, "a child without a portal-capable guardian must stay visible")
 	assert.False(t, still.CanConfirm, "and must be marked as unconfirmable")
-	assert.False(t, still.Outstanding(), "reminding cannot help, so it is not outstanding")
-	assert.False(t, still.Fulfilled())
+	assert.False(t, still.CanConfirm && still.AcknowledgedAt == nil, "reminding cannot help, so it is not outstanding")
+	assert.False(t, still.AcknowledgedAt != nil)
 
 	// The count must not shrink: losing a guardian permission changes WHO can
 	// confirm, never who the letter reached.

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Anhänge an Elternmitteilungen (#2890) — die Seite, die dieses Paket beiträgt.
@@ -136,7 +134,7 @@ func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, annou
 // declaration that was published before (#3430). Its earlier versions name
 // these files by digest, and the proof for those versions must still be able
 // to produce them. A changed document needs a new Erklärung.
-func (s *service) attachmentsEditable(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+func (s *service) attachmentsEditable(ctx context.Context, a *ParentAnnouncement) (bool, error) {
 	if a.IsPublished() || a.IsSystem() {
 		return false, nil
 	}

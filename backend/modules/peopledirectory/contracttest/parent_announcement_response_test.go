@@ -28,39 +28,6 @@ import (
 
 // pollAnnouncement publishes a poll with two options and returns it plus the
 // option ids in display order.
-func pollAnnouncement(
-	t *testing.T,
-	ctx context.Context,
-	db *bun.DB,
-	repo userModels.ParentAnnouncementRepository,
-	createdBy, tenantID int64,
-	responseType string,
-) (*userModels.ParentAnnouncement, []int64) {
-	t.Helper()
-	a := &userModels.ParentAnnouncement{
-		Title:        "Umfrage",
-		Body:         "Bitte antworten",
-		Priority:     userModels.ParentAnnouncementPriorityInfo,
-		Active:       true,
-		CreatedBy:    createdBy,
-		ResponseType: responseType,
-	}
-	a.SetTenantID(tenantID)
-	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*userModels.ParentAnnouncementTarget{{TargetType: userModels.AnnouncementTargetSchoolAll}}))
-	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, []*userModels.ParentAnnouncementOption{
-		{Label: "Ja"}, {Label: "Nein"},
-	}))
-	options, err := repo.ListOptions(ctx, a.ID)
-	require.NoError(t, err)
-	require.Len(t, options, 2)
-	now := databaseTimestamp(t, db)
-	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	a.PublishedAt = &now
-	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
-	return a, []int64{options[0].ID, options[1].ID}
-}
 
 // storedAnswers returns the option ids stored for one child, so a test asserts
 // on the rows rather than on the reported outcome alone.
@@ -84,7 +51,9 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseMultiChoice)
 
 	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
@@ -116,7 +85,9 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseSingleChoice)
 
 	// Sanity: the seeded primary guardian may answer.
@@ -161,9 +132,13 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseMultiChoice)
-	other, otherOptions := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	other, otherOptions := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseMultiChoice)
 	require.NotEqual(t, poll.ID, other.ID)
 
@@ -193,7 +168,9 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
-	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
+	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
+		return databaseTimestamp(t, db)
+	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseSingleChoice)
 
 	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,

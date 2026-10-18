@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,41 +17,41 @@ import (
 // the unit under test touches; calling anything else panics loudly (nil embed),
 // which is exactly what we want in a pure unit test.
 type fakeAnnouncementRepo struct {
-	usersModels.ParentAnnouncementRepository
-	announcement *usersModels.ParentAnnouncement
-	recipients   []*usersModels.AnnouncementRecipient
-	audience     []*usersModels.AnnouncementRecipientStatus
-	reminders    []*usersModels.AnnouncementPollReminderRecipient
+	ParentAnnouncementRepository
+	announcement *ParentAnnouncement
+	recipients   []*AnnouncementRecipient
+	audience     []*AnnouncementRecipientStatus
+	reminders    []*AnnouncementPollReminderRecipient
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
 	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
 	// runs — simulating a concurrent edit that committed while PublishIfDraft was
 	// blocked on the row lock. The pre-publish load still sees the original.
-	editOnPublish *usersModels.ParentAnnouncement
+	editOnPublish *ParentAnnouncement
 }
 
-func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 	return f.announcement, nil
 }
 
 // FindByIDForUpdate has no row lock to take against a fake; it answers from the
 // same stored row as FindByID, so a test arranges one state for both (#2890).
-func (f *fakeAnnouncementRepo) FindByIDForUpdate(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+func (f *fakeAnnouncementRepo) FindByIDForUpdate(_ context.Context, _ int64) (*ParentAnnouncement, error) {
 	return f.announcement, nil
 }
 
 // ReplaceOptions is a no-op: these tests drive plain Mitteilungen, whose option
 // set is empty, but Update/Create call it unconditionally (#1371).
-func (f *fakeAnnouncementRepo) ReplaceOptions(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementOption) error {
+func (f *fakeAnnouncementRepo) ReplaceOptions(_ context.Context, _, _ int64, _ []*ParentAnnouncementOption) error {
 	return nil
 }
 
-func (f *fakeAnnouncementRepo) ListOptions(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementOption, error) {
+func (f *fakeAnnouncementRepo) ListOptions(_ context.Context, _ int64) ([]*ParentAnnouncementOption, error) {
 	return nil, nil
 }
 
-func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *usersModels.ParentAnnouncement) error {
+func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *ParentAnnouncement) error {
 	f.updateCalls++
 	return nil
 }
@@ -76,29 +75,29 @@ func (f *fakeAnnouncementRepo) Delete(_ context.Context, _ int64) error {
 	return nil
 }
 
-func (f *fakeAnnouncementRepo) ReplaceTargets(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
+func (f *fakeAnnouncementRepo) ReplaceTargets(_ context.Context, _, _ int64, _ []*ParentAnnouncementTarget) error {
 	return nil
 }
 
-func (f *fakeAnnouncementRepo) ListTargets(_ context.Context, _ int64) ([]*usersModels.ParentAnnouncementTarget, error) {
+func (f *fakeAnnouncementRepo) ListTargets(_ context.Context, _ int64) ([]*ParentAnnouncementTarget, error) {
 	return nil, nil
 }
 
-func (f *fakeAnnouncementRepo) ResolveAudienceEmails(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipient, error) {
+func (f *fakeAnnouncementRepo) ResolveAudienceEmails(_ context.Context, _, _ int64) ([]*AnnouncementRecipient, error) {
 	return f.recipients, nil
 }
 
-func (f *fakeAnnouncementRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+func (f *fakeAnnouncementRepo) AudienceRecipients(_ context.Context, _, _ int64) ([]*AnnouncementRecipientStatus, error) {
 	if f.audience != nil {
 		return f.audience, nil
 	}
-	recipients := make([]*usersModels.AnnouncementRecipientStatus, 0, len(f.recipients))
+	recipients := make([]*AnnouncementRecipientStatus, 0, len(f.recipients))
 	for i, recipient := range f.recipients {
 		accountID := recipient.AccountID
 		if accountID <= 0 {
 			accountID = int64(i + 1)
 		}
-		recipients = append(recipients, &usersModels.AnnouncementRecipientStatus{AccountID: accountID})
+		recipients = append(recipients, &AnnouncementRecipientStatus{AccountID: accountID})
 	}
 	return recipients, nil
 }
@@ -107,7 +106,7 @@ func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, e
 	return "OGS Testschule", nil
 }
 
-func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _, _ int64) ([]*AnnouncementPollReminderRecipient, error) {
 	return f.reminders, nil
 }
 
@@ -191,11 +190,11 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 	return svc
 }
 
-func draftAnnouncement(sendEmail bool) *usersModels.ParentAnnouncement {
-	a := &usersModels.ParentAnnouncement{
+func draftAnnouncement(sendEmail bool) *ParentAnnouncement {
+	a := &ParentAnnouncement{
 		Title:     "Sommerfest",
 		Body:      "Wir feiern am Freitag.",
-		Priority:  usersModels.ParentAnnouncementPriorityInfo,
+		Priority:  ParentAnnouncementPriorityInfo,
 		SendEmail: sendEmail,
 		Active:    true,
 	}
@@ -208,8 +207,8 @@ func validInput() Input {
 	return Input{
 		Title:    "Sommerfest",
 		Body:     "Neuer Text",
-		Priority: usersModels.ParentAnnouncementPriorityInfo,
-		Targets:  []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		Priority: ParentAnnouncementPriorityInfo,
+		Targets:  []TargetInput{{TargetType: AnnouncementTargetSchoolAll}},
 	}
 }
 
@@ -333,12 +332,12 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	t.Parallel()
 
 	poll := draftAnnouncement(false)
-	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	poll.ResponseType = ParentAnnouncementResponseSingleChoice
 	now := time.Now()
 	poll.PublishedAt = &now
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
-		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+		reminders: []*AnnouncementPollReminderRecipient{
 			{AccountID: 101, Email: "", PortalLocale: "en"},
 		},
 	}
@@ -371,12 +370,12 @@ func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
 	t.Parallel()
 
 	poll := draftAnnouncement(false)
-	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	poll.ResponseType = ParentAnnouncementResponseSingleChoice
 	now := time.Now()
 	poll.PublishedAt = &now
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
-		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+		reminders: []*AnnouncementPollReminderRecipient{
 			{AccountID: 101, Email: "parent@example.test"},
 		},
 	}
@@ -404,7 +403,7 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 			{Email: "b@example.test", FirstName: "Ben", LastName: "B"},
 		},
@@ -442,7 +441,7 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
-		audience: []*usersModels.AnnouncementRecipientStatus{
+		audience: []*AnnouncementRecipientStatus{
 			{AccountID: 101},
 			{AccountID: 202},
 		},
@@ -483,7 +482,7 @@ func TestPublish_GroupsGuardianPushesByPortalLocale(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
-		audience: []*usersModels.AnnouncementRecipientStatus{
+		audience: []*AnnouncementRecipientStatus{
 			{AccountID: 101, PortalLocale: "de"},
 			{AccountID: 202, PortalLocale: "en"},
 		},
@@ -516,17 +515,17 @@ func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
 	t.Parallel()
 
 	poll := draftAnnouncement(true)
-	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
+	poll.ResponseType = ParentAnnouncementResponseSingleChoice
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
 		// The general audience contains a portal-visible guardian who may not
 		// respond. Publication still reaches them; response permission matters
 		// only for manual unanswered reminders.
-		audience: []*usersModels.AnnouncementRecipientStatus{{AccountID: 999}},
-		recipients: []*usersModels.AnnouncementRecipient{
+		audience: []*AnnouncementRecipientStatus{{AccountID: 999}},
+		recipients: []*AnnouncementRecipient{
 			{AccountID: 999, Email: "viewer@example.test"},
 		},
-		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+		reminders: []*AnnouncementPollReminderRecipient{
 			{AccountID: 101, Email: "permitted@example.test"},
 		},
 	}
@@ -560,7 +559,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -596,7 +595,7 @@ func TestPublish_BrandingWithoutSchoolLogo(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -620,7 +619,7 @@ func TestPublish_NoEmailWithoutOptIn(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -640,7 +639,7 @@ func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -674,7 +673,7 @@ func TestPublish_ConcurrentEditWins_UsesFreshRow(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement:  draftAnnouncement(true), // pre-publish snapshot: opted INTO e-mail
 		editOnPublish: edited,
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -702,7 +701,7 @@ func TestPublish_ConcurrentEditExpires_RollsBack(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement:  draftAnnouncement(true), // pre-publish snapshot: no expiry, passes the pre-check
 		editOnPublish: edited,
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -733,7 +732,7 @@ func TestPublish_ConcurrentEditInvalidatesReminder_RollsBack(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement:  initial,
 		editOnPublish: edited,
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
@@ -768,7 +767,7 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
-		recipients: []*usersModels.AnnouncementRecipient{
+		recipients: []*AnnouncementRecipient{
 			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
 		},
 	}
