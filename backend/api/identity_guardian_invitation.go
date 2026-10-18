@@ -176,34 +176,20 @@ func guardianMailRecipient(profile identityPorts.GuardianProfile) GuardianMailRe
 // --- the invitation reads other owners' flows need ---------------------------
 
 // guardianInvitationReads serves the People Directory guardian list and the
-// parents portal over the owner capability. Both read the invitations as the
-// retained model, which stays their ports' value type. The capability is
-// read at call time: the guardian service is composed before the module.
+// parents portal over Identity & Access's invitation reads. Both read the
+// invitations as the retained model, which stays their ports' value type.
+// The reads need only the database, so the guardian service is composed
+// before the Identity & Access module.
 type guardianInvitationReads struct {
-	current func() identityaccess.GuardianInvitations
+	reads identityaccess.GuardianInvitationReads
 }
 
-func NewGuardianInvitationReads(current func() identityaccess.GuardianInvitations) guardianInvitationReads {
-	return guardianInvitationReads{current: current}
-}
-
-func (r guardianInvitationReads) owner() (identityaccess.GuardianInvitations, error) {
-	if r.current == nil {
-		return nil, errors.New("identity access composition: the guardian invitations are not composed")
-	}
-	module := r.current()
-	if module == nil {
-		return nil, errors.New("identity access composition: the guardian invitations are not composed")
-	}
-	return module, nil
+func NewGuardianInvitationReads(reads identityaccess.GuardianInvitationReads) guardianInvitationReads {
+	return guardianInvitationReads{reads: reads}
 }
 
 func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peoplePorts.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
+	invitations, err := r.reads.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -211,11 +197,7 @@ func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileID
 }
 
 func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peoplePorts.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListRedeemableGuardianInvitations(ctx)
+	invitations, err := r.reads.ListRedeemableGuardianInvitations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -225,11 +207,7 @@ func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peoplePo
 // ListByProfile serves the parents portal, which reads the same rows with a
 // narrower record.
 func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error) {
-	module, err := r.owner()
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := module.ListGuardianInvitations(ctx, guardianProfileID)
+	invitations, err := r.reads.ListGuardianInvitations(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}

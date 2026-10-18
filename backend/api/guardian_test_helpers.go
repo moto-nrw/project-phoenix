@@ -5,7 +5,6 @@ package api
 import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -50,7 +49,7 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitations: NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
+		GuardianInvitations: NewGuardianInvitationReads(auth.AccountAuthentication),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),

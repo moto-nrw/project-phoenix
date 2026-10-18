@@ -175,7 +175,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 		Caller:               rows,
 		GroupLiveCaller:      GroupLiveCaller{rows},
 		SupervisionCaller:    SupervisionCaller{rows},
-		GuardianInvitations:  NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return module }),
+		GuardianInvitations:  NewGuardianInvitationReads(module),
 		ParentGuardianAccess: NewParentGuardianAccess(module),
 		MailRenderers:        identityMailRenderers(module, m, authLogger),
 	}, rows, nil
