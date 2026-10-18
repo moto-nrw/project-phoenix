@@ -393,13 +393,20 @@ func composeCareRequests(b graphBuild) (graphBuild, error) {
 		Audit: b.graph.StudentAudit, Shares: b.requestShares, Today: b.today,
 		Logger: b.Logger.With("service", "care-requests"),
 	})
-	offeringChanges, err := b.Enrollment.OfferingChanges(OfferingChangeInputs{
-		CarePlan: b.CarePlan, Enrollment: b.Enrollment.Bookings, Students: b.People.Students,
-		Withdrawals: NewCareWithdrawalCompletionRepository(b.CarePlan), Settings: b.settingsService, Planning: b.Enrollment.OfferingPlanning,
-		Bookings: b.late.careBookings, Reviews: b.reviewPolicy, Permissions: b.Identity.Permissions,
-		Emitter: b.graph.ParentEventEmitter, Events: peopleCompose.NewParentRequestEventRepository(b.DB.Pool()), Shares: b.requestShares, Today: b.today,
-		Logger: b.Logger.With("service", "offering-change-requests"),
-	})
+	offeringChangeDeps, err := offeringChangeOwners(
+		b.CarePlan, nil, b.Enrollment.Bookings, b.People.Students, NewCareWithdrawalCompletionRepository(b.CarePlan),
+		b.settingsService, b.reviewPolicy, b.Identity.Permissions,
+		b.graph.ParentEventEmitter, peopleCompose.NewParentRequestEventRepository(b.DB.Pool()),
+	)
+	if err != nil {
+		return b, fmt.Errorf("compose care plan offering changes: %w", err)
+	}
+	offeringChangeDeps.Planning = b.Enrollment.OfferingPlanning
+	offeringChangeDeps.Bookings = b.late.careBookings
+	offeringChangeDeps.Shares = b.requestShares
+	offeringChangeDeps.Today = b.today
+	offeringChangeDeps.Logger = b.Logger.With("service", "offering-change-requests")
+	offeringChanges, err := b.Enrollment.OfferingChanges(offeringChangeDeps)
 	if err != nil {
 		return b, fmt.Errorf("compose care plan offering changes: %w", err)
 	}

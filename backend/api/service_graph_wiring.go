@@ -284,7 +284,7 @@ type EnrollmentWiring struct {
 	GuardianInvitations func(EnrollmentGuardianInvitations) enrollmentCompose.GuardianInvitationAvailability
 	ChangeRequests      func(EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests
 	Rollovers           func(EnrollmentRolloverSources) enrollmentOwner.Rollovers
-	OfferingChanges     func(OfferingChangeInputs) (careplan.OfferingChangeCapability, error)
+	OfferingChanges     func(careplanCompose.OfferingChangeDependencies) (careplan.OfferingChangeCapability, error)
 	OfferingConflicts   func(careplan.OfferingChangeConflicts) careplanCompose.ParentRequestConflicts
 }
 
@@ -575,28 +575,6 @@ type EnrollmentDeletionSources struct {
 		ResolveInt(ctx context.Context, key string) (int, error)
 	}
 	Logger *slog.Logger
-}
-
-// OfferingChangeInputs are the owners the offering-change review is composed
-// over.
-type OfferingChangeInputs struct {
-	CarePlan careplan.Capability
-	// Catalog reads the care offerings; nil reads them from CarePlan.
-	Catalog     careplanCompose.OfferingChangeCatalog
-	Enrollment  OfferingChangeEnrollmentReads
-	Students    offeringChangeStudentRows
-	Withdrawals offeringChangeWithdrawalRows
-	Settings    OfferingChangeSettingsReads
-	Planning    careplanCompose.OfferingChangePlanning
-	Bookings    careplan.BookingMaterializationCapability
-	Reviews     OfferingChangeReviewPolicy
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
-	Emitter     *communicationCompose.ParentEventEmitter
-	Events      ParentRequestEvents
-	Shares      careplanCompose.ShareVisibility
-	Today       func() timezone.Date
-	Logger      *slog.Logger
 }
 
 // OfferingChangeEnrollmentReads is the part of the Enrollment owner an

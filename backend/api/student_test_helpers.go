@@ -281,13 +281,18 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChanges, err := newOfferingChanges(OfferingChangeInputs{
-		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: requestTokenReads.Permissions, Emitter: pillEmitter,
-		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
-	})
+	offeringChangeDeps, err := offeringChangeOwners(
+		repos.CarePlan, nil, repos.Enrollment(), repos.Student, repos.CareWithdrawal, settingsService,
+		requestReviewPolicy, requestTokenReads.Permissions, pillEmitter, parentRequestEvents,
+	)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	offeringChangeDeps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable}
+	offeringChangeDeps.Bookings = careBookings
+	offeringChangeDeps.Today = today
+	offeringChangeDeps.Logger = logger.With("service", "offering-change-requests")
+	offeringChanges, err := newOfferingChanges(offeringChangeDeps)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
