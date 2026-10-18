@@ -27,7 +27,7 @@ func (s failedDateframeRead) FindDateframe(context.Context, int64) (schoolcalend
 
 func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
 	t.Parallel()
-	db, services := setupScheduleModule(t)
+	db, services, dateframes := setupScheduleModule(t)
 	dateframe := testpkg.CreateTestDateframe(t, db, "read error contract", time.Now(), time.Now().AddDate(0, 0, 1))
 	for _, tc := range []struct {
 		name    string
@@ -39,7 +39,7 @@ func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
 		{"missing row", schoolcalendar.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			resource := schedulesAPI.NewSchedulesResource(failedDateframeRead{Dateframes: services.Calendar, err: tc.err}, services.Timetable, services.TimeframeGuard, db)
+			resource := schedulesAPI.NewSchedulesResource(failedDateframeRead{Dateframes: dateframes, err: tc.err}, services.Timetable, services.TimeframeGuard, db)
 			request := testutil.NewRequest("GET", fmt.Sprintf("/dateframes/%d", dateframe.ID), nil)
 			response := testutil.ExecuteWithAuth(t, resource.Router(rootAPI.ProtectedTenantRoutes), request, testutil.AdminTestClaims(1))
 			assert.Equal(t, tc.status, response.Code)

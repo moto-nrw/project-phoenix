@@ -119,7 +119,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	persons := guardian.PeopleDirectory
-	contextRepos, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
+	contextRepos, _, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestModule{}, err
 	}

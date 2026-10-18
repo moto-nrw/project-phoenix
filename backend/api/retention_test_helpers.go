@@ -9,91 +9,68 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
-// RetentionTestOwners are the retained owners the Worker's nightly retention
-// steps bind (#3950), composed over the test database for the root's
-// retention suite as the service graph composes them: the deletion log of
-// the Audit command, the Settings Platform, the unregistered tag scans over
-// the Device Fleet owner, the Care Plan status days, the parent messages, the
-// staff sick notes, the settled enrollments, the delivery data, the technical
-// remains of #4046 and the setting protocol and export journal of #4044.
-type RetentionTestOwners struct {
-	Audit                *auditCompose.Command
-	Settings             settingsCompose.BatchSettingsService
-	UnregisteredTagScans devicefleet.UnregisteredTagScanRetention
-	StatusDays           careplan.StudentStatusDayRetention
-	ParentMessages       communication.ParentMessageCleanup
-	StaffSickNotes       workforce.SickNoteRetention
-	SettledEnrollments   enrollment.SettledEnrollmentRetention
-	Deliveries           delivery.Retention
-	FileCleanups         filestorage.CleanupRetention
-	StaffCleanups        workforce.CleanupRetention
-	CarePlanCleanups     careplan.CleanupRetention
-	SubmissionLimits     enrollment.SubmissionRateLimitRetention
-	SettingAudit         settingsModule.AuditRetention
-	ExportTransfers      exporttransfer.JournalRetention
-}
-
-// NewRetentionTestOwners composes the retention owners over db; unit is the
-// tenant runtime the settings resolve in.
-func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
+// NewRetentionTestOwners composes the retained owners the Worker's nightly
+// retention steps bind (#3950) over db as the service graph composes them,
+// and returns the deletion log of the Audit command, the Settings Platform
+// and the owners' retention steps in the order the Worker runs them: the
+// unregistered tag scans over the Device Fleet owner, the Care Plan status
+// days, the parent messages, the settled enrollments, the staff sick notes,
+// the delivery data, the setting protocol and export journal of #4044 and
+// the technical remains of #4046. unit is the tenant runtime the settings
+// resolve in.
+func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWork) (*auditCompose.Command, settingsCompose.BatchSettingsService, []schedulerPorts.RetentionStep, error) {
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
-		return RetentionTestOwners{}, err
+		return nil, nil, nil, err
 	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
-		return RetentionTestOwners{}, err
+		return nil, nil, nil, err
 	}
 	fleet, err := NewDeviceFleet(db)
 	if err != nil {
-		return RetentionTestOwners{}, err
+		return nil, nil, nil, err
 	}
 	carePlan, err := NewUnobservedCarePlan(db, MustNewUnobservedTimetable(db), MustNewPeopleDirectory(db))
 	if err != nil {
-		return RetentionTestOwners{}, err
+		return nil, nil, nil, err
 	}
 	statusDays, ok := carePlan.(careplan.StudentStatusDayRetention)
 	if !ok {
-		return RetentionTestOwners{}, errors.New("care plan does not delete expired status days")
+		return nil, nil, nil, errors.New("care plan does not delete expired status days")
 	}
 	enrollments, err := newSettledEnrollmentTestRetention(db, settings.Settings)
 	if err != nil {
-		return RetentionTestOwners{}, err
+		return nil, nil, nil, err
 	}
-	return RetentionTestOwners{
-		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
-		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settingsModule.NewParentMessageRetentionValues(settings.Settings)),
-		StaffSickNotes:     workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings.Settings}),
-		SettledEnrollments: enrollments,
-		Deliveries:         deliveryCompose.NewRetention(),
-		FileCleanups:       filestorageCompose.NewCleanupRetention(),
-		StaffCleanups:      workforceCompose.NewCleanupRetention(),
-		CarePlanCleanups:   carePlanCompose.NewCleanupRetention(),
-		SubmissionLimits:   enrollmentCompose.New(),
-		SettingAudit:       settingsCompose.NewAuditRetention(),
-		ExportTransfers:    exportTransferCompose.NewJournalRetention(),
-	}, nil
+	steps := dataRetentionSteps(
+		settings.Settings, fleet, statusDays,
+		communicationCompose.NewParentMessageRetention(db.Pool(), settingsModule.NewParentMessageRetentionValues(settings.Settings)),
+		enrollments, workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings.Settings}),
+		command, deliveryCompose.NewRetention(),
+	)
+	steps = append(steps, protocolRetentionSteps(command, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention())...)
+	steps = append(steps, cleanupJobRetentionSteps(
+		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
+		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
+	)...)
+	return command, settings.Settings, steps, nil
 }
 
 // newSettledEnrollmentTestRetention composes the cleanup of settled

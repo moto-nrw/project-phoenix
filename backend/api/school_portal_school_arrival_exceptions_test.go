@@ -31,8 +31,8 @@ import (
 // unmounted.
 func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.Resource) {
 	t.Helper()
-	db, services := setupSchoolPortalModule(t)
-	classDay := classdayhttp.NewResource(services.ClassDay, nil)
+	db, services, classDayModule, _ := setupSchoolPortalModule(t)
+	classDay := classdayhttp.NewResource(classDayModule.ClassDay, nil)
 	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
 }
 

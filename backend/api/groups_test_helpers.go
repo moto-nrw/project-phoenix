@@ -39,7 +39,11 @@ func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) 
 
 func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, error) {
 	members := MustNewMembershipTestRepositories(db)
-	r, err := NewUserContextTestRepositories(db, members)
+	r, _, err := NewUserContextTestRepositories(db, members)
+	if err != nil {
+		return GroupsTestModule{}, err
+	}
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
@@ -47,7 +51,6 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
-	tt := r.Timetable
 	ttRooms, err := NewTimetableRoomRows(db)
 	if err != nil {
 		return GroupsTestModule{}, err
@@ -86,7 +89,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
 	})
 
-	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil
+	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity}, nil
 }
 
 // NewAttendanceTeacherGroups supplies assignment IDs the way the active route

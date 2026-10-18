@@ -42,7 +42,7 @@ func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule) {
 func setupIoTTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, TimetableTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, _, _, err := NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	return db, module
 }

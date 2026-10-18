@@ -83,7 +83,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if options.Clock != nil {
 		clocks = append(clocks, options.Clock)
 	}
-	workforce, err := NewWorkforceTestModule(db, unit, clocks...)
+	workforce, _, err := NewWorkforceTestModule(db, unit, clocks...)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}

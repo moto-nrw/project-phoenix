@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -13,11 +14,10 @@ import (
 )
 
 // timeTrackingTestGraph is what a test module supplies beyond the
-// work-session repositories to compose the Workforce time-tracking side the
-// way the service graph composes it (#3413).
+// work-session repositories and the tenant settings to compose the Workforce
+// time-tracking side the way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
 	Audits        timeTrackingAudits
-	Settings      settingsCompose.SettingsService
 	People        timeTrackingStaffLookup
 	Holidays      workforceCompose.HolidayDatesReader
 	Events        workforceCompose.EventPublisher
@@ -26,9 +26,9 @@ type timeTrackingTestGraph struct {
 	Today         func() timezone.Date
 }
 
-func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, graph timeTrackingTestGraph) (*workforceCompose.TimeTracking, error) {
-	payroll := settingsCompose.NewPayrollStatusService(graph.Settings, func(ctx context.Context) (int, int, error) {
-		staff, err := repos.Staff.List(ctx, nil)
+func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph) (*workforceCompose.TimeTracking, error) {
+	payroll := settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
+		staff, err := staffRows.List(ctx, nil)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -47,11 +47,11 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 	return newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
 		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
-		Staff:        WorkSessionStaff(repos.Staff, employment, membership),
-		Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
+		Staff:        WorkSessionStaff(staffRows, employment, membership),
+		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
 		Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync, Logger: graph.Logger, Today: graph.Today,
-	}, graph.Audits, repos.Staff, graph.People, employment, repos.StaffWorkSchedule, repos.WorkTimeModel,
-		graph.Settings, payroll, db,
+	}, graph.Audits, staffRows, graph.People, employment, NewStaffWorkScheduleRepository(repos.Workforce), NewWorkTimeModelRepository(repos.Workforce),
+		settings, payroll, db,
 	)
 }
 

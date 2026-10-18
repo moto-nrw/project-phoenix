@@ -19,8 +19,8 @@ import (
 
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
-func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
+func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, work WorkforceTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
+	capabilities := NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)

@@ -16,7 +16,7 @@ import (
 func setupAbsenceTypeModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.AbsenceTypeTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewAbsenceTypeTestModule(testpkg.NewDatabase(t, db), clocks...)
+	module, _, err := api.NewAbsenceTypeTestModule(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
 	return db, module
 }

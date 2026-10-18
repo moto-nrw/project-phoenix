@@ -45,9 +45,9 @@ type schedulesTestContext struct {
 func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 	t.Helper()
 
-	db, svc := setupScheduleModule(t)
+	db, svc, dateframes := setupScheduleModule(t)
 
-	resource := schedulesAPI.NewSchedulesResource(svc.Calendar, svc.Timetable, svc.TimeframeGuard, db)
+	resource := schedulesAPI.NewSchedulesResource(dateframes, svc.Timetable, svc.TimeframeGuard, db)
 
 	return &schedulesTestContext{
 		db:       db,

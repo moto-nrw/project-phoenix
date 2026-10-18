@@ -38,7 +38,7 @@ func setupSSERoute(t *testing.T) *testContext {
 	// Create SSE resource with all dependencies
 	resource := sseAPI.NewResource(
 		hub,
-		svc.UserContext,
+		svc,
 		api.NewSSEHTTPRuntime(),
 		slog.Default(),
 	)
