@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
@@ -176,4 +177,196 @@ func int64Set(values []int64) map[int64]struct{} {
 
 func formatClock(t time.Time) string {
 	return normalizeWallClock(t).Format("15:04")
+}
+
+func (s *service) parentChildren(ctx context.Context, accountID int64) ([]*ports.ChildSummary, error) {
+	var children []*ports.ChildSummary
+	if err := s.cfg.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		rows, err := s.cfg.ChildRepo.ListByAccount(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		children = rows
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return children, nil
+}
+
+func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from, to appointmentcap.Date) ([]Event, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if err := validateWindow(from, to); err != nil {
+		return nil, err
+	}
+
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	events := []Event{}
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		var tenantEvents []Event
+		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			var err error
+			tenantEvents, err = s.parentTenantEvents(txCtx, tenantID, tenantChildren, from, to)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		events = append(events, tenantEvents...)
+	}
+	sortEvents(events)
+	return events, nil
+}
+
+// parentTenantEvents lists the appointment events of one tenant that are
+// addressed to the parent through the tenant's children, labelled with the
+// tenant and school.
+func (s *service) parentTenantEvents(ctx context.Context, tenantID int64, tenantChildren []*ports.ChildSummary, from, to appointmentcap.Date) ([]Event, error) {
+	guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
+	studentIDs := distinctChildStudentIDs(tenantChildren)
+	appointments, err := s.listAppointmentsVisibleToGuardians(ctx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
+	if err != nil {
+		return nil, err
+	}
+	appointmentEvents, err := s.expandGuardianAppointmentEvents(ctx, appointments, guardianProfileIDs, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	schoolName := ""
+	tenantIDString := formatID(tenantID)
+	if len(tenantChildren) > 0 {
+		schoolName = tenantChildren[0].SchoolName
+	}
+	for i := range appointmentEvents {
+		appointmentEvents[i].TenantID = &tenantIDString
+		if schoolName != "" {
+			appointmentEvents[i].SchoolName = &schoolName
+		}
+	}
+	return appointmentEvents, nil
+}
+
+func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error) {
+	if err := validateParentAppointmentRequest(accountID, appointmentID); err != nil {
+		return nil, err
+	}
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	var foundForbidden bool
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		var overview *AppointmentOverview
+		var forbidden bool
+		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			var err error
+			overview, forbidden, err = s.parentTenantAppointmentOverview(txCtx, appointmentID, tenantChildren)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		if overview != nil {
+			return overview, nil
+		}
+		foundForbidden = foundForbidden || forbidden
+	}
+	if foundForbidden {
+		return nil, ErrForbidden
+	}
+	return nil, ErrNotFound
+}
+
+// parentTenantAppointmentOverview builds the overview inside one tenant when
+// the appointment is addressed to the parent there. It reports forbidden when
+// the parent may see the appointment but not its overview.
+func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointmentID int64, tenantChildren []*ports.ChildSummary) (*AppointmentOverview, bool, error) {
+	// A soft-deleted appointment is not viewable by parents either.
+	appointment, recipients, err := s.parentVisibleAppointment(ctx, appointmentID, tenantChildren)
+	if err != nil || appointment == nil {
+		return nil, false, err
+	}
+	if !canParentViewOverview(appointment, true) {
+		return nil, true, nil
+	}
+	overview, err := s.buildAppointmentOverview(ctx, appointment, recipients)
+	return overview, false, err
+}
+
+func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error {
+	if accountID <= 0 {
+		return fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if status != appointmentcap.ResponseStatusAccepted && status != appointmentcap.ResponseStatusDeclined {
+		return fmt.Errorf("%w: response status must be accepted or declined", ErrInvalidRequest)
+	}
+
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	// recipientID is globally unique (calendar.appointment_recipients.id is a
+	// BIGSERIAL PRIMARY KEY, not per-tenant), so it exists in exactly one
+	// tenant. Scanning the parent's tenants is safe: RLS inside each
+	// WithTenantTx returns the row only in its owning tenant, and allowedProfiles
+	// then confirms it belongs to THIS parent there. There is no cross-tenant ID
+	// collision — a foreign recipient id simply resolves to nil or fails the
+	// allowedProfiles check.
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		var updated bool
+		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			var err error
+			updated, err = s.respondAsGuardianInTenant(txCtx, recipientID, status, tenantChildren)
+			return err
+		}); err != nil {
+			return err
+		}
+		if updated {
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// respondAsGuardianInTenant records the RSVP when the recipient belongs to one
+// of the tenant's guardian profiles through a visible child. It reports false
+// (and no error) when the recipient is not this parent's in the tenant.
+func (s *service) respondAsGuardianInTenant(ctx context.Context, recipientID int64, status string, tenantChildren []*ports.ChildSummary) (bool, error) {
+	allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
+	allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))
+	recipient, err := s.cfg.Appointments.FindAppointmentRecipient(ctx, recipientID)
+	if err != nil {
+		return false, err
+	}
+	if recipient == nil || recipient.GuardianProfileID == nil {
+		return false, nil
+	}
+	if _, ok := allowedProfiles[*recipient.GuardianProfileID]; !ok {
+		return false, nil
+	}
+	visible, err := s.recipientHasVisibleStudent(ctx, recipient.ID, allowedStudentIDs)
+	if err != nil || !visible {
+		return false, err
+	}
+	if recipient.Status == appointmentcap.ResponseStatusInfo {
+		return false, fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
+	}
+	appointment, err := s.findAppointment(ctx, recipient.AppointmentID)
+	if err != nil {
+		return false, err
+	}
+	// A soft-deleted appointment is unanswerable — treat as not found.
+	if appointment == nil || appointment.DeletedAt != nil {
+		return false, nil
+	}
+	if appointment.CancelledAt != nil {
+		return false, fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
+	}
+	if err := s.cfg.Appointments.UpdateAppointmentRecipientResponse(ctx, recipientID, status); err != nil {
+		return false, err
+	}
+	return true, nil
 }

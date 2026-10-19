@@ -8,21 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
-func (s *service) parentChildren(ctx context.Context, accountID int64) ([]*ports.ChildSummary, error) {
-	var children []*ports.ChildSummary
-	if err := s.cfg.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		rows, err := s.cfg.ChildRepo.ListByAccount(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		children = rows
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return children, nil
-}
-
 func groupChildrenByTenant(children []*ports.ChildSummary) map[int64][]*ports.ChildSummary {
 	out := make(map[int64][]*ports.ChildSummary)
 	for _, child := range children {
@@ -66,25 +51,6 @@ func validateParentAppointmentRequest(accountID, appointmentID int64) error {
 	}
 	if appointmentID <= 0 {
 		return fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
-	}
-	return nil
-}
-
-// withinParentTenants runs visit once per tenant of the parent's children,
-// each inside that tenant's transaction, until visit reports done or fails.
-func (s *service) withinParentTenants(ctx context.Context, children []*ports.ChildSummary, visit func(ctx context.Context, tenantID int64, tenantChildren []*ports.ChildSummary) (bool, error)) error {
-	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
-		var done bool
-		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-			var err error
-			done, err = visit(txCtx, tenantID, tenantChildren)
-			return err
-		}); err != nil {
-			return err
-		}
-		if done {
-			return nil
-		}
 	}
 	return nil
 }

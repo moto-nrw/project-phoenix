@@ -41,41 +41,6 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	return s.buildAppointmentOverview(ctx, appointment, recipients)
 }
 
-func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error) {
-	if err := validateParentAppointmentRequest(accountID, appointmentID); err != nil {
-		return nil, err
-	}
-	children, err := s.parentChildren(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	var overview *AppointmentOverview
-	var foundForbidden bool
-	err = s.withinParentTenants(ctx, children, func(txCtx context.Context, _ int64, tenantChildren []*ports.ChildSummary) (bool, error) {
-		// A soft-deleted appointment is not viewable by parents either.
-		appointment, recipients, err := s.parentVisibleAppointment(txCtx, appointmentID, tenantChildren)
-		if err != nil || appointment == nil {
-			return false, err
-		}
-		if !canParentViewOverview(appointment, true) {
-			foundForbidden = true
-			return false, nil
-		}
-		overview, err = s.buildAppointmentOverview(txCtx, appointment, recipients)
-		return overview != nil, err
-	})
-	if err != nil {
-		return nil, err
-	}
-	if overview != nil {
-		return overview, nil
-	}
-	if foundForbidden {
-		return nil, ErrForbidden
-	}
-	return nil, ErrNotFound
-}
-
 func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, recipients []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
 	staffIDs, guardianIDs := recipientPersonIDs(recipients)
 	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)

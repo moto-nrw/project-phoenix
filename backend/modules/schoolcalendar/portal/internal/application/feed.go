@@ -482,15 +482,16 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	to := s.today().AddDays(feedFutureDays)
 
 	var events []CalendarEvent
-	if err := s.withinParentTenants(ctx, children, func(txCtx context.Context, _ int64, tenantChildren []*ports.ChildSummary) (bool, error) {
-		tenantEvents, err := s.parentFeedTenantEvents(txCtx, tenantChildren, from, to)
-		if err != nil {
-			return false, err
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		var tenantEvents []CalendarEvent
+		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			var err error
+			tenantEvents, err = s.parentFeedTenantEvents(txCtx, tenantChildren, from, to)
+			return err
+		}); err != nil {
+			return "", "", err
 		}
 		events = append(events, tenantEvents...)
-		return false, nil
-	}); err != nil {
-		return "", "", err
 	}
 
 	content, err := s.renderCalendar(ctx, "moto Termine", events)
