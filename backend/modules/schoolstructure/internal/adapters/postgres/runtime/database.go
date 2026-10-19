@@ -8,16 +8,24 @@ import (
 )
 
 // Database resolves the ambient tenant transaction and the owner's pool.
+// ContextRuntime supplies the ambient context operations without a driver dependency.
+type ContextRuntime interface {
+	TenantID(context.Context) int64
+	RunInTx(context.Context, func(context.Context) error) error
+	MarkRollback(context.Context)
+}
+
 type Database struct {
+	ContextRuntime
 	db          *bun.DB
 	transaction func(context.Context) (any, bool)
 }
 
-func NewDatabase(db *bun.DB, transaction func(context.Context) (any, bool)) Database {
+func NewDatabase(contextRuntime ContextRuntime, db *bun.DB, transaction func(context.Context) (any, bool)) Database {
 	if db == nil {
 		panic("school structure compose: database is required")
 	}
-	return Database{db: db, transaction: transaction}
+	return Database{ContextRuntime: contextRuntime, db: db, transaction: transaction}
 }
 
 // DB is the ambient tenant transaction, or the pool outside one.

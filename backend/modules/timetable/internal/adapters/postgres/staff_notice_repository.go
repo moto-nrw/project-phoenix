@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,7 +21,7 @@ type staffNoticeRepository struct {
 
 // NewStaffNoticeRepository serves the retained staff notice repository over
 // the owner's store.
-func NewStaffNoticeRepository(store *Store) ports.StaffNoticeRecords {
+func NewStaffNoticeRepository(store *Store) staffNoticeRepository {
 	return staffNoticeRepository{store: store}
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,7 +81,7 @@ func TestTimetableOperationsCheckInStudentsFailsAsAWhole(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 633, 634, 635, instanceID)
 		inst := activeInstance(instanceID, 631)
-		inst.Status = scheduleModels.InstanceStatusCompleted
+		inst.Status = fixtures.InstanceStatusCompleted()
 		deps.instanceRepo.byID[instanceID] = inst
 
 		roster, err := deps.service.CheckInStudents(context.Background(), 633, false, instanceID, []int64{studentID})

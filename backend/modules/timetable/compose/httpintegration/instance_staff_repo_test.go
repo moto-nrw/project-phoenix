@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,15 +19,15 @@ import (
 func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return factory.InstanceStaff.(instanceStaffQueryRepository)
+	return fixtures.FromInstanceStaffRecords(factory.InstanceStaff).(instanceStaffQueryRepository)
 }
 
-func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date calendar.Date) (*scheduleModels.ActivityInstance, func()) {
+func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date calendar.Date) (*fixtures.ActivityInstance, func()) {
 	t.Helper()
 
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
-	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 	ctx := testpkg.Ctx(t)
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -58,18 +58,20 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	staffA := testpkg.CreateTestStaff(t, db, "Alice", fmt.Sprintf("Primary-%d", time.Now().UnixNano()))
 	staffB := testpkg.CreateTestStaff(t, db, "Bob", fmt.Sprintf("Sub-%d", time.Now().UnixNano()))
 
-	rowA := &scheduleModels.InstanceStaff{
-		InstanceID: inst.ID,
-		StaffID:    staffA.ID,
-		IsPrimary:  true,
-	}
+	rowA := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staffA.ID
+		fixtureRow.IsPrimary = true
+	})
+
 	rowA.SetTenantID(testpkg.Tenant(t))
 
-	rowB := &scheduleModels.InstanceStaff{
-		InstanceID:   inst.ID,
-		StaffID:      staffB.ID,
-		IsSubstitute: true,
-	}
+	rowB := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staffB.ID
+		fixtureRow.IsSubstitute = true
+	})
+
 	rowB.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, rowA))
@@ -101,10 +103,11 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	})
 
 	t.Run("UNIQUE(instance_id, staff_id) blocks duplicate", func(t *testing.T) {
-		dup := &scheduleModels.InstanceStaff{
-			InstanceID: inst.ID,
-			StaffID:    staffA.ID,
-		}
+		dup := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StaffID = staffA.ID
+		})
+
 		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err, "UNIQUE constraint must reject duplicate")
@@ -117,7 +120,10 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	})
 
 	t.Run("Create rejects invalid payload", func(t *testing.T) {
-		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staffA.ID}
+		bad := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = 0
+			fixtureRow.StaffID = staffA.ID
+		})
 		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
@@ -139,10 +145,11 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Claire", fmt.Sprintf("Multi-%d", time.Now().UnixNano()))
 
-	row := &scheduleModels.InstanceStaff{
-		InstanceID: inst.ID,
-		StaffID:    staff.ID,
-	}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staff.ID
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -170,7 +177,10 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Dan", fmt.Sprintf("Del-%d", time.Now().UnixNano()))
 
-	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staff.ID
+	})
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -196,15 +206,18 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	defer cleanupSameDayPlanned()
 	sameDayDoneInst, cleanupSameDayDone := createInstanceFixture(t, db, "offb-today-done", cutoff)
 	defer cleanupSameDayDone()
-	testpkg.SetActivityInstanceLifecycle(t, context.Background(), db, sameDayDoneInst.ID, scheduleModels.InstanceStatusCompleted)
+	testpkg.SetActivityInstanceLifecycle(t, context.Background(), db, sameDayDoneInst.ID, fixtures.InstanceStatusCompleted())
 	futureInst, cleanupFuture := createInstanceFixture(t, db, "offb-future", cutoff.AddDays(7))
 	defer cleanupFuture()
 
 	staff := testpkg.CreateTestStaff(t, db, "Olga", fmt.Sprintf("Offboard-%d", time.Now().UnixNano()))
 	otherStaff := testpkg.CreateTestStaff(t, db, "Omar", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
 
-	makeRow := func(instanceID, staffID int64) *scheduleModels.InstanceStaff {
-		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
+	makeRow := func(instanceID, staffID int64) *fixtures.InstanceStaff {
+		row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = instanceID
+			fixtureRow.StaffID = staffID
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		return row
@@ -251,10 +264,11 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Eve", fmt.Sprintf("Upd-%d", time.Now().UnixNano()))
 
-	row := &scheduleModels.InstanceStaff{
-		InstanceID: inst.ID,
-		StaffID:    staff.ID,
-	}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staff.ID
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -279,7 +293,10 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 	})
 
 	t.Run("rejects invalid payload", func(t *testing.T) {
-		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staff.ID}
+		bad := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = 0
+			fixtureRow.StaffID = staff.ID
+		})
 		bad.SetTenantID(testpkg.Tenant(t))
 		bad.ID = row.ID
 		err := repo.Update(ctx, bad)
@@ -301,7 +318,11 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Finn", fmt.Sprintf("FID-%d", time.Now().UnixNano()))
 
-	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID, IsPrimary: true}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staff.ID
+		fixtureRow.IsPrimary = true
+	})
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -344,7 +365,10 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Gina", fmt.Sprintf("Lst-%d", time.Now().UnixNano()))
 
-	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = staff.ID
+	})
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -482,8 +506,11 @@ func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Dana", fmt.Sprintf("Range-%d", time.Now().UnixNano()))
 	other := testpkg.CreateTestStaff(t, db, "Erik", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
 
-	newRow := func(instID, staffID int64) *scheduleModels.InstanceStaff {
-		row := &scheduleModels.InstanceStaff{InstanceID: instID, StaffID: staffID}
+	newRow := func(instID, staffID int64) *fixtures.InstanceStaff {
+		row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = instID
+			fixtureRow.StaffID = staffID
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		return row
@@ -525,16 +552,17 @@ func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activ
 	}
 }
 
-func buildInstance(tenantID, roomID int64, activityID *int64, date calendar.Date, start, end time.Time, title string) *scheduleModels.ActivityInstance {
-	inst := &scheduleModels.ActivityInstance{
-		Date:            date,
-		ActivityGroupID: activityID,
-		Title:           title,
-		StartTime:       start,
-		EndTime:         end,
-		RoomID:          roomID,
-		Status:          scheduleModels.InstanceStatusPlanned,
-	}
+func buildInstance(tenantID, roomID int64, activityID *int64, date calendar.Date, start, end time.Time, title string) *fixtures.ActivityInstance {
+	inst := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = date
+		fixtureRow.ActivityGroupID = activityID
+		fixtureRow.Title = title
+		fixtureRow.StartTime = start
+		fixtureRow.EndTime = end
+		fixtureRow.RoomID = roomID
+		fixtureRow.Status = fixtures.InstanceStatusPlanned()
+	})
+
 	inst.SetTenantID(tenantID)
 	return inst
 }
@@ -544,18 +572,18 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date calendar.Date
 // column patch on the plan, an execution status is the block's Student
 // Presence session, started for a live group of the block's template and, for
 // completed, ended again.
-func moveInstanceTo(t *testing.T, db *bun.DB, inst *scheduleModels.ActivityInstance, status string) {
+func moveInstanceTo(t *testing.T, db *bun.DB, inst *fixtures.ActivityInstance, status string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
-	if status == scheduleModels.InstanceStatusActive || status == scheduleModels.InstanceStatusCompleted {
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
+	if status == fixtures.InstanceStatusActive() || status == fixtures.InstanceStatusCompleted() {
 		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
 		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)
 		startedAt := time.Now()
-		inst.Status, inst.ActiveGroupID, inst.StartedAt = scheduleModels.InstanceStatusActive, &group.ID, &startedAt
+		inst.Status, inst.ActiveGroupID, inst.StartedAt = fixtures.InstanceStatusActive(), &group.ID, &startedAt
 		_, err := repo.UpdateColumns(ctx, inst, "status", "active_group_id", "started_at")
 		require.NoError(t, err)
-		if status == scheduleModels.InstanceStatusActive {
+		if status == fixtures.InstanceStatusActive() {
 			return
 		}
 		completedAt := time.Now()

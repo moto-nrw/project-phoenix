@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,13 +30,13 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NoError(t, err)
 
 	visit := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
-	updated, err := s.timetable.InstanceStudent.UpdateAttendanceFromCheckin(
+	updated, err := fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent).UpdateAttendanceFromCheckin(
 		s.ctx, instance.ID, s.student1, visit.EntryTime,
 	)
 	require.NoError(t, err)
 	require.True(t, updated)
 
-	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -47,9 +47,9 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, 1, result.Completed)
 
-	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
+	assert.Equal(t, fixtures.InstanceStatusCompleted(), reloaded.Status)
 	require.NotNil(t, reloaded.CompletedAt)
 
 	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
@@ -66,9 +66,9 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.Len(t, supervisors, 1)
 	require.NotNil(t, supervisors[0].EndDate)
 
-	attendance, err := s.timetable.InstanceStudent.FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
+	attendance, err := fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent).FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, attendance.Status)
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), attendance.Status)
 	require.NotNil(t, attendance.CheckedOutAt)
 }
 
@@ -81,7 +81,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	instance := seedInstance(t, s, true, false)
 	_, err := svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
-	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), svc)
 	start := make(chan struct{})
 	manualErr := make(chan error, 1)
 	autoResult := make(chan *timetable.AutoEndResult, 1)
@@ -171,19 +171,20 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	}
 	require.NoError(t, s.repos.ActiveGroup.CreateSession(foreignCtx, foreignGroup))
 
-	foreignInstance := &scheduleModels.ActivityInstance{
-		Date:          calendar.DateFromTime(autoEndNow),
-		Title:         "Foreign tenant active instance",
-		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
-		RoomID:        foreignRoom.ID,
-		Status:        scheduleModels.InstanceStatusActive,
-		ActiveGroupID: &foreignGroup.ID,
-	}
-	foreignInstance.SetTenantID(foreign.TenantID)
-	require.NoError(t, s.timetable.ActivityInstance.Create(foreignCtx, foreignInstance))
+	foreignInstance := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.DateFromTime(autoEndNow)
+		fixtureRow.Title = "Foreign tenant active instance"
+		fixtureRow.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
+		fixtureRow.EndTime = time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)
+		fixtureRow.RoomID = foreignRoom.ID
+		fixtureRow.Status = fixtures.InstanceStatusActive()
+		fixtureRow.ActiveGroupID = &foreignGroup.ID
+	})
 
-	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
+	foreignInstance.SetTenantID(foreign.TenantID)
+	require.NoError(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).Create(foreignCtx, foreignInstance))
+
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -194,9 +195,9 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	assert.Equal(t, 1, result.Checked)
 	assert.Equal(t, 1, result.Completed)
 
-	untouched, err := s.timetable.ActivityInstance.FindByID(foreignCtx, foreignInstance.ID)
+	untouched, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(foreignCtx, foreignInstance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, untouched.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), untouched.Status)
 }
 
 // TestAutoEnd_LeavesIndependentRoomStays pins the #3066 lifecycle for the
@@ -222,7 +223,7 @@ func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
 	roomSession := testpkg.CreateTestActiveGroup(t, s.db, roomActivity.ID, s.roomID)
 	independent := testpkg.CreateTestVisit(t, s.db, s.student2, roomSession.ID, autoEndNow.Add(-30*time.Minute), nil)
 
-	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error

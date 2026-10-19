@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -63,7 +62,7 @@ type weekdayRosterScenario struct {
 	cleanup     []func()
 }
 
-func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) fixturetest.EnrollmentWriter {
+func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) fixtures.EnrollmentWriter {
 	t.Helper()
 	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return repos.StudentEnrollment
@@ -946,14 +945,15 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	periodB := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Roster-B-%d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       calendar.NewDate(2026, 1, 1),
-		EndDate:         calendar.NewDate(2026, 12, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	periodB := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Roster-B-%d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeCustom()
+		fixtureRow.StartDate = calendar.NewDate(2026, 1, 1)
+		fixtureRow.EndDate = calendar.NewDate(2026, 12, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, s.db, s.ctx, periodB)
 	s.cleanup = append(s.cleanup, func() {
 	})
@@ -1042,14 +1042,15 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 	ctx := testpkg.TenantContext(tenantID)
 	suffix := time.Now().UnixNano()
 
-	period := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       calendar.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         calendar.NewDate(anchor.Year()+1, 7, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Schuljahr-%d", suffix)
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = calendar.NewDate(anchor.Year()-1, 8, 1)
+		fixtureRow.EndDate = calendar.NewDate(anchor.Year()+1, 7, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, db, ctx, period)
 
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Raum-%d", suffix))
@@ -1063,7 +1064,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 		db:              db,
 		ctx:             ctx,
 		tenantID:        tenantID,
-		instance:        ttLifecycle.Instances,
+		instance:        fixtures.FromInstanceLifecycle(ttLifecycle.Instances),
 		timetableData:   ttPlanning.Planning,
 		active:          ttActive,
 		materialization: ttMaterialization,

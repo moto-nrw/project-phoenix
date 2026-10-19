@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,10 +36,14 @@ func TestTimetableAbsenceWithoutBlockAssignment(t *testing.T) {
 					deps.settings.attendanceScope = attendanceEditScopeOwn
 					deps.settings.absenceScope = reportScope
 					deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 3426)
-					row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
+					row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+						fixtureRow.InstanceID = instanceID
+						fixtureRow.StudentID = studentID
+						fixtureRow.Status = "expected"
+					})
 					row.ID = 3427
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
-					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
+					deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{row}
 					deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 3428, SchoolClass: "1a"}
 					deps.personService.people[3428] = &timetable.Person{FirstName: "Test", LastName: "Kind"}
 					ctx := testpkg.IdentityContext(tenant.WithTenantID(context.Background(), 3429), accountID, 3429, "", []string{"schedules:read"})
@@ -83,10 +87,14 @@ func TestTimetableBlockAbsenceRespectsDirectReportScope(t *testing.T) {
 					wireAssignedStaff(deps, accountID, 3404, 3405, instanceID)
 					deps.settings.absenceScope = scope
 					deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 3406)
-					row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
+					row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+						fixtureRow.InstanceID = instanceID
+						fixtureRow.StudentID = studentID
+						fixtureRow.Status = "expected"
+					})
 					row.ID = 3407
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
-					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
+					deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{row}
 					deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 3408, SchoolClass: "1a"}
 					deps.personService.people[3408] = &timetable.Person{FirstName: "Test", LastName: "Kind"}
 					status := "absent"
@@ -242,7 +250,9 @@ func TestTimetableOperationsRosterReportsCanOperate(t *testing.T) {
 			setup: func(deps *timetableOpsTestDeps) {
 				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 702, 802, 902, instanceID)
-				deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+				deps.staffRepo.byInstance[instanceID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+					fixtureRow.StaffID = 999
+				})}
 			},
 			want: false,
 		},
@@ -251,7 +261,10 @@ func TestTimetableOperationsRosterReportsCanOperate(t *testing.T) {
 			setup: func(deps *timetableOpsTestDeps) {
 				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 703, 803, 903, instanceID)
-				deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: 903, IsAbsent: true}}
+				deps.staffRepo.byInstance[instanceID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+					fixtureRow.StaffID = 903
+					fixtureRow.IsAbsent = true
+				})}
 			},
 			want: false,
 		},

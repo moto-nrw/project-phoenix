@@ -68,17 +68,6 @@ func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id int64) 
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) List(ctx context.Context, options *InstanceStaffQueryOptions) ([]*scheduleModels.InstanceStaff, error) {
-	filter, err := InstanceStaffListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	return r.list(ctx, timetable.InstanceStaffFilter{
-		IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StaffIDs: filter.StaffIDs,
-		SickAbsenceID: filter.SickAbsenceID, Limit: filter.Limit, Offset: filter.Offset,
-	}, "list with options")
-}
-
 func (r timetableInstanceStaffRepository) UpdateColumns(ctx context.Context, value *scheduleModels.InstanceStaff, columns ...string) (int64, error) {
 	if value == nil {
 		return 0, errors.New("InstanceStaff cannot be nil or zero value")
@@ -177,4 +166,8 @@ func legacyInstanceStaffError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableInstanceStaffRepository) ListStaff(ctx context.Context, filter timetable.InstanceStaffFilter) ([]*scheduleModels.InstanceStaff, error) {
+	return r.list(ctx, filter, "list with options")
 }

@@ -67,15 +67,6 @@ func (r timetableRecurrenceRuleRepository) Delete(ctx context.Context, id int64)
 	return nil
 }
 
-func (r timetableRecurrenceRuleRepository) List(ctx context.Context, options *RecurrenceRuleQueryOptions) ([]*scheduleModels.RecurrenceRule, error) {
-	frequency, frequencies, sortBy, descending, limit, offset, err := RecurrenceRuleListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list", err)
-	}
-	return r.list(ctx, timetable.RecurrenceRuleFilter{Frequency: frequency, Frequencies: frequencies,
-		SortBy: sortBy, SortDescending: descending, Limit: limit, Offset: offset}, "list")
-}
-
 func (r timetableRecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*scheduleModels.RecurrenceRule, error) {
 	return r.list(ctx, timetable.RecurrenceRuleFilter{ActiveAt: &startDate}, "find by date range")
 }
@@ -114,4 +105,8 @@ func legacyRecurrenceRuleError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableRecurrenceRuleRepository) ListRecurrences(ctx context.Context, filter timetable.RecurrenceRuleFilter) ([]*scheduleModels.RecurrenceRule, error) {
+	return r.list(ctx, filter, "list")
 }

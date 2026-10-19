@@ -205,25 +205,8 @@ func (e *StudentPickupException) Validate() error {
 	if e.ExcusedReason != nil && utf8.RuneCountInString(*e.ExcusedReason) > scheduleReasonMaxLength {
 		return errors.New("excused_reason cannot exceed 255 characters")
 	}
-	switch {
-	case e.ExcusedFrom == nil:
-		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime || e.ExcusedAuto {
-			return errors.New("partial absence metadata requires excused_from")
-		}
-	case e.ExcusedAuto:
-		if e.ExcusedCreatedBy != nil {
-			return errors.New("auto partial absences must not carry excused_created_by")
-		}
-		if e.ExcusedOwnsPickupTime {
-			return errors.New("auto partial absences never own the pickup time")
-		}
-		if e.PickupTime == nil {
-			return errors.New("auto partial absences require a pickup time")
-		}
-	case e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0:
-		return errors.New("excused_created_by is required for partial absences")
-	case e.ExcusedOwnsPickupTime && e.PickupTime == nil:
-		return errors.New("owned partial-absence pickup time is required")
+	if err := e.validatePartialAbsence(); err != nil {
+		return err
 	}
 	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {
 		return err
@@ -257,3 +240,27 @@ type StudentPickupNote struct {
 }
 
 // ports.StudentPickupNoteRecords defines operations for managing student pickup notes
+
+func (e *StudentPickupException) validatePartialAbsence() error {
+	switch {
+	case e.ExcusedFrom == nil:
+		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime || e.ExcusedAuto {
+			return errors.New("partial absence metadata requires excused_from")
+		}
+	case e.ExcusedAuto:
+		if e.ExcusedCreatedBy != nil {
+			return errors.New("auto partial absences must not carry excused_created_by")
+		}
+		if e.ExcusedOwnsPickupTime {
+			return errors.New("auto partial absences never own the pickup time")
+		}
+		if e.PickupTime == nil {
+			return errors.New("auto partial absences require a pickup time")
+		}
+	case e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0:
+		return errors.New("excused_created_by is required for partial absences")
+	case e.ExcusedOwnsPickupTime && e.PickupTime == nil:
+		return errors.New("owned partial-absence pickup time is required")
+	}
+	return nil
+}

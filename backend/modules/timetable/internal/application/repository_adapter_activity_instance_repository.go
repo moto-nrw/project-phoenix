@@ -202,18 +202,6 @@ func (r timetableActivityInstanceRepository) Delete(ctx context.Context, id int6
 	return nil
 }
 
-func (r timetableActivityInstanceRepository) List(ctx context.Context, options *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
-	filter, err := ActivityInstanceListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	return r.list(ctx, ports.LegacyInstanceFilter{
-		IDs: filter.IDs, Date: filter.Date, Dates: filter.Dates, ActivityGroupIDs: filter.ActivityGroupIDs,
-		ActiveGroupIDs: filter.ActiveGroupIDs, Status: filter.Status, IsSpontaneous: filter.IsSpontaneous,
-		IdempotencyKey: filter.IdempotencyKey, Limit: filter.Limit, Offset: filter.Offset,
-	}, "list with options")
-}
-
 func (r timetableActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	text := date.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{Date: &text, OrderByDateAndTime: true}, "find by tenant and date")
@@ -396,18 +384,6 @@ func planningColumns(columns []string) []string {
 		}
 	}
 	return result
-}
-
-func (r timetableActivityInstanceRepository) CountWithOptions(ctx context.Context, options *ActivityInstanceQueryOptions) (int, error) {
-	before, err := ActivityInstanceBefore(options)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	count, err := r.timetable.CountActivityInstances(ctx, before)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	return count, nil
 }
 
 func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {

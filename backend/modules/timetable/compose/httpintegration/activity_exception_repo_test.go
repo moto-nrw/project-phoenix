@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ import (
 func activityExceptionRepository(t *testing.T, db *bun.DB) activityExceptionQueryRepository {
 	t.Helper()
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return factory.ActivityException.(activityExceptionQueryRepository)
+	return fixtures.FromActivityExceptionRecords(factory.ActivityException).(activityExceptionQueryRepository)
 }
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {
@@ -32,22 +32,24 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Tpl-%d", time.Now().UnixNano()))
 
-	cancelled := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   calendar.NewDate(2026, 12, 23),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	cancelled := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = calendar.NewDate(2026, 12, 23)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	cancelled.SetTenantID(testpkg.Tenant(t))
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OverrideRoom-%d", time.Now().UnixNano()))
 
 	modifiedRoom := room.ID
-	modified := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   calendar.NewDate(2026, 12, 24),
-		ExceptionType:   scheduleModels.ActivityExceptionModified,
-		RoomID:          &modifiedRoom,
-	}
+	modified := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = calendar.NewDate(2026, 12, 24)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionModified()
+		fixtureRow.RoomID = &modifiedRoom
+	})
+
 	modified.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, cancelled))
@@ -66,23 +68,25 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	})
 
 	t.Run("UNIQUE(activity_group_id, exception_date) blocks duplicate", func(t *testing.T) {
-		dup := &scheduleModels.ActivityException{
-			ActivityGroupID: activity.ID,
-			ExceptionDate:   cancelled.ExceptionDate,
-			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-		}
+		dup := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+			fixtureRow.ActivityGroupID = activity.ID
+			fixtureRow.ExceptionDate = cancelled.ExceptionDate
+			fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+		})
+
 		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err)
 	})
 
 	t.Run("Create rejects cancelled with overrides", func(t *testing.T) {
-		bad := &scheduleModels.ActivityException{
-			ActivityGroupID: activity.ID,
-			ExceptionDate:   calendar.NewDate(2027, 1, 10),
-			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-			RoomID:          &modifiedRoom,
-		}
+		bad := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+			fixtureRow.ActivityGroupID = activity.ID
+			fixtureRow.ExceptionDate = calendar.NewDate(2027, 1, 10)
+			fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+			fixtureRow.RoomID = &modifiedRoom
+		})
+
 		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
@@ -90,11 +94,12 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	})
 
 	t.Run("Create rejects modified without overrides", func(t *testing.T) {
-		bad := &scheduleModels.ActivityException{
-			ActivityGroupID: activity.ID,
-			ExceptionDate:   calendar.NewDate(2027, 1, 11),
-			ExceptionType:   scheduleModels.ActivityExceptionModified,
-		}
+		bad := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+			fixtureRow.ActivityGroupID = activity.ID
+			fixtureRow.ExceptionDate = calendar.NewDate(2027, 1, 11)
+			fixtureRow.ExceptionType = fixtures.ActivityExceptionModified()
+		})
+
 		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
@@ -114,11 +119,12 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 
 	date := calendar.NewDate(2027, 2, 3)
 
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   date,
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = date
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
 
@@ -152,18 +158,19 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 	to := calendar.NewDate(2027, 4, 30)
 	outside := calendar.NewDate(2027, 6, 1)
 
-	mk := func(date calendar.Date) *scheduleModels.ActivityException {
-		e := &scheduleModels.ActivityException{
-			ActivityGroupID: activity.ID,
-			ExceptionDate:   date,
-			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-		}
+	mk := func(date calendar.Date) *fixtures.ActivityException {
+		e := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+			fixtureRow.ActivityGroupID = activity.ID
+			fixtureRow.ExceptionDate = date
+			fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+		})
+
 		e.SetTenantID(testpkg.Tenant(t))
 		return e
 	}
 	eStart, eMid, eEnd, eOut := mk(from), mk(mid), mk(to), mk(outside)
 
-	for _, e := range []*scheduleModels.ActivityException{eStart, eMid, eEnd, eOut} {
+	for _, e := range []*fixtures.ActivityException{eStart, eMid, eEnd, eOut} {
 		require.NoError(t, repo.Create(ctx, e))
 	}
 
@@ -190,11 +197,12 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Upd-%d", time.Now().UnixNano()))
 
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   calendar.NewDate(2027, 5, 1),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = calendar.NewDate(2027, 5, 1)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
 
@@ -217,11 +225,12 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 	})
 
 	t.Run("rejects invalid payload", func(t *testing.T) {
-		bad := &scheduleModels.ActivityException{
-			ActivityGroupID: 0,
-			ExceptionDate:   calendar.NewDate(2027, 5, 2),
-			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-		}
+		bad := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+			fixtureRow.ActivityGroupID = 0
+			fixtureRow.ExceptionDate = calendar.NewDate(2027, 5, 2)
+			fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+		})
+
 		bad.SetTenantID(testpkg.Tenant(t))
 		bad.ID = exc.ID
 		err := repo.Update(ctx, bad)
@@ -240,11 +249,12 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-FID-%d", time.Now().UnixNano()))
 
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   calendar.NewDate(2027, 5, 3),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = calendar.NewDate(2027, 5, 3)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
 
@@ -273,11 +283,12 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-List-%d", time.Now().UnixNano()))
 
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: activity.ID,
-		ExceptionDate:   calendar.NewDate(2027, 5, 4),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = activity.ID
+		fixtureRow.ExceptionDate = calendar.NewDate(2027, 5, 4)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
 

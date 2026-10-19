@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,7 +30,7 @@ func sessionBlocksFixture(t *testing.T) (*timetableOpsTestDeps, calendar.Date, m
 		return day.BerlinMidnight().Add(12 * time.Hour)
 	}
 
-	block := func(id, activeGroupID int64, start, end int, status string) *scheduleModels.ActivityInstance {
+	block := func(id, activeGroupID int64, start, end int, status string) *fixtures.ActivityInstance {
 		inst := instanceWithTimes(id, status,
 			time.Date(1, time.January, 1, start, 0, 0, 0, time.UTC),
 			time.Date(1, time.January, 1, end, 0, 0, 0, time.UTC))
@@ -41,18 +41,31 @@ func sessionBlocksFixture(t *testing.T) (*timetableOpsTestDeps, calendar.Date, m
 		}
 		return inst
 	}
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		block(41, 51, 13, 14, scheduleModels.InstanceStatusActive),
-		block(42, 52, 13, 15, scheduleModels.InstanceStatusActive),
-		block(43, 53, 14, 15, scheduleModels.InstanceStatusActive),
-		block(44, 54, 14, 16, scheduleModels.InstanceStatusActive),
-		block(45, 0, 16, 17, scheduleModels.InstanceStatusPlanned),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		block(41, 51, 13, 14, fixtures.InstanceStatusActive()),
+		block(42, 52, 13, 15, fixtures.InstanceStatusActive()),
+		block(43, 53, 14, 15, fixtures.InstanceStatusActive()),
+		block(44, 54, 14, 16, fixtures.InstanceStatusActive()),
+		block(45, 0, 16, 17, fixtures.InstanceStatusPlanned()),
 	}
 	deps.instanceRepo.byDate[1].IsSpontaneous = true
-	deps.staffRepo.byInstance[41] = []*scheduleModels.InstanceStaff{{StaffID: callerStaffID}, {StaffID: colleagueStaffID}}
-	deps.staffRepo.byInstance[42] = []*scheduleModels.InstanceStaff{{StaffID: colleagueStaffID}}
-	deps.staffRepo.byInstance[43] = []*scheduleModels.InstanceStaff{{StaffID: colleagueStaffID}, {StaffID: callerStaffID, IsAbsent: true}}
-	deps.staffRepo.byInstance[44] = []*scheduleModels.InstanceStaff{{StaffID: callerStaffID}}
+	deps.staffRepo.byInstance[41] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = callerStaffID
+	}), fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = colleagueStaffID
+	})}
+	deps.staffRepo.byInstance[42] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = colleagueStaffID
+	})}
+	deps.staffRepo.byInstance[43] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = colleagueStaffID
+	}), fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = callerStaffID
+		fixtureRow.IsAbsent = true
+	})}
+	deps.staffRepo.byInstance[44] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = callerStaffID
+	})}
 
 	supervisors := map[int64][]int64{
 		51: {colleagueStaffID},

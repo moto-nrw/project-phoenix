@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ import (
 func recurrenceRuleRepository(t *testing.T, db *bun.DB) recurrenceRuleQueryRepository {
 	t.Helper()
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return factory.RecurrenceRule.(recurrenceRuleQueryRepository)
+	return fixtures.FromRecurrenceRuleRecords(factory.RecurrenceRule).(recurrenceRuleQueryRepository)
 }
 
 // ============================================================================
@@ -31,10 +31,10 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates daily recurrence rule", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+		})
 
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
@@ -43,11 +43,11 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates weekly recurrence rule with weekdays", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyWeekly,
-			IntervalCount: 1,
-			Weekdays:      []string{"MON", "WED", "FRI"},
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyWeekly()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.Weekdays = []string{"MON", "WED", "FRI"}
+		})
 
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
@@ -57,11 +57,11 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates monthly recurrence rule with month days", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyMonthly,
-			IntervalCount: 1,
-			MonthDays:     []int{1, 15, 30},
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyMonthly()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.MonthDays = []int{1, 15, 30}
+		})
 
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
@@ -72,12 +72,12 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 
 	t.Run("creates rule with end date", func(t *testing.T) {
 		endDate := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyWeekly,
-			IntervalCount: 2,
-			Weekdays:      []string{"TUE", "THU"},
-			EndDate:       &endDate,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyWeekly()
+			fixtureRow.IntervalCount = 2
+			fixtureRow.Weekdays = []string{"TUE", "THU"}
+			fixtureRow.EndDate = &endDate
+		})
 
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
@@ -88,11 +88,11 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 
 	t.Run("creates rule with count", func(t *testing.T) {
 		count := 10
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-			Count:         &count,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.Count = &count
+		})
 
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
@@ -109,10 +109,10 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid frequency should fail", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     "invalid",
-			IntervalCount: 1,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = "invalid"
+			fixtureRow.IntervalCount = 1
+		})
 
 		err := repo.Create(ctx, rule)
 		assert.Error(t, err)
@@ -121,12 +121,12 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 	t.Run("create with both count and end date should fail", func(t *testing.T) {
 		count := 10
 		endDate := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-			Count:         &count,
-			EndDate:       &endDate,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.Count = &count
+			fixtureRow.EndDate = &endDate
+		})
 
 		err := repo.Create(ctx, rule)
 		assert.Error(t, err)
@@ -142,18 +142,19 @@ func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing recurrence rule", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyWeekly,
-			IntervalCount: 2,
-			Weekdays:      []string{"MON", "WED"},
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyWeekly()
+			fixtureRow.IntervalCount = 2
+			fixtureRow.Weekdays = []string{"MON", "WED"}
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, rule.ID)
 		require.NoError(t, err)
 		assert.Equal(t, rule.ID, found.ID)
-		assert.Equal(t, schedule.FrequencyWeekly, found.Frequency)
+		assert.Equal(t, fixtures.FrequencyWeekly(), found.Frequency)
 		assert.Equal(t, 2, found.IntervalCount)
 	})
 
@@ -172,11 +173,12 @@ func TestRecurrenceRuleRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates recurrence rule", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyWeekly,
-			IntervalCount: 1,
-			Weekdays:      []string{"MON"},
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyWeekly()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.Weekdays = []string{"MON"}
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
@@ -207,10 +209,11 @@ func TestRecurrenceRuleRepository_Delete(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing recurrence rule", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
@@ -235,10 +238,11 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all recurrence rules", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
@@ -263,11 +267,12 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules with no end date", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyWeekly,
-			IntervalCount: 1,
-			Weekdays:      []string{"MON"},
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyWeekly()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.Weekdays = []string{"MON"}
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
@@ -289,11 +294,12 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 
 	t.Run("finds rules with end date after search start", func(t *testing.T) {
 		endDate := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-			EndDate:       &endDate,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.EndDate = &endDate
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 
@@ -315,11 +321,12 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 
 	t.Run("does not find rules with end date before search start", func(t *testing.T) {
 		endDate := time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC)
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyDaily,
-			IntervalCount: 1,
-			EndDate:       &endDate,
-		}
+		rule := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+			fixtureRow.Frequency = fixtures.FrequencyDaily()
+			fixtureRow.IntervalCount = 1
+			fixtureRow.EndDate = &endDate
+		})
+
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
 

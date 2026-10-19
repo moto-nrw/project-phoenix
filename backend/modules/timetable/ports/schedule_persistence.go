@@ -768,3 +768,13 @@ type TimeframeRecords interface {
 type InstanceListing interface {
 	ListInstances(context.Context, LegacyInstanceFilter) ([]*schedulerecords.ActivityInstance, error)
 }
+
+// ParticipantListingFilter pages planned rows before narrowing their execution status.
+type ParticipantListingFilter struct {
+	IDs         []int64
+	InstanceIDs []int64
+	StudentIDs  []int64
+	Status      *string
+	Limit       int
+	Offset      int
+}

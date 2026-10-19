@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,19 +15,21 @@ func TestDateframeRepositoryListPreservesQueryOptionsBehavior(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).Dateframe.(dateframeQueryRepository)
+	repo := fixtures.FromDateframeRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).Dateframe).(dateframeQueryRepository)
 	ctx := testpkg.Ctx(t)
 
-	alpha := &schedule.Dateframe{
-		Name:      "List behavior alpha",
-		StartDate: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:   time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
-	}
-	beta := &schedule.Dateframe{
-		Name:      "List behavior beta",
-		StartDate: time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:   time.Date(2026, time.February, 2, 0, 0, 0, 0, time.UTC),
-	}
+	alpha := fixtures.NewDateframe(func(fixtureRow *fixtures.Dateframe) {
+		fixtureRow.Name = "List behavior alpha"
+		fixtureRow.StartDate = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+		fixtureRow.EndDate = time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC)
+	})
+
+	beta := fixtures.NewDateframe(func(fixtureRow *fixtures.Dateframe) {
+		fixtureRow.Name = "List behavior beta"
+		fixtureRow.StartDate = time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+		fixtureRow.EndDate = time.Date(2026, time.February, 2, 0, 0, 0, 0, time.UTC)
+	})
+
 	require.NoError(t, repo.Create(ctx, alpha))
 	require.NoError(t, repo.Create(ctx, beta))
 
@@ -55,13 +57,19 @@ func TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior(t *testing.T)
 	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
-	daily := &schedule.RecurrenceRule{Frequency: schedule.FrequencyDaily, IntervalCount: 1}
-	weekly := &schedule.RecurrenceRule{Frequency: schedule.FrequencyWeekly, IntervalCount: 2}
+	daily := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+		fixtureRow.Frequency = fixtures.FrequencyDaily()
+		fixtureRow.IntervalCount = 1
+	})
+	weekly := fixtures.NewRecurrenceRule(func(fixtureRow *fixtures.RecurrenceRule) {
+		fixtureRow.Frequency = fixtures.FrequencyWeekly()
+		fixtureRow.IntervalCount = 2
+	})
 	require.NoError(t, repo.Create(ctx, daily))
 	require.NoError(t, repo.Create(ctx, weekly))
 
 	options := newListOptions().WithPagination(1, 1)
-	options.Filter.In("frequency", schedule.FrequencyDaily, schedule.FrequencyWeekly)
+	options.Filter.In("frequency", fixtures.FrequencyDaily(), fixtures.FrequencyWeekly())
 	sortedBy(options, "interval_count", true)
 
 	rows, err := repo.List(ctx, options)
@@ -76,7 +84,7 @@ func TestRecurrenceRuleRepositoryListPreservesEmptySlice(t *testing.T) {
 
 	repo := recurrenceRuleRepository(t, testpkg.SetupTestDB(t))
 	options := newListOptions()
-	options.Filter.Equal("frequency", schedule.FrequencyMonthly)
+	options.Filter.Equal("frequency", fixtures.FrequencyMonthly())
 	empty, err := repo.List(testpkg.Ctx(t), options)
 	require.NoError(t, err)
 	assert.NotNil(t, empty)

@@ -69,16 +69,6 @@ func (r timetableActivityExceptionRepository) Delete(ctx context.Context, id int
 	return nil
 }
 
-func (r timetableActivityExceptionRepository) List(ctx context.Context, options *ActivityExceptionQueryOptions) ([]*scheduleModels.ActivityException, error) {
-	groupID, limit, offset, err := ActivityExceptionListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	return r.list(ctx, timetable.ActivityExceptionFilter{
-		ActivityGroupID: groupID, Limit: limit, Offset: offset,
-	}, "list with options")
-}
-
 func (r timetableActivityExceptionRepository) FindByActivityGroupID(ctx context.Context, groupID int64) ([]*scheduleModels.ActivityException, error) {
 	return r.list(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &groupID, OrderByDate: true}, "find by activity group id")
 }
@@ -113,18 +103,6 @@ func (r timetableActivityExceptionRepository) FindByDateRange(ctx context.Contex
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		FromDate: &fromText, ToDate: &toText, OrderByDate: true,
 	}, "find by date range")
-}
-
-func (r timetableActivityExceptionRepository) CountWithOptions(ctx context.Context, options *ActivityExceptionQueryOptions) (int, error) {
-	before, err := ActivityExceptionBefore(options)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	count, err := r.timetable.CountActivityExceptions(ctx, before)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	return count, nil
 }
 
 func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
@@ -240,4 +218,8 @@ func legacyActivityExceptionError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableActivityExceptionRepository) ListExceptions(ctx context.Context, filter timetable.ActivityExceptionFilter) ([]*scheduleModels.ActivityException, error) {
+	return r.list(ctx, filter, "list with options")
 }

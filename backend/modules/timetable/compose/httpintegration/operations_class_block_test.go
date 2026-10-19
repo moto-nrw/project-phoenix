@@ -7,8 +7,8 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,18 +19,19 @@ import (
 // target, its dynamic targets, or its offering class filter — the same three
 // fields the OGS dialog reads.
 
-func classBlockInstance(id, groupID int64, start string, status string) *scheduleModels.ActivityInstance {
+func classBlockInstance(id, groupID int64, start string, status string) *fixtures.ActivityInstance {
 	parsed, err := time.Parse("15:04", start)
 	if err != nil {
 		panic(err)
 	}
-	return &scheduleModels.ActivityInstance{
-		ID:              id,
-		Date:            calendar.NewDate(2026, 9, 7),
-		ActivityGroupID: &groupID,
-		StartTime:       parsed,
-		Status:          status,
-	}
+	return fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.ID = id
+		fixtureRow.Date = calendar.NewDate(2026, 9, 7)
+		fixtureRow.ActivityGroupID = &groupID
+		fixtureRow.StartTime = parsed
+		fixtureRow.Status = status
+	})
+
 }
 
 func TestEarliestPlannedBlockStartForClassPicksTheFirstBlockThatAddressesTheClass(t *testing.T) {
@@ -48,14 +49,14 @@ func TestEarliestPlannedBlockStartForClassPicksTheFirstBlockThatAddressesTheClas
 	deps.activityGroups.targetsByGroup[3] = []*activityContract.GroupTarget{{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &klasse4a}}
 	deps.activityGroups.byID[4] = &activityContract.Group{ID: 4, SourceSchoolClasses: []string{"4a"}}
 
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
 		// Another class's earlier block must not win.
-		classBlockInstance(10, 2, "11:00", scheduleModels.InstanceStatusPlanned),
+		classBlockInstance(10, 2, "11:00", fixtures.InstanceStatusPlanned()),
 		// A cancelled block of the class does not count.
-		classBlockInstance(11, 1, "11:30", scheduleModels.InstanceStatusCancelled),
-		classBlockInstance(12, 1, "13:15", scheduleModels.InstanceStatusPlanned),
-		classBlockInstance(13, 3, "12:45", scheduleModels.InstanceStatusPlanned),
-		classBlockInstance(14, 4, "14:00", scheduleModels.InstanceStatusPlanned),
+		classBlockInstance(11, 1, "11:30", fixtures.InstanceStatusCancelled()),
+		classBlockInstance(12, 1, "13:15", fixtures.InstanceStatusPlanned()),
+		classBlockInstance(13, 3, "12:45", fixtures.InstanceStatusPlanned()),
+		classBlockInstance(14, 4, "14:00", fixtures.InstanceStatusPlanned()),
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), " 4A ", date)
@@ -73,8 +74,12 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 	date := calendar.NewDate(2026, 9, 7)
 
 	// Spontaneous blocks carry no template and therefore no class.
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		{ID: 20, Date: calendar.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModels.InstanceStatusPlanned},
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.ID = 20
+		fixtureRow.Date = calendar.Date(date)
+		fixtureRow.StartTime = time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC)
+		fixtureRow.Status = fixtures.InstanceStatusPlanned()
+	}),
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

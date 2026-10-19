@@ -87,7 +87,6 @@ func optionalDateString[D ~string](value *D) string {
 // (#2666). schedule.calendar_periods belongs to that owner; the reference
 // counts stay with the planning owner's usage repository.
 type calendarPeriodCalendarRepository struct {
-	UnfilteredListing[*scheduleModels.CalendarPeriod]
 	CalendarPeriodOverlapListing
 	calendar schoolcalendar.Capability
 	ports.CalendarPeriodUsageRepository
@@ -97,8 +96,7 @@ var _ ports.CalendarPeriodRecords = calendarPeriodCalendarRepository{}
 
 func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
 	repo := calendarPeriodCalendarRepository{calendar: capability, CalendarPeriodUsageRepository: usage}
-	repo.UnfilteredListing.Source = repo.FindByTenantID
-	repo.CalendarPeriodOverlapListing.Source = repo.listActiveOverlapping
+	repo.Source = repo.listActiveOverlapping
 	return repo
 }
 

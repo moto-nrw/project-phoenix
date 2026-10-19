@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 func timeframeRepository(t *testing.T, db *bun.DB) timeframeQueryRepository {
 	t.Helper()
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return factory.Timeframe.(timeframeQueryRepository)
+	return fixtures.FromTimeframeRecords(factory.Timeframe).(timeframeQueryRepository)
 }
 
 // ============================================================================
@@ -34,12 +34,12 @@ func TestTimeframeRepository_Create(t *testing.T) {
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
 		now := testpkg.WallClock(9, 0)
 		endTime := now.Add(2 * time.Hour)
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			EndTime:     &endTime,
-			IsActive:    true,
-			Description: "Test timeframe",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.EndTime = &endTime
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "Test timeframe"
+		})
 
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
@@ -49,11 +49,11 @@ func TestTimeframeRepository_Create(t *testing.T) {
 
 	t.Run("creates open-ended timeframe", func(t *testing.T) {
 		now := time.Now()
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    false,
-			Description: "Open-ended timeframe",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.IsActive = false
+			fixtureRow.Description = "Open-ended timeframe"
+		})
 
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
@@ -79,11 +79,12 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing timeframe", func(t *testing.T) {
 		now := time.Now()
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    true,
-			Description: "FindByID test",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "FindByID test"
+		})
+
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
 
@@ -109,11 +110,12 @@ func TestTimeframeRepository_Update(t *testing.T) {
 
 	t.Run("updates timeframe", func(t *testing.T) {
 		now := time.Now()
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    true,
-			Description: "Update test",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "Update test"
+		})
+
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
 
@@ -139,11 +141,12 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing timeframe", func(t *testing.T) {
 		now := time.Now()
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    true,
-			Description: "Delete test",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "Delete test"
+		})
+
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
 
@@ -169,11 +172,12 @@ func TestTimeframeRepository_List(t *testing.T) {
 
 	t.Run("lists all timeframes", func(t *testing.T) {
 		now := time.Now()
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    true,
-			Description: "List test",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "List test"
+		})
+
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
 
@@ -184,7 +188,11 @@ func TestTimeframeRepository_List(t *testing.T) {
 
 	t.Run("filters descriptions and paginates", func(t *testing.T) {
 		description := fmt.Sprintf("List filter %d", time.Now().UnixNano())
-		matching := &schedule.Timeframe{StartTime: time.Now(), IsActive: true, Description: description}
+		matching := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = time.Now()
+			fixtureRow.IsActive = true
+			fixtureRow.Description = description
+		})
 		require.NoError(t, repo.Create(ctx, matching))
 
 		options := newListOptions().WithPagination(1, 1)
@@ -207,12 +215,13 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
 		now := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		endTime := now.Add(2 * time.Hour)
-		timeframe := &schedule.Timeframe{
-			StartTime:   now,
-			EndTime:     &endTime,
-			IsActive:    true,
-			Description: "Time range test",
-		}
+		timeframe := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+			fixtureRow.StartTime = now
+			fixtureRow.EndTime = &endTime
+			fixtureRow.IsActive = true
+			fixtureRow.Description = "Time range test"
+		})
+
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
 

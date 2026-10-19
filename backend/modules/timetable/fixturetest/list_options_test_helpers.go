@@ -1,25 +1,24 @@
-package domain
+//go:build testhooks
+
+package fixturetest
 
 import "slices"
 
-// ListOptions is the list query of the retained schedule repositories: a
+// QueryOptions is the list query of the retained schedule repositories: a
 // filter, a page and a sort order. The repositories narrow it to their
 // bounded filters and reject what they cannot serve. It replaces the generic
 // query options of models/base for this owner (#4084).
-type ListOptions struct {
+type QueryOptions struct {
 	Filter     *ListFilter
 	Pagination *ListPagination
 	Sorting    *ListSorting
 }
 
-// NewListOptions returns options with an empty filter.
-func NewListOptions() *ListOptions {
-	return &ListOptions{Filter: NewListFilter()}
-}
+// NewQueryOptions returns options with an empty filter.
 
 // WithPagination sets the page; a page below 1 becomes 1 and a page size
 // below 1 becomes 20.
-func (o *ListOptions) WithPagination(page, pageSize int) *ListOptions {
+func (o *QueryOptions) WithPagination(page, pageSize int) *QueryOptions {
 	if page < 1 {
 		page = 1
 	}
@@ -58,9 +57,6 @@ type ListFilter struct {
 }
 
 // NewListFilter returns an empty filter.
-func NewListFilter() *ListFilter {
-	return &ListFilter{conditions: []ListCondition{}, or: []ListFilter{}, and: []ListFilter{}}
-}
 
 // Where adds a condition.
 func (f *ListFilter) Where(field string, operator ListOperator, value any) *ListFilter {

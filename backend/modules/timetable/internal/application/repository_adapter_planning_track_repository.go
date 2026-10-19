@@ -66,15 +66,6 @@ func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id int64) 
 	return nil
 }
 
-func (r timetablePlanningTrackRepository) List(ctx context.Context, filters map[string]any) ([]*scheduleModels.PlanningTrack, error) {
-	for _, value := range filters {
-		if value != nil {
-			return nil, WrapDatabaseError("list", errors.New("planning track filters are unsupported"))
-		}
-	}
-	return r.list(ctx, timetable.PlanningTrackFilter{}, "list")
-}
-
 func (r timetablePlanningTrackRepository) ListAll(ctx context.Context) ([]*scheduleModels.PlanningTrack, error) {
 	return r.list(ctx, timetable.PlanningTrackFilter{Ordered: true}, "list planning tracks")
 }
